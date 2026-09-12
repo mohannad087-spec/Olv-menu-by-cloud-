@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المبيعات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>تسجيل مبيعات يوم</h2>
+      <form id="sales-form">
+        <div class="row2">
+          <div class="field">
+            <label>التاريخ</label>
+            <input type="date" id="entry_date" required>
+          </div>
+          <div class="field">
+            <label>ملاحظات (اختياري)</label>
+            <input type="text" id="notes" placeholder="مثال: يوم جمعة مزدحم">
+          </div>
+        </div>
+        <div class="row3">
+          <div class="field">
+            <label>كاش</label>
+            <input type="number" id="cash_amount" step="0.01" min="0" value="0" required>
+          </div>
+          <div class="field">
+            <label>شبكة / فيزا</label>
+            <input type="number" id="card_amount" step="0.01" min="0" value="0" required>
+          </div>
+          <div class="field">
+            <label>توصيل / تطبيقات</label>
+            <input type="number" id="delivery_amount" step="0.01" min="0" value="0" required>
+          </div>
+        </div>
+        <button type="submit" class="btn gold" id="save-btn">حفظ المبيعات</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <h2>سجل المبيعات</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>التاريخ</th><th>كاش</th><th>شبكة</th><th>توصيل</th><th>الإجمالي</th><th>ملاحظات</th><th></th></tr></thead>
+          <tbody id="sales-body">
+            <tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>
+    olvRenderNav("sales");
+    let session = null;
+
+    async function loadSales() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("sales-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("sales_entries").select("*").order("entry_date", { ascending: false }).limit(60);
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((r) => {
+          const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+          return `<tr>
+            <td>${r.entry_date}</td>
+            <td>${olvFormatMoney(r.cash_amount)}</td>
+            <td>${olvFormatMoney(r.card_amount)}</td>
+            <td>${olvFormatMoney(r.delivery_amount)}</td>
+            <td>${olvFormatMoney(total)}</td>
+            <td>${r.notes || "—"}</td>
+            <td><button class="btn small danger" data-id="${r.id}">حذف</button></td>
+          </tr>`;
+        }).join("");
+        body.querySelectorAll("button[data-id]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("متأكد من حذف هذا القيد؟")) return;
+            const { error } = await window.supabaseClient.from("sales_entries").delete().eq("id", btn.dataset.id);
+            if (error) { olvShowError(errBox, error); return; }
+            loadSales();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      session = await olvRequireAuth();
+      if (!session) return;
+      document.getElementById("entry_date").value = olvToday();
+      await loadSales();
+    })();
+
+    document.getElementById("sales-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const btn = document.getElementById("save-btn");
+      btn.disabled = true;
+      try {
+        const payload = {
+          entry_date: document.getElementById("entry_date").value,
+          cash_amount: Number(document.getElementById("cash_amount").value || 0),
+          card_amount: Number(document.getElementById("card_amount").value || 0),
+          delivery_amount: Number(document.getElementById("delivery_amount").value || 0),
+          notes: document.getElementById("notes").value.trim() || null,
+          created_by: session.user.id,
+        };
+        const { error } = await window.supabaseClient.from("sales_entries").insert(payload);
+        if (error) throw error;
+        document.getElementById("sales-form").reset();
+        document.getElementById("entry_date").value = olvToday();
+        document.getElementById("cash_amount").value = 0;
+        document.getElementById("card_amount").value = 0;
+        document.getElementById("delivery_amount").value = 0;
+        await loadSales();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

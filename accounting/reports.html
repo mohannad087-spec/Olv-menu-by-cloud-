@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>التقارير — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>تقرير الأرباح والخسائر</h2>
+      <div class="row2">
+        <div class="field">
+          <label>من تاريخ</label>
+          <input type="date" id="from_date">
+        </div>
+        <div class="field">
+          <label>إلى تاريخ</label>
+          <input type="date" id="to_date">
+        </div>
+      </div>
+      <button class="btn gold" id="run-btn">عرض التقرير</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">إجمالي المبيعات</div>
+        <div class="value" id="r-sales">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">إجمالي المصروفات</div>
+        <div class="value" id="r-expenses">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">صافي الربح</div>
+        <div class="value" id="r-net">—</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>المبيعات حسب طريقة الدفع</h2>
+      <div class="bars" id="payment-bars"></div>
+    </div>
+
+    <div class="group">
+      <h2>المصروفات حسب التصنيف</h2>
+      <div class="bars" id="category-bars"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>
+    olvRenderNav("reports");
+
+    function renderBars(containerId, items) {
+      const el = document.getElementById(containerId);
+      if (!items.length) {
+        el.innerHTML = `<div class="hint">لا يوجد بيانات في هذه الفترة</div>`;
+        return;
+      }
+      const max = Math.max(...items.map((i) => i.value), 1);
+      el.innerHTML = items.map((i) => `
+        <div class="bar-row">
+          <div class="bar-label">${i.label}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(i.value / max) * 100}%"></div></div>
+          <div class="bar-value">${olvFormatMoney(i.value)}</div>
+        </div>
+      `).join("");
+    }
+
+    async function runReport() {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const from = document.getElementById("from_date").value;
+      const to = document.getElementById("to_date").value;
+      try {
+        const { data: sales, error: e1 } = await window.supabaseClient
+          .from("sales_entries").select("*").gte("entry_date", from).lte("entry_date", to);
+        if (e1) throw e1;
+
+        const { data: expenses, error: e2 } = await window.supabaseClient
+          .from("expenses").select("amount, expense_categories(name)")
+          .gte("expense_date", from).lte("expense_date", to);
+        if (e2) throw e2;
+
+        const cash = (sales || []).reduce((s, r) => s + Number(r.cash_amount), 0);
+        const card = (sales || []).reduce((s, r) => s + Number(r.card_amount), 0);
+        const delivery = (sales || []).reduce((s, r) => s + Number(r.delivery_amount), 0);
+        const totalSales = cash + card + delivery;
+        const totalExpenses = (expenses || []).reduce((s, r) => s + Number(r.amount), 0);
+        const net = totalSales - totalExpenses;
+
+        document.getElementById("r-sales").textContent = olvFormatMoney(totalSales);
+        document.getElementById("r-expenses").textContent = olvFormatMoney(totalExpenses);
+        const netEl = document.getElementById("r-net");
+        netEl.textContent = olvFormatMoney(net);
+        netEl.className = "value " + (net >= 0 ? "good" : "bad");
+
+        renderBars("payment-bars", [
+          { label: "كاش", value: cash },
+          { label: "شبكة / فيزا", value: card },
+          { label: "توصيل / تطبيقات", value: delivery },
+        ]);
+
+        const byCategory = {};
+        (expenses || []).forEach((r) => {
+          const name = r.expense_categories ? r.expense_categories.name : "بدون تصنيف";
+          byCategory[name] = (byCategory[name] || 0) + Number(r.amount);
+        });
+        const catItems = Object.entries(byCategory)
+          .map(([label, value]) => ({ label, value }))
+          .sort((a, b) => b.value - a.value);
+        renderBars("category-bars", catItems);
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      const today = new Date();
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      document.getElementById("from_date").value = firstOfMonth.toISOString().slice(0, 10);
+      document.getElementById("to_date").value = olvToday();
+      document.getElementById("run-btn").addEventListener("click", runReport);
+      await runReport();
+    })();
+  </script>
+</body>
+</html>

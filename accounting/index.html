@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الرئيسية — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">مبيعات اليوم</div>
+        <div class="value" id="stat-sales">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">مصروفات اليوم</div>
+        <div class="value" id="stat-expenses">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">صافي اليوم</div>
+        <div class="value" id="stat-net">—</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>آخر مبيعات مسجّلة</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>التاريخ</th><th>كاش</th><th>شبكة</th><th>توصيل</th><th>الإجمالي</th></tr></thead>
+          <tbody id="recent-sales-body">
+            <tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>آخر مصروفات مسجّلة</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>التاريخ</th><th>التصنيف</th><th>البيان</th><th>المبلغ</th></tr></thead>
+          <tbody id="recent-expenses-body">
+            <tr class="empty-row"><td colspan="4">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>
+    olvRenderNav("dashboard");
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      const errBox = document.getElementById("err");
+      const today = olvToday();
+
+      try {
+        const { data: todaySales, error: e1 } = await window.supabaseClient
+          .from("sales_entries").select("*").eq("entry_date", today);
+        if (e1) throw e1;
+
+        const { data: todayExpenses, error: e2 } = await window.supabaseClient
+          .from("expenses").select("amount").eq("expense_date", today);
+        if (e2) throw e2;
+
+        const totalSales = (todaySales || []).reduce(
+          (s, r) => s + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0
+        );
+        const totalExpenses = (todayExpenses || []).reduce((s, r) => s + Number(r.amount), 0);
+        const net = totalSales - totalExpenses;
+
+        document.getElementById("stat-sales").textContent = olvFormatMoney(totalSales);
+        document.getElementById("stat-expenses").textContent = olvFormatMoney(totalExpenses);
+        const netEl = document.getElementById("stat-net");
+        netEl.textContent = olvFormatMoney(net);
+        netEl.classList.add(net >= 0 ? "good" : "bad");
+
+        const { data: recentSales, error: e3 } = await window.supabaseClient
+          .from("sales_entries").select("*").order("entry_date", { ascending: false }).limit(8);
+        if (e3) throw e3;
+        const salesBody = document.getElementById("recent-sales-body");
+        if (!recentSales || !recentSales.length) {
+          salesBody.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
+        } else {
+          salesBody.innerHTML = recentSales.map((r) => {
+            const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+            return `<tr>
+              <td>${r.entry_date}</td>
+              <td>${olvFormatMoney(r.cash_amount)}</td>
+              <td>${olvFormatMoney(r.card_amount)}</td>
+              <td>${olvFormatMoney(r.delivery_amount)}</td>
+              <td>${olvFormatMoney(total)}</td>
+            </tr>`;
+          }).join("");
+        }
+
+        const { data: recentExpenses, error: e4 } = await window.supabaseClient
+          .from("expenses").select("*, expense_categories(name)")
+          .order("expense_date", { ascending: false }).limit(8);
+        if (e4) throw e4;
+        const expBody = document.getElementById("recent-expenses-body");
+        if (!recentExpenses || !recentExpenses.length) {
+          expBody.innerHTML = `<tr class="empty-row"><td colspan="4">لا يوجد مصروفات مسجّلة بعد</td></tr>`;
+        } else {
+          expBody.innerHTML = recentExpenses.map((r) => `
+            <tr>
+              <td>${r.expense_date}</td>
+              <td>${r.expense_categories ? r.expense_categories.name : "—"}</td>
+              <td>${r.description || "—"}</td>
+              <td>${olvFormatMoney(r.amount)}</td>
+            </tr>
+          `).join("");
+        }
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    })();
+  </script>
+</body>
+</html>

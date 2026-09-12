@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المصروفات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>تسجيل مصروف</h2>
+      <form id="expense-form">
+        <div class="row2">
+          <div class="field">
+            <label>التاريخ</label>
+            <input type="date" id="expense_date" required>
+          </div>
+          <div class="field">
+            <label>التصنيف</label>
+            <select id="category_id" required></select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>المبلغ</label>
+            <input type="number" id="amount" step="0.01" min="0" required>
+          </div>
+          <div class="field">
+            <label>البيان (اختياري)</label>
+            <input type="text" id="description" placeholder="مثال: فاتورة كهرباء شهر 9">
+          </div>
+        </div>
+        <button type="submit" class="btn gold" id="save-btn">حفظ المصروف</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <h2>سجل المصروفات</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>التاريخ</th><th>التصنيف</th><th>البيان</th><th>المبلغ</th><th></th></tr></thead>
+          <tbody id="expenses-body">
+            <tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>
+    olvRenderNav("expenses");
+    let session = null;
+    let categories = [];
+
+    async function loadCategories() {
+      const { data, error } = await window.supabaseClient
+        .from("expense_categories").select("*").order("name");
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      categories = data || [];
+      const sel = document.getElementById("category_id");
+      sel.innerHTML = categories.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+    }
+
+    async function loadExpenses() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("expenses-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("expenses").select("*, expense_categories(name)")
+          .order("expense_date", { ascending: false }).limit(60);
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد مصروفات مسجّلة بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((r) => `
+          <tr>
+            <td>${r.expense_date}</td>
+            <td>${r.expense_categories ? r.expense_categories.name : "—"}</td>
+            <td>${r.description || "—"}</td>
+            <td>${olvFormatMoney(r.amount)}</td>
+            <td><button class="btn small danger" data-id="${r.id}">حذف</button></td>
+          </tr>
+        `).join("");
+        body.querySelectorAll("button[data-id]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("متأكد من حذف هذا المصروف؟")) return;
+            const { error } = await window.supabaseClient.from("expenses").delete().eq("id", btn.dataset.id);
+            if (error) { olvShowError(errBox, error); return; }
+            loadExpenses();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      session = await olvRequireAuth();
+      if (!session) return;
+      document.getElementById("expense_date").value = olvToday();
+      await loadCategories();
+      await loadExpenses();
+    })();
+
+    document.getElementById("expense-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const btn = document.getElementById("save-btn");
+      btn.disabled = true;
+      try {
+        const payload = {
+          expense_date: document.getElementById("expense_date").value,
+          category_id: document.getElementById("category_id").value,
+          amount: Number(document.getElementById("amount").value || 0),
+          description: document.getElementById("description").value.trim() || null,
+          created_by: session.user.id,
+        };
+        const { error } = await window.supabaseClient.from("expenses").insert(payload);
+        if (error) throw error;
+        document.getElementById("expense-form").reset();
+        document.getElementById("expense_date").value = olvToday();
+        await loadExpenses();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
