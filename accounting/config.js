@@ -5,6 +5,6 @@
 // 3) هات القيم من Project Settings → API وحطها هنا
 // =====================================================================
 window.OLV_ACCOUNTING_CONFIG = {
-  SUPABASE_URL: "YOUR_SUPABASE_PROJECT_URL",
-  SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_PUBLIC_KEY",
+  SUPABASE_URL: "https://usogbwgjnbcaduqcqxqc.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_RJ1ED_u4pa3X_mGhrBc-jA_uq3UdT4R",
 };
