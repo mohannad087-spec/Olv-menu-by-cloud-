@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الخزينة — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>تقفيل خزينة اليوم</h2>
+      <form id="closing-form">
+        <div class="row2">
+          <div class="field">
+            <label>التاريخ</label>
+            <input type="date" id="closing_date" required>
+          </div>
+          <div class="field">
+            <label>رصيد أول اليوم (الافتتاحي)</label>
+            <input type="number" id="opening_balance" step="0.01" min="0" value="0" required>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>المفروض يكون في الخزينة (متوقع)</label>
+            <input type="number" id="expected_closing" step="0.01" min="0" value="0" required>
+            <div class="hint">افتراضي = الرصيد الافتتاحي + كاش اليوم من المبيعات − مصروفات اليوم النقدية</div>
+          </div>
+          <div class="field">
+            <label>الموجود فعليًا بالعدّ</label>
+            <input type="number" id="actual_closing" step="0.01" min="0" value="0" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>ملاحظات (اختياري)</label>
+          <input type="text" id="notes" placeholder="سبب أي عجز أو زيادة">
+        </div>
+        <button type="submit" class="btn gold" id="save-btn">حفظ التقفيل</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <h2>سجل التقفيلات</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>التاريخ</th><th>افتتاحي</th><th>متوقع</th><th>فعلي</th><th>الفرق</th><th>ملاحظات</th></tr></thead>
+          <tbody id="closings-body">
+            <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>
+    olvRenderNav("cash");
+    let session = null;
+
+    async function suggestExpected(dateStr) {
+      try {
+        const { data: sales } = await window.supabaseClient
+          .from("sales_entries").select("cash_amount").eq("entry_date", dateStr);
+        const cashSales = (sales || []).reduce((s, r) => s + Number(r.cash_amount), 0);
+        const opening = Number(document.getElementById("opening_balance").value || 0);
+        document.getElementById("expected_closing").value = (opening + cashSales).toFixed(2);
+      } catch (e) { /* تجاهل — مجرد اقتراح */ }
+    }
+
+    async function loadClosings() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("closings-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("cash_closings").select("*").order("closing_date", { ascending: false }).limit(30);
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد تقفيلات مسجّلة بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((r) => `
+          <tr>
+            <td>${r.closing_date}</td>
+            <td>${olvFormatMoney(r.opening_balance)}</td>
+            <td>${olvFormatMoney(r.expected_closing)}</td>
+            <td>${olvFormatMoney(r.actual_closing)}</td>
+            <td style="color:${Number(r.difference) < 0 ? '#e0a190' : (Number(r.difference) > 0 ? '#9dab63' : 'inherit')}">
+              ${olvFormatMoney(r.difference)}
+            </td>
+            <td>${r.notes || "—"}</td>
+          </tr>
+        `).join("");
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      session = await olvRequireAuth();
+      if (!session) return;
+      document.getElementById("closing_date").value = olvToday();
+      await loadClosings();
+      await suggestExpected(olvToday());
+
+      document.getElementById("closing_date").addEventListener("change", (e) => suggestExpected(e.target.value));
+      document.getElementById("opening_balance").addEventListener("change", () =>
+        suggestExpected(document.getElementById("closing_date").value)
+      );
+    })();
+
+    document.getElementById("closing-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const btn = document.getElementById("save-btn");
+      btn.disabled = true;
+      try {
+        const payload = {
+          closing_date: document.getElementById("closing_date").value,
+          opening_balance: Number(document.getElementById("opening_balance").value || 0),
+          expected_closing: Number(document.getElementById("expected_closing").value || 0),
+          actual_closing: Number(document.getElementById("actual_closing").value || 0),
+          notes: document.getElementById("notes").value.trim() || null,
+          closed_by: session.user.id,
+        };
+        const { error } = await window.supabaseClient.from("cash_closings").insert(payload);
+        if (error) throw error;
+        document.getElementById("closing-form").reset();
+        document.getElementById("closing_date").value = olvToday();
+        await loadClosings();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

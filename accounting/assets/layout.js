@@ -1,0 +1,32 @@
+// يرسم شريط التنقل العلوي المشترك بين كل صفحات المحاسبة
+function olvRenderNav(active) {
+  const links = [
+    { id: "dashboard", href: "index.html", label: "الرئيسية" },
+    { id: "sales", href: "sales.html", label: "المبيعات" },
+    { id: "expenses", href: "expenses.html", label: "المصروفات" },
+    { id: "cash", href: "cash-register.html", label: "الخزينة" },
+    { id: "reports", href: "reports.html", label: "التقارير" },
+    { id: "settings", href: "settings.html", label: "الإعدادات" },
+  ];
+  const nav = document.getElementById("olv-nav");
+  if (!nav) return;
+  nav.innerHTML = `
+    <div class="top">
+      <h1>محاسبة OLV <span>لوحة تحكم المطعم</span></h1>
+      <div class="actions">
+        <a class="btn small" href="../index.html">الموقع</a>
+        <button class="btn small danger" id="olv-logout-btn">خروج</button>
+      </div>
+    </div>
+    <div class="tabs">
+      ${links
+        .map(
+          (l) =>
+            `<a class="tab-link${l.id === active ? " on" : ""}" href="${l.href}">${l.label}</a>`
+        )
+        .join("")}
+    </div>
+  `;
+  const logoutBtn = document.getElementById("olv-logout-btn");
+  if (logoutBtn) logoutBtn.addEventListener("click", olvLogout);
+}
