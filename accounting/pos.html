@@ -17,6 +17,12 @@
     .pos-cart-panel{width:100%; position:sticky; bottom:0; top:auto; z-index:20; margin:0 -20px; padding:0 20px;}
   }
 
+  .pos-toolbar{display:flex; gap:10px; margin-bottom:14px;}
+  .pos-toolbar input[type=search]{
+    flex:1; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
+    padding:10px 14px; border-radius:10px; font-size:14px; font-family:'Tajawal',sans-serif;
+  }
+  .pos-toolbar input[type=search]:focus{outline:none; border-color:var(--gold);}
   .cat-tabs{display:flex; gap:8px; overflow-x:auto; margin-bottom:16px;}
   .cat-tab{
     flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
@@ -66,10 +72,18 @@
     padding:14px 0 0; margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px;
   }
   .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold-hi); font-weight:700;}
+  .cart-bar .actions{display:flex; gap:8px;}
   .cart-list{margin-bottom:0;}
   .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
   .cart-item .meta{color:var(--muted); font-size:12px;}
   .cart-empty{color:var(--muted); font-size:13px; text-align:center; padding:20px 0;}
+  .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .ticket-header h2{margin:0;}
+  .ticket-badge{
+    background:var(--gold); color:#100e08; font-size:12px; font-weight:700;
+    border-radius:999px; min-width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center;
+    padding:0 6px;
+  }
 </style>
 </head>
 <body>
@@ -79,6 +93,9 @@
 
     <div class="pos-layout">
       <div class="pos-main">
+        <div class="pos-toolbar">
+          <input type="search" id="product-search" placeholder="🔍 ابحث عن صنف...">
+        </div>
         <div class="cat-tabs" id="cat-tabs"></div>
         <div class="grid" id="products-grid">
           <div class="hint">جاري التحميل...</div>
@@ -87,11 +104,25 @@
 
       <aside class="pos-cart-panel">
         <div class="cart-panel-inner">
-          <h2 style="margin-bottom:12px;">سلة الطلب الحالي</h2>
+          <div class="ticket-header">
+            <h2>التذكرة</h2>
+            <span class="ticket-badge" id="ticket-badge">0</span>
+          </div>
+          <div class="field" style="margin-bottom:12px;">
+            <label>نوع الطلب</label>
+            <select id="order-type">
+              <option value="صالة">صالة</option>
+              <option value="سفري">سفري</option>
+              <option value="توصيل">توصيل</option>
+            </select>
+          </div>
           <div class="cart-list" id="cart-list"></div>
           <div class="cart-bar">
             <div>الإجمالي: <span class="total" id="cart-total">0.00</span></div>
-            <button class="btn gold" id="checkout-btn" disabled>إتمام البيع</button>
+            <div class="actions">
+              <button class="btn" id="save-draft-btn" disabled>حفظ</button>
+              <button class="btn gold" id="checkout-btn" disabled>الدفع</button>
+            </div>
           </div>
         </div>
       </aside>
@@ -142,7 +173,9 @@
     let addons = [];
     let popularity = {}; // product_id -> إجمالي الكمية المباعة تاريخيًا
     let activeCategory = "الكل";
+    let searchTerm = "";
     const BEST_SELLERS = "الأكثر مبيعًا";
+    const DRAFT_KEY = "olv_pos_draft";
 
     function sortByPopularity(list) {
       return list.slice().sort((a, b) => {
@@ -185,8 +218,11 @@
       } else {
         list = sortByPopularity(products.filter((p) => p.category === activeCategory));
       }
+      if (searchTerm) {
+        list = list.filter((p) => p.name.toLowerCase().includes(searchTerm));
+      }
       if (!list.length) {
-        grid.innerHTML = `<div class="hint">لا يوجد منتجات في هذا التصنيف. أضف منتجات من صفحة الإعدادات.</div>`;
+        grid.innerHTML = `<div class="hint">لا توجد أصناف مطابقة. جرّب تصنيفًا آخر أو أضف منتجات من صفحة الإعدادات.</div>`;
         return;
       }
       grid.innerHTML = list.map((p) => `
@@ -265,13 +301,44 @@
       document.body.appendChild(sheet);
     }
 
+    function saveDraft() {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        items: OlvCart.all(),
+        orderType: document.getElementById("order-type").value,
+      }));
+      const btn = document.getElementById("save-draft-btn");
+      const original = btn.textContent;
+      btn.textContent = "تم الحفظ ✓";
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    }
+
+    function restoreDraftIfAny() {
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        if (draft.items && draft.items.length) {
+          OlvCart.restore(draft.items);
+          if (draft.orderType) document.getElementById("order-type").value = draft.orderType;
+        }
+      } catch (e) { /* تجاهل أي تذكرة محفوظة تالفة */ }
+    }
+
+    function clearDraft() {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+
     function renderCart() {
       const cart = OlvCart.all();
       const list = document.getElementById("cart-list");
       const checkoutBtn = document.getElementById("checkout-btn");
+      const saveDraftBtn = document.getElementById("save-draft-btn");
+      const itemCount = cart.reduce((s, item) => s + item.qty, 0);
+      document.getElementById("ticket-badge").textContent = itemCount;
       if (!cart.length) {
         list.innerHTML = `<div class="cart-empty">السلة فارغة — اختر أصنافًا من القائمة</div>`;
         checkoutBtn.disabled = true;
+        saveDraftBtn.disabled = true;
       } else {
         list.innerHTML = cart.map((item, idx) => `
           <div class="cart-item">
@@ -292,6 +359,7 @@
           });
         });
         checkoutBtn.disabled = false;
+        saveDraftBtn.disabled = false;
       }
       document.getElementById("cart-total").textContent = olvFormatMoney(OlvCart.total());
     }
@@ -324,7 +392,9 @@
         const errBox = document.getElementById("err");
         try {
           const method = sheet.querySelector("#pay-method").value;
-          await OlvCart.checkout({ paymentMethod: method, entryDate: olvToday(), extraNotes: "بيع سريع" });
+          const orderType = document.getElementById("order-type").value;
+          await OlvCart.checkout({ paymentMethod: method, entryDate: olvToday(), extraNotes: `بيع سريع — ${orderType}` });
+          clearDraft();
           renderCart();
           close();
           window.location.href = "index.html";
@@ -358,8 +428,14 @@
       } catch (err) {
         olvShowError(errBox, err);
       }
+      restoreDraftIfAny();
       renderCart();
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
+      document.getElementById("save-draft-btn").addEventListener("click", saveDraft);
+      document.getElementById("product-search").addEventListener("input", (e) => {
+        searchTerm = e.target.value.trim().toLowerCase();
+        renderGrid();
+      });
     })();
   </script>
 </body>
