@@ -34,6 +34,11 @@
 
     <div class="group">
       <h2>المنتجات (للبيع السريع)</h2>
+      <p class="hint" style="margin-bottom:12px;">
+        الأصناف بتتسحب من منيو الموقع نفسه — مفيش داعي تكتبها يدوي مرتين.
+      </p>
+      <button type="button" class="btn gold" id="import-menu-btn">📥 استيراد كل الأصناف من المنيو</button>
+      <div style="height:18px;"></div>
       <form id="product-form">
         <div class="row2">
           <div class="field">
@@ -201,6 +206,58 @@
         olvShowError(errBox, err);
       }
     }
+
+    async function importFromMenu() {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const btn = document.getElementById("import-menu-btn");
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = "جاري الاستيراد...";
+      try {
+        const res = await fetch("../index.html");
+        if (!res.ok) throw new Error("تعذّر تحميل ملف المنيو (index.html)");
+        const html = await res.text();
+        const m = html.match(/const DATA = (\[[\s\S]*?\n\]);\n\nlet lang/);
+        if (!m) throw new Error("لم يتم العثور على بيانات الأصناف داخل المنيو");
+        const menuData = new Function("return " + m[1])();
+
+        const flatItems = [];
+        (menuData || []).forEach((cat) => {
+          (cat.groups || []).forEach((group) => {
+            (group.items || []).forEach((item) => {
+              if (!item.ar || item.p == null) return;
+              flatItems.push({
+                name: item.ar,
+                price: Number(item.p),
+                category: group.ar || cat.ar || "عام",
+              });
+            });
+          });
+        });
+
+        const { data: existing, error: exErr } = await window.supabaseClient.from("products").select("name");
+        if (exErr) throw exErr;
+        const existingNames = new Set((existing || []).map((p) => p.name));
+        const newItems = flatItems.filter((i) => !existingNames.has(i.name));
+
+        if (!newItems.length) {
+          alert("كل أصناف المنيو موجودة بالفعل في قائمة المنتجات");
+        } else {
+          const { error: insErr } = await window.supabaseClient.from("products").insert(newItems);
+          if (insErr) throw insErr;
+          alert(`تم استيراد ${newItems.length} صنف جديد من المنيو`);
+          await loadProducts();
+        }
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
+    }
+
+    document.getElementById("import-menu-btn").addEventListener("click", importFromMenu);
 
     document.getElementById("product-form").addEventListener("submit", async (e) => {
       e.preventDefault();
