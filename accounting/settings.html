@@ -96,6 +96,21 @@
       </div>
     </div>
 
+    <div class="group" style="border-color:rgba(193,88,63,.5);">
+      <h2 style="color:var(--danger-hi);">منطقة الخطر</h2>
+      <p class="hint" style="margin-bottom:16px;">
+        هذه الإجراءات تحذف بيانات فعليًا ولا يمكن التراجع عنها. تتطلب كل منها
+        إدخال الرقم السري ثم تأكيدًا إضافيًا. الرقم السري مخزَّن في جدول
+        <code>app_settings</code> (المفتاح <code>reset_pin</code>) ويمكن
+        تغييره في أي وقت مباشرة من Supabase Table Editor.
+      </p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button type="button" class="btn danger" id="reset-stock-btn">تصفير كميات كل المواد الخام</button>
+        <button type="button" class="btn danger" id="delete-ingredients-btn">حذف كل المواد الخام ووصفاتها نهائيًا</button>
+        <button type="button" class="btn danger" id="delete-sales-btn">حذف سجل المبيعات بالكامل</button>
+      </div>
+    </div>
+
     <div class="group">
       <h2>حسابي</h2>
       <p class="hint" id="me-info">جاري التحميل...</p>
@@ -347,6 +362,51 @@
       } catch (err) {
         olvShowError(errBox, err);
       }
+    });
+
+    async function checkResetPin() {
+      const entered = prompt("أدخل الرقم السري لتأكيد هذا الإجراء:");
+      if (entered === null) return false;
+      const { data, error } = await window.supabaseClient
+        .from("app_settings").select("value").eq("key", "reset_pin").maybeSingle();
+      if (error) { olvShowError(document.getElementById("err"), error); return false; }
+      const correctPin = data ? data.value : "1234";
+      if (entered !== correctPin) {
+        alert("الرقم السري غير صحيح");
+        return false;
+      }
+      return true;
+    }
+
+    document.getElementById("reset-stock-btn").addEventListener("click", async () => {
+      if (!(await checkResetPin())) return;
+      if (!confirm("سيتم تصفير كميات كل المواد الخام إلى صفر. هل أنت متأكد؟")) return;
+      const errBox = document.getElementById("err");
+      const { data: rows, error: readErr } = await window.supabaseClient.from("ingredients").select("id");
+      if (readErr) { olvShowError(errBox, readErr); return; }
+      for (const row of rows || []) {
+        const { error } = await window.supabaseClient.from("ingredients").update({ current_stock: 0 }).eq("id", row.id);
+        if (error) { olvShowError(errBox, error); return; }
+      }
+      alert("تم تصفير كميات كل المواد الخام");
+    });
+
+    document.getElementById("delete-ingredients-btn").addEventListener("click", async () => {
+      if (!(await checkResetPin())) return;
+      if (!confirm("سيتم حذف كل المواد الخام ووصفاتها نهائيًا ولا يمكن التراجع. هل أنت متأكد؟")) return;
+      const errBox = document.getElementById("err");
+      const { error } = await window.supabaseClient.from("ingredients").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) { olvShowError(errBox, error); return; }
+      alert("تم حذف كل المواد الخام ووصفاتها");
+    });
+
+    document.getElementById("delete-sales-btn").addEventListener("click", async () => {
+      if (!(await checkResetPin())) return;
+      if (!confirm("سيتم حذف سجل المبيعات بالكامل (بما في ذلك بيانات الأكثر مبيعًا) نهائيًا ولا يمكن التراجع. هل أنت متأكد؟")) return;
+      const errBox = document.getElementById("err");
+      const { error } = await window.supabaseClient.from("sales_entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) { olvShowError(errBox, error); return; }
+      alert("تم حذف سجل المبيعات بالكامل");
     });
 
     (async () => {
