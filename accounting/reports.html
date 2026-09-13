@@ -7,11 +7,45 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
+<style>
+  #print-area{display:none;}
+  @media print {
+    body *{visibility:hidden;}
+    #print-area, #print-area *{visibility:visible;}
+    #print-area{display:block; position:absolute; inset:0 0 auto 0; padding:24px; background:#fff; color:#111;}
+    #print-area h1{font-size:20px; margin-bottom:2px;}
+    #print-area .range{color:#555; font-size:13px; margin-bottom:18px;}
+    #print-area table{width:100%; border-collapse:collapse; margin-bottom:22px;}
+    #print-area th, #print-area td{border:1px solid #ccc; padding:6px 8px; text-align:right; font-size:13px;}
+    #print-area th{background:#f2f2f2;}
+    #print-area .totals td{font-weight:700;}
+  }
+</style>
 </head>
 <body>
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
+
+    <div id="print-area">
+      <h1>تقرير الأرباح والخسائر — OLV</h1>
+      <div class="range" id="print-range"></div>
+      <table>
+        <tbody>
+          <tr><td>إجمالي المبيعات</td><td id="print-sales"></td></tr>
+          <tr><td>إجمالي المصروفات</td><td id="print-expenses"></td></tr>
+          <tr class="totals"><td>صافي الربح</td><td id="print-net"></td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th>طريقة الدفع</th><th>المبلغ</th></tr></thead>
+        <tbody id="print-payment-body"></tbody>
+      </table>
+      <table>
+        <thead><tr><th>تصنيف المصروف</th><th>المبلغ</th></tr></thead>
+        <tbody id="print-category-body"></tbody>
+      </table>
+    </div>
 
     <div class="group">
       <h2>تقرير الأرباح والخسائر</h2>
@@ -26,6 +60,7 @@
         </div>
       </div>
       <button class="btn gold" id="run-btn">عرض التقرير</button>
+      <button class="btn" id="pdf-btn">⬇ تصدير PDF</button>
     </div>
 
     <div class="stats">
@@ -78,6 +113,8 @@
       `).join("");
     }
 
+    let lastReport = null;
+
     async function runReport() {
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
@@ -121,9 +158,34 @@
           .map(([label, value]) => ({ label, value }))
           .sort((a, b) => b.value - a.value);
         renderBars("category-bars", catItems);
+
+        lastReport = {
+          from, to, totalSales, totalExpenses, net,
+          payment: [
+            { label: "كاش", value: cash },
+            { label: "شبكة / فيزا", value: card },
+            { label: "توصيل / تطبيقات", value: delivery },
+          ],
+          categories: catItems,
+        };
       } catch (err) {
         olvShowError(errBox, err);
       }
+    }
+
+    function exportPdf() {
+      if (!lastReport) return;
+      const r = lastReport;
+      document.getElementById("print-range").textContent = `من ${r.from} إلى ${r.to}`;
+      document.getElementById("print-sales").textContent = olvFormatMoney(r.totalSales);
+      document.getElementById("print-expenses").textContent = olvFormatMoney(r.totalExpenses);
+      document.getElementById("print-net").textContent = olvFormatMoney(r.net);
+      document.getElementById("print-payment-body").innerHTML = r.payment
+        .map((i) => `<tr><td>${i.label}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("");
+      document.getElementById("print-category-body").innerHTML = r.categories.length
+        ? r.categories.map((i) => `<tr><td>${i.label}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("")
+        : `<tr><td colspan="2">لا يوجد مصروفات في هذه الفترة</td></tr>`;
+      window.print();
     }
 
     (async () => {
@@ -134,6 +196,7 @@
       document.getElementById("from_date").value = firstOfMonth.toISOString().slice(0, 10);
       document.getElementById("to_date").value = olvToday();
       document.getElementById("run-btn").addEventListener("click", runReport);
+      document.getElementById("pdf-btn").addEventListener("click", exportPdf);
       await runReport();
     })();
   </script>

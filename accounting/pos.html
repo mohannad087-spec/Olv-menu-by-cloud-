@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>بيع سريع — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .cat-tabs{display:flex; gap:8px; overflow-x:auto; margin-bottom:16px;}
+  .cat-tab{
+    flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
+    padding:8px 14px; border-radius:999px; font-size:13px; white-space:nowrap;
+  }
+  .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; margin-bottom:20px;}
+  .card{
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; overflow:hidden; cursor:pointer;
+    transition:.15s; text-align:center;
+  }
+  .card:active{transform:scale(.97);}
+  .card .thumb{
+    width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:var(--ink-3);
+  }
+  .card .thumb-fallback{
+    width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,var(--ink-3),var(--ink-2)); color:var(--gold-hi);
+    font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:600;
+  }
+  .card .info{padding:8px 8px 12px;}
+  .card .name{font-size:13px; margin-bottom:4px;}
+  .card .price{font-size:13px; color:var(--gold-hi); font-weight:700;}
+
+  .sheet{
+    position:fixed; inset:auto 0 0 0; background:var(--ink-2); border-top:1px solid var(--hair);
+    border-radius:18px 18px 0 0; padding:18px 20px calc(18px + env(safe-area-inset-bottom));
+    z-index:50; box-shadow:0 -10px 30px rgba(0,0,0,.4); max-height:80vh; overflow-y:auto;
+  }
+  .sheet-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:40;}
+  .qty-row{display:flex; align-items:center; gap:14px; margin:14px 0;}
+  .qty-row button{
+    width:38px; height:38px; border-radius:10px; border:1px solid var(--hair); background:var(--ink-3);
+    color:var(--paper); font-size:18px;
+  }
+  .addon-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1));}
+  .addon-row label{flex:1; font-size:13.5px;}
+  .addon-row .a-price{color:var(--muted); font-size:12.5px;}
+
+  .cart-bar{
+    position:sticky; bottom:0; background:var(--ink-2); border-top:1px solid var(--hair);
+    padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin:0 -20px;
+  }
+  .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold-hi); font-weight:700;}
+  .cart-list{margin-bottom:14px;}
+  .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
+  .cart-item .meta{color:var(--muted); font-size:12px;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="cat-tabs" id="cat-tabs"></div>
+    <div class="grid" id="products-grid">
+      <div class="hint">جاري التحميل...</div>
+    </div>
+
+    <div class="group" id="cart-group" hidden>
+      <h2>السلة</h2>
+      <div class="cart-list" id="cart-list"></div>
+      <div class="cart-bar">
+        <div>الإجمالي: <span class="total" id="cart-total">0.00</span></div>
+        <button class="btn gold" id="checkout-btn">إتمام البيع</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>
+    olvRenderNav("pos");
+
+    let session = null;
+    let products = [];
+    let addons = [];
+    let activeCategory = "الكل";
+    let cart = []; // {id, name, unitBase, addons:[{name,price}], qty}
+
+    function renderCategoryTabs() {
+      const cats = ["الكل", ...new Set(products.map((p) => p.category))];
+      document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
+        <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">${c}</button>
+      `).join("");
+      document.querySelectorAll(".cat-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          activeCategory = btn.dataset.cat;
+          renderCategoryTabs();
+          renderGrid();
+        });
+      });
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById("products-grid");
+      const list = activeCategory === "الكل" ? products : products.filter((p) => p.category === activeCategory);
+      if (!list.length) {
+        grid.innerHTML = `<div class="hint">لا يوجد منتجات في هذا التصنيف. أضف منتجات من صفحة الإعدادات.</div>`;
+        return;
+      }
+      grid.innerHTML = list.map((p) => `
+        <div class="card" data-id="${p.id}">
+          ${p.image_url
+            ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb-fallback',textContent:'${(p.name || "?").charAt(0)}'}))">`
+            : `<div class="thumb-fallback">${(p.name || "?").charAt(0)}</div>`
+          }
+          <div class="info">
+            <div class="name">${p.name}</div>
+            <div class="price">${olvFormatMoney(p.price)}</div>
+          </div>
+        </div>
+      `).join("");
+      grid.querySelectorAll(".card").forEach((card) => {
+        card.addEventListener("click", () => openAddSheet(card.dataset.id));
+      });
+    }
+
+    function openAddSheet(productId) {
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+      const backdrop = document.createElement("div");
+      backdrop.className = "sheet-backdrop";
+      const sheet = document.createElement("div");
+      sheet.className = "sheet";
+      let qty = 1;
+      const selectedAddons = new Set();
+
+      function render() {
+        sheet.innerHTML = `
+          <h2 style="margin-bottom:10px;">${product.name}</h2>
+          <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(product.price)}</div>
+          ${addons.length ? `
+            <div style="margin-bottom:10px;">
+              ${addons.map((a) => `
+                <div class="addon-row">
+                  <input type="checkbox" data-addon="${a.id}" id="addon-${a.id}" ${selectedAddons.has(a.id) ? "checked" : ""}>
+                  <label for="addon-${a.id}">${a.name}</label>
+                  <span class="a-price">+${olvFormatMoney(a.price)}</span>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+          <div class="qty-row">
+            <button type="button" id="qty-minus">−</button>
+            <div style="font-size:16px; min-width:24px; text-align:center;">${qty}</div>
+            <button type="button" id="qty-plus">+</button>
+          </div>
+          <button class="btn gold" id="sheet-add" style="width:100%;">إضافة للسلة</button>
+          <button class="btn" id="sheet-cancel" style="width:100%; margin-top:8px;">إلغاء</button>
+        `;
+        sheet.querySelectorAll("input[data-addon]").forEach((cb) => {
+          cb.addEventListener("change", () => {
+            if (cb.checked) selectedAddons.add(cb.dataset.addon);
+            else selectedAddons.delete(cb.dataset.addon);
+          });
+        });
+        sheet.querySelector("#qty-minus").addEventListener("click", () => { qty = Math.max(1, qty - 1); render(); });
+        sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; render(); });
+        sheet.querySelector("#sheet-cancel").addEventListener("click", close);
+        sheet.querySelector("#sheet-add").addEventListener("click", () => {
+          const chosenAddons = addons.filter((a) => selectedAddons.has(a.id)).map((a) => ({ name: a.name, price: Number(a.price) }));
+          cart.push({ id: product.id, name: product.name, unitBase: Number(product.price), addons: chosenAddons, qty });
+          renderCart();
+          close();
+        });
+      }
+      function close() {
+        backdrop.remove();
+        sheet.remove();
+      }
+      backdrop.addEventListener("click", close);
+      render();
+      document.body.appendChild(backdrop);
+      document.body.appendChild(sheet);
+    }
+
+    function lineTotal(item) {
+      const addonsTotal = item.addons.reduce((s, a) => s + a.price, 0);
+      return (item.unitBase + addonsTotal) * item.qty;
+    }
+
+    function renderCart() {
+      const group = document.getElementById("cart-group");
+      const list = document.getElementById("cart-list");
+      if (!cart.length) {
+        group.hidden = true;
+        return;
+      }
+      group.hidden = false;
+      list.innerHTML = cart.map((item, idx) => `
+        <div class="cart-item">
+          <div>
+            <div>${item.qty}× ${item.name}</div>
+            ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span>${olvFormatMoney(lineTotal(item))}</span>
+            <button class="btn small danger" data-idx="${idx}">حذف</button>
+          </div>
+        </div>
+      `).join("");
+      list.querySelectorAll("button[data-idx]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          cart.splice(Number(btn.dataset.idx), 1);
+          renderCart();
+        });
+      });
+      const total = cart.reduce((s, item) => s + lineTotal(item), 0);
+      document.getElementById("cart-total").textContent = olvFormatMoney(total);
+    }
+
+    function openCheckoutSheet() {
+      const total = cart.reduce((s, item) => s + lineTotal(item), 0);
+      const backdrop = document.createElement("div");
+      backdrop.className = "sheet-backdrop";
+      const sheet = document.createElement("div");
+      sheet.className = "sheet";
+      sheet.innerHTML = `
+        <h2 style="margin-bottom:14px;">إتمام البيع — ${olvFormatMoney(total)}</h2>
+        <div class="field">
+          <label>طريقة الدفع</label>
+          <select id="pay-method">
+            <option value="cash">كاش</option>
+            <option value="card">شبكة / فيزا</option>
+            <option value="delivery">توصيل / تطبيقات</option>
+          </select>
+        </div>
+        <button class="btn gold" id="confirm-sale" style="width:100%;">تأكيد البيع</button>
+        <button class="btn" id="cancel-sale" style="width:100%; margin-top:8px;">رجوع</button>
+      `;
+      function close() { backdrop.remove(); sheet.remove(); }
+      backdrop.addEventListener("click", close);
+      sheet.querySelector("#cancel-sale").addEventListener("click", close);
+      sheet.querySelector("#confirm-sale").addEventListener("click", async () => {
+        const btn = sheet.querySelector("#confirm-sale");
+        btn.disabled = true;
+        const errBox = document.getElementById("err");
+        try {
+          const method = sheet.querySelector("#pay-method").value;
+          const notes = cart.map((item) => {
+            const addonsTxt = item.addons.length ? ` (${item.addons.map((a) => a.name).join("، ")})` : "";
+            return `${item.qty}x ${item.name}${addonsTxt}`;
+          }).join("، ");
+          const payload = {
+            entry_date: olvToday(),
+            cash_amount: method === "cash" ? total : 0,
+            card_amount: method === "card" ? total : 0,
+            delivery_amount: method === "delivery" ? total : 0,
+            notes: "بيع سريع: " + notes,
+            created_by: session.user.id,
+          };
+          const { error } = await window.supabaseClient.from("sales_entries").insert(payload);
+          if (error) throw error;
+          cart = [];
+          renderCart();
+          close();
+          window.location.href = "index.html";
+        } catch (err) {
+          olvShowError(errBox, err);
+          btn.disabled = false;
+        }
+      });
+      document.body.appendChild(backdrop);
+      document.body.appendChild(sheet);
+    }
+
+    (async () => {
+      session = await olvRequireAuth();
+      if (!session) return;
+      const errBox = document.getElementById("err");
+      try {
+        const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }] = await Promise.all([
+          window.supabaseClient.from("products").select("*").eq("is_active", true).order("category").order("sort_order"),
+          window.supabaseClient.from("addons").select("*").eq("is_active", true).order("name"),
+        ]);
+        if (e1) throw e1;
+        if (e2) throw e2;
+        products = prodData || [];
+        addons = addonData || [];
+        renderCategoryTabs();
+        renderGrid();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+      document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
+    })();
+  </script>
+</body>
+</html>
