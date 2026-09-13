@@ -488,11 +488,14 @@
             const payMethod = sheet.querySelector("#pay-method").value;
             const orderType = document.getElementById("order-type").value;
             let extraNotes = "بيع سريع";
+            let cashReceived = null;
+            let changeDue = null;
             if (payMethod === "cash" && cashInput) {
-              const received = Number(cashInput.value || 0);
-              extraNotes += ` — مستلم ${olvFormatMoney(received)}، الباقي ${olvFormatMoney(Math.max(received - total, 0))}`;
+              cashReceived = Number(cashInput.value || 0);
+              changeDue = Math.max(cashReceived - total, 0);
+              extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
             }
-            await OlvCart.checkout({ paymentMethod: payMethod, entryDate: olvToday(), extraNotes, orderType });
+            await OlvCart.checkout({ paymentMethod: payMethod, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue });
             clearDraft();
             renderCart();
             close();

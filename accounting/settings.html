@@ -109,6 +109,64 @@
       </div>
     </div>
 
+    <div class="group">
+      <h2>الطباعة التلقائية</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        عند تأكيد أي عملية بيع، يُرسَل تلقائيًا إشعار طباعة إلى طابعة المطبخ وطابعة الفاتورة.
+        الإرسال الفعلي إلى الطابعات الحرارية الشبكية (Epson / Star) يتم عبر برنامج صغير
+        اسمه "print-bridge" يجب تشغيله مرة واحدة على أي جهاز كمبيوتر متصل بنفس شبكة
+        المطعم اللاسلكية التي تتصل بها الطابعات. راجع ملف
+        <code>print-bridge/README.md</code> في المشروع لخطوات التركيب والتشغيل.
+      </p>
+      <form id="printer-form">
+        <div class="field">
+          <label>اسم المطعم (يظهر أعلى الفاتورة)</label>
+          <input type="text" id="pr-restaurant-name" placeholder="مثال: مطعم OLV">
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>
+              <input type="checkbox" id="pr-kitchen-enabled" style="width:auto; margin-inline-end:8px;">
+              تفعيل طابعة المطبخ
+            </label>
+            <input type="text" id="pr-kitchen-ip" placeholder="عنوان IP، مثال: 192.168.1.50" style="margin-top:8px;">
+          </div>
+          <div class="field">
+            <label>منفذ طابعة المطبخ</label>
+            <input type="number" id="pr-kitchen-port" value="9100">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>
+              <input type="checkbox" id="pr-receipt-enabled" style="width:auto; margin-inline-end:8px;">
+              تفعيل طابعة الفاتورة / الكاش
+            </label>
+            <input type="text" id="pr-receipt-ip" placeholder="عنوان IP، مثال: 192.168.1.51" style="margin-top:8px;">
+          </div>
+          <div class="field">
+            <label>منفذ طابعة الفاتورة</label>
+            <input type="number" id="pr-receipt-port" value="9100">
+          </div>
+        </div>
+        <button type="submit" class="btn gold" id="printer-save-btn">حفظ إعدادات الطابعات</button>
+      </form>
+
+      <div style="height:20px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h3 style="margin:0; font-size:15px; color:var(--muted);">آخر عمليات الطباعة</h3>
+        <button type="button" class="btn small" id="refresh-print-jobs-btn">تحديث</button>
+      </div>
+      <div class="table-wrap" style="margin-top:10px;">
+        <table>
+          <thead><tr><th>الوقت</th><th>النوع</th><th>الحالة</th><th>ملاحظة</th><th></th></tr></thead>
+          <tbody id="print-jobs-body">
+            <tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="group" style="border-color:rgba(193,88,63,.5);">
       <h2 style="color:var(--danger-hi);">منطقة الخطر</h2>
       <p class="hint" style="margin-bottom:16px;">
@@ -377,6 +435,103 @@
       }
     });
 
+    async function loadPrinterSettings() {
+      const errBox = document.getElementById("err");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("printer_settings").select("*").eq("id", 1).maybeSingle();
+        if (error) throw error;
+        const s = data || {};
+        document.getElementById("pr-restaurant-name").value = s.restaurant_name || "";
+        document.getElementById("pr-kitchen-enabled").checked = !!s.kitchen_enabled;
+        document.getElementById("pr-kitchen-ip").value = s.kitchen_ip || "";
+        document.getElementById("pr-kitchen-port").value = s.kitchen_port || 9100;
+        document.getElementById("pr-receipt-enabled").checked = !!s.receipt_enabled;
+        document.getElementById("pr-receipt-ip").value = s.receipt_ip || "";
+        document.getElementById("pr-receipt-port").value = s.receipt_port || 9100;
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    const PRINT_JOB_LABELS = {
+      kitchen: "المطبخ",
+      receipt: "الفاتورة",
+    };
+    const PRINT_STATUS_LABELS = {
+      pending: "قيد الإرسال",
+      printed: "تمت الطباعة ✓",
+      error: "خطأ",
+      skipped: "الطابعة غير مفعّلة",
+    };
+
+    async function loadPrintJobs() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("print-jobs-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("print_jobs").select("*").order("created_at", { ascending: false }).limit(25);
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد عمليات طباعة بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((j) => {
+          const time = new Date(j.created_at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+          const color = j.status === "error" ? "var(--danger-hi)" : j.status === "printed" ? "var(--ok)" : "var(--muted)";
+          return `
+            <tr>
+              <td>${time}</td>
+              <td>${PRINT_JOB_LABELS[j.job_type] || j.job_type}</td>
+              <td style="color:${color};">${PRINT_STATUS_LABELS[j.status] || j.status}</td>
+              <td>${j.error_message || "—"}</td>
+              <td>${j.status === "error" ? `<button class="btn small" data-retry="${j.id}">إعادة المحاولة</button>` : ""}</td>
+            </tr>
+          `;
+        }).join("");
+        body.querySelectorAll("button[data-retry]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const { error } = await window.supabaseClient
+              .from("print_jobs").update({ status: "pending", error_message: null }).eq("id", btn.dataset.retry);
+            if (error) { olvShowError(errBox, error); return; }
+            await loadPrintJobs();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    document.getElementById("printer-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const btn = document.getElementById("printer-save-btn");
+      btn.disabled = true;
+      try {
+        const payload = {
+          id: 1,
+          restaurant_name: document.getElementById("pr-restaurant-name").value.trim() || "OLV",
+          kitchen_enabled: document.getElementById("pr-kitchen-enabled").checked,
+          kitchen_ip: document.getElementById("pr-kitchen-ip").value.trim() || null,
+          kitchen_port: Number(document.getElementById("pr-kitchen-port").value || 9100),
+          receipt_enabled: document.getElementById("pr-receipt-enabled").checked,
+          receipt_ip: document.getElementById("pr-receipt-ip").value.trim() || null,
+          receipt_port: Number(document.getElementById("pr-receipt-port").value || 9100),
+          updated_at: new Date().toISOString(),
+        };
+        const { error } = await window.supabaseClient.from("printer_settings").upsert(payload);
+        if (error) throw error;
+        alert("تم حفظ إعدادات الطابعات");
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("refresh-print-jobs-btn").addEventListener("click", loadPrintJobs);
+
     async function checkResetPin() {
       const entered = prompt("أدخل الرقم السري لتأكيد هذا الإجراء:");
       if (entered === null) return false;
@@ -429,6 +584,8 @@
       await loadCategories();
       await loadProducts();
       await loadAddons();
+      await loadPrinterSettings();
+      await loadPrintJobs();
     })();
 
     document.getElementById("cat-form").addEventListener("submit", async (e) => {
