@@ -34,12 +34,8 @@
   }
   .card .thumb-fallback{
     width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(135deg,var(--ink-3),var(--ink-2)); color:var(--gold-hi);
-    font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:600;
-  }
-  .card .no-image-badge{
-    position:absolute; top:6px; inset-inline-start:6px; font-size:10px; color:var(--danger-hi);
-    background:rgba(10,10,9,.75); border-radius:6px; padding:2px 6px;
+    background:linear-gradient(135deg,var(--ink-3),var(--ink-2));
+    font-size:40px;
   }
   .card .info{padding:8px 8px 12px;}
   .card .name{font-size:13px; margin-bottom:4px;}
@@ -111,15 +107,34 @@
   <script>
     olvRenderNav("pos");
 
+    // أيقونة تعبيرية مناسبة للتصنيف تُستخدم كواجهة افتراضية أنيقة عند عدم توفر صورة حقيقية للصنف
+    function categoryEmoji(category) {
+      const c = category || "";
+      const rules = [
+        [/برغر|سندويش|شاورما/, "🍔"],
+        [/بطاطا|سناك|ناتشوز|أجنحة|وودجز/, "🍟"],
+        [/سلطة|مقبلات|حمص|فتوش|مناقيش/, "🥗"],
+        [/قهوة|إسبريسو|كابتشينو|لاتيه|شاي|ساخن/, "☕"],
+        [/عصير|سموذي|كوكتيل/, "🥤"],
+        [/بارد|موهيتو|ليموناضة|آيس/, "🧊"],
+        [/بوظة|آيس كريم|ميلك شيك/, "🍨"],
+        [/دونات/, "🍩"],
+        [/كيك|تشيز كيك|تيراميسو|حلويات/, "🍰"],
+        [/أرجيلة|نكهات|شيشة/, "💨"],
+        [/إضاف/, "➕"],
+        [/مشروبات/, "🥤"],
+      ];
+      for (const [pattern, emoji] of rules) {
+        if (pattern.test(c)) return emoji;
+      }
+      return "🍽️";
+    }
+
     function olvHandleImageError(img) {
       const fallback = document.createElement("div");
       fallback.className = "thumb-fallback";
-      fallback.textContent = img.dataset.fallbackLetter || "?";
-      const badge = document.createElement("div");
-      badge.className = "no-image-badge";
-      badge.textContent = "بلا صورة";
+      fallback.textContent = img.dataset.fallbackEmoji || "🍽️";
       img.replaceWith(fallback);
-      fallback.insertAdjacentElement("afterend", badge);
     }
 
     let session = null;
@@ -177,8 +192,8 @@
       grid.innerHTML = list.map((p) => `
         <div class="card" data-id="${p.id}">
           ${p.image_url
-            ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-letter="${(p.name || "?").charAt(0)}" onerror="olvHandleImageError(this)">`
-            : `<div class="thumb-fallback">${(p.name || "?").charAt(0)}</div><div class="no-image-badge">بلا صورة</div>`
+            ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-emoji="${categoryEmoji(p.category)}" onerror="olvHandleImageError(this)">`
+            : `<div class="thumb-fallback">${categoryEmoji(p.category)}</div>`
           }
           <div class="info">
             <div class="name">${p.name}</div>
