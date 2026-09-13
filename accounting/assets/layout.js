@@ -17,6 +17,7 @@ function olvRenderNav(active) {
     <div class="top">
       <h1>محاسبة OLV <span>لوحة تحكم المطعم</span></h1>
       <div class="actions">
+        <button class="btn small" id="theme-toggle-btn"></button>
         <a class="btn small" href="../index.html">الموقع</a>
         <button class="btn small danger" id="olv-logout-btn">خروج</button>
       </div>
@@ -32,4 +33,26 @@ function olvRenderNav(active) {
   `;
   const logoutBtn = document.getElementById("olv-logout-btn");
   if (logoutBtn) logoutBtn.addEventListener("click", olvLogout);
+  olvInitThemeToggle();
+}
+
+// يبني زر تبديل الإضاءة (تلقائي حسب الوقت / فاتح / داكن) في شريط التنقل
+function olvThemeModeLabel(mode) {
+  if (mode === "light") return "☀️ فاتح";
+  if (mode === "dark") return "🌙 داكن";
+  return "🌓 تلقائي";
+}
+
+function olvInitThemeToggle() {
+  const btn = document.getElementById("theme-toggle-btn");
+  if (!btn) return;
+  const currentMode = localStorage.getItem("olv_theme_mode") || "auto";
+  btn.textContent = olvThemeModeLabel(currentMode);
+  btn.addEventListener("click", () => {
+    const mode = localStorage.getItem("olv_theme_mode") || "auto";
+    const next = mode === "auto" ? "light" : mode === "light" ? "dark" : "auto";
+    localStorage.setItem("olv_theme_mode", next);
+    if (window.olvApplyTheme) window.olvApplyTheme();
+    btn.textContent = olvThemeModeLabel(next);
+  });
 }
