@@ -56,9 +56,9 @@
             <input type="text" id="p-category" placeholder="مثال: سندويشات" value="عام">
           </div>
           <div class="field">
-            <label>رابط صورة المنتج</label>
-            <input type="url" id="p-image" placeholder="https://..." required>
-            <div class="hint">صورة واضحة للصنف تظهر في شاشة البيع السريع، مثل واجهة أنظمة نقاط البيع الاحترافية</div>
+            <label>رابط صورة المنتج (اختياري)</label>
+            <input type="url" id="p-image" placeholder="https://...">
+            <div class="hint">إذا لم تُضِف صورة، تظهر تلقائيًا أيقونة أنيقة مناسبة لتصنيف الصنف في شاشة البيع السريع</div>
           </div>
         </div>
         <div class="field">
@@ -161,13 +161,7 @@
           const cat = p.category || "عام";
           (byCategory[cat] = byCategory[cat] || []).push(p);
         });
-        const missingImageCount = data.filter((p) => !p.image_url).length;
-        container.innerHTML = (missingImageCount
-          ? `<div class="err" style="display:block; margin-bottom:16px;">
-              ${missingImageCount} صنف بلا صورة — أضِف رابط صورة لكل صنف عبر حقل "صورة" في جدوله أدناه، لتظهر بشكل احترافي في شاشة البيع السريع.
-            </div>`
-          : ""
-        ) + Object.keys(byCategory).map((cat) => `
+        container.innerHTML = Object.keys(byCategory).map((cat) => `
           <div style="margin-bottom:18px;">
             <div class="badge" style="margin-bottom:8px;">${cat} · ${byCategory[cat].length}</div>
             <div class="table-wrap">
@@ -183,7 +177,7 @@
                           <input type="url" value="${p.image_url || ""}" placeholder="https://..." style="min-width:120px;" data-image-input="${p.id}">
                           <button class="btn small" data-save-image="${p.id}">حفظ</button>
                         </div>
-                        ${!p.image_url ? `<div class="hint" style="color:var(--danger-hi);">بلا صورة</div>` : ""}
+                        ${!p.image_url ? `<div class="hint">بلا صورة (تظهر أيقونة افتراضية)</div>` : ""}
                       </td>
                       <td>
                         <div style="display:flex; gap:6px;">
