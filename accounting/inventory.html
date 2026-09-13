@@ -37,7 +37,17 @@
             </div>
             <div class="field">
               <label>الوحدة</label>
-              <input type="text" id="i-unit" placeholder="كيلو / جرام / قطعة" value="قطعة" required>
+              <select id="i-unit" required>
+                <option value="كيلوغرام">كيلوغرام (كغم)</option>
+                <option value="غرام">غرام (غم)</option>
+                <option value="لتر">لتر</option>
+                <option value="مليلتر">مليلتر (مل)</option>
+                <option value="قطعة" selected>قطعة</option>
+                <option value="علبة">علبة</option>
+                <option value="كيس">كيس</option>
+                <option value="زجاجة">زجاجة</option>
+                <option value="عبوة">عبوة</option>
+              </select>
             </div>
             <div class="field">
               <label>الكمية الحالية</label>
@@ -47,7 +57,7 @@
           <div class="field">
             <label>حد التنبيه (اختياري)</label>
             <input type="number" id="i-threshold" step="0.001" min="0" value="0">
-            <div class="hint">لو الكمية وصلت أو قلّت عن الرقم ده، هتتلوّن بالأحمر في الجدول</div>
+            <div class="hint">إذا وصلت الكمية إلى هذا الرقم أو قلّت عنه، فسيظهر لون أحمر في الجدول</div>
           </div>
           <button type="submit" class="btn gold">إضافة</button>
         </form>
@@ -231,7 +241,7 @@
             <button class="btn small danger" data-del-recipe="${r.id}">حذف</button>
           </div>
         `).join("")
-        : `<div class="hint">لسه ما فيش خامات مرتبطة بالصنف ده</div>`;
+        : `<div class="hint">لا توجد مواد خام مرتبطة بهذا الصنف بعد</div>`;
       el.querySelectorAll("button[data-del-recipe]").forEach((btn) => {
         btn.addEventListener("click", async () => {
           await window.supabaseClient.from("product_ingredients").delete().eq("id", btn.dataset.delRecipe);
@@ -254,7 +264,7 @@
             <button class="btn small danger" data-del-arecipe="${r.id}">حذف</button>
           </div>
         `).join("")
-        : `<div class="hint">لسه ما فيش خامات مرتبطة بالإضافة دي</div>`;
+        : `<div class="hint">لا توجد مواد خام مرتبطة بهذه الإضافة بعد</div>`;
       el.querySelectorAll("button[data-del-arecipe]").forEach((btn) => {
         btn.addEventListener("click", async () => {
           await window.supabaseClient.from("addon_ingredients").delete().eq("id", btn.dataset.delArecipe);

@@ -35,7 +35,7 @@
     <div class="group">
       <h2>المنتجات (للبيع السريع)</h2>
       <p class="hint" style="margin-bottom:12px;">
-        الأصناف بتتسحب من منيو الموقع نفسه — مفيش داعي تكتبها يدوي مرتين.
+        تُسحب الأصناف تلقائيًا من قائمة الموقع نفسها، دون الحاجة إلى كتابتها يدويًا مرتين.
       </p>
       <button type="button" class="btn gold" id="import-menu-btn">📥 استيراد كل الأصناف من المنيو</button>
       <div style="height:18px;"></div>
@@ -59,6 +59,11 @@
             <label>رابط صورة (اختياري)</label>
             <input type="url" id="p-image" placeholder="https://...">
           </div>
+        </div>
+        <div class="field">
+          <label>أولوية الظهور في البيع السريع (اختياري)</label>
+          <input type="number" id="p-priority" value="0">
+          <div class="hint">رقم أصغر يعني ظهورًا أقرب إلى بداية القائمة، مفيد لصنف تتوقع رواجه قبل توفر بيانات مبيعات فعلية له</div>
         </div>
         <button type="submit" class="btn gold">إضافة منتج</button>
       </form>
@@ -95,7 +100,7 @@
       <p class="hint" id="me-info">جاري التحميل...</p>
       <p class="hint">
         لإضافة مستخدم جديد (كاشير / مدير): افتح Supabase Dashboard → Authentication → Add user،
-        بعدها عدّل دوره من جدول <code>profiles</code> لو محتاج صلاحية أعلى من "staff".
+        ثم عدّل دوره من جدول <code>profiles</code> إذا احتجت صلاحية أعلى من "staff".
       </p>
     </div>
   </div>
@@ -160,12 +165,18 @@
             <div class="badge" style="margin-bottom:8px;">${cat} · ${byCategory[cat].length}</div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>المنتج</th><th>السعر</th><th></th></tr></thead>
+                <thead><tr><th>المنتج</th><th>السعر</th><th>الأولوية</th><th></th></tr></thead>
                 <tbody>
                   ${byCategory[cat].map((p) => `
                     <tr>
                       <td>${p.name}</td>
                       <td>${olvFormatMoney(p.price)}</td>
+                      <td>
+                        <div style="display:flex; gap:6px;">
+                          <input type="number" value="${p.sort_order || 0}" style="width:60px;" data-priority-input="${p.id}">
+                          <button class="btn small" data-save-priority="${p.id}">حفظ</button>
+                        </div>
+                      </td>
                       <td><button class="btn small danger" data-id="${p.id}">حذف</button></td>
                     </tr>
                   `).join("")}
@@ -180,6 +191,15 @@
             const { error } = await window.supabaseClient.from("products").delete().eq("id", btn.dataset.id);
             if (error) { olvShowError(errBox, error); return; }
             loadProducts();
+          });
+        });
+        container.querySelectorAll("button[data-save-priority]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const input = container.querySelector(`input[data-priority-input="${btn.dataset.savePriority}"]`);
+            const value = Number(input.value || 0);
+            const { error } = await window.supabaseClient
+              .from("products").update({ sort_order: value }).eq("id", btn.dataset.savePriority);
+            if (error) { olvShowError(errBox, error); return; }
           });
         });
       } catch (err) {
@@ -280,11 +300,13 @@
           price: Number(document.getElementById("p-price").value || 0),
           category: document.getElementById("p-category").value.trim() || "عام",
           image_url: document.getElementById("p-image").value.trim() || null,
+          sort_order: Number(document.getElementById("p-priority").value || 0),
         };
         const { error } = await window.supabaseClient.from("products").insert(payload);
         if (error) throw error;
         document.getElementById("product-form").reset();
         document.getElementById("p-category").value = "عام";
+        document.getElementById("p-priority").value = "0";
         await loadProducts();
       } catch (err) {
         olvShowError(errBox, err);

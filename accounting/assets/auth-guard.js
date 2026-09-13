@@ -1,4 +1,4 @@
-// تحقق من وجود جلسة دخول؛ لو مفيش، رجّع المستخدم لصفحة الدخول
+// يتحقق من وجود جلسة دخول؛ وفي حال عدم وجودها يُعاد توجيه المستخدم إلى صفحة تسجيل الدخول
 async function olvRequireAuth() {
   if (!window.supabaseClient) return null;
   const { data: { session } } = await window.supabaseClient.auth.getSession();
@@ -29,6 +29,6 @@ function olvToday() {
 function olvShowError(el, err) {
   if (!el) return;
   console.error(err);
-  el.textContent = (err && err.message) ? err.message : "حصل خطأ غير متوقع";
+  el.textContent = (err && err.message) ? err.message : "حدث خطأ غير متوقع";
   el.style.display = "block";
 }
