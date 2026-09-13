@@ -56,8 +56,9 @@
             <input type="text" id="p-category" placeholder="مثال: سندويشات" value="عام">
           </div>
           <div class="field">
-            <label>رابط صورة (اختياري)</label>
-            <input type="url" id="p-image" placeholder="https://...">
+            <label>رابط صورة المنتج</label>
+            <input type="url" id="p-image" placeholder="https://..." required>
+            <div class="hint">صورة واضحة للصنف تظهر في شاشة البيع السريع، مثل واجهة أنظمة نقاط البيع الاحترافية</div>
           </div>
         </div>
         <div class="field">
@@ -160,17 +161,30 @@
           const cat = p.category || "عام";
           (byCategory[cat] = byCategory[cat] || []).push(p);
         });
-        container.innerHTML = Object.keys(byCategory).map((cat) => `
+        const missingImageCount = data.filter((p) => !p.image_url).length;
+        container.innerHTML = (missingImageCount
+          ? `<div class="err" style="display:block; margin-bottom:16px;">
+              ${missingImageCount} صنف بلا صورة — أضِف رابط صورة لكل صنف عبر حقل "صورة" في جدوله أدناه، لتظهر بشكل احترافي في شاشة البيع السريع.
+            </div>`
+          : ""
+        ) + Object.keys(byCategory).map((cat) => `
           <div style="margin-bottom:18px;">
             <div class="badge" style="margin-bottom:8px;">${cat} · ${byCategory[cat].length}</div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>المنتج</th><th>السعر</th><th>الأولوية</th><th></th></tr></thead>
+                <thead><tr><th>المنتج</th><th>السعر</th><th>صورة</th><th>الأولوية</th><th></th></tr></thead>
                 <tbody>
                   ${byCategory[cat].map((p) => `
                     <tr>
                       <td>${p.name}</td>
                       <td>${olvFormatMoney(p.price)}</td>
+                      <td>
+                        <div style="display:flex; gap:6px; min-width:180px;">
+                          <input type="url" value="${p.image_url || ""}" placeholder="https://..." style="min-width:120px;" data-image-input="${p.id}">
+                          <button class="btn small" data-save-image="${p.id}">حفظ</button>
+                        </div>
+                        ${!p.image_url ? `<div class="hint" style="color:var(--danger-hi);">بلا صورة</div>` : ""}
+                      </td>
                       <td>
                         <div style="display:flex; gap:6px;">
                           <input type="number" value="${p.sort_order || 0}" style="width:60px;" data-priority-input="${p.id}">
@@ -200,6 +214,16 @@
             const { error } = await window.supabaseClient
               .from("products").update({ sort_order: value }).eq("id", btn.dataset.savePriority);
             if (error) { olvShowError(errBox, error); return; }
+          });
+        });
+        container.querySelectorAll("button[data-save-image]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const input = container.querySelector(`input[data-image-input="${btn.dataset.saveImage}"]`);
+            const value = input.value.trim() || null;
+            const { error } = await window.supabaseClient
+              .from("products").update({ image_url: value }).eq("id", btn.dataset.saveImage);
+            if (error) { olvShowError(errBox, error); return; }
+            await loadProducts();
           });
         });
       } catch (err) {
