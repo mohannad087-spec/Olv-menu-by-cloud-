@@ -250,6 +250,7 @@
       const sheet = document.createElement("div");
       sheet.className = "sheet";
       let qty = 1;
+      let note = "";
       const selectedAddons = new Set();
 
       function render() {
@@ -272,6 +273,10 @@
             <div style="font-size:16px; min-width:24px; text-align:center;">${qty}</div>
             <button type="button" id="qty-plus">+</button>
           </div>
+          <div class="field">
+            <label>ملاحظة للمطبخ (اختياري)</label>
+            <input type="text" id="item-note" placeholder="مثال: بدون بصل" value="${note}">
+          </div>
           <button class="btn gold" id="sheet-add" style="width:100%;">إضافة للسلة</button>
           <button class="btn" id="sheet-cancel" style="width:100%; margin-top:8px;">إلغاء</button>
         `;
@@ -281,12 +286,13 @@
             else selectedAddons.delete(cb.dataset.addon);
           });
         });
-        sheet.querySelector("#qty-minus").addEventListener("click", () => { qty = Math.max(1, qty - 1); render(); });
-        sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; render(); });
+        sheet.querySelector("#qty-minus").addEventListener("click", () => { qty = Math.max(1, qty - 1); note = sheet.querySelector("#item-note").value; render(); });
+        sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; note = sheet.querySelector("#item-note").value; render(); });
         sheet.querySelector("#sheet-cancel").addEventListener("click", close);
         sheet.querySelector("#sheet-add").addEventListener("click", () => {
           const chosenAddons = addons.filter((a) => selectedAddons.has(a.id));
-          OlvCart.add(product, chosenAddons, qty);
+          const finalNote = sheet.querySelector("#item-note").value.trim();
+          OlvCart.add(product, chosenAddons, qty, finalNote);
           renderCart();
           close();
         });
@@ -345,6 +351,7 @@
             <div>
               <div>${item.qty}× ${item.name}</div>
               ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
+              ${item.note ? `<div class="meta">📝 ${item.note}</div>` : ""}
             </div>
             <div style="display:flex; align-items:center; gap:10px;">
               <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
@@ -393,7 +400,7 @@
         try {
           const method = sheet.querySelector("#pay-method").value;
           const orderType = document.getElementById("order-type").value;
-          await OlvCart.checkout({ paymentMethod: method, entryDate: olvToday(), extraNotes: `بيع سريع — ${orderType}` });
+          await OlvCart.checkout({ paymentMethod: method, entryDate: olvToday(), extraNotes: "بيع سريع", orderType });
           clearDraft();
           renderCart();
           close();

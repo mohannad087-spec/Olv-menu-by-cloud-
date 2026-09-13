@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المطبخ — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .sub-tabs{display:flex; gap:8px; margin-bottom:16px; align-items:center;}
+  .sub-tab{background:var(--ink-2); border:1px solid var(--hair); color:var(--muted); padding:8px 16px; border-radius:999px; font-size:13px;}
+  .sub-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
+  .orders-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;}
+  .order-card{background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px; display:flex; flex-direction:column;}
+  .order-card.overdue{border-color:var(--danger);}
+  .order-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .order-time{font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold-hi); font-weight:700;}
+  .order-type-badge{font-size:12px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px; color:var(--muted);}
+  .order-items{flex:1; margin-bottom:14px;}
+  .order-line{padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:14px;}
+  .order-line:last-child{border-bottom:none;}
+  .order-line .qty-name{font-weight:600;}
+  .order-line .addons{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:2px;}
+  .order-line .note{color:var(--danger-hi); font-size:12.5px; margin-top:2px;}
+  .empty-state{color:var(--muted); text-align:center; padding:60px 0; grid-column:1/-1;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="sub-tabs">
+      <button class="sub-tab on" data-tab="pending">قيد التحضير</button>
+      <button class="sub-tab" data-tab="ready">جاهز</button>
+      <span class="hint" style="margin-inline-start:auto;">تحديث تلقائي كل 15 ثانية</span>
+    </div>
+
+    <div class="orders-grid" id="orders-grid">
+      <div class="hint">جاري التحميل...</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>
+    olvRenderNav("kitchen");
+
+    const PENDING_STATUS = "قيد التحضير";
+    const READY_STATUS = "جاهز";
+    let activeTab = "pending";
+
+    function formatTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function minutesSince(ts) {
+      return (Date.now() - new Date(ts).getTime()) / 60000;
+    }
+
+    async function loadOrders() {
+      const errBox = document.getElementById("err");
+      const grid = document.getElementById("orders-grid");
+      try {
+        const status = activeTab === "pending" ? PENDING_STATUS : READY_STATUS;
+        const { data, error } = await window.supabaseClient
+          .from("sales_entries")
+          .select("*, sale_items(*)")
+          .eq("kitchen_status", status)
+          .order("created_at", { ascending: activeTab === "pending" })
+          .limit(60);
+        if (error) throw error;
+        const orders = (data || []).filter((o) => o.sale_items && o.sale_items.length);
+        if (!orders.length) {
+          grid.innerHTML = `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"} حاليًا</div>`;
+          return;
+        }
+        grid.innerHTML = orders.map((o) => {
+          const overdue = activeTab === "pending" && minutesSince(o.created_at) > 15;
+          return `
+            <div class="order-card${overdue ? " overdue" : ""}">
+              <div class="order-head">
+                <span class="order-time">${formatTime(o.created_at)}</span>
+                ${o.order_type ? `<span class="order-type-badge">${o.order_type}</span>` : ""}
+              </div>
+              <div class="order-items">
+                ${o.sale_items.map((it) => `
+                  <div class="order-line">
+                    <div class="qty-name">${it.qty}× ${it.product_name}</div>
+                    ${it.addons_summary ? `<div class="addons">+ ${it.addons_summary}</div>` : ""}
+                    ${it.note ? `<div class="note">📝 ${it.note}</div>` : ""}
+                  </div>
+                `).join("")}
+              </div>
+              <button class="btn ${activeTab === "pending" ? "gold" : ""} small" data-id="${o.id}" data-next="${activeTab === "pending" ? READY_STATUS : PENDING_STATUS}">
+                ${activeTab === "pending" ? "✓ تم التجهيز" : "↺ إرجاع لقيد التحضير"}
+              </button>
+            </div>
+          `;
+        }).join("");
+        grid.querySelectorAll("button[data-id]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            const { error } = await window.supabaseClient
+              .from("sales_entries").update({ kitchen_status: btn.dataset.next }).eq("id", btn.dataset.id);
+            if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+            loadOrders();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    document.querySelectorAll(".sub-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".sub-tab").forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
+        activeTab = btn.dataset.tab;
+        loadOrders();
+      });
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      await loadOrders();
+      setInterval(loadOrders, 15000);
+    })();
+  </script>
+</body>
+</html>

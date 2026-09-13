@@ -1,15 +1,16 @@
 // منطق مشترك بين شاشة "بيع سريع" وشاشة "المبيعات" (كلاهما يبيع أصناف
 // من المنيو، وكلاهما ينزّل الخامات من المخزون عبر نفس دالة record_sale)
 const OlvCart = (function () {
-  let items = []; // {productId, name, unitBase, addons:[{id,name,price}], qty}
+  let items = []; // {productId, name, unitBase, addons:[{id,name,price}], qty, note}
 
-  function add(product, addons, qty) {
+  function add(product, addons, qty, note) {
     items.push({
       productId: product.id,
       name: product.name,
       unitBase: Number(product.price),
       addons: addons.map((a) => ({ id: a.id, name: a.name, price: Number(a.price) })),
       qty,
+      note: note || "",
     });
   }
 
@@ -38,12 +39,13 @@ const OlvCart = (function () {
     return items.reduce((s, item) => s + lineTotal(item), 0);
   }
 
-  async function checkout({ paymentMethod, entryDate, extraNotes }) {
+  async function checkout({ paymentMethod, entryDate, extraNotes, orderType }) {
     if (!items.length) throw new Error("السلة فاضية");
     const grand = total();
     const notesParts = items.map((item) => {
       const addonsTxt = item.addons.length ? ` (${item.addons.map((a) => a.name).join("، ")})` : "";
-      return `${item.qty}x ${item.name}${addonsTxt}`;
+      const noteTxt = item.note ? ` [${item.note}]` : "";
+      return `${item.qty}x ${item.name}${addonsTxt}${noteTxt}`;
     });
     if (extraNotes) notesParts.push(extraNotes);
     const notes = notesParts.join("، ");
@@ -52,6 +54,7 @@ const OlvCart = (function () {
       product_id: item.productId,
       qty: item.qty,
       addon_ids: item.addons.map((a) => a.id),
+      note: item.note || null,
     }));
 
     const { data, error } = await window.supabaseClient.rpc("record_sale", {
@@ -61,6 +64,7 @@ const OlvCart = (function () {
       p_delivery: paymentMethod === "delivery" ? grand : 0,
       p_notes: notes,
       p_items: rpcItems,
+      p_order_type: orderType || null,
     });
     if (error) throw error;
     clear();

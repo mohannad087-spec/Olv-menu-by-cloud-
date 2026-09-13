@@ -33,6 +33,10 @@
         </div>
       </div>
       <div id="addon-picker"></div>
+      <div class="field">
+        <label>ملاحظة للمطبخ (اختياري)</label>
+        <input type="text" id="item-note-input" placeholder="مثال: بدون بصل">
+      </div>
       <button class="btn gold" id="add-line-btn">إضافة للسلة</button>
     </div>
 
@@ -44,6 +48,16 @@
           <label>التاريخ</label>
           <input type="date" id="entry_date">
         </div>
+        <div class="field">
+          <label>نوع الطلب</label>
+          <select id="order-type">
+            <option value="صالة">صالة</option>
+            <option value="سفري">سفري</option>
+            <option value="توصيل">توصيل</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
         <div class="field">
           <label>طريقة الدفع</label>
           <select id="pay-method">
@@ -111,6 +125,7 @@
           <div>
             <div>${item.qty}× ${item.name}</div>
             ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
+            ${item.note ? `<div class="meta">📝 ${item.note}</div>` : ""}
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
             <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
@@ -129,8 +144,10 @@
       const product = products.find((p) => p.id === productId);
       if (!product) return;
       const qty = Math.max(1, Number(document.getElementById("qty-input").value || 1));
-      OlvCart.add(product, selectedAddons(), qty);
+      const note = document.getElementById("item-note-input").value.trim();
+      OlvCart.add(product, selectedAddons(), qty, note);
       document.getElementById("qty-input").value = 1;
+      document.getElementById("item-note-input").value = "";
       addons.forEach((a) => { const cb = document.getElementById(`sa-${a.id}`); if (cb) cb.checked = false; });
       renderCart();
     });
@@ -143,7 +160,8 @@
       try {
         const method = document.getElementById("pay-method").value;
         const entryDate = document.getElementById("entry_date").value || olvToday();
-        await OlvCart.checkout({ paymentMethod: method, entryDate });
+        const orderType = document.getElementById("order-type").value;
+        await OlvCart.checkout({ paymentMethod: method, entryDate, orderType });
         renderCart();
         await loadSales();
       } catch (err) {
