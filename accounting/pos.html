@@ -85,6 +85,13 @@
     border-radius:999px; min-width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center;
     padding:0 6px;
   }
+  .pos-pagination{display:flex; align-items:center; justify-content:center; gap:14px; padding-top:6px;}
+  .pos-pagination button{
+    width:36px; height:36px; border-radius:10px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font-size:16px;
+  }
+  .pos-pagination button:disabled{opacity:.35;}
+  .pos-pagination .page-info{color:var(--muted); font-size:13px; min-width:70px; text-align:center;}
 </style>
 </head>
 <body>
@@ -100,6 +107,11 @@
         <div class="cat-tabs" id="cat-tabs"></div>
         <div class="grid" id="products-grid">
           <div class="hint">جاري التحميل...</div>
+        </div>
+        <div class="pos-pagination" id="pos-pagination" hidden>
+          <button type="button" id="page-prev">›</button>
+          <span class="page-info" id="page-info" dir="ltr">1 / 1</span>
+          <button type="button" id="page-next">‹</button>
         </div>
       </div>
 
@@ -175,8 +187,27 @@
     let popularity = {}; // product_id -> إجمالي الكمية المباعة تاريخيًا
     let activeCategory = "الكل";
     let searchTerm = "";
+    let currentPage = 1;
     const BEST_SELLERS = "الأكثر مبيعًا";
     const DRAFT_KEY = "olv_pos_draft";
+
+    // يحسب عدد الأعمدة/الصفوف اللي بتتسع فعليًا داخل الشاشة المفتوحة حاليًا
+    // بدون سكرول، عشان باقي الأصناف تتوزع على صفحات بدل ما تتزاحم أو تختفي
+    function computeGridCapacity() {
+      const grid = document.getElementById("products-grid");
+      const containerWidth = grid.clientWidth || 300;
+      const gap = 12;
+      const targetCardWidth = 150;
+      const columns = Math.max(1, Math.floor((containerWidth + gap) / (targetCardWidth + gap)));
+      const cardWidth = (containerWidth - (columns - 1) * gap) / columns;
+      const infoHeight = 56;
+      const cardHeight = cardWidth + infoHeight;
+      const gridTop = grid.getBoundingClientRect().top;
+      const reservedBottom = 56;
+      const availableHeight = Math.max(cardHeight, window.innerHeight - gridTop - reservedBottom);
+      const rows = Math.max(1, Math.floor((availableHeight + gap) / (cardHeight + gap)));
+      return { columns, itemsPerPage: columns * rows };
+    }
 
     function sortByPopularity(list) {
       return list.slice().sort((a, b) => {
@@ -203,6 +234,7 @@
       document.querySelectorAll(".cat-tab").forEach((btn) => {
         btn.addEventListener("click", () => {
           activeCategory = btn.dataset.cat;
+          currentPage = 1;
           renderCategoryTabs();
           renderGrid();
         });
@@ -211,6 +243,7 @@
 
     function renderGrid() {
       const grid = document.getElementById("products-grid");
+      const pagination = document.getElementById("pos-pagination");
       let list;
       if (activeCategory === "الكل") {
         list = sortByPopularity(products);
@@ -224,9 +257,18 @@
       }
       if (!list.length) {
         grid.innerHTML = `<div class="hint">لا توجد أصناف مطابقة. جرّب تصنيفًا آخر أو أضف منتجات من صفحة الإعدادات.</div>`;
+        pagination.hidden = true;
         return;
       }
-      grid.innerHTML = list.map((p) => `
+
+      const { columns, itemsPerPage } = computeGridCapacity();
+      const totalPages = Math.max(1, Math.ceil(list.length / itemsPerPage));
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+      const pageItems = list.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+      grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+      grid.innerHTML = pageItems.map((p) => `
         <div class="card" data-id="${p.id}">
           ${p.image_url
             ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-emoji="${categoryEmoji(p.category)}" onerror="olvHandleImageError(this)">`
@@ -241,6 +283,11 @@
       grid.querySelectorAll(".card").forEach((card) => {
         card.addEventListener("click", () => openAddSheet(card.dataset.id));
       });
+
+      pagination.hidden = totalPages <= 1;
+      document.getElementById("page-info").textContent = `${currentPage} / ${totalPages}`;
+      document.getElementById("page-prev").disabled = currentPage <= 1;
+      document.getElementById("page-next").disabled = currentPage >= totalPages;
     }
 
     function openAddSheet(productId) {
@@ -442,7 +489,15 @@
       document.getElementById("save-draft-btn").addEventListener("click", saveDraft);
       document.getElementById("product-search").addEventListener("input", (e) => {
         searchTerm = e.target.value.trim().toLowerCase();
+        currentPage = 1;
         renderGrid();
+      });
+      document.getElementById("page-prev").addEventListener("click", () => { currentPage--; renderGrid(); });
+      document.getElementById("page-next").addEventListener("click", () => { currentPage++; renderGrid(); });
+      let resizeTimer = null;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(renderGrid, 200);
       });
     })();
   </script>
