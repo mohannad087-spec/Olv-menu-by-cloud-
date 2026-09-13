@@ -1,8 +1,18 @@
 :root{
   --ink:#0a0a09; --ink-2:#131209; --ink-3:#1a1810;
-  --gold:#c9a24b; --gold-hi:#f2dca6; --olive:#8a9a52;
-  --paper:#ece5d5; --muted:#95897a; --hair:rgba(201,162,75,.25);
+  --gold:#c9a24b; --gold-hi:#f2dca6; --gold-dp:#7a5e22; --olive:#8a9a52; --olive-hi:#9dab63;
+  --paper:#ece5d5; --muted:#95897a; --hair:rgba(201,162,75,.25); --hair-soft:rgba(201,162,75,.1);
   --danger:#c1583f; --danger-hi:#e0a190; --ok:#7c8a4a;
+  --overlay-bg:rgba(10,10,9,.94);
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --ink:#faf7f0; --ink-2:#ffffff; --ink-3:#f1ead9;
+  --gold:#b8863a; --gold-hi:#8a6420; --gold-dp:#6b4d18; --olive:#5c6b34; --olive-hi:#4c5a29;
+  --paper:#241f14; --muted:#6b6255; --hair:rgba(90,70,30,.18); --hair-soft:rgba(90,70,30,.08);
+  --danger:#c1583f; --danger-hi:#a83f28; --ok:#4c5a29;
+  --overlay-bg:rgba(250,247,240,.94);
 }
 *{box-sizing:border-box;}
 body{
@@ -17,7 +27,7 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 
 /* ---- top bar & tabs ---- */
 .top{
-  position:sticky; top:0; z-index:30; background:rgba(10,10,9,.94);
+  position:sticky; top:0; z-index:30; background:var(--overlay-bg);
   backdrop-filter:blur(10px); border-bottom:1px solid var(--hair);
   padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
 }
