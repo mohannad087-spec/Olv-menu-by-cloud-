@@ -8,16 +8,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <style>
+  .wrap{max-width:1180px;}
+  .pos-layout{display:flex; gap:20px; align-items:flex-start;}
+  .pos-main{flex:1; min-width:0;}
+  .pos-cart-panel{width:340px; flex:none; position:sticky; top:16px;}
+  @media (max-width:900px){
+    .pos-layout{flex-direction:column;}
+    .pos-cart-panel{width:100%; position:sticky; bottom:0; top:auto; z-index:20; margin:0 -20px; padding:0 20px;}
+  }
+
   .cat-tabs{display:flex; gap:8px; overflow-x:auto; margin-bottom:16px;}
   .cat-tab{
     flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
     padding:8px 14px; border-radius:999px; font-size:13px; white-space:nowrap;
   }
   .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
-  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; margin-bottom:20px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:20px;}
   .card{
     background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; overflow:hidden; cursor:pointer;
-    transition:.15s; text-align:center;
+    transition:.15s; text-align:center; position:relative;
   }
   .card:active{transform:scale(.97);}
   .card .thumb{
@@ -27,6 +36,10 @@
     width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
     background:linear-gradient(135deg,var(--ink-3),var(--ink-2)); color:var(--gold-hi);
     font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:600;
+  }
+  .card .no-image-badge{
+    position:absolute; top:6px; inset-inline-start:6px; font-size:10px; color:var(--danger-hi);
+    background:rgba(10,10,9,.75); border-radius:6px; padding:2px 6px;
   }
   .card .info{padding:8px 8px 12px;}
   .card .name{font-size:13px; margin-bottom:4px;}
@@ -47,15 +60,20 @@
   .addon-row label{flex:1; font-size:13.5px;}
   .addon-row .a-price{color:var(--muted); font-size:12.5px;}
 
+  .cart-panel-inner{
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px 14px 0 0;
+    padding:18px; max-height:70vh; overflow-y:auto;
+  }
+  @media (min-width:901px){ .cart-panel-inner{border-radius:14px; max-height:calc(100vh - 32px);} }
   .cart-bar{
-    position:sticky; bottom:0; background:var(--ink-2); border-top:1px solid var(--hair);
-    padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px;
-    margin:0 -20px;
+    position:sticky; bottom:-18px; background:var(--ink-2); border-top:1px solid var(--hair);
+    padding:14px 0 0; margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px;
   }
   .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold-hi); font-weight:700;}
-  .cart-list{margin-bottom:14px;}
+  .cart-list{margin-bottom:0;}
   .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
   .cart-item .meta{color:var(--muted); font-size:12px;}
+  .cart-empty{color:var(--muted); font-size:13px; text-align:center; padding:20px 0;}
 </style>
 </head>
 <body>
@@ -63,18 +81,24 @@
   <div class="wrap">
     <div class="err" id="err"></div>
 
-    <div class="cat-tabs" id="cat-tabs"></div>
-    <div class="grid" id="products-grid">
-      <div class="hint">جاري التحميل...</div>
-    </div>
-
-    <div class="group" id="cart-group" hidden>
-      <h2>السلة</h2>
-      <div class="cart-list" id="cart-list"></div>
-      <div class="cart-bar">
-        <div>الإجمالي: <span class="total" id="cart-total">0.00</span></div>
-        <button class="btn gold" id="checkout-btn">إتمام البيع</button>
+    <div class="pos-layout">
+      <div class="pos-main">
+        <div class="cat-tabs" id="cat-tabs"></div>
+        <div class="grid" id="products-grid">
+          <div class="hint">جاري التحميل...</div>
+        </div>
       </div>
+
+      <aside class="pos-cart-panel">
+        <div class="cart-panel-inner">
+          <h2 style="margin-bottom:12px;">سلة الطلب الحالي</h2>
+          <div class="cart-list" id="cart-list"></div>
+          <div class="cart-bar">
+            <div>الإجمالي: <span class="total" id="cart-total">0.00</span></div>
+            <button class="btn gold" id="checkout-btn" disabled>إتمام البيع</button>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 
@@ -86,6 +110,17 @@
   <script src="assets/sale-cart.js"></script>
   <script>
     olvRenderNav("pos");
+
+    function olvHandleImageError(img) {
+      const fallback = document.createElement("div");
+      fallback.className = "thumb-fallback";
+      fallback.textContent = img.dataset.fallbackLetter || "?";
+      const badge = document.createElement("div");
+      badge.className = "no-image-badge";
+      badge.textContent = "بلا صورة";
+      img.replaceWith(fallback);
+      fallback.insertAdjacentElement("afterend", badge);
+    }
 
     let session = null;
     let products = [];
@@ -142,8 +177,8 @@
       grid.innerHTML = list.map((p) => `
         <div class="card" data-id="${p.id}">
           ${p.image_url
-            ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb-fallback',textContent:'${(p.name || "?").charAt(0)}'}))">`
-            : `<div class="thumb-fallback">${(p.name || "?").charAt(0)}</div>`
+            ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-letter="${(p.name || "?").charAt(0)}" onerror="olvHandleImageError(this)">`
+            : `<div class="thumb-fallback">${(p.name || "?").charAt(0)}</div><div class="no-image-badge">بلا صورة</div>`
           }
           <div class="info">
             <div class="name">${p.name}</div>
@@ -217,31 +252,32 @@
 
     function renderCart() {
       const cart = OlvCart.all();
-      const group = document.getElementById("cart-group");
       const list = document.getElementById("cart-list");
+      const checkoutBtn = document.getElementById("checkout-btn");
       if (!cart.length) {
-        group.hidden = true;
-        return;
-      }
-      group.hidden = false;
-      list.innerHTML = cart.map((item, idx) => `
-        <div class="cart-item">
-          <div>
-            <div>${item.qty}× ${item.name}</div>
-            ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
+        list.innerHTML = `<div class="cart-empty">السلة فارغة — اختر أصنافًا من القائمة</div>`;
+        checkoutBtn.disabled = true;
+      } else {
+        list.innerHTML = cart.map((item, idx) => `
+          <div class="cart-item">
+            <div>
+              <div>${item.qty}× ${item.name}</div>
+              ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
+              <button class="btn small danger" data-idx="${idx}">حذف</button>
+            </div>
           </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
-            <button class="btn small danger" data-idx="${idx}">حذف</button>
-          </div>
-        </div>
-      `).join("");
-      list.querySelectorAll("button[data-idx]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          OlvCart.removeAt(Number(btn.dataset.idx));
-          renderCart();
+        `).join("");
+        list.querySelectorAll("button[data-idx]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            OlvCart.removeAt(Number(btn.dataset.idx));
+            renderCart();
+          });
         });
-      });
+        checkoutBtn.disabled = false;
+      }
       document.getElementById("cart-total").textContent = olvFormatMoney(OlvCart.total());
     }
 
@@ -307,6 +343,7 @@
       } catch (err) {
         olvShowError(errBox, err);
       }
+      renderCart();
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
     })();
   </script>
