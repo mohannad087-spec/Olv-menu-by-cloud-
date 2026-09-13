@@ -83,6 +83,7 @@
   <script src="assets/supabase-client.js"></script>
   <script src="assets/auth-guard.js"></script>
   <script src="assets/layout.js"></script>
+  <script src="assets/sale-cart.js"></script>
   <script>
     olvRenderNav("pos");
 
@@ -90,7 +91,6 @@
     let products = [];
     let addons = [];
     let activeCategory = "الكل";
-    let cart = []; // {id, name, unitBase, addons:[{name,price}], qty}
 
     function renderCategoryTabs() {
       const cats = ["الكل", ...new Set(products.map((p) => p.category))];
@@ -173,8 +173,8 @@
         sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; render(); });
         sheet.querySelector("#sheet-cancel").addEventListener("click", close);
         sheet.querySelector("#sheet-add").addEventListener("click", () => {
-          const chosenAddons = addons.filter((a) => selectedAddons.has(a.id)).map((a) => ({ name: a.name, price: Number(a.price) }));
-          cart.push({ id: product.id, name: product.name, unitBase: Number(product.price), addons: chosenAddons, qty });
+          const chosenAddons = addons.filter((a) => selectedAddons.has(a.id));
+          OlvCart.add(product, chosenAddons, qty);
           renderCart();
           close();
         });
@@ -189,12 +189,8 @@
       document.body.appendChild(sheet);
     }
 
-    function lineTotal(item) {
-      const addonsTotal = item.addons.reduce((s, a) => s + a.price, 0);
-      return (item.unitBase + addonsTotal) * item.qty;
-    }
-
     function renderCart() {
+      const cart = OlvCart.all();
       const group = document.getElementById("cart-group");
       const list = document.getElementById("cart-list");
       if (!cart.length) {
@@ -209,23 +205,22 @@
             ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
-            <span>${olvFormatMoney(lineTotal(item))}</span>
+            <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
             <button class="btn small danger" data-idx="${idx}">حذف</button>
           </div>
         </div>
       `).join("");
       list.querySelectorAll("button[data-idx]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          cart.splice(Number(btn.dataset.idx), 1);
+          OlvCart.removeAt(Number(btn.dataset.idx));
           renderCart();
         });
       });
-      const total = cart.reduce((s, item) => s + lineTotal(item), 0);
-      document.getElementById("cart-total").textContent = olvFormatMoney(total);
+      document.getElementById("cart-total").textContent = olvFormatMoney(OlvCart.total());
     }
 
     function openCheckoutSheet() {
-      const total = cart.reduce((s, item) => s + lineTotal(item), 0);
+      const total = OlvCart.total();
       const backdrop = document.createElement("div");
       backdrop.className = "sheet-backdrop";
       const sheet = document.createElement("div");
@@ -252,21 +247,7 @@
         const errBox = document.getElementById("err");
         try {
           const method = sheet.querySelector("#pay-method").value;
-          const notes = cart.map((item) => {
-            const addonsTxt = item.addons.length ? ` (${item.addons.map((a) => a.name).join("، ")})` : "";
-            return `${item.qty}x ${item.name}${addonsTxt}`;
-          }).join("، ");
-          const payload = {
-            entry_date: olvToday(),
-            cash_amount: method === "cash" ? total : 0,
-            card_amount: method === "card" ? total : 0,
-            delivery_amount: method === "delivery" ? total : 0,
-            notes: "بيع سريع: " + notes,
-            created_by: session.user.id,
-          };
-          const { error } = await window.supabaseClient.from("sales_entries").insert(payload);
-          if (error) throw error;
-          cart = [];
+          await OlvCart.checkout({ paymentMethod: method, entryDate: olvToday(), extraNotes: "بيع سريع" });
           renderCart();
           close();
           window.location.href = "index.html";
