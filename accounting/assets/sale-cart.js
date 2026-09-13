@@ -25,6 +25,10 @@ const OlvCart = (function () {
     return items;
   }
 
+  function restore(savedItems) {
+    items = Array.isArray(savedItems) ? savedItems : [];
+  }
+
   function lineTotal(item) {
     const addonsTotal = item.addons.reduce((s, a) => s + a.price, 0);
     return (item.unitBase + addonsTotal) * item.qty;
@@ -63,5 +67,5 @@ const OlvCart = (function () {
     return data;
   }
 
-  return { add, removeAt, clear, all, lineTotal, total, checkout };
+  return { add, removeAt, clear, all, restore, lineTotal, total, checkout };
 })();
