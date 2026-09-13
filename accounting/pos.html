@@ -90,10 +90,29 @@
     let session = null;
     let products = [];
     let addons = [];
+    let popularity = {}; // product_id -> إجمالي الكمية المباعة تاريخيًا
     let activeCategory = "الكل";
+    const BEST_SELLERS = "الأكثر مبيعًا";
+
+    function sortByPopularity(list) {
+      return list.slice().sort((a, b) => {
+        const pa = popularity[a.id] || 0;
+        const pb = popularity[b.id] || 0;
+        if (pb !== pa) return pb - pa;
+        const sa = a.sort_order || 0;
+        const sb = b.sort_order || 0;
+        if (sa !== sb) return sa - sb;
+        return a.name.localeCompare(b.name, "ar");
+      });
+    }
 
     function renderCategoryTabs() {
-      const cats = ["الكل", ...new Set(products.map((p) => p.category))];
+      const hasBestSellers = Object.keys(popularity).length > 0;
+      const cats = [
+        "الكل",
+        ...(hasBestSellers ? [BEST_SELLERS] : []),
+        ...new Set(products.map((p) => p.category)),
+      ];
       document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
         <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">${c}</button>
       `).join("");
@@ -108,7 +127,14 @@
 
     function renderGrid() {
       const grid = document.getElementById("products-grid");
-      const list = activeCategory === "الكل" ? products : products.filter((p) => p.category === activeCategory);
+      let list;
+      if (activeCategory === "الكل") {
+        list = sortByPopularity(products);
+      } else if (activeCategory === BEST_SELLERS) {
+        list = sortByPopularity(products.filter((p) => popularity[p.id])).slice(0, 12);
+      } else {
+        list = sortByPopularity(products.filter((p) => p.category === activeCategory));
+      }
       if (!list.length) {
         grid.innerHTML = `<div class="hint">لا يوجد منتجات في هذا التصنيف. أضف منتجات من صفحة الإعدادات.</div>`;
         return;
@@ -265,14 +291,17 @@
       if (!session) return;
       const errBox = document.getElementById("err");
       try {
-        const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }] = await Promise.all([
+        const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }, { data: salesData, error: e3 }] = await Promise.all([
           window.supabaseClient.from("products").select("*").eq("is_active", true).order("category").order("sort_order"),
           window.supabaseClient.from("addons").select("*").eq("is_active", true).order("name"),
+          window.supabaseClient.from("product_sales_totals").select("*"),
         ]);
         if (e1) throw e1;
         if (e2) throw e2;
         products = prodData || [];
         addons = addonData || [];
+        popularity = {};
+        (salesData || []).forEach((r) => { popularity[r.product_id] = Number(r.total_qty); });
         renderCategoryTabs();
         renderGrid();
       } catch (err) {
