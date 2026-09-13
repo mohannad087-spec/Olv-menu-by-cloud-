@@ -62,13 +62,8 @@
         </div>
         <button type="submit" class="btn gold">إضافة منتج</button>
       </form>
-      <div class="table-wrap" style="margin-top:16px;">
-        <table>
-          <thead><tr><th>المنتج</th><th>التصنيف</th><th>السعر</th><th></th></tr></thead>
-          <tbody id="products-body">
-            <tr class="empty-row"><td colspan="4">جاري التحميل...</td></tr>
-          </tbody>
-        </table>
+      <div id="products-by-category" style="margin-top:16px;">
+        <div class="hint">جاري التحميل...</div>
       </div>
     </div>
 
@@ -146,24 +141,40 @@
 
     async function loadProducts() {
       const errBox = document.getElementById("err");
-      const body = document.getElementById("products-body");
+      const container = document.getElementById("products-by-category");
       try {
         const { data, error } = await window.supabaseClient
-          .from("products").select("*").order("category").order("sort_order");
+          .from("products").select("*").order("category").order("sort_order").order("name");
         if (error) throw error;
         if (!data || !data.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="4">لا يوجد منتجات بعد</td></tr>`;
+          container.innerHTML = `<div class="hint">لا يوجد منتجات بعد</div>`;
           return;
         }
-        body.innerHTML = data.map((p) => `
-          <tr>
-            <td>${p.name}</td>
-            <td>${p.category}</td>
-            <td>${olvFormatMoney(p.price)}</td>
-            <td><button class="btn small danger" data-id="${p.id}">حذف</button></td>
-          </tr>
+        const byCategory = {};
+        data.forEach((p) => {
+          const cat = p.category || "عام";
+          (byCategory[cat] = byCategory[cat] || []).push(p);
+        });
+        container.innerHTML = Object.keys(byCategory).map((cat) => `
+          <div style="margin-bottom:18px;">
+            <div class="badge" style="margin-bottom:8px;">${cat} · ${byCategory[cat].length}</div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>المنتج</th><th>السعر</th><th></th></tr></thead>
+                <tbody>
+                  ${byCategory[cat].map((p) => `
+                    <tr>
+                      <td>${p.name}</td>
+                      <td>${olvFormatMoney(p.price)}</td>
+                      <td><button class="btn small danger" data-id="${p.id}">حذف</button></td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
         `).join("");
-        body.querySelectorAll("button[data-id]").forEach((btn) => {
+        container.querySelectorAll("button[data-id]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             if (!confirm("حذف هذا المنتج؟")) return;
             const { error } = await window.supabaseClient.from("products").delete().eq("id", btn.dataset.id);

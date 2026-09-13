@@ -203,8 +203,16 @@
         if (e2) throw e2;
         products = prodData || [];
         addons = addonData || [];
-        document.getElementById("product-select").innerHTML = products
-          .map((p) => `<option value="${p.id}">${p.name} — ${olvFormatMoney(p.price)}</option>`).join("");
+        const byCategory = {};
+        products.forEach((p) => {
+          const cat = p.category || "عام";
+          (byCategory[cat] = byCategory[cat] || []).push(p);
+        });
+        document.getElementById("product-select").innerHTML = Object.keys(byCategory).map((cat) => `
+          <optgroup label="${cat}">
+            ${byCategory[cat].map((p) => `<option value="${p.id}">${p.name} — ${olvFormatMoney(p.price)}</option>`).join("")}
+          </optgroup>
+        `).join("");
         renderAddonPicker();
       } catch (err) {
         olvShowError(errBox, err);
