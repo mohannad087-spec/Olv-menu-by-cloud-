@@ -39,7 +39,7 @@ const OlvCart = (function () {
     return items.reduce((s, item) => s + lineTotal(item), 0);
   }
 
-  async function checkout({ paymentMethod, entryDate, extraNotes, orderType }) {
+  async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue }) {
     if (!items.length) throw new Error("السلة فاضية");
     const grand = total();
     const notesParts = items.map((item) => {
@@ -65,6 +65,8 @@ const OlvCart = (function () {
       p_notes: notes,
       p_items: rpcItems,
       p_order_type: orderType || null,
+      p_cash_received: cashReceived ?? null,
+      p_change_due: changeDue ?? null,
     });
     if (error) throw error;
     clear();
