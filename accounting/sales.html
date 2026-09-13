@@ -7,6 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
+<style>
+  .addon-row{display:flex; align-items:center; gap:10px; padding:6px 0;}
+  .addon-row label{flex:1; font-size:13.5px;}
+  .addon-row .a-price{color:var(--muted); font-size:12.5px;}
+  .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
+  .cart-item .meta{color:var(--muted); font-size:12px;}
+</style>
 </head>
 <body>
   <div id="olv-nav"></div>
@@ -14,34 +21,42 @@
     <div class="err" id="err"></div>
 
     <div class="group">
-      <h2>تسجيل مبيعات يوم</h2>
-      <form id="sales-form">
-        <div class="row2">
-          <div class="field">
-            <label>التاريخ</label>
-            <input type="date" id="entry_date" required>
-          </div>
-          <div class="field">
-            <label>ملاحظات (اختياري)</label>
-            <input type="text" id="notes" placeholder="مثال: يوم جمعة مزدحم">
-          </div>
+      <h2>إضافة أصناف مباعة</h2>
+      <div class="row2">
+        <div class="field">
+          <label>الصنف</label>
+          <select id="product-select"></select>
         </div>
-        <div class="row3">
-          <div class="field">
-            <label>كاش</label>
-            <input type="number" id="cash_amount" step="0.01" min="0" value="0" required>
-          </div>
-          <div class="field">
-            <label>شبكة / فيزا</label>
-            <input type="number" id="card_amount" step="0.01" min="0" value="0" required>
-          </div>
-          <div class="field">
-            <label>توصيل / تطبيقات</label>
-            <input type="number" id="delivery_amount" step="0.01" min="0" value="0" required>
-          </div>
+        <div class="field">
+          <label>الكمية</label>
+          <input type="number" id="qty-input" min="1" value="1">
         </div>
-        <button type="submit" class="btn gold" id="save-btn">حفظ المبيعات</button>
-      </form>
+      </div>
+      <div id="addon-picker"></div>
+      <button class="btn gold" id="add-line-btn">إضافة للسلة</button>
+    </div>
+
+    <div class="group" id="cart-group" hidden>
+      <h2>السلة</h2>
+      <div id="cart-list"></div>
+      <div class="row2" style="margin-top:14px;">
+        <div class="field">
+          <label>التاريخ</label>
+          <input type="date" id="entry_date">
+        </div>
+        <div class="field">
+          <label>طريقة الدفع</label>
+          <select id="pay-method">
+            <option value="cash">كاش</option>
+            <option value="card">شبكة / فيزا</option>
+            <option value="delivery">توصيل / تطبيقات</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>الإجمالي: <b id="cart-total">0.00</b></div>
+        <button class="btn gold" id="save-btn">حفظ المبيعات</button>
+      </div>
     </div>
 
     <div class="group">
@@ -62,9 +77,81 @@
   <script src="assets/supabase-client.js"></script>
   <script src="assets/auth-guard.js"></script>
   <script src="assets/layout.js"></script>
+  <script src="assets/sale-cart.js"></script>
   <script>
     olvRenderNav("sales");
-    let session = null;
+
+    let products = [];
+    let addons = [];
+
+    function renderAddonPicker() {
+      const el = document.getElementById("addon-picker");
+      if (!addons.length) { el.innerHTML = ""; return; }
+      el.innerHTML = addons.map((a) => `
+        <div class="addon-row">
+          <input type="checkbox" data-addon="${a.id}" id="sa-${a.id}">
+          <label for="sa-${a.id}">${a.name}</label>
+          <span class="a-price">+${olvFormatMoney(a.price)}</span>
+        </div>
+      `).join("");
+    }
+
+    function selectedAddons() {
+      return addons.filter((a) => document.getElementById(`sa-${a.id}`)?.checked);
+    }
+
+    function renderCart() {
+      const cart = OlvCart.all();
+      const group = document.getElementById("cart-group");
+      const list = document.getElementById("cart-list");
+      if (!cart.length) { group.hidden = true; return; }
+      group.hidden = false;
+      list.innerHTML = cart.map((item, idx) => `
+        <div class="cart-item">
+          <div>
+            <div>${item.qty}× ${item.name}</div>
+            ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
+            <button class="btn small danger" data-idx="${idx}">حذف</button>
+          </div>
+        </div>
+      `).join("");
+      list.querySelectorAll("button[data-idx]").forEach((btn) => {
+        btn.addEventListener("click", () => { OlvCart.removeAt(Number(btn.dataset.idx)); renderCart(); });
+      });
+      document.getElementById("cart-total").textContent = olvFormatMoney(OlvCart.total());
+    }
+
+    document.getElementById("add-line-btn").addEventListener("click", () => {
+      const productId = document.getElementById("product-select").value;
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+      const qty = Math.max(1, Number(document.getElementById("qty-input").value || 1));
+      OlvCart.add(product, selectedAddons(), qty);
+      document.getElementById("qty-input").value = 1;
+      addons.forEach((a) => { const cb = document.getElementById(`sa-${a.id}`); if (cb) cb.checked = false; });
+      renderCart();
+    });
+
+    document.getElementById("save-btn").addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const btn = document.getElementById("save-btn");
+      btn.disabled = true;
+      try {
+        const method = document.getElementById("pay-method").value;
+        const entryDate = document.getElementById("entry_date").value || olvToday();
+        await OlvCart.checkout({ paymentMethod: method, entryDate });
+        renderCart();
+        await loadSales();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     async function loadSales() {
       const errBox = document.getElementById("err");
@@ -91,7 +178,7 @@
         }).join("");
         body.querySelectorAll("button[data-id]").forEach((btn) => {
           btn.addEventListener("click", async () => {
-            if (!confirm("متأكد من حذف هذا القيد؟")) return;
+            if (!confirm("متأكد من حذف هذا القيد؟ (لن يرجّع الخامات المخصومة للمخزون تلقائيًا)")) return;
             const { error } = await window.supabaseClient.from("sales_entries").delete().eq("id", btn.dataset.id);
             if (error) { olvShowError(errBox, error); return; }
             loadSales();
@@ -103,41 +190,27 @@
     }
 
     (async () => {
-      session = await olvRequireAuth();
+      const session = await olvRequireAuth();
       if (!session) return;
       document.getElementById("entry_date").value = olvToday();
-      await loadSales();
-    })();
-
-    document.getElementById("sales-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
       const errBox = document.getElementById("err");
-      errBox.style.display = "none";
-      const btn = document.getElementById("save-btn");
-      btn.disabled = true;
       try {
-        const payload = {
-          entry_date: document.getElementById("entry_date").value,
-          cash_amount: Number(document.getElementById("cash_amount").value || 0),
-          card_amount: Number(document.getElementById("card_amount").value || 0),
-          delivery_amount: Number(document.getElementById("delivery_amount").value || 0),
-          notes: document.getElementById("notes").value.trim() || null,
-          created_by: session.user.id,
-        };
-        const { error } = await window.supabaseClient.from("sales_entries").insert(payload);
-        if (error) throw error;
-        document.getElementById("sales-form").reset();
-        document.getElementById("entry_date").value = olvToday();
-        document.getElementById("cash_amount").value = 0;
-        document.getElementById("card_amount").value = 0;
-        document.getElementById("delivery_amount").value = 0;
-        await loadSales();
+        const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }] = await Promise.all([
+          window.supabaseClient.from("products").select("*").eq("is_active", true).order("category").order("sort_order"),
+          window.supabaseClient.from("addons").select("*").eq("is_active", true).order("name"),
+        ]);
+        if (e1) throw e1;
+        if (e2) throw e2;
+        products = prodData || [];
+        addons = addonData || [];
+        document.getElementById("product-select").innerHTML = products
+          .map((p) => `<option value="${p.id}">${p.name} — ${olvFormatMoney(p.price)}</option>`).join("");
+        renderAddonPicker();
       } catch (err) {
         olvShowError(errBox, err);
-      } finally {
-        btn.disabled = false;
       }
-    });
+      await loadSales();
+    })();
   </script>
 </body>
 </html>
