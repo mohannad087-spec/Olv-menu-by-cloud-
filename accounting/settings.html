@@ -33,6 +33,64 @@
     </div>
 
     <div class="group">
+      <h2>المنتجات (للبيع السريع)</h2>
+      <form id="product-form">
+        <div class="row2">
+          <div class="field">
+            <label>اسم المنتج</label>
+            <input type="text" id="p-name" placeholder="مثال: برغر لحم" required>
+          </div>
+          <div class="field">
+            <label>السعر</label>
+            <input type="number" id="p-price" step="0.01" min="0" required>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>التصنيف</label>
+            <input type="text" id="p-category" placeholder="مثال: سندويشات" value="عام">
+          </div>
+          <div class="field">
+            <label>رابط صورة (اختياري)</label>
+            <input type="url" id="p-image" placeholder="https://...">
+          </div>
+        </div>
+        <button type="submit" class="btn gold">إضافة منتج</button>
+      </form>
+      <div class="table-wrap" style="margin-top:16px;">
+        <table>
+          <thead><tr><th>المنتج</th><th>التصنيف</th><th>السعر</th><th></th></tr></thead>
+          <tbody id="products-body">
+            <tr class="empty-row"><td colspan="4">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>الإضافات (تُعرض مع أي منتج في البيع السريع)</h2>
+      <form id="addon-form" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="field" style="flex:1; min-width:160px; margin-bottom:0;">
+          <label>اسم الإضافة</label>
+          <input type="text" id="a-name" placeholder="مثال: جبنة إضافية" required>
+        </div>
+        <div class="field" style="width:120px; margin-bottom:0;">
+          <label>السعر</label>
+          <input type="number" id="a-price" step="0.01" min="0" required>
+        </div>
+        <button type="submit" class="btn gold">إضافة</button>
+      </form>
+      <div class="table-wrap" style="margin-top:16px;">
+        <table>
+          <thead><tr><th>الإضافة</th><th>السعر</th><th></th></tr></thead>
+          <tbody id="addons-body">
+            <tr class="empty-row"><td colspan="3">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="group">
       <h2>حسابي</h2>
       <p class="hint" id="me-info">جاري التحميل...</p>
       <p class="hint">
@@ -81,11 +139,115 @@
       }
     }
 
+    async function loadProducts() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("products-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("products").select("*").order("category").order("sort_order");
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="4">لا يوجد منتجات بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((p) => `
+          <tr>
+            <td>${p.name}</td>
+            <td>${p.category}</td>
+            <td>${olvFormatMoney(p.price)}</td>
+            <td><button class="btn small danger" data-id="${p.id}">حذف</button></td>
+          </tr>
+        `).join("");
+        body.querySelectorAll("button[data-id]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("حذف هذا المنتج؟")) return;
+            const { error } = await window.supabaseClient.from("products").delete().eq("id", btn.dataset.id);
+            if (error) { olvShowError(errBox, error); return; }
+            loadProducts();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    async function loadAddons() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("addons-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("addons").select("*").order("name");
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="3">لا يوجد إضافات بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((a) => `
+          <tr>
+            <td>${a.name}</td>
+            <td>${olvFormatMoney(a.price)}</td>
+            <td><button class="btn small danger" data-id="${a.id}">حذف</button></td>
+          </tr>
+        `).join("");
+        body.querySelectorAll("button[data-id]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("حذف هذه الإضافة؟")) return;
+            const { error } = await window.supabaseClient.from("addons").delete().eq("id", btn.dataset.id);
+            if (error) { olvShowError(errBox, error); return; }
+            loadAddons();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    document.getElementById("product-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      try {
+        const payload = {
+          name: document.getElementById("p-name").value.trim(),
+          price: Number(document.getElementById("p-price").value || 0),
+          category: document.getElementById("p-category").value.trim() || "عام",
+          image_url: document.getElementById("p-image").value.trim() || null,
+        };
+        const { error } = await window.supabaseClient.from("products").insert(payload);
+        if (error) throw error;
+        document.getElementById("product-form").reset();
+        document.getElementById("p-category").value = "عام";
+        await loadProducts();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    });
+
+    document.getElementById("addon-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      try {
+        const payload = {
+          name: document.getElementById("a-name").value.trim(),
+          price: Number(document.getElementById("a-price").value || 0),
+        };
+        const { error } = await window.supabaseClient.from("addons").insert(payload);
+        if (error) throw error;
+        document.getElementById("addon-form").reset();
+        await loadAddons();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    });
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
       document.getElementById("me-info").textContent = `مسجّل دخول بحساب: ${session.user.email}`;
       await loadCategories();
+      await loadProducts();
+      await loadAddons();
     })();
 
     document.getElementById("cat-form").addEventListener("submit", async (e) => {

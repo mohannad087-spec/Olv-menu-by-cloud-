@@ -2,6 +2,7 @@
 function olvRenderNav(active) {
   const links = [
     { id: "dashboard", href: "index.html", label: "الرئيسية" },
+    { id: "pos", href: "pos.html", label: "بيع سريع" },
     { id: "sales", href: "sales.html", label: "المبيعات" },
     { id: "expenses", href: "expenses.html", label: "المصروفات" },
     { id: "cash", href: "cash-register.html", label: "الخزينة" },
