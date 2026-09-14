@@ -41,21 +41,27 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 }
 .tab-link{
   flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
-  padding:9px 16px; border-radius:999px; font-size:13px; white-space:nowrap; text-decoration:none;
+  padding:11px 18px; border-radius:999px; font-size:13px; white-space:nowrap; text-decoration:none;
+  display:inline-flex; align-items:center; min-height:44px;
 }
 .tab-link.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
 
 /* ---- buttons ---- */
+/* الحد الأدنى لارتفاع أي زر 44px تقريبًا، حتى يكون سهل الضغط عليه
+   باللمس (إصبع) على الآيباد والموبايل والكمبيوترات اللمسية، وليس فقط
+   بالماوس */
 .btn{
   border:1px solid var(--hair); background:transparent; color:var(--paper);
-  padding:9px 15px; border-radius:8px; font-size:13px; transition:.2s;
+  padding:11px 16px; border-radius:8px; font-size:13px; transition:.2s;
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:44px; -webkit-tap-highlight-color:transparent;
 }
 .btn:hover{border-color:var(--gold); color:var(--gold-hi);}
 .btn.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08; font-weight:700; border:none;}
 .btn.gold:hover{filter:brightness(1.06);}
 .btn.danger{border-color:rgba(193,88,63,.4); color:var(--danger-hi);}
 .btn.danger:hover{border-color:var(--danger); color:#f0b7a8;}
-.btn.small{padding:6px 11px; font-size:12px;}
+.btn.small{padding:8px 13px; font-size:12.5px; min-height:38px;}
 .btn:disabled{opacity:.5; cursor:not-allowed;}
 
 /* ---- forms ---- */
@@ -63,9 +69,23 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
 .field input,.field select,.field textarea{
   width:100%; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
-  padding:10px 12px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;
+  padding:12px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;
 }
+/* حجم الخط 16px على كل الحقول أعلاه مقصود: أي حجم أصغر يخلي متصفح
+   سفاري على الآيفون/الآيباد "يزوم" تلقائيًا على الحقل بمجرد الضغط عليه */
 .field input:focus,.field select:focus,.field textarea:focus{outline:none; border-color:var(--gold);}
+
+/* صناديق الاختيار وأزرار الراديو بحجم مريح للمس بدل الحجم الافتراضي
+   الصغير جدًا في المتصفحات (يأتي بعد قواعد .field input عمدًا ليكسبها) */
+.field input[type="checkbox"], .field input[type="radio"],
+input[type="checkbox"], input[type="radio"]{
+  width:20px; height:20px; accent-color:var(--gold); vertical-align:middle;
+  flex:none;
+}
+.field label:has(input[type="checkbox"]), .field label:has(input[type="radio"]){
+  display:flex; align-items:center; gap:10px; margin-bottom:0; min-height:44px;
+  font-size:14px; color:var(--paper); cursor:pointer;
+}
 .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
 .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
 @media(max-width:560px){.row2,.row3{grid-template-columns:1fr;}}
