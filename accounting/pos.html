@@ -21,14 +21,27 @@
 })();
 </script>
 <style>
-  .wrap{max-width:1180px;}
-  .pos-layout{display:flex; gap:20px; align-items:flex-start;}
-  .pos-main{flex:1 1 50%; min-width:0;}
-  .pos-cart-panel{flex:1 1 50%; min-width:0; position:sticky; top:16px;}
+  /* شاشة بيع سريع مقسومة فعليًا نصفين على كامل عرض الشاشة (بدون حدود
+     مستديرة ولا فراغ يخلي التذكرة تبدو بطاقة "طايرة" فوق الصفحة) —
+     نصف صلب لعرض الأصناف ونصف صلب للتذكرة، يفصل بينهما خط واحد فقط */
+  .wrap{max-width:none; padding:0; margin:0;}
+  #err.err{margin:14px 20px 0;}
+  .pos-layout{display:flex; align-items:stretch; min-height:calc(100vh - var(--nav-h, 112px));}
+  .pos-main{flex:1 1 50%; min-width:0; padding:20px;}
+  .pos-cart-panel{
+    flex:1 1 50%; min-width:0; background:var(--ink-2);
+    border-inline-start:1px solid var(--hair);
+    position:sticky; top:var(--nav-h, 112px); align-self:flex-start;
+    height:calc(100vh - var(--nav-h, 112px));
+  }
   @media (max-width:900px){
-    .pos-layout{flex-direction:column;}
-    .pos-main, .pos-cart-panel{flex:1 1 auto; width:100%;}
-    .pos-cart-panel{position:sticky; bottom:0; top:auto; z-index:20; margin:0 -20px; padding:0 20px;}
+    .pos-layout{flex-direction:column; min-height:0;}
+    .pos-main{padding:16px 20px;}
+    .pos-cart-panel{
+      border-inline-start:none; border-top:1px solid var(--hair);
+      position:sticky; bottom:0; top:auto; z-index:20; height:auto; max-height:65vh;
+      align-self:auto; width:100%;
+    }
   }
 
   .pos-toolbar{display:flex; gap:10px; margin-bottom:14px;}
@@ -47,7 +60,7 @@
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:20px;}
   .card{
     background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; overflow:hidden; cursor:pointer;
-    transition:.15s; text-align:center; position:relative;
+    transition:.15s; text-align:center; position:relative; box-shadow:var(--card-shadow);
   }
   .card:active{transform:scale(.97);}
   .card .thumb{
@@ -81,10 +94,9 @@
   .addon-row .a-price{color:var(--muted); font-size:12.5px;}
 
   .cart-panel-inner{
-    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px 14px 0 0;
-    padding:18px; max-height:70vh; display:flex; flex-direction:column;
+    height:100%; padding:20px; display:flex; flex-direction:column;
   }
-  @media (min-width:901px){ .cart-panel-inner{border-radius:14px; height:calc(100vh - 32px); max-height:none;} }
+  @media (max-width:900px){ .cart-panel-inner{height:auto; max-height:65vh;} }
   .cart-bar{
     background:var(--ink-2); border-top:1px solid var(--hair); flex:none;
     padding:14px 0 0; margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -167,6 +179,15 @@
   <script src="assets/sale-cart.js"></script>
   <script>
     olvRenderNav("pos");
+
+    // يحسب ارتفاع الشريط العلوي فعليًا (يتغيّر حسب حجم الشاشة) ويخزّنه
+    // كمتغيّر CSS، حتى تبدأ التذكرة والقائمة مباشرة تحته بدون أي فراغ
+    function updateNavHeight() {
+      const nav = document.getElementById("olv-nav");
+      if (nav) document.documentElement.style.setProperty("--nav-h", nav.offsetHeight + "px");
+    }
+    updateNavHeight();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateNavHeight);
 
     // أيقونة تعبيرية مناسبة للتصنيف تُستخدم كواجهة افتراضية أنيقة عند عدم توفر صورة حقيقية للصنف
     function categoryEmoji(category) {
@@ -552,7 +573,7 @@
       let resizeTimer = null;
       window.addEventListener("resize", () => {
         clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(renderGrid, 200);
+        resizeTimer = setTimeout(() => { updateNavHeight(); renderGrid(); }, 200);
       });
     })();
   </script>
