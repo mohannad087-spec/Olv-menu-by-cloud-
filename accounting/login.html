@@ -49,7 +49,7 @@
     (async () => {
       if (!window.supabaseClient) return;
       const { data: { session } } = await window.supabaseClient.auth.getSession();
-      if (session) window.location.href = "index.html";
+      if (session) window.location.href = "pos.html";
     })();
 
     document.getElementById("login-form").addEventListener("submit", async (e) => {
@@ -72,7 +72,7 @@
         olvShowError(errBox, error);
         return;
       }
-      window.location.href = "index.html";
+      window.location.href = "pos.html";
     });
   </script>
 </body>
