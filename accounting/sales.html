@@ -21,8 +21,8 @@
 })();
 </script>
 <style>
-  .addon-row{display:flex; align-items:center; gap:10px; padding:6px 0;}
-  .addon-row label{flex:1; font-size:13.5px;}
+  .addon-row{display:flex; align-items:center; gap:10px; padding:12px 0; cursor:pointer; width:100%;}
+  .addon-row .addon-name{flex:1; font-size:13.5px;}
   .addon-row .a-price{color:var(--muted); font-size:12.5px;}
   .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
   .cart-item .meta{color:var(--muted); font-size:12px;}
@@ -115,11 +115,11 @@
       const el = document.getElementById("addon-picker");
       if (!addons.length) { el.innerHTML = ""; return; }
       el.innerHTML = addons.map((a) => `
-        <div class="addon-row">
+        <label class="addon-row" for="sa-${a.id}">
           <input type="checkbox" data-addon="${a.id}" id="sa-${a.id}">
-          <label for="sa-${a.id}">${a.name}</label>
+          <span class="addon-name">${a.name}</span>
           <span class="a-price">+${olvFormatMoney(a.price)}</span>
-        </div>
+        </label>
       `).join("");
     }
 

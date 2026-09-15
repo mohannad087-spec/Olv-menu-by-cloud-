@@ -23,7 +23,8 @@
 <style>
   .low-stock{color:var(--danger-hi); font-weight:700;}
   .sub-tabs{display:flex; gap:8px; margin-bottom:16px;}
-  .sub-tab{background:var(--ink-2); border:1px solid var(--hair); color:var(--muted); padding:8px 16px; border-radius:999px; font-size:13px;}
+  .sub-tab{background:var(--ink-2); border:1px solid var(--hair); color:var(--muted); padding:11px 18px; border-radius:999px; font-size:13px; min-height:44px;}
+  .stock-adjust-input{width:80px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
   .sub-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
   .recipe-row{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1));}
   .recipe-row .r-name{flex:1; font-size:13.5px;}
@@ -172,7 +173,7 @@
                 <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " ⚠" : ""}</td>
                 <td>
                   <div style="display:flex; gap:6px;">
-                    <input type="number" step="0.001" placeholder="+/-" style="width:80px;" data-adjust="${ing.id}">
+                    <input type="number" step="0.001" placeholder="+/-" class="stock-adjust-input" data-adjust="${ing.id}">
                     <button class="btn small" data-apply="${ing.id}">تعديل</button>
                   </div>
                 </td>
