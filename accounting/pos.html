@@ -219,6 +219,20 @@
       img.replaceWith(fallback);
     }
 
+    // إشعار نجاح مؤقت يظهر أسفل الشاشة بعد إتمام البيع، بما إن الشاشة
+    // بقيت مفتوحة على بيع سريع نفسها (بدل الانتقال لصفحة تأكيد منفصلة)
+    function showSuccessToast(msg) {
+      const toast = document.createElement("div");
+      toast.textContent = msg;
+      toast.style.cssText = [
+        "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
+        "background:var(--ok)", "color:#fff", "padding:12px 22px", "border-radius:10px",
+        "font-size:14px", "font-weight:700", "z-index:100", "box-shadow:0 4px 16px rgba(0,0,0,.3)",
+      ].join(";");
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2200);
+    }
+
     let session = null;
     let products = [];
     let addons = [];
@@ -524,7 +538,8 @@
             clearDraft();
             renderCart();
             close();
-            window.location.href = "index.html";
+            showSuccessToast("✓ تم تسجيل البيع بنجاح");
+            refreshPopularityAndGrid();
           } catch (err) {
             olvShowError(errBox, err);
             confirmBtn.disabled = false;
@@ -536,6 +551,18 @@
       render();
       document.body.appendChild(backdrop);
       document.body.appendChild(sheet);
+    }
+
+    // يعيد تحميل ترتيب "الأكثر مبيعًا" من قاعدة البيانات ويعيد رسم القائمة —
+    // يُستدعى عند فتح الشاشة، وأيضًا بعد كل عملية بيع (لأن الشاشة صارت
+    // تبقى مفتوحة على نفسها بدل الانتقال لصفحة أخرى)
+    async function refreshPopularityAndGrid() {
+      const { data: salesData, error } = await window.supabaseClient.from("product_sales_totals").select("*");
+      if (error) return;
+      popularity = {};
+      (salesData || []).forEach((r) => { popularity[r.product_id] = Number(r.total_qty); });
+      renderCategoryTabs();
+      renderGrid();
     }
 
     (async () => {
