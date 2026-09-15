@@ -260,14 +260,14 @@
                       <td>${olvFormatMoney(p.price)}</td>
                       <td>
                         <div style="display:flex; gap:6px; min-width:180px;">
-                          <input type="url" value="${p.image_url || ""}" placeholder="https://..." style="min-width:120px;" data-image-input="${p.id}">
+                          <input type="url" value="${p.image_url || ""}" placeholder="https://..." style="min-width:120px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-image-input="${p.id}">
                           <button class="btn small" data-save-image="${p.id}">حفظ</button>
                         </div>
                         ${!p.image_url ? `<div class="hint">بلا صورة (تظهر أيقونة افتراضية)</div>` : ""}
                       </td>
                       <td>
                         <div style="display:flex; gap:6px;">
-                          <input type="number" value="${p.sort_order || 0}" style="width:60px;" data-priority-input="${p.id}">
+                          <input type="number" value="${p.sort_order || 0}" style="width:70px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-priority-input="${p.id}">
                           <button class="btn small" data-save-priority="${p.id}">حفظ</button>
                         </div>
                       </td>
