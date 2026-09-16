@@ -18,6 +18,21 @@ const OlvCart = (function () {
     items.splice(idx, 1);
   }
 
+  // يعدّل بيانات سطر موجود بالسلة (الكمية/الإضافات/الملاحظة) — تُستخدم
+  // لما يفتح المستخدم سطرًا بالتذكرة عشان يخصّصه بعد الإضافة السريعة
+  function updateAt(idx, patch) {
+    const item = items[idx];
+    if (!item) return;
+    Object.assign(item, patch);
+  }
+
+  // يزيد/ينقص كمية سطر موجود مباشرة (بدون فتح شاشة التخصيص) — الحد الأدنى 1
+  function incrementQtyAt(idx, delta) {
+    const item = items[idx];
+    if (!item) return;
+    item.qty = Math.max(1, item.qty + delta);
+  }
+
   function clear() {
     items = [];
   }
@@ -73,5 +88,5 @@ const OlvCart = (function () {
     return data;
   }
 
-  return { add, removeAt, clear, all, restore, lineTotal, total, checkout };
+  return { add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout };
 })();
