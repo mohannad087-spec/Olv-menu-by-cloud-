@@ -177,6 +177,7 @@
   <script src="assets/auth-guard.js"></script>
   <script src="assets/layout.js"></script>
   <script src="assets/sale-cart.js"></script>
+  <script src="assets/notify-sound.js"></script>
   <script>
     olvRenderNav("pos");
 
@@ -219,18 +220,47 @@
       img.replaceWith(fallback);
     }
 
-    // إشعار نجاح مؤقت يظهر أسفل الشاشة بعد إتمام البيع، بما إن الشاشة
-    // بقيت مفتوحة على بيع سريع نفسها (بدل الانتقال لصفحة تأكيد منفصلة)
-    function showSuccessToast(msg) {
+    // إشعار مؤقت يظهر أسفل الشاشة (نجاح بيع، أو تنبيه طلب جاهز)، بما إن
+    // الشاشة بقيت مفتوحة على بيع سريع نفسها بدل الانتقال لصفحة منفصلة
+    function showToast(msg, color) {
       const toast = document.createElement("div");
       toast.textContent = msg;
       toast.style.cssText = [
         "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
-        "background:var(--ok)", "color:#fff", "padding:12px 22px", "border-radius:10px",
+        `background:${color || "var(--ok)"}`, "color:#fff", "padding:12px 22px", "border-radius:10px",
         "font-size:14px", "font-weight:700", "z-index:100", "box-shadow:0 4px 16px rgba(0,0,0,.3)",
       ].join(";");
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 2200);
+    }
+    function showSuccessToast(msg) { showToast(msg, "var(--ok)"); }
+
+    // يراقب الطلبات اليوم اللي صارت "جاهز" (المطبخ صار خلص فيها) ويطلع
+    // صوت تنبيه + إشعار للكاشير — يتجاهل الطلبات الجاهزة أصلًا وقت فتح
+    // الشاشة، وينبّه بس على اللي بيصير جاهز جديد بعدها
+    let knownReadyIds = null; // null = لسا ما انعمل الأساس (baseline) الأول
+    async function checkForReadyOrders() {
+      const { data, error } = await window.supabaseClient
+        .from("sales_entries")
+        .select("id, order_type")
+        .eq("kitchen_status", "جاهز")
+        .eq("entry_date", olvToday())
+        .limit(60);
+      if (error) return;
+      const currentIds = new Map((data || []).map((o) => [o.id, o]));
+      if (knownReadyIds === null) {
+        knownReadyIds = new Set(currentIds.keys());
+        return;
+      }
+      const newOnes = [];
+      currentIds.forEach((order, id) => { if (!knownReadyIds.has(id)) newOnes.push(order); });
+      knownReadyIds = new Set(currentIds.keys());
+      if (newOnes.length) {
+        OlvSound.playOrderReady();
+        newOnes.forEach((order) => {
+          showToast(`✓ طلب ${order.order_type || ""} جاهز من المطبخ`, "var(--gold-dp)");
+        });
+      }
     }
 
     let session = null;
@@ -602,6 +632,9 @@
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => { updateNavHeight(); renderGrid(); }, 200);
       });
+
+      await checkForReadyOrders();
+      setInterval(checkForReadyOrders, 15000);
     })();
   </script>
 </body>

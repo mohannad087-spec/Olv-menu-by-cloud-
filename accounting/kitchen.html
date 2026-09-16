@@ -60,12 +60,35 @@
   <script src="assets/supabase-client.js"></script>
   <script src="assets/auth-guard.js"></script>
   <script src="assets/layout.js"></script>
+  <script src="assets/notify-sound.js"></script>
   <script>
     olvRenderNav("kitchen");
 
     const PENDING_STATUS = "قيد التحضير";
     const READY_STATUS = "جاهز";
     let activeTab = "pending";
+    let knownPendingIds = null; // null = لسا ما انعمل الأساس (baseline) الأول
+
+    // يفحص وجود طلبات جديدة قيد التحضير بشكل مستقل عن التبويب المفتوح
+    // حاليًا (قد يكون الموظف فاتح تبويب "جاهز" وقت وصول طلب جديد)، ويشغّل
+    // نغمة تنبيه فقط لما يكتشف طلبًا جديدًا فعليًا وليس عند أول تحميل للصفحة
+    async function checkForNewOrders() {
+      const { data, error } = await window.supabaseClient
+        .from("sales_entries")
+        .select("id, sale_items(id)")
+        .eq("kitchen_status", PENDING_STATUS)
+        .limit(60);
+      if (error) return;
+      const currentIds = new Set((data || []).filter((o) => o.sale_items && o.sale_items.length).map((o) => o.id));
+      if (knownPendingIds === null) {
+        knownPendingIds = currentIds;
+        return;
+      }
+      let hasNew = false;
+      currentIds.forEach((id) => { if (!knownPendingIds.has(id)) hasNew = true; });
+      knownPendingIds = currentIds;
+      if (hasNew) OlvSound.playNewOrder();
+    }
 
     function formatTime(ts) {
       const d = new Date(ts);
@@ -143,7 +166,8 @@
       const session = await olvRequireAuth();
       if (!session) return;
       await loadOrders();
-      setInterval(loadOrders, 15000);
+      await checkForNewOrders();
+      setInterval(() => { loadOrders(); checkForNewOrders(); }, 15000);
     })();
   </script>
 </body>
