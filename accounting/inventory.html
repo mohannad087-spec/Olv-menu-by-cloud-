@@ -22,6 +22,13 @@
 </script>
 <style>
   .low-stock{color:var(--danger-hi); font-weight:700;}
+  .urgent-banner{
+    background:rgba(193,88,63,.12); border:1px solid rgba(193,88,63,.4); border-radius:12px;
+    padding:16px; margin-bottom:20px;
+  }
+  .urgent-banner h3{color:var(--danger-hi); font-size:15px; margin-bottom:10px;}
+  .urgent-item{display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px;}
+  .urgent-item .days{color:var(--danger-hi); font-weight:700;}
   .sub-tabs{display:flex; gap:8px; margin-bottom:16px;}
   .sub-tab{background:var(--ink-2); border:1px solid var(--hair); color:var(--muted); padding:11px 18px; border-radius:999px; font-size:13px; min-height:44px;}
   .stock-adjust-input{width:80px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
@@ -41,6 +48,11 @@
     </div>
 
     <div id="tab-stock">
+      <div class="urgent-banner" id="urgent-banner" hidden>
+        <h3>⚠️ مواد قاربت تنفد</h3>
+        <div id="urgent-list"></div>
+      </div>
+
       <div class="group">
         <h2>إضافة مادة خام</h2>
         <form id="ing-form">
@@ -79,11 +91,16 @@
 
       <div class="group">
         <h2>المخزون الحالي</h2>
+        <p class="hint" style="margin-bottom:12px;">
+          عمود "يكفي لـ" تقدير آلي بناءً على متوسط مبيعات آخر 14 يومًا من
+          الأصناف الأساسية (لا يشمل استهلاك الإضافات حاليًا)، ويحتاج بضعة
+          أيام من المبيعات الفعلية حتى يصبح دقيقًا.
+        </p>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>تعديل</th><th></th></tr></thead>
+            <thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>يكفي لـ</th><th>تعديل</th><th></th></tr></thead>
             <tbody id="ing-body">
-              <tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr>
+              <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
             </tbody>
           </table>
         </div>
@@ -144,6 +161,64 @@
     let ingredients = [];
     let products = [];
     let addons = [];
+    let consumptionRates = {}; // ingredient_id -> استهلاك يومي تقديري
+
+    const CONSUMPTION_WINDOW_DAYS = 14;
+    const URGENT_DAYS_THRESHOLD = 3;
+
+    // يحسب استهلاك كل مادة خام يوميًا تقريبًا، بالاعتماد على مبيعات
+    // الأصناف الأساسية خلال آخر 14 يومًا مضروبة بوصفة كل صنف — حسبة
+    // رياضية بسيطة على البيانات الموجودة أصلًا، بدون أي خدمة ذكاء اصطناعي خارجية
+    async function computeConsumptionRates() {
+      const cutoff = new Date(Date.now() - CONSUMPTION_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      const [{ data: recentItems, error: e1 }, { data: recipes, error: e2 }] = await Promise.all([
+        window.supabaseClient.from("sale_items").select("product_id, qty").gte("created_at", cutoff),
+        window.supabaseClient.from("product_ingredients").select("product_id, ingredient_id, quantity"),
+      ]);
+      if (e1 || e2) return {};
+
+      const recipesByProduct = {};
+      (recipes || []).forEach((r) => {
+        (recipesByProduct[r.product_id] = recipesByProduct[r.product_id] || []).push(r);
+      });
+
+      const totalConsumption = {}; // ingredient_id -> إجمالي المستهلك خلال الفترة
+      (recentItems || []).forEach((item) => {
+        const lines = recipesByProduct[item.product_id] || [];
+        lines.forEach((line) => {
+          totalConsumption[line.ingredient_id] =
+            (totalConsumption[line.ingredient_id] || 0) + Number(line.quantity) * Number(item.qty);
+        });
+      });
+
+      const rates = {};
+      Object.keys(totalConsumption).forEach((ingId) => {
+        rates[ingId] = totalConsumption[ingId] / CONSUMPTION_WINDOW_DAYS;
+      });
+      return rates;
+    }
+
+    function renderUrgentBanner() {
+      const banner = document.getElementById("urgent-banner");
+      const list = document.getElementById("urgent-list");
+      const urgent = ingredients
+        .map((ing) => {
+          const rate = consumptionRates[ing.id] || 0;
+          const daysLeft = rate > 0 ? Number(ing.current_stock) / rate : null;
+          return { ing, daysLeft };
+        })
+        .filter((x) => x.daysLeft !== null && x.daysLeft <= URGENT_DAYS_THRESHOLD)
+        .sort((a, b) => a.daysLeft - b.daysLeft);
+
+      if (!urgent.length) { banner.hidden = true; return; }
+      banner.hidden = false;
+      list.innerHTML = urgent.map(({ ing, daysLeft }) => `
+        <div class="urgent-item">
+          <span>${ing.name}</span>
+          <span class="days">${daysLeft <= 0 ? "نفدت تقريبًا" : `يكفي لـ ${daysLeft.toFixed(1)} يوم تقريبًا`}</span>
+        </div>
+      `).join("");
+    }
 
     document.querySelectorAll(".sub-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -158,19 +233,32 @@
       const errBox = document.getElementById("err");
       const body = document.getElementById("ing-body");
       try {
-        const { data, error } = await window.supabaseClient.from("ingredients").select("*").order("name");
+        const [{ data, error }, rates] = await Promise.all([
+          window.supabaseClient.from("ingredients").select("*").order("name"),
+          computeConsumptionRates(),
+        ]);
         if (error) throw error;
         ingredients = data || [];
+        consumptionRates = rates;
+        renderUrgentBanner();
         if (!ingredients.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد مواد خام بعد</td></tr>`;
+          body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد مواد خام بعد</td></tr>`;
         } else {
           body.innerHTML = ingredients.map((ing) => {
             const low = Number(ing.current_stock) <= Number(ing.low_stock_threshold) && Number(ing.low_stock_threshold) > 0;
+            const rate = consumptionRates[ing.id] || 0;
+            const daysLeft = rate > 0 ? Number(ing.current_stock) / rate : null;
+            let daysCell = `<span class="hint">لا يوجد بيانات كافية</span>`;
+            if (daysLeft !== null) {
+              const urgent = daysLeft <= URGENT_DAYS_THRESHOLD;
+              daysCell = `<span class="${urgent ? "low-stock" : ""}">${daysLeft <= 0 ? "نفدت تقريبًا" : `${daysLeft.toFixed(1)} يوم`}</span>`;
+            }
             return `
               <tr>
                 <td>${ing.name}</td>
                 <td>${ing.unit}</td>
                 <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " ⚠" : ""}</td>
+                <td>${daysCell}</td>
                 <td>
                   <div style="display:flex; gap:6px;">
                     <input type="number" step="0.001" placeholder="+/-" class="stock-adjust-input" data-adjust="${ing.id}">
