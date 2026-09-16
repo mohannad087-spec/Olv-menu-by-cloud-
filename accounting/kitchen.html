@@ -30,6 +30,7 @@
   .order-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
   .order-time{font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold-hi); font-weight:700;}
   .order-type-badge{font-size:12px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px; color:var(--muted);}
+  .order-route{font-size:13.5px; font-weight:700; color:var(--gold-hi); margin-bottom:8px;}
   .order-items{flex:1; margin-bottom:14px;}
   .order-line{padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:14px;}
   .order-line:last-child{border-bottom:none;}
@@ -124,6 +125,8 @@
                 <span class="order-time">${formatTime(o.created_at)}</span>
                 ${o.order_type ? `<span class="order-type-badge">${o.order_type}</span>` : ""}
               </div>
+              ${o.table_number ? `<div class="order-route">🪑 طاولة رقم ${o.table_number}</div>` : ""}
+              ${o.customer_phone ? `<div class="order-route" dir="ltr">📞 ${o.customer_phone}</div>` : ""}
               <div class="order-items">
                 ${o.sale_items.map((it) => `
                   <div class="order-line">
