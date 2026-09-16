@@ -105,8 +105,17 @@
   .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:24px; color:var(--gold-hi); font-weight:700;}
   .cart-bar .actions{display:flex; gap:8px;}
   .cart-list{margin-bottom:0;}
-  .cart-item{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:15px;}
-  .cart-item .meta{color:var(--muted); font-size:13px;}
+  .cart-item{padding:12px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:15px;}
+  .cart-item-info{cursor:pointer; margin-bottom:8px;}
+  .cart-item-info .meta{color:var(--muted); font-size:13px; margin-top:2px;}
+  .cart-item-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .qty-stepper{display:flex; align-items:center; gap:8px;}
+  .qty-stepper button{
+    width:34px; height:34px; border-radius:8px; border:1px solid var(--hair); background:var(--ink-3);
+    color:var(--paper); font-size:16px; flex:none;
+  }
+  .qty-stepper .qty-value{min-width:20px; text-align:center; font-size:14px;}
+  .cart-item-price{font-weight:700; color:var(--gold-hi); font-size:14px;}
   .cart-empty{color:var(--muted); font-size:14px; text-align:center; padding:60px 0;}
   .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .ticket-header h2{margin:0;}
@@ -364,7 +373,7 @@
         </div>
       `).join("");
       grid.querySelectorAll(".card").forEach((card) => {
-        card.addEventListener("click", () => openAddSheet(card.dataset.id));
+        card.addEventListener("click", () => quickAddToCart(card.dataset.id));
       });
 
       pagination.hidden = totalPages <= 1;
@@ -373,21 +382,41 @@
       document.getElementById("page-next").disabled = currentPage >= totalPages;
     }
 
-    function openAddSheet(productId) {
+    // ضغطة وحدة على أي صنف بالقائمة تضيفه مباشرة للتذكرة بكمية 1 بدون
+    // أي نافذة — لو نفس الصنف "العادي" (بدون إضافات ولا ملاحظة) موجود
+    // أصلًا بالتذكرة، بتزيد كميته بدل ما تعمل سطر مكرر
+    function quickAddToCart(productId) {
       const product = products.find((p) => p.id === productId);
       if (!product) return;
+      const cart = OlvCart.all();
+      const existingIdx = cart.findIndex(
+        (item) => item.productId === productId && item.addons.length === 0 && !item.note
+      );
+      if (existingIdx >= 0) {
+        OlvCart.incrementQtyAt(existingIdx, 1);
+      } else {
+        OlvCart.add(product, [], 1, "");
+      }
+      renderCart();
+    }
+
+    // فتح شاشة تخصيص سطر موجود بالتذكرة (الكمية، الإضافات، الملاحظة)،
+    // وتحتها زر لحذف السطر بالكامل من السلة
+    function openItemSheet(idx) {
+      const item = OlvCart.all()[idx];
+      if (!item) return;
       const backdrop = document.createElement("div");
       backdrop.className = "sheet-backdrop";
       const sheet = document.createElement("div");
       sheet.className = "sheet";
-      let qty = 1;
-      let note = "";
-      const selectedAddons = new Set();
+      let qty = item.qty;
+      let note = item.note || "";
+      const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
         sheet.innerHTML = `
-          <h2 style="margin-bottom:10px;">${product.name}</h2>
-          <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(product.price)}</div>
+          <h2 style="margin-bottom:10px;">${item.name}</h2>
+          <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
           ${addons.length ? `
             <div style="margin-bottom:10px;">
               ${addons.map((a) => `
@@ -408,7 +437,8 @@
             <label>ملاحظة للمطبخ (اختياري)</label>
             <input type="text" id="item-note" placeholder="مثال: بدون بصل" value="${note}">
           </div>
-          <button class="btn gold" id="sheet-add" style="width:100%;">إضافة للسلة</button>
+          <button class="btn gold" id="sheet-save" style="width:100%;">حفظ التعديلات</button>
+          <button class="btn danger" id="sheet-delete" style="width:100%; margin-top:8px;">حذف من السلة</button>
           <button class="btn" id="sheet-cancel" style="width:100%; margin-top:8px;">إلغاء</button>
         `;
         sheet.querySelectorAll("input[data-addon]").forEach((cb) => {
@@ -420,10 +450,15 @@
         sheet.querySelector("#qty-minus").addEventListener("click", () => { qty = Math.max(1, qty - 1); note = sheet.querySelector("#item-note").value; render(); });
         sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; note = sheet.querySelector("#item-note").value; render(); });
         sheet.querySelector("#sheet-cancel").addEventListener("click", close);
-        sheet.querySelector("#sheet-add").addEventListener("click", () => {
+        sheet.querySelector("#sheet-delete").addEventListener("click", () => {
+          OlvCart.removeAt(idx);
+          renderCart();
+          close();
+        });
+        sheet.querySelector("#sheet-save").addEventListener("click", () => {
           const chosenAddons = addons.filter((a) => selectedAddons.has(a.id));
           const finalNote = sheet.querySelector("#item-note").value.trim();
-          OlvCart.add(product, chosenAddons, qty, finalNote);
+          OlvCart.updateAt(idx, { qty, addons: chosenAddons, note: finalNote });
           renderCart();
           close();
         });
@@ -479,20 +514,36 @@
       } else {
         list.innerHTML = cart.map((item, idx) => `
           <div class="cart-item">
-            <div>
-              <div>${item.qty}× ${item.name}</div>
+            <div class="cart-item-info" data-edit="${idx}">
+              <div class="name">${item.name}</div>
               ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
               ${item.note ? `<div class="meta">📝 ${item.note}</div>` : ""}
             </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-              <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
-              <button class="btn small danger" data-idx="${idx}">حذف</button>
+            <div class="cart-item-row">
+              <div class="qty-stepper">
+                <button type="button" data-dec="${idx}">−</button>
+                <span class="qty-value">${item.qty}</span>
+                <button type="button" data-inc="${idx}">+</button>
+              </div>
+              <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
           </div>
         `).join("");
-        list.querySelectorAll("button[data-idx]").forEach((btn) => {
+        list.querySelectorAll("[data-edit]").forEach((el) => {
+          el.addEventListener("click", () => openItemSheet(Number(el.dataset.edit)));
+        });
+        list.querySelectorAll("[data-inc]").forEach((btn) => {
           btn.addEventListener("click", () => {
-            OlvCart.removeAt(Number(btn.dataset.idx));
+            OlvCart.incrementQtyAt(Number(btn.dataset.inc), 1);
+            renderCart();
+          });
+        });
+        list.querySelectorAll("[data-dec]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.dataset.dec);
+            const target = OlvCart.all()[idx];
+            if (target && target.qty <= 1) OlvCart.removeAt(idx);
+            else OlvCart.incrementQtyAt(idx, -1);
             renderCart();
           });
         });
