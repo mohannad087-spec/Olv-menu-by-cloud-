@@ -83,6 +83,87 @@
     z-index:50; box-shadow:0 -10px 30px rgba(0,0,0,.4); max-height:80vh; overflow-y:auto;
   }
   .sheet-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:40;}
+
+  /* ---- شاشة إتمام الدفع الاحترافية ---- */
+  .checkout-backdrop{
+    position:fixed; inset:0; background:rgba(8,7,4,.6); backdrop-filter:blur(6px);
+    z-index:60; display:flex; align-items:center; justify-content:center; padding:20px;
+    opacity:0; transition:opacity .18s ease;
+  }
+  .checkout-backdrop.in{opacity:1;}
+  .checkout-modal{
+    position:relative; width:100%; max-width:420px; max-height:92vh; overflow-y:auto;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:22px;
+    box-shadow:0 24px 60px rgba(0,0,0,.5); padding:26px 24px calc(24px + env(safe-area-inset-bottom));
+    transform:scale(.94) translateY(10px); opacity:0; transition:transform .2s ease, opacity .2s ease;
+  }
+  .checkout-backdrop.in .checkout-modal{transform:scale(1) translateY(0); opacity:1;}
+  .checkout-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
+  .checkout-head h2{font-size:19px;}
+  .checkout-close{
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--hair); background:var(--ink-3);
+    color:var(--muted); font-size:15px; flex:none;
+  }
+  .checkout-total{text-align:center; padding:18px 0 20px;}
+  .checkout-total .label{font-size:12.5px; color:var(--muted); margin-bottom:4px;}
+  .checkout-total .amount{
+    font-family:'Cormorant Garamond',serif; font-size:46px; font-weight:700; color:var(--gold-hi); line-height:1;
+  }
+  .checkout-summary{
+    background:var(--ink-3); border-radius:12px; padding:12px 14px; margin-bottom:20px;
+    max-height:120px; overflow-y:auto;
+  }
+  .checkout-summary .row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:var(--muted);}
+  .checkout-summary .row span:first-child{color:var(--paper);}
+
+  .pm-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
+  .pm-tile{
+    background:var(--ink-3); border:1.5px solid var(--hair); border-radius:14px; padding:14px 6px;
+    display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12.5px; color:var(--muted);
+    min-height:72px;
+  }
+  .pm-tile .icon{font-size:24px;}
+  .pm-tile.on{border-color:var(--gold); background:rgba(201,162,75,.12); color:var(--gold-hi); font-weight:700;}
+
+  .cash-panel{margin-bottom:8px;}
+  .received-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
+  .received-row .label{font-size:13px; color:var(--muted);}
+  .received-row .value{font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:700; color:var(--paper);}
+  .quick-amounts{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
+  .quick-amounts button{
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:10px; padding:10px 4px;
+    font-size:13px; color:var(--paper); min-height:40px;
+  }
+  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px;}
+  .keypad button{
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:10px; font-size:19px;
+    color:var(--paper); min-height:50px;
+  }
+  .keypad button:active{background:var(--ink); border-color:var(--gold);}
+  .change-row{
+    display:flex; justify-content:space-between; align-items:center; background:rgba(124,138,74,.12);
+    border:1px solid rgba(124,138,74,.35); border-radius:12px; padding:12px 16px; margin-bottom:18px;
+  }
+  .change-row.insufficient{background:rgba(193,88,63,.1); border-color:rgba(193,88,63,.35);}
+  .change-row .label{font-size:13px; color:var(--muted);}
+  .change-row .value{font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:700; color:var(--ok);}
+  .change-row.insufficient .value{color:var(--danger-hi);}
+
+  .checkout-confirm{width:100%; min-height:52px; font-size:16px;}
+
+  .checkout-success{
+    position:absolute; inset:0; background:var(--ink-2); border-radius:22px; z-index:2;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .checkout-success.show{opacity:1; pointer-events:auto;}
+  .checkout-success .check{
+    width:76px; height:76px; border-radius:50%; background:var(--ok); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:38px;
+    transform:scale(.5); transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .checkout-success.show .check{transform:scale(1);}
+  .checkout-success .msg{font-size:16px; font-weight:700; color:var(--gold-hi);}
   .qty-row{display:flex; align-items:center; gap:14px; margin:14px 0;}
   .qty-row button{
     width:44px; height:44px; border-radius:10px; border:1px solid var(--hair); background:var(--ink-3);
@@ -251,7 +332,6 @@
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 2200);
     }
-    function showSuccessToast(msg) { showToast(msg, "var(--ok)"); }
 
     // يراقب الطلبات اليوم اللي صارت "جاهز" (المطبخ صار خلص فيها) ويطلع
     // صوت تنبيه + إشعار للكاشير — يتجاهل الطلبات الجاهزة أصلًا وقت فتح
@@ -597,95 +677,129 @@
       errBox.style.display = "none";
 
       const total = OlvCart.total();
+      const cartSnapshot = OlvCart.all().slice();
+      const exact = Math.round(total * 100) / 100;
+      let method = "cash";
+      let receivedCents = 0;
+
       const backdrop = document.createElement("div");
-      backdrop.className = "sheet-backdrop";
-      const sheet = document.createElement("div");
-      sheet.className = "sheet";
+      backdrop.className = "checkout-backdrop";
+      const modal = document.createElement("div");
+      modal.className = "checkout-modal";
+      backdrop.appendChild(modal);
+
+      function quickAmounts() {
+        const amounts = new Set([exact]);
+        [5, 10, 20, 50].forEach((denom) => {
+          const rounded = Math.ceil(exact / denom) * denom;
+          if (rounded > exact) amounts.add(rounded);
+        });
+        return Array.from(amounts).sort((a, b) => a - b).slice(0, 4);
+      }
 
       function render() {
-        const method = sheet.querySelector("#pay-method") ? sheet.querySelector("#pay-method").value : "cash";
-        sheet.innerHTML = `
-          <h2 style="margin-bottom:14px;">إتمام البيع — ${olvFormatMoney(total)}</h2>
-          <div class="field">
-            <label>طريقة الدفع</label>
-            <select id="pay-method">
-              <option value="cash"${method === "cash" ? " selected" : ""}>كاش</option>
-              <option value="card"${method === "card" ? " selected" : ""}>شبكة / فيزا</option>
-              <option value="delivery"${method === "delivery" ? " selected" : ""}>توصيل / تطبيقات</option>
-            </select>
+        const receivedAmount = receivedCents / 100;
+        const change = receivedAmount - exact;
+        const canConfirm = method !== "cash" || receivedAmount >= exact;
+
+        modal.innerHTML = `
+          <div class="checkout-head">
+            <h2>إتمام الدفع</h2>
+            <button type="button" class="checkout-close" id="checkout-close">✕</button>
+          </div>
+          <div class="checkout-total">
+            <div class="label">الإجمالي المطلوب</div>
+            <div class="amount" dir="ltr">${olvFormatMoney(exact)}</div>
+          </div>
+          <div class="checkout-summary">
+            ${cartSnapshot.map((item) => `
+              <div class="row"><span>${item.qty}× ${item.name}</span><span>${olvFormatMoney(OlvCart.lineTotal(item))}</span></div>
+            `).join("")}
+          </div>
+          <div class="pm-tiles">
+            <button type="button" class="pm-tile${method === "cash" ? " on" : ""}" data-method="cash"><span class="icon">💵</span>كاش</button>
+            <button type="button" class="pm-tile${method === "card" ? " on" : ""}" data-method="card"><span class="icon">💳</span>شبكة</button>
+            <button type="button" class="pm-tile${method === "delivery" ? " on" : ""}" data-method="delivery"><span class="icon">🛵</span>توصيل</button>
           </div>
           ${method === "cash" ? `
-            <div class="field">
-              <label>المبلغ المستلم من الزبون</label>
-              <input type="number" id="cash-received" step="0.01" min="0" placeholder="0.00">
-            </div>
-            <div class="stat" style="margin-bottom:16px;">
-              <div class="label">الباقي المطلوب إرجاعه للزبون</div>
-              <div class="value" id="change-due">0.00</div>
+            <div class="cash-panel">
+              <div class="received-row">
+                <span class="label">المبلغ المستلم</span>
+                <span class="value" dir="ltr">${receivedAmount.toFixed(2)}</span>
+              </div>
+              <div class="quick-amounts">
+                ${quickAmounts().map((amt) => `<button type="button" data-amt="${amt}">${amt === exact ? "بالضبط" : olvFormatMoney(amt)}</button>`).join("")}
+              </div>
+              <div class="keypad">
+                ${["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => `<button type="button" data-key="${k}">${k}</button>`).join("")}
+              </div>
+              <div class="change-row${change < 0 ? " insufficient" : ""}">
+                <span class="label">${change < 0 ? "المتبقي على الزبون" : "الباقي للزبون"}</span>
+                <span class="value" dir="ltr">${olvFormatMoney(Math.abs(change))}</span>
+              </div>
             </div>
           ` : ""}
-          <button class="btn gold" id="confirm-sale" style="width:100%;">تأكيد البيع</button>
-          <button class="btn" id="cancel-sale" style="width:100%; margin-top:8px;">رجوع</button>
+          <button type="button" class="btn gold checkout-confirm" id="checkout-confirm"${canConfirm ? "" : " disabled"}>تأكيد الدفع</button>
+          <div class="checkout-success" id="checkout-success">
+            <div class="check">✓</div>
+            <div class="msg">تم تسجيل البيع بنجاح</div>
+          </div>
         `;
-        sheet.querySelector("#pay-method").addEventListener("change", render);
-        sheet.querySelector("#cancel-sale").addEventListener("click", close);
-        const cashInput = sheet.querySelector("#cash-received");
-        const changeEl = sheet.querySelector("#change-due");
-        const confirmBtn = sheet.querySelector("#confirm-sale");
-        function updateChange() {
-          if (!cashInput) return;
-          const received = Number(cashInput.value || 0);
-          const change = received - total;
-          changeEl.textContent = olvFormatMoney(Math.max(change, 0));
-          changeEl.className = "value " + (change < 0 ? "bad" : "good");
-          confirmBtn.disabled = received < total;
-        }
-        if (cashInput) {
-          cashInput.addEventListener("input", updateChange);
-          updateChange();
-        }
-        confirmBtn.addEventListener("click", async () => {
-          confirmBtn.disabled = true;
-          const errBox = document.getElementById("err");
-          try {
-            const payMethod = sheet.querySelector("#pay-method").value;
-            const orderType = document.getElementById("order-type").value;
-            const tableNumber = document.getElementById("table-number").value.trim();
-            const customerPhone = document.getElementById("customer-phone").value.trim();
-            if (orderType === "صالة" && !tableNumber) {
-              throw new Error("لازم تدخل رقم الطاولة قبل إتمام طلب الصالة");
-            }
-            if (orderType === "توصيل" && !customerPhone) {
-              throw new Error("لازم تدخل رقم تلفون الزبون قبل إتمام طلب التوصيل");
-            }
-            let extraNotes = "بيع سريع";
-            let cashReceived = null;
-            let changeDue = null;
-            if (payMethod === "cash" && cashInput) {
-              cashReceived = Number(cashInput.value || 0);
-              changeDue = Math.max(cashReceived - total, 0);
-              extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
-            }
-            await OlvCart.checkout({
-              paymentMethod: payMethod, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
-              tableNumber: tableNumber || null, customerPhone: customerPhone || null,
-            });
-            clearDraft();
-            renderCart();
-            close();
-            showSuccessToast("✓ تم تسجيل البيع بنجاح");
-            refreshPopularityAndGrid();
-          } catch (err) {
-            olvShowError(errBox, err);
-            confirmBtn.disabled = false;
-          }
+
+        modal.querySelector("#checkout-close").addEventListener("click", close);
+        modal.querySelectorAll(".pm-tile").forEach((btn) => {
+          btn.addEventListener("click", () => { method = btn.dataset.method; render(); });
         });
+        if (method === "cash") {
+          modal.querySelectorAll(".quick-amounts button").forEach((btn) => {
+            btn.addEventListener("click", () => { receivedCents = Math.round(Number(btn.dataset.amt) * 100); render(); });
+          });
+          modal.querySelectorAll(".keypad button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const k = btn.dataset.key;
+              if (k === "C") receivedCents = 0;
+              else if (k === "⌫") receivedCents = Math.floor(receivedCents / 10);
+              else receivedCents = Math.min(receivedCents * 10 + Number(k), 99999999);
+              render();
+            });
+          });
+        }
+        modal.querySelector("#checkout-confirm").addEventListener("click", confirmPayment);
       }
-      function close() { backdrop.remove(); sheet.remove(); }
-      backdrop.addEventListener("click", close);
+
+      async function confirmPayment() {
+        const confirmBtn = modal.querySelector("#checkout-confirm");
+        confirmBtn.disabled = true;
+        const errBox = document.getElementById("err");
+        try {
+          let extraNotes = "بيع سريع";
+          let cashReceived = null;
+          let changeDue = null;
+          if (method === "cash") {
+            cashReceived = receivedCents / 100;
+            changeDue = Math.max(cashReceived - exact, 0);
+            extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
+          }
+          await OlvCart.checkout({
+            paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
+            tableNumber: tableNumber || null, customerPhone: customerPhone || null,
+          });
+          clearDraft();
+          renderCart();
+          refreshPopularityAndGrid();
+          modal.querySelector("#checkout-success").classList.add("show");
+          setTimeout(close, 900);
+        } catch (err) {
+          olvShowError(errBox, err);
+          confirmBtn.disabled = false;
+        }
+      }
+
+      function close() { backdrop.remove(); }
+      backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
       render();
       document.body.appendChild(backdrop);
-      document.body.appendChild(sheet);
+      requestAnimationFrame(() => backdrop.classList.add("in"));
     }
 
     // يعيد تحميل ترتيب "الأكثر مبيعًا" من قاعدة البيانات ويعيد رسم القائمة —
