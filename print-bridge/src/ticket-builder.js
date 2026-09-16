@@ -57,6 +57,18 @@ class TicketBuilder {
     return this;
   }
 
+  // نفس center لكن تفرض اتجاه LTR — لأرقام مثل رقم الهاتف، لتفادي
+  // احتمال انعكاس الأرقام بصريًا داخل سياق نص عربي (RTL)
+  centerLtr(text, font, lineHeight) {
+    this._measure.font = font;
+    const lines = wrapText(this._measure, text, this.contentWidth);
+    lines.forEach((line) => {
+      this.ops.push({ type: "center-ltr", text: line, font, y: this.y });
+      this.y += lineHeight;
+    });
+    return this;
+  }
+
   right(text, font, lineHeight) {
     this._measure.font = font;
     const lines = wrapText(this._measure, text, this.contentWidth);
@@ -105,6 +117,13 @@ class TicketBuilder {
       }
       if (op.type === "center") {
         ctx.direction = "rtl";
+        ctx.textAlign = "center";
+        ctx.font = op.font;
+        ctx.fillText(op.text, this.width / 2, op.y);
+        continue;
+      }
+      if (op.type === "center-ltr") {
+        ctx.direction = "ltr";
         ctx.textAlign = "center";
         ctx.font = op.font;
         ctx.fillText(op.text, this.width / 2, op.y);

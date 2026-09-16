@@ -168,6 +168,14 @@
               <option value="توصيل">توصيل</option>
             </select>
           </div>
+          <div class="field" id="table-number-field" style="margin-bottom:12px;" hidden>
+            <label>رقم الطاولة</label>
+            <input type="text" id="table-number" placeholder="مثال: 5">
+          </div>
+          <div class="field" id="customer-phone-field" style="margin-bottom:12px;" hidden>
+            <label>رقم تلفون الزبون</label>
+            <input type="tel" id="customer-phone" placeholder="07xxxxxxxx">
+          </div>
           <div class="cart-list" id="cart-list"></div>
           <div class="cart-bar">
             <div>الإجمالي: <span class="total" id="cart-total">0.00</span></div>
@@ -473,10 +481,25 @@
       document.body.appendChild(sheet);
     }
 
+    // يظهر حقل رقم الطاولة لطلبات "صالة" فقط، وحقل رقم تلفون الزبون
+    // لطلبات "توصيل" فقط، ويصفّر الحقل غير المستخدم حتى ما تنتقل بيانات
+    // طلب سابق بالغلط لطلب من نوع مختلف
+    function updateOrderTypeFields() {
+      const type = document.getElementById("order-type").value;
+      const tableField = document.getElementById("table-number-field");
+      const phoneField = document.getElementById("customer-phone-field");
+      tableField.hidden = type !== "صالة";
+      phoneField.hidden = type !== "توصيل";
+      if (type !== "صالة") document.getElementById("table-number").value = "";
+      if (type !== "توصيل") document.getElementById("customer-phone").value = "";
+    }
+
     function saveDraft() {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
         items: OlvCart.all(),
         orderType: document.getElementById("order-type").value,
+        tableNumber: document.getElementById("table-number").value,
+        customerPhone: document.getElementById("customer-phone").value,
       }));
       const btn = document.getElementById("save-draft-btn");
       const original = btn.textContent;
@@ -492,6 +515,9 @@
         if (draft.items && draft.items.length) {
           OlvCart.restore(draft.items);
           if (draft.orderType) document.getElementById("order-type").value = draft.orderType;
+          updateOrderTypeFields();
+          if (draft.tableNumber) document.getElementById("table-number").value = draft.tableNumber;
+          if (draft.customerPhone) document.getElementById("customer-phone").value = draft.customerPhone;
         }
       } catch (e) { /* تجاهل أي تذكرة محفوظة تالفة */ }
     }
@@ -554,6 +580,22 @@
     }
 
     function openCheckoutSheet() {
+      const errBox = document.getElementById("err");
+      const orderType = document.getElementById("order-type").value;
+      const tableNumber = document.getElementById("table-number").value.trim();
+      const customerPhone = document.getElementById("customer-phone").value.trim();
+      if (orderType === "صالة" && !tableNumber) {
+        olvShowError(errBox, new Error("لازم تدخل رقم الطاولة قبل إتمام طلب الصالة"));
+        document.getElementById("table-number").focus();
+        return;
+      }
+      if (orderType === "توصيل" && !customerPhone) {
+        olvShowError(errBox, new Error("لازم تدخل رقم تلفون الزبون قبل إتمام طلب التوصيل"));
+        document.getElementById("customer-phone").focus();
+        return;
+      }
+      errBox.style.display = "none";
+
       const total = OlvCart.total();
       const backdrop = document.createElement("div");
       backdrop.className = "sheet-backdrop";
@@ -608,6 +650,14 @@
           try {
             const payMethod = sheet.querySelector("#pay-method").value;
             const orderType = document.getElementById("order-type").value;
+            const tableNumber = document.getElementById("table-number").value.trim();
+            const customerPhone = document.getElementById("customer-phone").value.trim();
+            if (orderType === "صالة" && !tableNumber) {
+              throw new Error("لازم تدخل رقم الطاولة قبل إتمام طلب الصالة");
+            }
+            if (orderType === "توصيل" && !customerPhone) {
+              throw new Error("لازم تدخل رقم تلفون الزبون قبل إتمام طلب التوصيل");
+            }
             let extraNotes = "بيع سريع";
             let cashReceived = null;
             let changeDue = null;
@@ -616,7 +666,10 @@
               changeDue = Math.max(cashReceived - total, 0);
               extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
             }
-            await OlvCart.checkout({ paymentMethod: payMethod, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue });
+            await OlvCart.checkout({
+              paymentMethod: payMethod, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
+              tableNumber: tableNumber || null, customerPhone: customerPhone || null,
+            });
             clearDraft();
             renderCart();
             close();
@@ -668,8 +721,10 @@
       } catch (err) {
         olvShowError(errBox, err);
       }
+      updateOrderTypeFields();
       restoreDraftIfAny();
       renderCart();
+      document.getElementById("order-type").addEventListener("change", updateOrderTypeFields);
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
       document.getElementById("save-draft-btn").addEventListener("click", saveDraft);
       document.getElementById("product-search").addEventListener("input", (e) => {
