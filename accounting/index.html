@@ -82,7 +82,7 @@
 
       try {
         const { data: todaySales, error: e1 } = await window.supabaseClient
-          .from("sales_entries").select("*").eq("entry_date", today);
+          .from("sales_entries").select("*").eq("entry_date", today).eq("status", "completed");
         if (e1) throw e1;
 
         const { data: todayExpenses, error: e2 } = await window.supabaseClient
@@ -102,7 +102,7 @@
         netEl.classList.add(net >= 0 ? "good" : "bad");
 
         const { data: recentSales, error: e3 } = await window.supabaseClient
-          .from("sales_entries").select("*").order("entry_date", { ascending: false }).limit(8);
+          .from("sales_entries").select("*").eq("status", "completed").order("entry_date", { ascending: false }).limit(8);
         if (e3) throw e3;
         const salesBody = document.getElementById("recent-sales-body");
         if (!recentSales || !recentSales.length) {

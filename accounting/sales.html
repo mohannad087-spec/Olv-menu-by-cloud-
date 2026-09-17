@@ -26,6 +26,9 @@
   .addon-row .a-price{color:var(--muted); font-size:12.5px;}
   .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
   .cart-item .meta{color:var(--muted); font-size:12px;}
+  .row-voided{opacity:.55;}
+  .status-voided{color:var(--danger-hi); font-weight:700; font-size:12.5px;}
+  .status-completed{color:var(--ok); font-size:12.5px;}
 </style>
 </head>
 <body>
@@ -90,9 +93,9 @@
       <h2>سجل المبيعات</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>التاريخ</th><th>كاش</th><th>شبكة</th><th>توصيل</th><th>الإجمالي</th><th>ملاحظات</th><th></th></tr></thead>
+          <thead><tr><th>التاريخ</th><th>كاش</th><th>شبكة</th><th>توصيل</th><th>الإجمالي</th><th>ملاحظات</th><th>الحالة</th><th></th></tr></thead>
           <tbody id="sales-body">
-            <tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr>
+            <tr class="empty-row"><td colspan="8">جاري التحميل...</td></tr>
           </tbody>
         </table>
       </div>
@@ -192,27 +195,31 @@
           .from("sales_entries").select("*").order("entry_date", { ascending: false }).limit(60);
         if (error) throw error;
         if (!data || !data.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
+          body.innerHTML = `<tr class="empty-row"><td colspan="8">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
           return;
         }
         body.innerHTML = data.map((r) => {
           const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
-          return `<tr>
+          const voided = r.status === "voided";
+          return `<tr class="${voided ? "row-voided" : ""}">
             <td>${r.entry_date}</td>
             <td>${olvFormatMoney(r.cash_amount)}</td>
             <td>${olvFormatMoney(r.card_amount)}</td>
             <td>${olvFormatMoney(r.delivery_amount)}</td>
             <td>${olvFormatMoney(total)}</td>
-            <td>${r.notes || "—"}</td>
-            <td><button class="btn small danger" data-id="${r.id}">حذف</button></td>
+            <td>${r.notes || "—"}${voided && r.void_reason ? ` — سبب الإلغاء: ${r.void_reason}` : ""}</td>
+            <td>${voided ? `<span class="status-voided">ملغى ✕</span>` : `<span class="status-completed">مكتمل ✓</span>`}</td>
+            <td>${voided ? "" : `<button class="btn small danger" data-void="${r.id}">إلغاء الطلب</button>`}</td>
           </tr>`;
         }).join("");
-        body.querySelectorAll("button[data-id]").forEach((btn) => {
+        body.querySelectorAll("button[data-void]").forEach((btn) => {
           btn.addEventListener("click", async () => {
-            if (!confirm("متأكد من حذف هذا القيد؟ (لن يرجّع الخامات المخصومة للمخزون تلقائيًا)")) return;
-            const { error } = await window.supabaseClient.from("sales_entries").delete().eq("id", btn.dataset.id);
-            if (error) { olvShowError(errBox, error); return; }
-            loadSales();
+            if (!confirm("متأكد من إلغاء هذا الطلب؟ سيرجع كل ما استهلكه من مواد خام إلى المخزون تلقائيًا، ولن يُحتسب ضمن المبيعات أو التقارير بعد الآن.")) return;
+            const reason = prompt("سبب الإلغاء (اختياري):") || null;
+            btn.disabled = true;
+            const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: btn.dataset.void, p_reason: reason });
+            if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+            await loadSales();
           });
         });
       } catch (err) {

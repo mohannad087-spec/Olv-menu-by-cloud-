@@ -78,6 +78,7 @@
         .from("sales_entries")
         .select("id, sale_items(id)")
         .eq("kitchen_status", PENDING_STATUS)
+        .eq("status", "completed")
         .limit(60);
       if (error) return;
       const currentIds = new Set((data || []).filter((o) => o.sale_items && o.sale_items.length).map((o) => o.id));
@@ -109,6 +110,7 @@
           .from("sales_entries")
           .select("*, sale_items(*)")
           .eq("kitchen_status", status)
+          .eq("status", "completed")
           .order("created_at", { ascending: activeTab === "pending" })
           .limit(60);
         if (error) throw error;
