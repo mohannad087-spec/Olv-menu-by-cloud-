@@ -1,4 +1,4 @@
-// وسيط آمن بين نظام المحاسبة وموقع المنيو الحقيقي (olvmenu.netlify.app).
+// وسيط آمن بين نظام المحاسبة وموقع المنيو الحقيقي (olv-menu.pages.dev، منشور على Cloudflare Pages).
 //
 // Supabase تتحقق من تسجيل دخول المستخدم (Bearer token) تلقائيًا قبل ما
 // توصّل الطلب لهون — طالما الدالة منشورة بإعداداتها الافتراضية (بدون
@@ -7,7 +7,7 @@
 // هذا هو سبب وجود هذا الوسيط بدل ما تتواصل صفحة المحاسبة مباشرة مع موقع
 // المنيو (يلي كمان ما فيه إعدادات CORS تسمح بذلك أصلًا).
 
-const OLV_MENU_API = "https://olvmenu.netlify.app/api/orders";
+const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
