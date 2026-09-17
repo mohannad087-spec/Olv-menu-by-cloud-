@@ -376,6 +376,15 @@
         const items = (menu.items || []).filter((it) => it.id && it.ar && it.price != null);
         if (!items.length) throw new Error("لم يتم العثور على أصناف بمنيو الموقع");
 
+        // نجيب الحالة الحالية قبل المزامنة، حتى نعرف نبلّغ إذا صنف كان
+        // مربوط غلط (external_id موجود بمنتج بإسم مختلف عن اسمه الحقيقي)
+        // — مزامنته بتصحح اسمه/سعره تلقائيًا لأنها upsert بنفس external_id
+        const { data: existing, error: exErr } = await window.supabaseClient
+          .from("products").select("id, name, external_id").not("external_id", "is", null);
+        if (exErr) throw exErr;
+        const existingByExternalId = {};
+        (existing || []).forEach((p) => { existingByExternalId[p.external_id] = p; });
+
         const payload = items.map((it) => ({
           external_id: it.id,
           name: it.ar,
@@ -388,7 +397,20 @@
         const { error: syncErr } = await window.supabaseClient
           .from("products").upsert(payload, { onConflict: "external_id" });
         if (syncErr) throw syncErr;
-        alert(`تمت مزامنة ${payload.length} صنف من منيو الموقع الحقيقي`);
+
+        const corrected = items.filter((it) => {
+          const prev = existingByExternalId[it.id];
+          return prev && prev.name !== it.ar;
+        });
+        const added = items.filter((it) => !existingByExternalId[it.id]);
+
+        let msg = `تمت مزامنة ${payload.length} صنف من منيو الموقع الحقيقي.`;
+        if (corrected.length) {
+          msg += `\n\nصُحِّح ${corrected.length} ربط كان غلط تلقائيًا:\n` +
+            corrected.map((it) => `• "${existingByExternalId[it.id].name}" ← صار اسمه "${it.ar}"`).join("\n");
+        }
+        if (added.length) msg += `\n\nصنف جديد انضاف: ${added.length}`;
+        alert(msg);
         await loadProducts();
       } catch (err) {
         olvShowError(errBox, err);
