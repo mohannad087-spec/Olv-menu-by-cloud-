@@ -83,7 +83,7 @@
     async function suggestExpected(dateStr) {
       try {
         const { data: sales } = await window.supabaseClient
-          .from("sales_entries").select("cash_amount").eq("entry_date", dateStr);
+          .from("sales_entries").select("cash_amount").eq("entry_date", dateStr).eq("status", "completed");
         const cashSales = (sales || []).reduce((s, r) => s + Number(r.cash_amount), 0);
         const opening = Number(document.getElementById("opening_balance").value || 0);
         document.getElementById("expected_closing").value = (opening + cashSales).toFixed(2);

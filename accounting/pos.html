@@ -343,6 +343,7 @@
         .select("id, order_type")
         .eq("kitchen_status", "جاهز")
         .eq("entry_date", olvToday())
+        .eq("status", "completed")
         .limit(60);
       if (error) return;
       const currentIds = new Map((data || []).map((o) => [o.id, o]));
