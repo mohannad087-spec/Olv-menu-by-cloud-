@@ -29,6 +29,16 @@
   .row-voided{opacity:.55;}
   .status-voided{color:var(--danger-hi); font-weight:700; font-size:12.5px;}
   .status-completed{color:var(--ok); font-size:12.5px;}
+  .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
+  .items-detail{background:var(--ink-3); border-radius:10px; padding:10px 14px;}
+  .item-detail-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13px;
+  }
+  .item-detail-row:last-child{border-bottom:none;}
+  .item-detail-row .name{flex:1;}
+  .item-detail-row .meta{color:var(--muted); font-size:12px; margin-top:2px;}
+  .item-voided{opacity:.5; text-decoration:line-through;}
 </style>
 </head>
 <body>
@@ -187,12 +197,40 @@
       }
     });
 
+    let expandedSaleId = null;
+
+    function renderItemsDetail(sale) {
+      const items = sale.sale_items || [];
+      if (!items.length) return `<div class="hint">لا توجد أصناف مسجّلة لهذا الطلب</div>`;
+      const saleVoided = sale.status === "voided";
+      return items.map((it) => {
+        const itemVoided = it.status === "voided";
+        const lineTotal = (Number(it.unit_price) + Number(it.addons_total || 0)) * Number(it.qty);
+        return `
+          <div class="item-detail-row">
+            <div class="name ${itemVoided ? "item-voided" : ""}">
+              <div>${it.qty}× ${it.product_name}</div>
+              ${it.addons_summary ? `<div class="meta">+ ${it.addons_summary}</div>` : ""}
+              ${it.note ? `<div class="meta">📝 ${it.note}</div>` : ""}
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span>${olvFormatMoney(lineTotal)}</span>
+              ${itemVoided
+                ? `<span class="status-voided">ملغى</span>`
+                : (saleVoided ? "" : `<button class="btn small danger" data-void-item="${it.id}">إلغاء الصنف</button>`)
+              }
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
     async function loadSales() {
       const errBox = document.getElementById("err");
       const body = document.getElementById("sales-body");
       try {
         const { data, error } = await window.supabaseClient
-          .from("sales_entries").select("*").order("entry_date", { ascending: false }).limit(60);
+          .from("sales_entries").select("*, sale_items(*)").order("entry_date", { ascending: false }).limit(60);
         if (error) throw error;
         if (!data || !data.length) {
           body.innerHTML = `<tr class="empty-row"><td colspan="8">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
@@ -201,7 +239,8 @@
         body.innerHTML = data.map((r) => {
           const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
           const voided = r.status === "voided";
-          return `<tr class="${voided ? "row-voided" : ""}">
+          const itemCount = (r.sale_items || []).length;
+          const rows = [`<tr class="${voided ? "row-voided" : ""}">
             <td>${r.entry_date}</td>
             <td>${olvFormatMoney(r.cash_amount)}</td>
             <td>${olvFormatMoney(r.card_amount)}</td>
@@ -209,9 +248,28 @@
             <td>${olvFormatMoney(total)}</td>
             <td>${r.notes || "—"}${voided && r.void_reason ? ` — سبب الإلغاء: ${r.void_reason}` : ""}</td>
             <td>${voided ? `<span class="status-voided">ملغى ✕</span>` : `<span class="status-completed">مكتمل ✓</span>`}</td>
-            <td>${voided ? "" : `<button class="btn small danger" data-void="${r.id}">إلغاء الطلب</button>`}</td>
-          </tr>`;
+            <td>
+              <div class="row-actions">
+                <button class="btn small" data-toggle="${r.id}">الأصناف (${itemCount})</button>
+                ${voided ? "" : `<button class="btn small danger" data-void="${r.id}">إلغاء الطلب</button>`}
+              </div>
+            </td>
+          </tr>`];
+          rows.push(`<tr id="items-${r.id}" ${expandedSaleId === r.id ? "" : "hidden"}>
+            <td colspan="8"><div class="items-detail">${renderItemsDetail(r)}</div></td>
+          </tr>`);
+          return rows.join("");
         }).join("");
+
+        body.querySelectorAll("button[data-toggle]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const id = btn.dataset.toggle;
+            const row = document.getElementById(`items-${id}`);
+            const nowHidden = !row.hidden;
+            row.hidden = nowHidden;
+            expandedSaleId = nowHidden ? null : id;
+          });
+        });
         body.querySelectorAll("button[data-void]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             if (!confirm("متأكد من إلغاء هذا الطلب؟ سيرجع كل ما استهلكه من مواد خام إلى المخزون تلقائيًا، ولن يُحتسب ضمن المبيعات أو التقارير بعد الآن.")) return;
@@ -219,6 +277,17 @@
             btn.disabled = true;
             const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: btn.dataset.void, p_reason: reason });
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+            await loadSales();
+          });
+        });
+        body.querySelectorAll("button[data-void-item]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("متأكد من إلغاء هذا الصنف فقط؟ سيرجع للمخزون وينقص من إجمالي الطلب، وباقي الأصناف تضل كما هي.")) return;
+            const reason = prompt("سبب الإلغاء (اختياري):") || null;
+            btn.disabled = true;
+            const { error } = await window.supabaseClient.rpc("void_sale_item", { p_sale_item_id: btn.dataset.voidItem, p_reason: reason });
+            if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+            expandedSaleId = btn.closest("tr").id.replace("items-", "");
             await loadSales();
           });
         });
