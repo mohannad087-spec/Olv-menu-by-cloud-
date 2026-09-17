@@ -48,7 +48,7 @@
     <div class="group">
       <h2>المنتجات (للبيع السريع)</h2>
       <p class="hint" style="margin-bottom:12px;">
-        تُسحب الأصناف والأسعار مباشرة من موقع المنيو الحقيقي (olvmenu.netlify.app)، وتُربط
+        تُسحب الأصناف والأسعار مباشرة من موقع المنيو الحقيقي (olv-menu.pages.dev)، وتُربط
         تلقائيًا بمعرّف كل صنف هناك — فتشغيل الزر مرة ثانية يحدّث الأسعار/الأسماء الموجودة
         بدل ما يكرّرها، وهاي نفس عملية الربط المطلوبة لشاشة "الطلبات الواردة".
       </p>
@@ -352,7 +352,7 @@
       const originalLabel = btn.textContent;
       btn.textContent = "جاري المزامنة...";
       try {
-        const res = await fetch("https://olvmenu.netlify.app/data/menu.json", { cache: "no-store" });
+        const res = await fetch("https://olv-menu.pages.dev/data/menu.json", { cache: "no-store" });
         if (!res.ok) throw new Error("تعذّر تحميل منيو الموقع الحقيقي");
         const menu = await res.json();
         const catById = {};
