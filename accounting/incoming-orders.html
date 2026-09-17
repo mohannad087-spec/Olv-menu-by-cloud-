@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الطلبات الواردة — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  window.olvApplyTheme = function(){
+    document.documentElement.setAttribute('data-theme', computeTheme());
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .io-card{background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:var(--card-shadow);}
+  .io-card.io-new{border-color:var(--gold);}
+  .io-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px; flex-wrap:wrap;}
+  .io-head b{font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--gold-hi); margin-inline-start:6px;}
+  .io-total{font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--gold-hi); font-weight:700;}
+  .io-items{margin:10px 0;}
+  .io-item{padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
+  .io-item:last-child{border-bottom:none;}
+  .io-item-main{display:flex; justify-content:space-between;}
+  .io-item-price{color:var(--muted);}
+  .io-matched{color:var(--ok); font-size:12px; margin-top:3px;}
+  .io-unmatched select{margin-top:6px; width:100%; background:var(--ink-3); border:1px solid var(--danger); color:var(--paper); padding:9px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
+  .io-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>الطلبات الواردة من موقع المنيو</h2>
+      <p class="hint">
+        طلبات الزبائن/الموظفين من موقع المنيو الحقيقي (olvmenu.netlify.app) بتظهر هون
+        أوتوماتيك. اضغط "قبول" لتسجيلها كبيع فعلي (بينقص المخزون ويظهر بالمطبخ)، أو
+        "رفض" لإلغائها. أي صنف غير مربوط بمنتج بالمحاسبة لازم يترَبط أول مرة قبل القبول
+        — وبعدين بيضل مربوط تلقائيًا بالمرات الجاية.
+      </p>
+    </div>
+
+    <div id="orders-list">
+      <div class="hint">جاري التحميل...</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script src="assets/notify-sound.js"></script>
+  <script>
+    olvRenderNav("incoming-orders");
+
+    const STATUS_LABELS = {
+      new: "جديد", confirmed: "مؤكد", preparing: "قيد التحضير",
+      ready: "جاهز", completed: "مكتمل", cancelled: "ملغى",
+    };
+    const MODE_LABELS = { hall: "صالة", delivery: "توصيل" };
+
+    let products = [];
+    let lastOrders = [];
+    let knownNewIds = null; // null = لسا ما انعمل الأساس الأول (baseline)
+    let accessToken = null;
+
+    function proxyUrl() {
+      const base = (window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "";
+      return base.replace(/\/$/, "") + "/functions/v1/olv-menu-proxy";
+    }
+
+    async function callProxy(payload) {
+      const res = await fetch(proxyUrl(), {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      });
+      const out = await res.json();
+      if (!res.ok || out.ok === false) throw new Error(out.error || "فشل الاتصال بموقع المنيو");
+      return out;
+    }
+
+    async function loadProducts() {
+      const { data, error } = await window.supabaseClient
+        .from("products").select("id, name, external_id, is_active").order("name");
+      if (error) throw error;
+      products = data || [];
+    }
+
+    function findProductByExternalId(externalId) {
+      return products.find((p) => p.external_id === externalId) || null;
+    }
+
+    function orderFullyMapped(order) {
+      return (order.items || []).every((it) => findProductByExternalId(it.id));
+    }
+
+    function buildCustomNote(custom) {
+      if (!custom) return "";
+      const parts = [];
+      if (custom.remove && custom.remove.length) parts.push("بدون: " + custom.remove.join("، "));
+      if (custom.extras && custom.extras.length) parts.push("إضافات: " + custom.extras.join("، "));
+      if (custom.options && custom.options.length) parts.push(custom.options.join("، "));
+      if (custom.note) parts.push(custom.note);
+      return parts.join(" | ");
+    }
+
+    function renderItemRow(order, it) {
+      const matched = findProductByExternalId(it.id);
+      const noteText = buildCustomNote(it.custom);
+      return `
+        <div class="io-item">
+          <div class="io-item-main">
+            <span>${it.qty}× ${it.label}</span>
+            <span class="io-item-price">${olvFormatMoney(it.price * it.qty)}</span>
+          </div>
+          ${noteText ? `<div class="hint">📝 ${noteText}</div>` : ""}
+          ${matched
+            ? `<div class="io-matched">🔗 مربوط بـ: ${matched.name}</div>`
+            : `<div class="io-unmatched">
+                <select data-map-item="${it.id}">
+                  <option value="">— اختر المنتج المقابل —</option>
+                  ${products.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}
+                </select>
+              </div>`
+          }
+        </div>
+      `;
+    }
+
+    function renderOrders() {
+      const list = document.getElementById("orders-list");
+      const active = lastOrders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
+      if (!active.length) {
+        list.innerHTML = `<div class="hint" style="text-align:center; padding:40px 0;">لا يوجد طلبات واردة حاليًا</div>`;
+        return;
+      }
+      list.innerHTML = active.map((o) => {
+        const isNew = o.status === "new";
+        const mapped = orderFullyMapped(o);
+        return `
+          <div class="io-card${isNew ? " io-new" : ""}">
+            <div class="io-head">
+              <div>
+                <span class="badge">${MODE_LABELS[o.mode] || o.mode}</span>
+                <span class="badge">${STATUS_LABELS[o.status] || o.status}</span>
+                <b>#${o.number}</b>
+              </div>
+              <div class="io-total">${olvFormatMoney(o.total)}</div>
+            </div>
+            ${o.table ? `<div class="hint">🪑 طاولة رقم ${o.table}</div>` : ""}
+            ${o.phone ? `<div class="hint" dir="ltr">📞 ${o.phone}</div>` : ""}
+            ${o.address ? `<div class="hint">📍 ${o.address}</div>` : ""}
+            ${o.notes ? `<div class="hint">🗒️ ${o.notes}</div>` : ""}
+            <div class="io-items">${(o.items || []).map((it) => renderItemRow(o, it)).join("")}</div>
+            ${isNew ? `
+              <div class="io-actions">
+                <button class="btn gold small" data-approve="${o.id}" data-method="cash" ${mapped ? "" : "disabled"}>💵 قبول (كاش)</button>
+                <button class="btn gold small" data-approve="${o.id}" data-method="card" ${mapped ? "" : "disabled"}>💳 قبول (شبكة)</button>
+                <button class="btn danger small" data-reject="${o.id}">رفض</button>
+              </div>
+              ${!mapped ? `<div class="hint">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
+            ` : `<div class="hint">بانتظار… (${STATUS_LABELS[o.status] || o.status})</div>`}
+          </div>
+        `;
+      }).join("");
+
+      list.querySelectorAll("select[data-map-item]").forEach((sel) => {
+        sel.addEventListener("change", async () => {
+          if (!sel.value) return;
+          sel.disabled = true;
+          const { error } = await window.supabaseClient
+            .from("products").update({ external_id: sel.dataset.mapItem }).eq("id", sel.value);
+          if (error) { olvShowError(document.getElementById("err"), error); sel.disabled = false; return; }
+          await loadProducts();
+          renderOrders();
+        });
+      });
+      list.querySelectorAll("button[data-approve]").forEach((btn) => {
+        btn.addEventListener("click", () => approveOrder(btn.dataset.approve, btn.dataset.method));
+      });
+      list.querySelectorAll("button[data-reject]").forEach((btn) => {
+        btn.addEventListener("click", () => rejectOrder(btn.dataset.reject));
+      });
+    }
+
+    function checkForNewOrders() {
+      const currentIds = new Set(lastOrders.filter((o) => o.status === "new").map((o) => o.id));
+      if (knownNewIds === null) { knownNewIds = currentIds; return; }
+      let hasNew = false;
+      currentIds.forEach((id) => { if (!knownNewIds.has(id)) hasNew = true; });
+      knownNewIds = currentIds;
+      if (hasNew) OlvSound.playNewOrder();
+    }
+
+    async function refresh() {
+      const errBox = document.getElementById("err");
+      try {
+        const out = await callProxy({ action: "list" });
+        lastOrders = out.orders || [];
+        checkForNewOrders();
+        renderOrders();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    async function approveOrder(orderId, method) {
+      const errBox = document.getElementById("err");
+      const order = lastOrders.find((o) => o.id === orderId);
+      if (!order || !orderFullyMapped(order)) return;
+      const card = document.querySelector(`button[data-approve="${orderId}"]`)?.closest(".io-card");
+      card?.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+      try {
+        const items = order.items.map((it) => {
+          const product = findProductByExternalId(it.id);
+          const note = buildCustomNote(it.custom);
+          return { product_id: product.id, qty: it.qty, note: note || null };
+        });
+        const { error } = await window.supabaseClient.rpc("record_sale", {
+          p_entry_date: olvToday(),
+          p_cash: method === "cash" ? order.total : 0,
+          p_card: method === "card" ? order.total : 0,
+          p_delivery: 0,
+          p_notes: order.notes || null,
+          p_items: items,
+          p_order_type: MODE_LABELS[order.mode] || null,
+          p_table_number: order.table || null,
+          p_customer_phone: order.phone || null,
+        });
+        if (error) throw error;
+        await callProxy({ action: "update", id: order.id, status: "preparing" });
+        await refresh();
+      } catch (err) {
+        olvShowError(errBox, err);
+        card?.querySelectorAll("button").forEach((b) => { b.disabled = false; });
+      }
+    }
+
+    async function rejectOrder(orderId) {
+      if (!confirm("متأكد من رفض هذا الطلب؟")) return;
+      const errBox = document.getElementById("err");
+      try {
+        await callProxy({ action: "update", id: orderId, status: "cancelled" });
+        await refresh();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      accessToken = session.access_token;
+      const errBox = document.getElementById("err");
+      try {
+        await loadProducts();
+        await refresh();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+      setInterval(refresh, 15000);
+    })();
+  </script>
+</body>
+</html>
