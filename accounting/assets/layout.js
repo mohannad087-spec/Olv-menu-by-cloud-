@@ -4,6 +4,7 @@ function olvRenderNav(active) {
     { id: "dashboard", href: "index.html", label: "الرئيسية" },
     { id: "pos", href: "pos.html", label: "بيع سريع" },
     { id: "sales", href: "sales.html", label: "المبيعات" },
+    { id: "incoming-orders", href: "incoming-orders.html", label: "الطلبات الواردة" },
     { id: "kitchen", href: "kitchen.html", label: "المطبخ" },
     { id: "inventory", href: "inventory.html", label: "المخزون" },
     { id: "expenses", href: "expenses.html", label: "المصروفات" },
@@ -19,7 +20,7 @@ function olvRenderNav(active) {
       <h1>محاسبة OLV <span>لوحة تحكم المطعم</span></h1>
       <div class="actions">
         <button class="btn small" id="theme-toggle-btn"></button>
-        <a class="btn small" href="../index.html">الموقع</a>
+        <a class="btn small" href="https://olvmenu.netlify.app" target="_blank" rel="noopener">الموقع</a>
         <button class="btn small danger" id="olv-logout-btn">خروج</button>
       </div>
     </div>

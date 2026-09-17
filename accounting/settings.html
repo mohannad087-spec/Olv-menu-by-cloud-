@@ -48,9 +48,11 @@
     <div class="group">
       <h2>المنتجات (للبيع السريع)</h2>
       <p class="hint" style="margin-bottom:12px;">
-        تُسحب الأصناف تلقائيًا من قائمة الموقع نفسها، دون الحاجة إلى كتابتها يدويًا مرتين.
+        تُسحب الأصناف والأسعار مباشرة من موقع المنيو الحقيقي (olvmenu.netlify.app)، وتُربط
+        تلقائيًا بمعرّف كل صنف هناك — فتشغيل الزر مرة ثانية يحدّث الأسعار/الأسماء الموجودة
+        بدل ما يكرّرها، وهاي نفس عملية الربط المطلوبة لشاشة "الطلبات الواردة".
       </p>
-      <button type="button" class="btn gold" id="import-menu-btn">📥 استيراد كل الأصناف من المنيو</button>
+      <button type="button" class="btn gold" id="import-menu-btn">🔄 مزامنة الأصناف من موقع المنيو الحقيقي</button>
       <div style="height:18px;"></div>
       <form id="product-form">
         <div class="row2">
@@ -256,7 +258,7 @@
                 <tbody>
                   ${byCategory[cat].map((p) => `
                     <tr>
-                      <td>${p.name}</td>
+                      <td>${p.name}${p.external_id ? ` <span class="badge" title="مربوط بموقع المنيو الحقيقي">🔗</span>` : ""}</td>
                       <td>${olvFormatMoney(p.price)}</td>
                       <td>
                         <div style="display:flex; gap:6px; min-width:180px;">
@@ -348,42 +350,31 @@
       const btn = document.getElementById("import-menu-btn");
       btn.disabled = true;
       const originalLabel = btn.textContent;
-      btn.textContent = "جاري الاستيراد...";
+      btn.textContent = "جاري المزامنة...";
       try {
-        const res = await fetch("../index.html");
-        if (!res.ok) throw new Error("تعذّر تحميل ملف المنيو (index.html)");
-        const html = await res.text();
-        const m = html.match(/const DATA = (\[[\s\S]*?\n\]);\n\nlet lang/);
-        if (!m) throw new Error("لم يتم العثور على بيانات الأصناف داخل المنيو");
-        const menuData = new Function("return " + m[1])();
+        const res = await fetch("https://olvmenu.netlify.app/data/menu.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("تعذّر تحميل منيو الموقع الحقيقي");
+        const menu = await res.json();
+        const catById = {};
+        (menu.categories || []).forEach((c) => { catById[c.id] = c.ar || c.en || "عام"; });
 
-        const flatItems = [];
-        (menuData || []).forEach((cat) => {
-          (cat.groups || []).forEach((group) => {
-            (group.items || []).forEach((item) => {
-              if (!item.ar || item.p == null) return;
-              flatItems.push({
-                name: item.ar,
-                price: Number(item.p),
-                category: group.ar || cat.ar || "عام",
-              });
-            });
-          });
-        });
+        const items = (menu.items || []).filter((it) => it.id && it.ar && it.price != null);
+        if (!items.length) throw new Error("لم يتم العثور على أصناف بمنيو الموقع");
 
-        const { data: existing, error: exErr } = await window.supabaseClient.from("products").select("name");
-        if (exErr) throw exErr;
-        const existingNames = new Set((existing || []).map((p) => p.name));
-        const newItems = flatItems.filter((i) => !existingNames.has(i.name));
+        const payload = items.map((it) => ({
+          external_id: it.id,
+          name: it.ar,
+          price: Number(it.price),
+          category: catById[it.cat] || "عام",
+          image_url: it.image || null,
+          is_active: it.available !== false,
+        }));
 
-        if (!newItems.length) {
-          alert("كل أصناف المنيو موجودة بالفعل في قائمة المنتجات");
-        } else {
-          const { error: insErr } = await window.supabaseClient.from("products").insert(newItems);
-          if (insErr) throw insErr;
-          alert(`تم استيراد ${newItems.length} صنف جديد من المنيو`);
-          await loadProducts();
-        }
+        const { error: syncErr } = await window.supabaseClient
+          .from("products").upsert(payload, { onConflict: "external_id" });
+        if (syncErr) throw syncErr;
+        alert(`تمت مزامنة ${payload.length} صنف من منيو الموقع الحقيقي`);
+        await loadProducts();
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
