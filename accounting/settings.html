@@ -258,7 +258,13 @@
                 <tbody>
                   ${byCategory[cat].map((p) => `
                     <tr>
-                      <td>${p.name}${p.external_id ? ` <span class="badge" title="مربوط بموقع المنيو الحقيقي">🔗</span>` : ""}</td>
+                      <td>
+                        ${p.name}
+                        ${p.external_id ? `
+                          <span class="badge" title="مربوط بـ: ${p.external_id}">🔗</span>
+                          <button class="btn small" data-unlink="${p.id}" title="فك الربط بموقع المنيو">✕ فك الربط</button>
+                        ` : ""}
+                      </td>
                       <td>${olvFormatMoney(p.price)}</td>
                       <td>
                         <div style="display:flex; gap:6px; min-width:180px;">
@@ -304,6 +310,15 @@
             const value = input.value.trim() || null;
             const { error } = await window.supabaseClient
               .from("products").update({ image_url: value }).eq("id", btn.dataset.saveImage);
+            if (error) { olvShowError(errBox, error); return; }
+            await loadProducts();
+          });
+        });
+        container.querySelectorAll("button[data-unlink]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("فك ربط هذا المنتج بموقع المنيو؟ أي طلب وارد لهذا الصنف لاحقًا رح يحتاج ربط يدوي من جديد.")) return;
+            const { error } = await window.supabaseClient
+              .from("products").update({ external_id: null }).eq("id", btn.dataset.unlink);
             if (error) { olvShowError(errBox, error); return; }
             await loadProducts();
           });
