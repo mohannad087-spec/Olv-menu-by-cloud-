@@ -681,6 +681,7 @@
       const exact = Math.round(total * 100) / 100;
       let method = "cash";
       let receivedCents = 0;
+      let isSubmitting = false;
 
       const backdrop = document.createElement("div");
       backdrop.className = "checkout-backdrop";
@@ -725,7 +726,7 @@
             <div class="cash-panel">
               <div class="received-row">
                 <span class="label">المبلغ المستلم</span>
-                <span class="value" dir="ltr">${receivedAmount.toFixed(2)}</span>
+                <span class="value" dir="ltr">${olvFormatMoney(receivedAmount)}</span>
               </div>
               <div class="quick-amounts">
                 ${quickAmounts().map((amt) => `<button type="button" data-amt="${amt}">${amt === exact ? "بالضبط" : olvFormatMoney(amt)}</button>`).join("")}
@@ -769,7 +770,10 @@
 
       async function confirmPayment() {
         const confirmBtn = modal.querySelector("#checkout-confirm");
+        const closeBtn = modal.querySelector("#checkout-close");
         confirmBtn.disabled = true;
+        if (closeBtn) closeBtn.disabled = true;
+        isSubmitting = true;
         const errBox = document.getElementById("err");
         try {
           let extraNotes = "بيع سريع";
@@ -788,14 +792,22 @@
           renderCart();
           refreshPopularityAndGrid();
           modal.querySelector("#checkout-success").classList.add("show");
+          isSubmitting = false;
           setTimeout(close, 900);
         } catch (err) {
           olvShowError(errBox, err);
           confirmBtn.disabled = false;
+          if (closeBtn) closeBtn.disabled = false;
+          isSubmitting = false;
         }
       }
 
-      function close() { backdrop.remove(); }
+      // يمنع إغلاق النافذة (بالضغط بره أو زر ✕) أثناء إرسال عملية البيع
+      // فعليًا، حتى ما تختفي الشاشة قبل ما يتأكد الكاشير إنها نجحت
+      function close() {
+        if (isSubmitting) return;
+        backdrop.remove();
+      }
       backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
       render();
       document.body.appendChild(backdrop);
