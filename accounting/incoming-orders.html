@@ -21,19 +21,46 @@
 })();
 </script>
 <style>
-  .io-card{background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:var(--card-shadow);}
-  .io-card.io-new{border-color:var(--gold);}
-  .io-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px; flex-wrap:wrap;}
-  .io-head b{font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--gold-hi); margin-inline-start:6px;}
-  .io-total{font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--gold-hi); font-weight:700;}
-  .io-items{margin:10px 0;}
+  /* شبكة بطاقات بدل عمود واحد طويل — نفس نمط شاشة المطبخ، عشان الشغلة
+     توضح دفعة وحدة على شاشة واسعة بدل التمرير لتحت لكل طلب */
+  .io-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px;}
+  .io-card{
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px;
+    box-shadow:var(--card-shadow); display:flex; flex-direction:column;
+  }
+  .io-card.io-new{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 8px 24px rgba(201,162,75,.15);}
+  .io-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px;}
+  .io-head b{font-family:'Cormorant Garamond',serif; font-size:21px; color:var(--gold-hi);}
+  .io-total{font-family:'Cormorant Garamond',serif; font-size:19px; color:var(--gold-hi); font-weight:700; white-space:nowrap;}
+  .io-badges{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
+  .io-mode-badge{
+    font-size:11.5px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px;
+    color:var(--muted); display:inline-flex; align-items:center; gap:4px;
+  }
+  .io-status-badge{font-size:11px; font-weight:700; border-radius:999px; padding:3px 10px;}
+  .io-status-new{background:var(--gold); color:#100e08;}
+  .io-status-preparing{background:rgba(124,138,74,.15); color:var(--ok); border:1px solid rgba(124,138,74,.35);}
+  .io-status-other{background:transparent; color:var(--muted); border:1px solid var(--hair);}
+  .io-items{margin:6px 0 0; flex:1;}
   .io-item{padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
   .io-item:last-child{border-bottom:none;}
-  .io-item-main{display:flex; justify-content:space-between;}
-  .io-item-price{color:var(--muted);}
-  .io-matched{color:var(--ok); font-size:12px; margin-top:3px;}
+  .io-item-main{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .io-item-left{display:flex; align-items:center; gap:8px; min-width:0;}
+  .io-qty-badge{
+    flex:none; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08;
+    font-weight:700; font-size:12px; min-width:24px; height:22px; border-radius:7px;
+    display:flex; align-items:center; justify-content:center; padding:0 4px;
+  }
+  .io-item-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .io-item-price{color:var(--muted); flex:none; white-space:nowrap;}
+  .io-item-note{color:var(--olive-hi,#9dab63); font-size:12px; margin-top:3px; margin-inline-start:32px;}
+  .io-matched{color:var(--ok); font-size:11.5px; margin-top:3px; margin-inline-start:32px;}
   .io-unmatched select{margin-top:6px; width:100%; background:var(--ink-3); border:1px solid var(--danger); color:var(--paper); padding:9px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
-  .io-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
+  .io-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));}
+  .io-waiting{
+    color:var(--muted); font-size:12.5px; text-align:center; margin-top:14px; padding-top:14px;
+    border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));
+  }
 </style>
 </head>
 <body>
@@ -51,8 +78,8 @@
       </p>
     </div>
 
-    <div id="orders-list">
-      <div class="hint">جاري التحميل...</div>
+    <div id="orders-list" class="io-grid">
+      <div class="hint" style="grid-column:1/-1;">جاري التحميل...</div>
     </div>
   </div>
 
@@ -106,10 +133,13 @@
       return `
         <div class="io-item">
           <div class="io-item-main">
-            <span>${it.qty}× ${it.label}</span>
+            <div class="io-item-left">
+              <span class="io-qty-badge">${it.qty}×</span>
+              <span class="io-item-name">${it.label}</span>
+            </div>
             <span class="io-item-price">${olvFormatMoney(it.price * it.qty)}</span>
           </div>
-          ${noteText ? `<div class="hint">📝 ${noteText}</div>` : ""}
+          ${noteText ? `<div class="io-item-note">📝 ${noteText}</div>` : ""}
           ${matched
             ? `<div class="io-matched">🔗 مربوط بـ: ${matched.name}</div>`
             : `<div class="io-unmatched">
@@ -127,21 +157,22 @@
       const list = document.getElementById("orders-list");
       const active = lastOrders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
       if (!active.length) {
-        list.innerHTML = `<div class="hint" style="text-align:center; padding:40px 0;">لا يوجد طلبات واردة حاليًا</div>`;
+        list.innerHTML = `<div class="hint" style="grid-column:1/-1; text-align:center; padding:40px 0;">لا يوجد طلبات واردة حاليًا</div>`;
         return;
       }
       list.innerHTML = active.map((o) => {
         const isNew = o.status === "new";
         const mapped = orderFullyMapped(o);
+        const statusClass = isNew ? "io-status-new" : o.status === "preparing" ? "io-status-preparing" : "io-status-other";
         return `
           <div class="io-card${isNew ? " io-new" : ""}">
             <div class="io-head">
-              <div>
-                <span class="badge">${MODE_LABELS[o.mode] || o.mode}</span>
-                <span class="badge">${STATUS_LABELS[o.status] || o.status}</span>
-                <b>#${o.number}</b>
-              </div>
+              <b>#${o.number}</b>
               <div class="io-total">${olvFormatMoney(o.total)}</div>
+            </div>
+            <div class="io-badges">
+              <span class="io-mode-badge">${o.mode === "delivery" ? "🛵" : "🍽️"} ${MODE_LABELS[o.mode] || o.mode}</span>
+              <span class="io-status-badge ${statusClass}">${STATUS_LABELS[o.status] || o.status}</span>
             </div>
             ${o.table ? `<div class="hint">🪑 طاولة رقم ${o.table}</div>` : ""}
             ${o.phone ? `<div class="hint" dir="ltr">📞 ${o.phone}</div>` : ""}
@@ -155,7 +186,7 @@
                 <button class="btn danger small" data-reject="${o.id}">رفض</button>
               </div>
               ${!mapped ? `<div class="hint">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
-            ` : `<div class="hint">بانتظار… (${STATUS_LABELS[o.status] || o.status})</div>`}
+            ` : `<div class="io-waiting">بانتظار… (${STATUS_LABELS[o.status] || o.status})</div>`}
           </div>
         `;
       }).join("");
