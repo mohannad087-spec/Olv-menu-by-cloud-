@@ -234,6 +234,7 @@
           p_customer_phone: order.phone || null,
         });
         if (error) throw error;
+        if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
         await OlvIncomingPoll.callProxy({ action: "update", id: order.id, status: "preparing" });
         await OlvIncomingPoll.pollNow();
       } catch (err) {

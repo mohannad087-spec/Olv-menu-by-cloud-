@@ -31,4 +31,5 @@ function olvShowError(el, err) {
   console.error(err);
   el.textContent = (err && err.message) ? err.message : "حدث خطأ غير متوقع";
   el.style.display = "block";
+  if (typeof OlvSound !== "undefined") OlvSound.playError();
 }
