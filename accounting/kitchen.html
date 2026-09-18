@@ -22,21 +22,42 @@
 </script>
 <style>
   .sub-tabs{display:flex; gap:8px; margin-bottom:16px; align-items:center;}
-  .sub-tab{background:var(--ink-2); border:1px solid var(--hair); color:var(--muted); padding:11px 18px; border-radius:999px; font-size:13px; min-height:44px;}
+  .sub-tab{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
+    padding:10px 18px; border-radius:999px; font-size:13px; min-height:44px;
+  }
   .sub-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
   .orders-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;}
-  .order-card{background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px; display:flex; flex-direction:column; box-shadow:var(--card-shadow);}
-  .order-card.overdue{border-color:var(--danger);}
-  .order-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
-  .order-time{font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold-hi); font-weight:700;}
-  .order-type-badge{font-size:12px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px; color:var(--muted);}
+  .order-card{
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px;
+    display:flex; flex-direction:column; box-shadow:var(--card-shadow); transition:.15s;
+  }
+  .order-card:hover{border-color:var(--gold); transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.12);}
+  .order-card.overdue{border-color:var(--danger); box-shadow:0 0 0 1px var(--danger), 0 8px 24px rgba(193,88,63,.15);}
+  .order-card.overdue:hover{border-color:var(--danger);}
+  .order-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px;}
+  .order-time-wrap{display:flex; align-items:baseline; gap:8px;}
+  .order-time{font-family:'Cormorant Garamond',serif; font-size:21px; color:var(--gold-hi); font-weight:700;}
+  .order-age{font-size:11.5px; color:var(--muted);}
+  .order-age.overdue{color:var(--danger-hi); font-weight:700;}
+  .order-type-badge{
+    font-size:12px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px; color:var(--muted);
+    display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  }
   .order-route{font-size:13.5px; font-weight:700; color:var(--gold-hi); margin-bottom:8px;}
   .order-items{flex:1; margin-bottom:14px;}
   .order-line{padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:14px;}
   .order-line:last-child{border-bottom:none;}
-  .order-line .qty-name{font-weight:600;}
-  .order-line .addons{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:2px;}
-  .order-line .note{color:var(--danger-hi); font-size:12.5px; margin-top:2px;}
+  .order-line .qty-line{display:flex; align-items:center; gap:8px;}
+  .order-line .order-qty-badge{
+    flex:none; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08;
+    font-weight:700; font-size:12px; min-width:24px; height:22px; border-radius:7px;
+    display:flex; align-items:center; justify-content:center; padding:0 4px;
+  }
+  .order-line .item-name{font-weight:600;}
+  .order-line .addons{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:2px; margin-inline-start:32px;}
+  .order-line .note{color:var(--danger-hi); font-size:12.5px; margin-top:2px; margin-inline-start:32px;}
   .empty-state{color:var(--muted); text-align:center; padding:60px 0; grid-column:1/-1;}
 </style>
 </head>
@@ -46,8 +67,8 @@
     <div class="err" id="err"></div>
 
     <div class="sub-tabs">
-      <button class="sub-tab on" data-tab="pending">قيد التحضير</button>
-      <button class="sub-tab" data-tab="ready">جاهز</button>
+      <button class="sub-tab on" data-tab="pending"><span>⏳</span> قيد التحضير</button>
+      <button class="sub-tab" data-tab="ready"><span>✅</span> جاهز</button>
       <span class="hint" style="margin-inline-start:auto;">تحديث تلقائي كل 15 ثانية</span>
     </div>
 
@@ -121,19 +142,27 @@
           return;
         }
         grid.innerHTML = orders.map((o) => {
-          const overdue = activeTab === "pending" && minutesSince(o.created_at) > 15;
+          const ageMinutes = Math.floor(minutesSince(o.created_at));
+          const overdue = activeTab === "pending" && ageMinutes > 15;
+          const isDelivery = o.order_type === "توصيل";
           return `
             <div class="order-card${overdue ? " overdue" : ""}">
               <div class="order-head">
-                <span class="order-time">${formatTime(o.created_at)}</span>
-                ${o.order_type ? `<span class="order-type-badge">${o.order_type}</span>` : ""}
+                <div class="order-time-wrap">
+                  <span class="order-time">${formatTime(o.created_at)}</span>
+                  ${activeTab === "pending" ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? "⏰ " : ""}قبل ${ageMinutes} د</span>` : ""}
+                </div>
+                ${o.order_type ? `<span class="order-type-badge">${isDelivery ? "🛵" : "🍽️"} ${o.order_type}</span>` : ""}
               </div>
               ${o.table_number ? `<div class="order-route">🪑 طاولة رقم ${o.table_number}</div>` : ""}
               ${o.customer_phone ? `<div class="order-route" dir="ltr">📞 ${o.customer_phone}</div>` : ""}
               <div class="order-items">
                 ${o.sale_items.map((it) => `
                   <div class="order-line">
-                    <div class="qty-name">${it.qty}× ${it.product_name}</div>
+                    <div class="qty-line">
+                      <span class="order-qty-badge">${it.qty}×</span>
+                      <span class="item-name">${it.product_name}</span>
+                    </div>
                     ${it.addons_summary ? `<div class="addons">+ ${it.addons_summary}</div>` : ""}
                     ${it.note ? `<div class="note">📝 ${it.note}</div>` : ""}
                   </div>
