@@ -415,14 +415,21 @@
         const existingByExternalId = {};
         (existing || []).forEach((p) => { existingByExternalId[p.external_id] = p; });
 
-        const payload = items.map((it) => ({
-          external_id: it.id,
-          name: it.ar,
-          price: Number(it.price),
-          category: catById[it.cat] || "عام",
-          image_url: it.image || null,
-          is_active: it.available !== false,
-        }));
+        // نحط image_url بالـ payload بس إذا الموقع الحقيقي فعليًا معه صورة
+        // لهذا الصنف — لو تركناه فاضي دايمًا كـ null، كل مزامنة كانت رح
+        // تمسح أي صورة ضفتها إنت يدويًا بالإعدادات (upsert ما بيلمس عمود
+        // غير موجود بالـ payload أصلًا)
+        const payload = items.map((it) => {
+          const row = {
+            external_id: it.id,
+            name: it.ar,
+            price: Number(it.price),
+            category: catById[it.cat] || "عام",
+            is_active: it.available !== false,
+          };
+          if (it.image) row.image_url = it.image;
+          return row;
+        });
 
         const { error: syncErr } = await window.supabaseClient
           .from("products").upsert(payload, { onConflict: "external_id" });
