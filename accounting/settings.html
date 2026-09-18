@@ -20,6 +20,17 @@
   window.olvApplyTheme();
 })();
 </script>
+<style>
+  .cat-accordion-head{
+    width:100%; display:flex; align-items:center; gap:10px; text-align:right;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:10px;
+    padding:12px 14px; color:var(--paper); font-size:14px; font-weight:600;
+  }
+  .cat-accordion-head:hover{border-color:var(--gold);}
+  .cat-accordion-head .caret{color:var(--gold); transition:.2s; display:inline-block;}
+  .cat-accordion-head .caret.open{transform:rotate(90deg);}
+  .cat-accordion-head span:nth-child(2){flex:1;}
+</style>
 </head>
 <body>
   <div id="olv-nav"></div>
@@ -233,6 +244,8 @@
       }
     }
 
+    const openCategories = new Set();
+
     async function loadProducts() {
       const errBox = document.getElementById("err");
       const container = document.getElementById("products-by-category");
@@ -249,9 +262,16 @@
           const cat = p.category || "عام";
           (byCategory[cat] = byCategory[cat] || []).push(p);
         });
-        container.innerHTML = Object.keys(byCategory).map((cat) => `
-          <div style="margin-bottom:18px;">
-            <div class="badge" style="margin-bottom:8px;">${cat} · ${byCategory[cat].length}</div>
+        container.innerHTML = Object.keys(byCategory).map((cat) => {
+          const open = openCategories.has(cat);
+          return `
+          <div class="cat-accordion" style="margin-bottom:10px;">
+            <button type="button" class="cat-accordion-head" data-cat-toggle="${cat}">
+              <span class="caret${open ? " open" : ""}">▸</span>
+              <span>${cat}</span>
+              <span class="badge">${byCategory[cat].length}</span>
+            </button>
+            ${open ? `
             <div class="table-wrap">
               <table>
                 <thead><tr><th>المنتج</th><th>السعر</th><th>صورة</th><th>الأولوية</th><th></th></tr></thead>
@@ -285,8 +305,18 @@
                 </tbody>
               </table>
             </div>
+            ` : ""}
           </div>
-        `).join("");
+        `;
+        }).join("");
+        container.querySelectorAll("button[data-cat-toggle]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const cat = btn.dataset.catToggle;
+            if (openCategories.has(cat)) openCategories.delete(cat);
+            else openCategories.add(cat);
+            loadProducts();
+          });
+        });
         container.querySelectorAll("button[data-id]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             if (!confirm("حذف هذا المنتج؟")) return;
