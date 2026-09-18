@@ -499,7 +499,7 @@
 
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => `
-        <div class="card" data-id="${p.id}">
+        <div class="card" data-id="${p.id}" data-sound="add">
           ${topSellerIds.has(p.id) ? `<span class="best-badge">⭐ الأكثر طلبًا</span>` : ""}
           ${p.image_url
             ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-emoji="${categoryEmoji(p.category)}" onerror="olvHandleImageError(this)">`
@@ -686,7 +686,7 @@
                 <span class="qty-value">${item.qty}</span>
                 <button type="button" data-inc="${idx}">+</button>
               </div>
-              <button type="button" class="cart-item-remove" data-remove="${idx}" aria-label="حذف الصنف">🗑</button>
+              <button type="button" class="cart-item-remove" data-remove="${idx}" data-sound="remove" aria-label="حذف الصنف">🗑</button>
             </div>
           </div>
         `).join("");
@@ -853,6 +853,7 @@
           renderCart();
           refreshPopularityAndGrid();
           modal.querySelector("#checkout-success").classList.add("show");
+          if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
           isSubmitting = false;
           setTimeout(close, 900);
         } catch (err) {

@@ -180,6 +180,7 @@
             const { error } = await window.supabaseClient
               .from("sales_entries").update({ kitchen_status: btn.dataset.next }).eq("id", btn.dataset.id);
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+            if (activeTab === "pending" && typeof OlvSound !== "undefined") OlvSound.playSuccess();
             loadOrders();
           });
         });
