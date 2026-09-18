@@ -186,17 +186,39 @@
   .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:24px; color:var(--gold-hi); font-weight:700;}
   .cart-bar .actions{display:flex; gap:8px;}
   .cart-list{margin-bottom:0;}
-  .cart-item{padding:12px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:15px;}
-  .cart-item-info{cursor:pointer; margin-bottom:8px;}
-  .cart-item-info .meta{color:var(--muted); font-size:13px; margin-top:2px;}
-  .cart-item-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-  .qty-stepper{display:flex; align-items:center; gap:8px;}
-  .qty-stepper button{
-    width:34px; height:34px; border-radius:8px; border:1px solid var(--hair); background:var(--ink-3);
-    color:var(--paper); font-size:16px; flex:none;
+  .cart-item{
+    background:var(--ink-3); border:1px solid var(--hair-soft,rgba(201,162,75,.14));
+    border-radius:14px; padding:12px 14px; margin-bottom:10px;
   }
-  .qty-stepper .qty-value{min-width:20px; text-align:center; font-size:14px;}
-  .cart-item-price{font-weight:700; color:var(--gold-hi); font-size:14px;}
+  .cart-item-top{display:flex; align-items:flex-start; gap:10px;}
+  .qty-badge{
+    flex:none; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08;
+    font-weight:700; font-size:12.5px; min-width:24px; height:24px; border-radius:7px;
+    display:flex; align-items:center; justify-content:center; padding:0 4px;
+  }
+  .cart-item-info{flex:1; min-width:0; cursor:pointer;}
+  .cart-item-info .name{font-weight:600; font-size:15px; line-height:1.35;}
+  .cart-item-info .meta{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:3px; line-height:1.5;}
+  .cart-item-price{flex:none; font-weight:700; color:var(--gold-hi); font-size:14.5px; white-space:nowrap;}
+  .cart-item-controls{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));
+  }
+  .qty-stepper{
+    display:flex; align-items:center; gap:2px; background:var(--ink-2); border:1px solid var(--hair);
+    border-radius:999px; padding:3px;
+  }
+  .qty-stepper button{
+    width:30px; height:30px; border-radius:50%; border:0; background:transparent;
+    color:var(--gold); font-size:17px; flex:none; line-height:0;
+  }
+  .qty-stepper button:active{background:var(--gold); color:#100e08;}
+  .qty-stepper .qty-value{min-width:24px; text-align:center; font-size:14px; font-weight:700;}
+  .cart-item-remove{
+    width:32px; height:32px; border-radius:8px; border:1px solid transparent; background:transparent;
+    color:var(--danger-hi); font-size:15px; flex:none; opacity:.75;
+  }
+  .cart-item-remove:hover{opacity:1; background:rgba(193,88,63,.12); border-color:rgba(193,88,63,.3);}
   .cart-empty{color:var(--muted); font-size:14px; text-align:center; padding:60px 0;}
   .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .ticket-header h2{margin:0;}
@@ -622,18 +644,22 @@
       } else {
         list.innerHTML = cart.map((item, idx) => `
           <div class="cart-item">
-            <div class="cart-item-info" data-edit="${idx}">
-              <div class="name">${item.name}</div>
-              ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
-              ${item.note ? `<div class="meta">📝 ${item.note}</div>` : ""}
+            <div class="cart-item-top">
+              <div class="qty-badge">${item.qty}×</div>
+              <div class="cart-item-info" data-edit="${idx}">
+                <div class="name">${item.name}</div>
+                ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
+                ${item.note ? `<div class="meta">📝 ${item.note}</div>` : ""}
+              </div>
+              <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
-            <div class="cart-item-row">
+            <div class="cart-item-controls">
               <div class="qty-stepper">
                 <button type="button" data-dec="${idx}">−</button>
                 <span class="qty-value">${item.qty}</span>
                 <button type="button" data-inc="${idx}">+</button>
               </div>
-              <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
+              <button type="button" class="cart-item-remove" data-remove="${idx}" aria-label="حذف الصنف">🗑</button>
             </div>
           </div>
         `).join("");
@@ -652,6 +678,12 @@
             const target = OlvCart.all()[idx];
             if (target && target.qty <= 1) OlvCart.removeAt(idx);
             else OlvCart.incrementQtyAt(idx, -1);
+            renderCart();
+          });
+        });
+        list.querySelectorAll("[data-remove]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            OlvCart.removeAt(Number(btn.dataset.remove));
             renderCart();
           });
         });
