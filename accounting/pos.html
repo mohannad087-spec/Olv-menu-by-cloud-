@@ -53,18 +53,28 @@
     min-height:44px;
   }
   .pos-toolbar input[type=search]:focus{outline:none; border-color:var(--gold);}
-  .cat-tabs{display:flex; gap:8px; overflow-x:auto; margin-bottom:16px;}
+  .cat-tabs{display:flex; gap:8px; overflow-x:auto; margin-bottom:16px; padding-bottom:2px;}
   .cat-tab{
-    flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
-    padding:11px 16px; border-radius:999px; font-size:13px; white-space:nowrap; min-height:44px;
+    flex:none; display:inline-flex; align-items:center; gap:6px;
+    background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
+    padding:10px 16px; border-radius:999px; font-size:13px; white-space:nowrap; min-height:44px;
+    transition:.15s;
   }
-  .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
-  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:20px;}
+  .cat-tab .cat-tab-icon{font-size:15px; line-height:1;}
+  .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px rgba(201,162,75,.25);}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; margin-bottom:20px;}
   .card{
-    background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; overflow:hidden; cursor:pointer;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; overflow:hidden; cursor:pointer;
     transition:.15s; text-align:center; position:relative; box-shadow:var(--card-shadow);
   }
+  .card:hover{border-color:var(--gold); transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.12);}
   .card:active{transform:scale(.97);}
+  .card .best-badge{
+    position:absolute; top:8px; inset-inline-start:8px; z-index:1;
+    background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08;
+    font-size:10.5px; font-weight:700; border-radius:999px; padding:3px 8px;
+    display:flex; align-items:center; gap:3px; box-shadow:0 2px 8px rgba(0,0,0,.25);
+  }
   .card .thumb{
     width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:var(--ink-3);
   }
@@ -73,9 +83,9 @@
     background:linear-gradient(135deg,var(--ink-3),var(--ink-2));
     font-size:40px;
   }
-  .card .info{padding:8px 8px 12px;}
-  .card .name{font-size:13px; margin-bottom:4px;}
-  .card .price{font-size:13px; color:var(--gold-hi); font-weight:700;}
+  .card .info{padding:9px 9px 12px;}
+  .card .name{font-size:13.5px; margin-bottom:5px; font-weight:600; line-height:1.3;}
+  .card .price{font-size:14.5px; color:var(--gold-hi); font-weight:700; font-family:'Cormorant Garamond',serif;}
 
   .sheet{
     position:fixed; inset:auto 0 0 0; background:var(--ink-2); border-top:1px solid var(--hair);
@@ -400,11 +410,11 @@
     function computeGridCapacity() {
       const grid = document.getElementById("products-grid");
       const containerWidth = grid.clientWidth || 300;
-      const gap = 12;
+      const gap = 14;
       const targetCardWidth = 150;
       const columns = Math.max(1, Math.floor((containerWidth + gap) / (targetCardWidth + gap)));
       const cardWidth = (containerWidth - (columns - 1) * gap) / columns;
-      const infoHeight = 56;
+      const infoHeight = 62;
       const cardHeight = cardWidth + infoHeight;
       const gridTop = grid.getBoundingClientRect().top;
       const reservedBottom = 56;
@@ -427,13 +437,19 @@
 
     function renderCategoryTabs() {
       const hasBestSellers = Object.keys(popularity).length > 0;
+      // ترتيب التصنيفات أبجديًا (بدل ترتيب الإدخال العشوائي بقاعدة
+      // البيانات)، مع تثبيت "الكل" و"الأكثر مبيعًا" بالبداية دايمًا
+      const realCats = [...new Set(products.map((p) => p.category))].sort((a, b) => a.localeCompare(b, "ar"));
       const cats = [
         "الكل",
         ...(hasBestSellers ? [BEST_SELLERS] : []),
-        ...new Set(products.map((p) => p.category)),
+        ...realCats,
       ];
       document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
-        <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">${c}</button>
+        <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">
+          <span class="cat-tab-icon">${c === "الكل" ? "🍽️" : c === BEST_SELLERS ? "⭐" : categoryEmoji(c)}</span>
+          ${c}
+        </button>
       `).join("");
       document.querySelectorAll(".cat-tab").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -471,9 +487,20 @@
       if (currentPage < 1) currentPage = 1;
       const pageItems = list.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+      // أول ٣ أصناف الأكثر مبيعًا بتاخد شارة مميزة بأي تصنيف — إلا وهي
+      // بالتبويب المخصص لهم أصلًا (تكرار بلا داعي هناك)
+      const topSellerIds = activeCategory === BEST_SELLERS
+        ? new Set()
+        : new Set(
+            Object.keys(popularity)
+              .sort((a, b) => popularity[b] - popularity[a])
+              .slice(0, 3)
+          );
+
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => `
         <div class="card" data-id="${p.id}">
+          ${topSellerIds.has(p.id) ? `<span class="best-badge">⭐ الأكثر طلبًا</span>` : ""}
           ${p.image_url
             ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-emoji="${categoryEmoji(p.category)}" onerror="olvHandleImageError(this)">`
             : `<div class="thumb-fallback">${categoryEmoji(p.category)}</div>`
