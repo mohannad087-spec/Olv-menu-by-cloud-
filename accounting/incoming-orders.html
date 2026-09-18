@@ -62,6 +62,7 @@
   <script src="assets/auth-guard.js"></script>
   <script src="assets/layout.js"></script>
   <script src="assets/notify-sound.js"></script>
+  <script src="assets/incoming-orders-poll.js"></script>
   <script>
     olvRenderNav("incoming-orders");
 
@@ -73,24 +74,6 @@
 
     let products = [];
     let lastOrders = [];
-    let knownNewIds = null; // null = لسا ما انعمل الأساس الأول (baseline)
-    let accessToken = null;
-
-    function proxyUrl() {
-      const base = (window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "";
-      return base.replace(/\/$/, "") + "/functions/v1/olv-menu-proxy";
-    }
-
-    async function callProxy(payload) {
-      const res = await fetch(proxyUrl(), {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify(payload),
-      });
-      const out = await res.json();
-      if (!res.ok || out.ok === false) throw new Error(out.error || "فشل الاتصال بموقع المنيو");
-      return out;
-    }
 
     async function loadProducts() {
       const { data, error } = await window.supabaseClient
@@ -196,27 +179,6 @@
       });
     }
 
-    function checkForNewOrders() {
-      const currentIds = new Set(lastOrders.filter((o) => o.status === "new").map((o) => o.id));
-      if (knownNewIds === null) { knownNewIds = currentIds; return; }
-      let hasNew = false;
-      currentIds.forEach((id) => { if (!knownNewIds.has(id)) hasNew = true; });
-      knownNewIds = currentIds;
-      if (hasNew) OlvSound.playNewOrder();
-    }
-
-    async function refresh() {
-      const errBox = document.getElementById("err");
-      try {
-        const out = await callProxy({ action: "list" });
-        lastOrders = out.orders || [];
-        checkForNewOrders();
-        renderOrders();
-      } catch (err) {
-        olvShowError(errBox, err);
-      }
-    }
-
     async function approveOrder(orderId, method) {
       const errBox = document.getElementById("err");
       const order = lastOrders.find((o) => o.id === orderId);
@@ -241,8 +203,8 @@
           p_customer_phone: order.phone || null,
         });
         if (error) throw error;
-        await callProxy({ action: "update", id: order.id, status: "preparing" });
-        await refresh();
+        await OlvIncomingPoll.callProxy({ action: "update", id: order.id, status: "preparing" });
+        await OlvIncomingPoll.pollNow();
       } catch (err) {
         olvShowError(errBox, err);
         card?.querySelectorAll("button").forEach((b) => { b.disabled = false; });
@@ -253,8 +215,8 @@
       if (!confirm("متأكد من رفض هذا الطلب؟")) return;
       const errBox = document.getElementById("err");
       try {
-        await callProxy({ action: "update", id: orderId, status: "cancelled" });
-        await refresh();
+        await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "cancelled" });
+        await OlvIncomingPoll.pollNow();
       } catch (err) {
         olvShowError(errBox, err);
       }
@@ -263,15 +225,16 @@
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
-      accessToken = session.access_token;
       const errBox = document.getElementById("err");
       try {
         await loadProducts();
-        await refresh();
       } catch (err) {
         olvShowError(errBox, err);
       }
-      setInterval(refresh, 15000);
+      OlvIncomingPoll.subscribe((orders) => {
+        lastOrders = orders;
+        renderOrders();
+      });
     })();
   </script>
 </body>
