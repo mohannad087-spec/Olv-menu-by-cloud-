@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المستلزمات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  window.olvApplyTheme = function(){
+    document.documentElement.setAttribute('data-theme', computeTheme());
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .low-stock{color:var(--danger-hi); font-weight:700;}
+  .stock-adjust-input{width:80px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .cat-accordion-head{
+    width:100%; display:flex; align-items:center; gap:10px; text-align:right;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:10px;
+    padding:12px 14px; color:var(--paper); font-size:14px; font-weight:600;
+  }
+  .cat-accordion-head:hover{border-color:var(--gold);}
+  .cat-accordion-head .caret{color:var(--gold); transition:.2s; display:inline-block;}
+  .cat-accordion-head .caret.open{transform:rotate(90deg);}
+  .cat-accordion-head span:nth-child(2){flex:1;}
+  .order-qty-input{width:70px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:9px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .order-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1));}
+  .order-row .o-name{flex:1; font-size:13.5px;}
+  .order-row .o-stock{color:var(--muted); font-size:12px; min-width:90px;}
+  #order-text{width:100%; min-height:200px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:13.5px; line-height:1.9; white-space:pre-wrap;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>إضافة مستلزم جديد</h2>
+      <form id="supply-form">
+        <div class="row3">
+          <div class="field">
+            <label>اسم المستلزم</label>
+            <input type="text" id="s-name" placeholder="مثال: كيس ورق 22 سم أبيض" required>
+          </div>
+          <div class="field">
+            <label>التصنيف</label>
+            <input type="text" id="s-category" placeholder="مثال: مطعم" value="عام">
+          </div>
+          <div class="field">
+            <label>الوحدة</label>
+            <select id="s-unit">
+              <option value="قطعة" selected>قطعة</option>
+              <option value="كيلوغرام">كيلوغرام (كغم)</option>
+              <option value="كيس">كيس</option>
+              <option value="طقم">طقم</option>
+              <option value="علبة">علبة</option>
+              <option value="كرتون">كرتون</option>
+            </select>
+          </div>
+        </div>
+        <div class="row3">
+          <div class="field">
+            <label>الكمية الحالية</label>
+            <input type="number" id="s-stock" step="0.001" min="0" value="0" required>
+          </div>
+          <div class="field">
+            <label>حد التنبيه</label>
+            <input type="number" id="s-threshold" step="0.001" min="0" value="0">
+          </div>
+          <div class="field">
+            <label>المورد (اختياري)</label>
+            <select id="s-supplier"><option value="">— بدون —</option></select>
+          </div>
+        </div>
+        <button type="submit" class="btn gold">إضافة</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <h2 style="margin:0;">المستلزمات الحالية</h2>
+        <button type="button" class="btn gold" id="prepare-order-btn">🧾 تجهيز طلبية</button>
+      </div>
+      <div id="supplies-by-category">
+        <div class="hint">جاري التحميل...</div>
+      </div>
+    </div>
+
+    <div class="group" id="order-group" hidden>
+      <h2>تجهيز طلبية</h2>
+      <p class="hint" style="margin-bottom:12px;">
+        الكمية المقترحة تلقائيًا = الفرق بين حد التنبيه والكمية الحالية لأي
+        مستلزم قارب ينفد. عدّل أي رقم يدويًا حسب حاجتك الفعلية، واترك الحقل
+        صفر لأي صنف ما بدك تطلبه.
+      </p>
+      <div id="order-items"></div>
+      <button type="button" class="btn gold" id="build-order-text-btn" style="margin-top:14px;">إنشاء نص الطلبية</button>
+      <div id="order-output" hidden style="margin-top:16px;">
+        <textarea id="order-text" readonly></textarea>
+        <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+          <button type="button" class="btn" id="copy-order-btn">📋 نسخ النص</button>
+          <a class="btn gold" id="whatsapp-order-link" href="#" target="_blank" rel="noopener">📱 إرسال عبر واتساب</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script src="assets/notify-sound.js"></script>
+  <script src="assets/incoming-orders-poll.js"></script>
+  <script>
+    olvRenderNav("supplies");
+
+    let supplies = [];
+    let suppliers = [];
+    const openCategories = new Set();
+
+    async function loadSuppliersSelect() {
+      const { data, error } = await window.supabaseClient.from("suppliers").select("id, name, phone").order("name");
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      suppliers = data || [];
+      const sel = document.getElementById("s-supplier");
+      sel.innerHTML = `<option value="">— بدون —</option>` + suppliers.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+    }
+
+    async function loadSupplies() {
+      const errBox = document.getElementById("err");
+      const container = document.getElementById("supplies-by-category");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("supplies").select("*").order("category").order("name");
+        if (error) throw error;
+        supplies = data || [];
+        if (!supplies.length) {
+          container.innerHTML = `<div class="hint">لا يوجد مستلزمات بعد</div>`;
+          return;
+        }
+        const byCategory = {};
+        supplies.forEach((s) => {
+          const cat = s.category || "عام";
+          (byCategory[cat] = byCategory[cat] || []).push(s);
+        });
+        container.innerHTML = Object.keys(byCategory).map((cat) => {
+          const open = openCategories.has(cat);
+          return `
+          <div class="cat-accordion" style="margin-bottom:10px;">
+            <button type="button" class="cat-accordion-head" data-cat-toggle="${cat}">
+              <span class="caret${open ? " open" : ""}">▸</span>
+              <span>${cat}</span>
+              <span class="badge">${byCategory[cat].length}</span>
+            </button>
+            ${open ? `
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>المستلزم</th><th>الوحدة</th><th>الكمية</th><th>تعديل</th><th></th></tr></thead>
+                <tbody>
+                  ${byCategory[cat].map((s) => {
+                    const low = Number(s.current_stock) <= Number(s.low_stock_threshold) && Number(s.low_stock_threshold) > 0;
+                    return `
+                    <tr>
+                      <td>${s.name}</td>
+                      <td>${s.unit}</td>
+                      <td class="${low ? "low-stock" : ""}">${s.current_stock}${low ? " ⚠" : ""}</td>
+                      <td>
+                        <div style="display:flex; gap:6px;">
+                          <input type="number" step="0.001" placeholder="+/-" class="stock-adjust-input" data-adjust="${s.id}">
+                          <button class="btn small" data-apply="${s.id}">تعديل</button>
+                        </div>
+                      </td>
+                      <td><button class="btn small danger" data-del="${s.id}">حذف</button></td>
+                    </tr>
+                  `; }).join("")}
+                </tbody>
+              </table>
+            </div>
+            ` : ""}
+          </div>
+        `;
+        }).join("");
+
+        container.querySelectorAll("button[data-cat-toggle]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const cat = btn.dataset.catToggle;
+            if (openCategories.has(cat)) openCategories.delete(cat);
+            else openCategories.add(cat);
+            loadSupplies();
+          });
+        });
+        container.querySelectorAll("button[data-apply]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const input = container.querySelector(`input[data-adjust="${btn.dataset.apply}"]`);
+            const delta = Number(input.value || 0);
+            if (!delta) return;
+            const s = supplies.find((x) => x.id === btn.dataset.apply);
+            const { error } = await window.supabaseClient
+              .from("supplies").update({ current_stock: Number(s.current_stock) + delta }).eq("id", s.id);
+            if (error) { olvShowError(errBox, error); return; }
+            await loadSupplies();
+          });
+        });
+        container.querySelectorAll("button[data-del]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("حذف هذا المستلزم؟")) return;
+            const { error } = await window.supabaseClient.from("supplies").delete().eq("id", btn.dataset.del);
+            if (error) { olvShowError(errBox, error); return; }
+            await loadSupplies();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    document.getElementById("supply-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      try {
+        const payload = {
+          name: document.getElementById("s-name").value.trim(),
+          category: document.getElementById("s-category").value.trim() || "عام",
+          unit: document.getElementById("s-unit").value,
+          current_stock: Number(document.getElementById("s-stock").value || 0),
+          low_stock_threshold: Number(document.getElementById("s-threshold").value || 0),
+          supplier_id: document.getElementById("s-supplier").value || null,
+        };
+        const { error } = await window.supabaseClient.from("supplies").insert(payload);
+        if (error) throw error;
+        document.getElementById("supply-form").reset();
+        document.getElementById("s-category").value = "عام";
+        document.getElementById("s-unit").value = "قطعة";
+        await loadSupplies();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    });
+
+    function renderOrderItems() {
+      const el = document.getElementById("order-items");
+      el.innerHTML = supplies.map((s) => {
+        const suggested = Math.max(0, Number(s.low_stock_threshold) - Number(s.current_stock));
+        return `
+          <div class="order-row">
+            <div class="o-name">${s.name}</div>
+            <div class="o-stock">الحالي: ${s.current_stock} ${s.unit}</div>
+            <input type="number" step="0.001" min="0" class="order-qty-input" value="${suggested || ""}" placeholder="0" data-order-qty="${s.id}">
+          </div>
+        `;
+      }).join("");
+    }
+
+    document.getElementById("prepare-order-btn").addEventListener("click", () => {
+      const group = document.getElementById("order-group");
+      group.hidden = !group.hidden;
+      if (!group.hidden) {
+        renderOrderItems();
+        document.getElementById("order-output").hidden = true;
+        group.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+
+    document.getElementById("build-order-text-btn").addEventListener("click", () => {
+      const lines = [];
+      let supplierForLink = null;
+      document.querySelectorAll("input[data-order-qty]").forEach((input) => {
+        const qty = Number(input.value || 0);
+        if (!qty) return;
+        const s = supplies.find((x) => x.id === input.dataset.orderQty);
+        if (!s) return;
+        lines.push(`• ${s.name} × ${qty} ${s.unit}`);
+        if (!supplierForLink && s.supplier_id) supplierForLink = s.supplier_id;
+      });
+      const output = document.getElementById("order-output");
+      if (!lines.length) {
+        alert("ما حددت أي كمية للطلب");
+        output.hidden = true;
+        return;
+      }
+      const text = `طلبية مستلزمات — OLV\nالتاريخ: ${olvToday()}\n\n${lines.join("\n")}`;
+      document.getElementById("order-text").value = text;
+      output.hidden = false;
+
+      const waLink = document.getElementById("whatsapp-order-link");
+      const supplier = suppliers.find((s) => s.id === supplierForLink);
+      if (supplier && supplier.phone) {
+        let n = supplier.phone.replace(/\D/g, "");
+        if (n.startsWith("0")) n = "962" + n.slice(1);
+        waLink.href = `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
+        waLink.style.display = "";
+      } else {
+        waLink.style.display = "none";
+      }
+    });
+
+    document.getElementById("copy-order-btn").addEventListener("click", async () => {
+      const textarea = document.getElementById("order-text");
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        alert("انتسخ النص");
+      } catch (e) {
+        textarea.select();
+        document.execCommand("copy");
+      }
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      const errBox = document.getElementById("err");
+      try {
+        await loadSuppliersSelect();
+        await loadSupplies();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    })();
+  </script>
+</body>
+</html>
