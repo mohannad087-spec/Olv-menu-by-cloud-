@@ -41,8 +41,15 @@
   }
   .recipe-card > summary{list-style:none; cursor:pointer; display:block;}
   .recipe-card > summary::-webkit-details-marker{display:none;}
-  .art{aspect-ratio:4/3; display:grid; place-items:center; background:var(--ink-3); border-bottom:1px solid var(--hair);}
-  .art svg{width:70%; height:auto; overflow:visible;}
+  .recipe-card.hot{ --ac: var(--gold-hi); }
+  .recipe-card.cold{ --ac: var(--olive-hi); }
+  .art{
+    aspect-ratio:4/3; display:grid; place-items:center; border-bottom:1px solid var(--hair);
+    background:
+      radial-gradient(ellipse 66% 58% at 50% 56%, color-mix(in srgb, var(--ac) 16%, transparent) 0%, transparent 72%),
+      var(--ink-3);
+  }
+  .art svg{width:48%; height:auto; overflow:visible;}
   .recipe-body{padding:14px 16px 0;}
   .recipe-card h3{font-size:18px; margin:0 0 1px;}
   .recipe-en{font-size:11px; letter-spacing:.04em; color:var(--muted); text-transform:uppercase; font-family:'Tajawal',sans-serif;}
@@ -72,11 +79,7 @@
   .recipe-card.cold .step-num{background:linear-gradient(180deg,var(--olive-hi),var(--olive));}
   .steps .txt{padding-top:3px; font-size:13.5px; line-height:1.65;}
 
-  .vessel-fill{fill:var(--ink-2);}
-  .vessel-line{stroke:var(--muted);}
-  .glass-line{stroke:var(--muted);}
-  .card-fill{fill:var(--ink-2);}
-  .steam-line{stroke:var(--muted);}
+  .ac-stroke{stroke:var(--ac);}
 
   @keyframes rise{0%{transform:translateY(4px); opacity:0;} 30%{opacity:.6;} 100%{transform:translateY(-9px); opacity:0;}}
   .wisp{animation:rise 3.4s ease-in-out infinite;}
@@ -145,131 +148,66 @@
       highball: { top:[56,104], bot:[60,100], y0:50, y1:160 }
     };
 
-    function gradientDef(id,c1,c2){
-      return '<linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0" stop-color="'+c1+'"/>' +
-        '<stop offset="1" stop-color="'+c2+'"/>' +
-      '</linearGradient>';
-    }
-
     function steamMarks(cx){
       function wisp(x,delay){
-        return '<polyline class="wisp steam-line" style="animation-delay:'+delay+'s" points="'+
-          (x-3)+',46 '+(x+4)+',34 '+(x-4)+',22 '+(x+3)+',9' +
-          '" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>';
+        return '<polyline class="wisp ac-stroke" style="animation-delay:'+delay+'s" points="'+
+          (x-3)+',44 '+(x+3)+',33 '+(x-3)+',22 '+(x+3)+',11' +
+          '" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".65"/>';
       }
-      return '<g>'+wisp(cx-15,0)+wisp(cx,.6)+wisp(cx+15,1.1)+'</g>';
+      return '<g>'+wisp(cx-9,0)+wisp(cx+9,.6)+'</g>';
     }
 
     function iceCubes(cx,cy){
-      return '<g>' +
-        '<rect x="'+(cx-24)+'" y="'+(cy-6)+'" width="16" height="16" rx="3" transform="rotate(-12 '+(cx-16)+' '+(cy+2)+')" fill="rgba(255,255,255,.55)" stroke="rgba(255,255,255,.85)"/>' +
-        '<rect x="'+(cx+6)+'" y="'+(cy-15)+'" width="15" height="15" rx="3" transform="rotate(9 '+(cx+13)+' '+(cy-7)+')" fill="rgba(255,255,255,.5)" stroke="rgba(255,255,255,.85)"/>' +
+      return '<g class="ac-stroke" fill="none" stroke-width="2" opacity=".85">' +
+        '<rect x="'+(cx-20)+'" y="'+(cy-4)+'" width="14" height="14" rx="3" transform="rotate(-10 '+(cx-13)+' '+(cy+3)+')"/>' +
+        '<rect x="'+(cx+6)+'" y="'+(cy-11)+'" width="13" height="13" rx="3" transform="rotate(8 '+(cx+12)+' '+(cy-5)+')"/>' +
       '</g>';
     }
 
     function mintLeaf(x,y,rot){
-      return '<g transform="translate('+x+' '+y+') rotate('+rot+')">' +
-        '<ellipse rx="12" ry="6" fill="#5C9A50" stroke="#3E7133"/>' +
-        '<line x1="-11" y1="0" x2="10" y2="0" stroke="#3E7133" stroke-width="1"/>' +
+      return '<g class="ac-stroke" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate('+x+' '+y+') rotate('+rot+')">' +
+        '<path d="M-9,3 C-6,-6 6,-6 9,3 C3,5.5 -3,5.5 -9,3 Z"/>' +
+        '<path d="M-7,2.6 C-2,1 2,1 7,2.6"/>' +
       '</g>';
     }
 
-    function lemonWheel(x,y){
-      var spokes = [0,60,120].map(function(a){
-        var r = a*Math.PI/180;
-        return '<line x1="0" y1="0" x2="'+(8*Math.cos(r)).toFixed(1)+'" y2="'+(8*Math.sin(r)).toFixed(1)+'" stroke="#D9B23C" stroke-width="1"/>';
-      }).join('');
-      return '<g transform="translate('+x+' '+y+')">' +
-        '<circle r="12" fill="#F4D35E" stroke="#D9B23C"/>' +
-        '<circle r="7.5" fill="#FBEBA6"/>' + spokes +
-      '</g>';
+    function strawLine(x1,y1,x2,y2){
+      return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" class="ac-stroke" stroke-width="3" stroke-linecap="round"/>';
     }
 
-    function whippedCream(x,y){
-      return '<g fill="#FFFBF2" stroke="#EADFC8">' +
-        '<circle cx="'+(x-10)+'" cy="'+y+'" r="9"/>' +
-        '<circle cx="'+x+'" cy="'+(y-6)+'" r="10"/>' +
-        '<circle cx="'+(x+10)+'" cy="'+y+'" r="9"/>' +
-      '</g>';
-    }
-
-    function sprinkle(x,y,color,n){
-      var s='';
-      for(var i=0;i<n;i++){
-        s+='<circle cx="'+(x-13+i*5.5)+'" cy="'+(y+((i%2)?2:-2))+'" r="1.3" fill="'+color+'"/>';
-      }
-      return s;
-    }
-
-    function raisinsPine(x,y){
-      return '<g>' +
-        '<ellipse cx="'+(x-10)+'" cy="'+y+'" rx="3" ry="2.2" fill="#8B4B1F"/>' +
-        '<ellipse cx="'+(x-2)+'" cy="'+(y+3)+'" rx="3" ry="2.2" fill="#8B4B1F"/>' +
-        '<ellipse cx="'+(x+8)+'" cy="'+(y-1)+'" rx="2.2" ry="3.2" fill="#EFE3C3"/>' +
-        '<ellipse cx="'+(x+14)+'" cy="'+(y+2)+'" rx="2.2" ry="3.2" fill="#EFE3C3"/>' +
-      '</g>';
-    }
-
-    function strawLine(x1,y1,x2,y2,color){
-      return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+color+'" stroke-width="6" stroke-linecap="round"/>';
-    }
-
-    function ceramicCup(d,gid){
+    function ceramicCup(d){
       var tall = d.shape==='mug';
-      var bx = tall?50:54, by = tall?55:70, bw = tall?60:52, bh = tall?90:55;
-      var lx=bx+6, ly=by+8, lw=bw-12, lh=bh-14;
-      var fr = d.foamRatio!==undefined ? d.foamRatio : 0.22;
-      var foamH = d.foam ? Math.max(9,lh*fr) : 0;
+      var bx = tall?52:56, by = tall?58:72, bw = tall?56:48, bh = tall?82:50;
       var out = '';
       if(!tall){
-        out += '<ellipse cx="80" cy="'+(by+bh+8)+'" rx="46" ry="9" class="card-fill vessel-line" stroke-width="1.5"/>';
+        out += '<ellipse cx="80" cy="'+(by+bh+9)+'" rx="40" ry="6" class="ac-stroke" fill="none" stroke-width="2"/>';
       }
-      out += '<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="10" class="vessel-fill vessel-line" stroke-width="2"/>';
+      out += '<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="'+(tall?16:14)+'" class="ac-stroke" fill="none" stroke-width="2.5"/>';
       if(tall){
-        out += '<path d="M'+(bx+bw-2)+','+(by+18)+' q24,2 24,25 q0,23 -24,25" fill="none" class="vessel-line" stroke-width="7" stroke-linecap="round"/>';
+        out += '<path d="M'+(bx+bw-2)+','+(by+18)+' q22,2 22,23 q0,21 -22,23" fill="none" class="ac-stroke" stroke-width="2.5" stroke-linecap="round"/>';
       }
-      out += '<rect x="'+lx+'" y="'+(ly+foamH)+'" width="'+lw+'" height="'+(lh-foamH)+'" rx="6" fill="url(#'+gid+')"/>';
-      if(d.foam){
-        out += '<rect x="'+lx+'" y="'+ly+'" width="'+lw+'" height="'+foamH+'" rx="6" fill="'+d.foam+'"/>';
-      }
-      return { markup:out, cx:80, rimY:ly, baseY:by+bh };
+      return { markup:out, cx:80, rimY:by, baseY:by+bh };
     }
 
-    function glassVessel(d,gid){
+    function glassVessel(d){
       var m = GLASS_Y[d.shape];
       var outer = m.top[0]+','+m.y0+' '+m.top[1]+','+m.y0+' '+m.bot[1]+','+m.y1+' '+m.bot[0]+','+m.y1;
-      var inTop0=m.top[0]+4, inTop1=m.top[1]-4, inBot0=m.bot[0]+3, inBot1=m.bot[1]-3, inY0=m.y0+7, inY1=m.y1-4;
-      var foamH = d.foam ? (d.foamH || 16) : 0;
-      var liqTopY = inY0 + foamH;
-      var inner = inTop0+','+liqTopY+' '+inTop1+','+liqTopY+' '+inBot1+','+inY1+' '+inBot0+','+inY1;
-      var out = '<polygon points="'+outer+'" fill="none" class="glass-line" stroke-width="2"/>' +
-        '<ellipse cx="'+((m.bot[0]+m.bot[1])/2)+'" cy="'+m.y1+'" rx="'+((m.bot[1]-m.bot[0])/2)+'" ry="4" fill="none" class="glass-line" stroke-width="1.4"/>' +
-        '<polygon points="'+inner+'" fill="url(#'+gid+')"/>';
-      if(d.foam){
-        var foamPoly = inTop0+','+inY0+' '+inTop1+','+inY0+' '+(inTop1-2)+','+liqTopY+' '+(inTop0+2)+','+liqTopY;
-        out += '<polygon points="'+foamPoly+'" fill="'+d.foam+'"/>';
-      }
+      var out = '<polygon points="'+outer+'" fill="none" class="ac-stroke" stroke-width="2.5" stroke-linejoin="round"/>' +
+        '<line x1="'+m.bot[0]+'" y1="'+m.y1+'" x2="'+m.bot[1]+'" y2="'+m.y1+'" class="ac-stroke" stroke-width="2.5" stroke-linecap="round"/>';
       return { markup:out, cx:(m.top[0]+m.top[1])/2, rimY:m.y0, baseY:m.y1 };
     }
 
     function illustrate(d){
-      var gid = 'g-'+d.id;
       var isCup = d.shape==='mug' || d.shape==='demitasse';
-      var v = isCup ? ceramicCup(d,gid) : glassVessel(d,gid);
+      var v = isCup ? ceramicCup(d) : glassVessel(d);
       var extras = '';
       if(d.steam) extras += steamMarks(v.cx);
-      if(d.ice) extras += iceCubes(v.cx, v.rimY+18);
-      if(d.straw) extras += strawLine(v.cx+16, v.baseY-6, v.cx+2, v.rimY-30, d.straw);
+      if(d.ice) extras += iceCubes(v.cx, v.rimY+16);
+      if(d.straw) extras += strawLine(v.cx+14, v.baseY-8, v.cx+3, v.rimY-24);
       (d.garnish||[]).forEach(function(g){
-        if(g==='mint') extras += mintLeaf(v.cx+7, v.rimY-3, -18);
-        if(g==='lemon') extras += lemonWheel(v.cx-1, v.rimY-4);
-        if(g==='cream') extras += whippedCream(v.cx, v.rimY-6);
-        if(g==='cinnamon') extras += sprinkle(v.cx, v.rimY+9, '#8B4B1F', 6);
-        if(g==='raisins') extras += raisinsPine(v.cx-8, v.rimY+16);
+        if(g==='mint') extras += mintLeaf(v.cx+5, v.rimY-1, -15);
       });
-      return '<svg viewBox="0 0 160 185" role="img" aria-label="رسم توضيحي لكوب '+d.name+'">' +
-        '<defs>'+gradientDef(gid,d.c1,d.c2)+'</defs>' +
+      return '<svg viewBox="0 0 160 175" role="img" aria-label="رسم توضيحي لكوب '+d.name+'">' +
         v.markup + extras +
       '</svg>';
     }
