@@ -544,7 +544,7 @@
           return;
         }
         body.innerHTML = data.map((j) => {
-          const time = new Date(j.created_at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+          const time = new Date(j.created_at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", numberingSystem: "latn" });
           const color = j.status === "error" ? "var(--danger-hi)" : j.status === "printed" ? "var(--ok)" : "var(--muted)";
           return `
             <tr>

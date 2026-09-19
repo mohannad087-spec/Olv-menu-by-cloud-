@@ -19,7 +19,9 @@ async function olvLogout() {
 // أدوات مساعدة عامة
 function olvFormatMoney(n) {
   const v = Number(n || 0);
-  return v.toLocaleString("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // numberingSystem: "latn" يفرض أرقام إنجليزية (0-9) بدل الأرقام
+  // الهندية العربية (٠-٩)، مع إبقاء باقي تنسيق اللغة العربية كما هو
+  return v.toLocaleString("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2, numberingSystem: "latn" });
 }
 
 function olvToday() {
