@@ -139,12 +139,17 @@
   .received-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
   .received-row .label{font-size:13px; color:var(--muted);}
   .received-row .value{font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:700; color:var(--paper);}
-  .quick-amounts{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
+  /* direction:ltr إجباري هون — الصفحة كلها RTL، وبدونها شبكة CSS Grid
+     بتوزّع عناصرها من اليمين لليسار فبيطلع ترتيب الأرقام معكوس (يبين
+     "3 2 1" بدل "1 2 3")، وهيك بالظبط كان سبب المشكلة: المستخدم يضغط
+     المكان اللي شكله "1" بس فعليًا هو الزر التاني (data-key مختلف)،
+     فبيدخل رقم غلط ما بيوصل للمبلغ المطلوب وزر التأكيد يضل معطّل */
+  .quick-amounts{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; direction:ltr;}
   .quick-amounts button{
     background:var(--ink-3); border:1px solid var(--hair); border-radius:10px; padding:10px 4px;
     font-size:13px; color:var(--paper); min-height:40px;
   }
-  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px;}
+  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; direction:ltr;}
   .keypad button{
     background:var(--ink-3); border:1px solid var(--hair); border-radius:10px; font-size:19px;
     color:var(--paper); min-height:50px;
