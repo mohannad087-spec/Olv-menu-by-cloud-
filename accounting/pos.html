@@ -285,6 +285,10 @@
             <label>رقم الطاولة</label>
             <input type="text" id="table-number" placeholder="مثال: 5">
           </div>
+          <div class="field" id="customer-name-field" style="margin-bottom:12px;" hidden>
+            <label>اسم الزبون</label>
+            <input type="text" id="customer-name" placeholder="مثال: أحمد">
+          </div>
           <div class="field" id="customer-phone-field" style="margin-bottom:12px;" hidden>
             <label>رقم تلفون الزبون</label>
             <input type="tel" id="customer-phone" placeholder="07xxxxxxxx">
@@ -613,16 +617,20 @@
     }
 
     // يظهر حقل رقم الطاولة لطلبات "صالة" فقط، وحقل رقم تلفون الزبون
-    // لطلبات "توصيل" فقط، ويصفّر الحقل غير المستخدم حتى ما تنتقل بيانات
-    // طلب سابق بالغلط لطلب من نوع مختلف
+    // لطلبات "توصيل" فقط، وحقل اسم الزبون لطلبات "صالة"/"سفري" (إجباري
+    // بالاتنين — تحقق الإتمام بالأسفل)، ويصفّر الحقل غير المستخدم حتى
+    // ما تنتقل بيانات طلب سابق بالغلط لطلب من نوع مختلف
     function updateOrderTypeFields() {
       const type = document.getElementById("order-type").value;
       const tableField = document.getElementById("table-number-field");
       const phoneField = document.getElementById("customer-phone-field");
+      const nameField = document.getElementById("customer-name-field");
       tableField.hidden = type !== "صالة";
       phoneField.hidden = type !== "توصيل";
+      nameField.hidden = type === "توصيل";
       if (type !== "صالة") document.getElementById("table-number").value = "";
       if (type !== "توصيل") document.getElementById("customer-phone").value = "";
+      if (type === "توصيل") document.getElementById("customer-name").value = "";
     }
 
     function saveDraft() {
@@ -631,6 +639,7 @@
         orderType: document.getElementById("order-type").value,
         tableNumber: document.getElementById("table-number").value,
         customerPhone: document.getElementById("customer-phone").value,
+        customerName: document.getElementById("customer-name").value,
       }));
       const btn = document.getElementById("save-draft-btn");
       const original = btn.textContent;
@@ -649,6 +658,7 @@
           updateOrderTypeFields();
           if (draft.tableNumber) document.getElementById("table-number").value = draft.tableNumber;
           if (draft.customerPhone) document.getElementById("customer-phone").value = draft.customerPhone;
+          if (draft.customerName) document.getElementById("customer-name").value = draft.customerName;
         }
       } catch (e) { /* تجاهل أي تذكرة محفوظة تالفة */ }
     }
@@ -725,9 +735,15 @@
       const orderType = document.getElementById("order-type").value;
       const tableNumber = document.getElementById("table-number").value.trim();
       const customerPhone = document.getElementById("customer-phone").value.trim();
+      const customerName = document.getElementById("customer-name").value.trim();
       if (orderType === "صالة" && !tableNumber) {
         olvShowError(errBox, new Error("لازم تدخل رقم الطاولة قبل إتمام طلب الصالة"));
         document.getElementById("table-number").focus();
+        return;
+      }
+      if ((orderType === "صالة" || orderType === "سفري") && !customerName) {
+        olvShowError(errBox, new Error("لازم تدخل اسم الزبون قبل إتمام الطلب"));
+        document.getElementById("customer-name").focus();
         return;
       }
       if (orderType === "توصيل" && !customerPhone) {
@@ -847,7 +863,7 @@
           }
           await OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
-            tableNumber: tableNumber || null, customerPhone: customerPhone || null,
+            tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
           });
           clearDraft();
           renderCart();
