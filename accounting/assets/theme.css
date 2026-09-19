@@ -148,6 +148,12 @@ tr:hover td{background:rgba(201,162,75,.05);}
 .olv-config-warning{
   background:var(--danger); color:#fff; text-align:center; padding:10px 16px; font-size:13px;
 }
+.olv-connection-banner{
+  display:none; text-align:center; padding:10px 16px; font-size:13px; font-weight:700;
+}
+.olv-connection-banner.show{display:block;}
+.olv-connection-banner.offline{background:var(--danger); color:#fff;}
+.olv-connection-banner.online{background:var(--ok); color:#fff;}
 .center-card{
   max-width:380px; margin:60px auto; background:var(--ink-2); border:1px solid var(--hair);
   border-radius:16px; padding:28px; box-shadow:var(--card-shadow);

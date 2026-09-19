@@ -28,10 +28,21 @@ function olvToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// رسالة "Failed to fetch" الخام اللي بيرميها المتصفح لما ينقطع النت ما
+// إلها معنى لكاشير — نستبدلها برسالة عربية واضحة تقول بالضبط شو صار
+function olvIsNetworkError(err) {
+  const msg = (err && err.message) ? err.message.toLowerCase() : "";
+  return msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("load failed");
+}
+
 function olvShowError(el, err) {
   if (!el) return;
   console.error(err);
-  el.textContent = (err && err.message) ? err.message : "حدث خطأ غير متوقع";
+  if (olvIsNetworkError(err)) {
+    el.textContent = "تعذّر الاتصال بالإنترنت — تأكد من الاتصال وحاول مرة ثانية. العملية لم تُسجَّل.";
+  } else {
+    el.textContent = (err && err.message) ? err.message : "حدث خطأ غير متوقع";
+  }
   el.style.display = "block";
   if (typeof OlvSound !== "undefined") OlvSound.playError();
 }
