@@ -25,7 +25,7 @@ t.spacer(14);
 t.right("إذا وصلتك هذه الورقة، فالطابعة", "26px Tajawal", 36);
 t.right("متصلة بشكل صحيح ببرنامج جسر الطباعة.", "26px Tajawal", 36);
 t.spacer(10);
-t.right(`الوقت: ${new Date().toLocaleString("ar-EG")}`, "22px Tajawal", 32);
+t.right(`الوقت: ${new Date().toLocaleString("ar-EG", { numberingSystem: "latn" })}`, "22px Tajawal", 32);
 t.spacer(16);
 t.divider();
 
