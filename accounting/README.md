@@ -75,6 +75,11 @@
      12. [`schema-menu-integration.sql`](./schema-menu-integration.sql) — ربط منتجات المحاسبة بأصناف موقع المنيو الحقيقي
      13. [`schema-supplies.sql`](./schema-supplies.sql) — جرد المستلزمات/الورقيات (منفصل عن المواد الخام)
      14. [`schema-customer-name.sql`](./schema-customer-name.sql) — اسم الزبون على طلبات الصالة والسفري (لازم بعد `schema-void-sale-item.sql`، وإلا فشلت كل عملية بيع من شاشة البيع السريع)
+   - إذا ظهرت رسالة خطأ من نوع "column ... does not exist" عند إتمام دفع من
+     شاشة البيع السريع (عادةً لأن أحد الملفات فوق انفاتك بالترتيب)، شغّل
+     [`schema-fix-checkout-error.sql`](./schema-fix-checkout-error.sql) — ملف
+     شامل وآمن يعيد كل أعمدة/دوال البيع والإلغاء لحالتها الصحيحة النهائية
+     بغض النظر شو كان ناقص بالضبط، وآمن تشغّله حتى لو كل شي أصلًا مضبوط.
    - إذا كان الهاتف يحوّل الشرطتين `--` إلى شرطة واحدة عند اللصق فتظهر رسالة
      syntax error: احذف يدويًا أي سطر يبدأ بـ `--` من النص قبل تنفيذه (هذه
      السطور تعليقات توضيحية فقط ولا تؤثر على عمل الكود).
@@ -172,6 +177,7 @@ accounting/
   schema-menu-integration.sql    ربط منتجات المحاسبة بأصناف موقع المنيو الحقيقي (external_id)
   schema-supplies.sql            جرد المستلزمات/الورقيات (منفصل عن المواد الخام)
   schema-customer-name.sql       اسم الزبون على طلبات الصالة والسفري
+  schema-fix-checkout-error.sql  إصلاح شامل لأي عمود/دالة ناقصة بمسار البيع (شغّله لو ظهر خطأ "column ... does not exist")
   config.js                      بيانات الاتصال بمشروع Supabase الخاص بك
   assets/                        التصميم (theme.css) والأكواد المشتركة (JS)
 print-bridge/                    برنامج يعمل على جهاز داخل شبكة المطعم لإرسال
