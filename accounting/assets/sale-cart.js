@@ -54,7 +54,7 @@ const OlvCart = (function () {
     return items.reduce((s, item) => s + lineTotal(item), 0);
   }
 
-  async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue, tableNumber, customerPhone }) {
+  async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue, tableNumber, customerPhone, customerName }) {
     if (!items.length) throw new Error("السلة فاضية");
     const grand = total();
     const notesParts = items.map((item) => {
@@ -84,6 +84,7 @@ const OlvCart = (function () {
       p_change_due: changeDue ?? null,
       p_table_number: tableNumber ?? null,
       p_customer_phone: customerPhone ?? null,
+      p_customer_name: customerName ?? null,
     });
     if (error) throw error;
     clear();

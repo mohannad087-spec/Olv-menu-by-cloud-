@@ -116,7 +116,7 @@
 
     function formatTime(ts) {
       const d = new Date(ts);
-      return d.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", numberingSystem: "latn" });
     }
 
     function minutesSince(ts) {
@@ -180,7 +180,7 @@
             const { error } = await window.supabaseClient
               .from("sales_entries").update({ kitchen_status: btn.dataset.next }).eq("id", btn.dataset.id);
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
-            if (activeTab === "pending" && typeof OlvSound !== "undefined") OlvSound.playSuccess();
+            if (activeTab === "pending" && typeof OlvSound !== "undefined") OlvSound.playOrderReady();
             loadOrders();
           });
         });
