@@ -13,7 +13,7 @@ const { buildReceiptTicket } = require("./ticket-receipt");
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 4000);
 
 function log(...args) {
-  console.log(`[${new Date().toLocaleTimeString("ar-EG")}]`, ...args);
+  console.log(`[${new Date().toLocaleTimeString("ar-EG", { numberingSystem: "latn" })}]`, ...args);
 }
 
 async function loadPrinterSettings() {
