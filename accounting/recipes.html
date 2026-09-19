@@ -81,18 +81,42 @@
   @keyframes rise{0%{transform:translateY(4px); opacity:0;} 30%{opacity:.6;} 100%{transform:translateY(-9px); opacity:0;}}
   .wisp{animation:rise 3.4s ease-in-out infinite;}
   @media (prefers-reduced-motion: reduce){ .wisp{animation:none; opacity:.5;} }
+
+  #print-area{display:none;}
+  @media print {
+    body *{visibility:hidden;}
+    #print-area, #print-area *{visibility:visible;}
+    #print-area{display:block; position:absolute; inset:0 0 auto 0; padding:24px; background:#fff; color:#111;}
+    #print-area h1{font-size:20px; margin-bottom:2px;}
+    #print-area .range{color:#555; font-size:13px; margin-bottom:18px;}
+    #print-area .p-recipe{margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #ddd; break-inside:avoid;}
+    #print-area .p-recipe h2{font-size:15px; margin:0 0 3px; font-weight:700;}
+    #print-area .p-en{font-size:11px; color:#666; font-weight:400;}
+    #print-area .p-meta{font-size:11.5px; color:#555; margin-bottom:6px;}
+    #print-area .p-ing{font-size:12.5px; margin-bottom:6px; line-height:1.6;}
+    #print-area .p-steps{margin:0; padding-inline-start:18px; font-size:12.5px; line-height:1.7;}
+  }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
   <div class="wrap">
+    <div id="print-area">
+      <h1>دليل تحضير المشروبات — OLV</h1>
+      <div class="range" id="print-range"></div>
+      <div id="print-recipes"></div>
+    </div>
+
     <div class="group">
       <h2>وصفات المشروبات</h2>
       <p class="intro">دليل مرجعي للموظفين لتحضير مشروبات القائمة: المكوّنات وخطوات التحضير لكل صنف ساخن أو بارد، مع رسم لشكله النهائي.</p>
-      <div class="sub-tabs" id="filter-tabs">
-        <button class="sub-tab on" data-tab="all">الكل</button>
-        <button class="sub-tab" data-tab="hot">🔥 ساخنة</button>
-        <button class="sub-tab" data-tab="cold">🧊 باردة</button>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div class="sub-tabs" id="filter-tabs">
+          <button class="sub-tab on" data-tab="all">الكل</button>
+          <button class="sub-tab" data-tab="hot">🔥 ساخنة</button>
+          <button class="sub-tab" data-tab="cold">🧊 باردة</button>
+        </div>
+        <button class="btn" id="pdf-btn">⬇ تصدير PDF</button>
       </div>
     </div>
 
@@ -531,6 +555,25 @@
         document.getElementById('cold-section').hidden = !(f==='all' || f==='cold');
       });
     });
+
+    var CAT_LABEL = { all:'كل الأصناف', hot:'المشروبات الساخنة', cold:'المشروبات الباردة' };
+
+    function exportPdf(){
+      var activeBtn = document.querySelector('#filter-tabs .sub-tab.on');
+      var f = activeBtn ? activeBtn.dataset.tab : 'all';
+      var list = DRINKS.filter(function(d){ return f==='all' || d.cat===f; });
+      document.getElementById('print-range').textContent = CAT_LABEL[f] + ' (' + list.length + ')';
+      document.getElementById('print-recipes').innerHTML = list.map(function(d){
+        return '<div class="p-recipe">' +
+          '<h2>'+d.name+' <span class="p-en">— '+d.en+'</span></h2>' +
+          '<div class="p-meta">'+d.time+' · '+d.level+' · '+d.yield+'</div>' +
+          '<div class="p-ing"><strong>المكوّنات: </strong>'+d.ingredients.join('، ')+'</div>' +
+          '<ol class="p-steps">'+d.steps.map(function(s){ return '<li>'+s+'</li>'; }).join('')+'</ol>' +
+        '</div>';
+      }).join('');
+      window.print();
+    }
+    document.getElementById('pdf-btn').addEventListener('click', exportPdf);
 
     (async () => {
       const session = await olvRequireAuth();
