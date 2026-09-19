@@ -153,3 +153,25 @@ from public.sale_items si
 join public.sales_entries se on se.id = si.sale_id
 where si.product_id is not null and se.status = 'completed' and si.status = 'completed'
 group by si.product_id;
+
+-- حارس ترتيب: هالملف مفروض ينشغّل قبل schema-customer-name.sql. بس لو
+-- انشغّل بعده (أو انعاد تشغيله لاحقًا)، بيصير عنا نسختين من record_sale
+-- مع بعض — القديمة (١١ معامل) يلي أنشأناها فوق، والجديدة (١٢ معامل) يلي
+-- فيها اسم الزبون — وPostgREST بيحتار بينهن وبيرجّع خطأ عند كل عملية بيع.
+-- بهالحالة منحذف القديمة ومنخلّي الجديدة، لأنها بتحتوي نفس منطق
+-- addons_total الموجود هون زيادةً على عمود اسم الزبون.
+do $$
+begin
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'record_sale'
+      and p.pronargs = 12
+  ) then
+    drop function if exists public.record_sale(
+      date, numeric, numeric, numeric, text, jsonb, text, numeric, numeric, text, text
+    );
+  end if;
+end $$;

@@ -12,6 +12,9 @@ function buildKitchenTicket(sale) {
   t.spacer(6);
   const meta = [sale.order_type, formatTime(sale.created_at)].filter(Boolean).join(" · ");
   t.center(meta, `26px ${REG}`, 36);
+  if (sale.customer_name) {
+    t.center(sale.customer_name, `bold 30px ${BOLD}`, 40);
+  }
   if (sale.table_number) {
     t.center(`طاولة رقم ${sale.table_number}`, `bold 30px ${BOLD}`, 40);
   }

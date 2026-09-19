@@ -154,6 +154,7 @@
                 </div>
                 ${o.order_type ? `<span class="order-type-badge">${isDelivery ? "🛵" : "🍽️"} ${o.order_type}</span>` : ""}
               </div>
+              ${o.customer_name ? `<div class="order-route">👤 ${o.customer_name}</div>` : ""}
               ${o.table_number ? `<div class="order-route">🪑 طاولة رقم ${o.table_number}</div>` : ""}
               ${o.customer_phone ? `<div class="order-route" dir="ltr">📞 ${o.customer_phone}</div>` : ""}
               <div class="order-items">

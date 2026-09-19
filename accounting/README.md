@@ -74,6 +74,7 @@
      11. [`schema-void-sale-item.sql`](./schema-void-sale-item.sql) — إلغاء صنف واحد فقط من طلب
      12. [`schema-menu-integration.sql`](./schema-menu-integration.sql) — ربط منتجات المحاسبة بأصناف موقع المنيو الحقيقي
      13. [`schema-supplies.sql`](./schema-supplies.sql) — جرد المستلزمات/الورقيات (منفصل عن المواد الخام)
+     14. [`schema-customer-name.sql`](./schema-customer-name.sql) — اسم الزبون على طلبات الصالة والسفري (لازم بعد `schema-void-sale-item.sql`، وإلا فشلت كل عملية بيع من شاشة البيع السريع)
    - إذا كان الهاتف يحوّل الشرطتين `--` إلى شرطة واحدة عند اللصق فتظهر رسالة
      syntax error: احذف يدويًا أي سطر يبدأ بـ `--` من النص قبل تنفيذه (هذه
      السطور تعليقات توضيحية فقط ولا تؤثر على عمل الكود).
@@ -170,6 +171,7 @@ accounting/
   schema-void-sale-item.sql      إلغاء صنف واحد فقط من طلب فيه أكثر من صنف
   schema-menu-integration.sql    ربط منتجات المحاسبة بأصناف موقع المنيو الحقيقي (external_id)
   schema-supplies.sql            جرد المستلزمات/الورقيات (منفصل عن المواد الخام)
+  schema-customer-name.sql       اسم الزبون على طلبات الصالة والسفري
   config.js                      بيانات الاتصال بمشروع Supabase الخاص بك
   assets/                        التصميم (theme.css) والأكواد المشتركة (JS)
 print-bridge/                    برنامج يعمل على جهاز داخل شبكة المطعم لإرسال
