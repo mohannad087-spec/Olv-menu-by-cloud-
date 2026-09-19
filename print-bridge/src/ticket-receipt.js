@@ -26,6 +26,7 @@ function buildReceiptTicket(sale, settings) {
   t.center(restaurantName, `bold 38px ${BOLD}`, 50);
   t.center(formatDateTime(sale.created_at), `22px ${REG}`, 32);
   if (sale.order_type) t.center(sale.order_type, `22px ${REG}`, 32);
+  if (sale.customer_name) t.row("اسم الزبون", String(sale.customer_name), `22px ${REG}`, 32);
   if (sale.table_number) t.row("رقم الطاولة", String(sale.table_number), `22px ${REG}`, 32);
   if (sale.customer_phone) t.row("هاتف الزبون", sale.customer_phone, `22px ${REG}`, 32);
   t.spacer(10);
