@@ -74,6 +74,7 @@
       </div>
       <button class="btn gold" id="run-btn">عرض التقرير</button>
       <button class="btn" id="pdf-btn">⬇ تصدير PDF</button>
+      <button class="btn" id="csv-btn">⬇ تصدير Excel (CSV)</button>
     </div>
 
     <div class="stats">
@@ -252,6 +253,7 @@
             { label: "توصيل / تطبيقات", value: delivery },
           ],
           categories: catItems,
+          rawSales: sales || [],
         };
       } catch (err) {
         olvShowError(errBox, err);
@@ -273,6 +275,38 @@
       window.print();
     }
 
+    // يحول قيمة لخانة CSV سليمة — يحيط بالقيمة بعلامتي اقتباس لو فيها
+    // فاصلة أو اقتباس أو سطر جديد، ويضاعف أي اقتباس داخلي (معيار CSV القياسي)
+    function csvCell(value) {
+      const s = String(value ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }
+
+    function exportCsv() {
+      if (!lastReport) return;
+      const rows = lastReport.rawSales || [];
+      const header = ["التاريخ", "نوع الطلب", "رقم الطاولة", "اسم الزبون", "رقم الهاتف", "كاش", "شبكة", "توصيل", "الإجمالي", "ملاحظات"];
+      const lines = [header.map(csvCell).join(",")];
+      rows.forEach((r) => {
+        const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+        lines.push([
+          r.entry_date, r.order_type || "", r.table_number || "", r.customer_name || "", r.customer_phone || "",
+          Number(r.cash_amount).toFixed(2), Number(r.card_amount).toFixed(2), Number(r.delivery_amount).toFixed(2),
+          total.toFixed(2), r.notes || "",
+        ].map(csvCell).join(","));
+      });
+      // ﻿ (BOM) يخلي إكسل يعرض الأحرف العربية صح لما يفتح ملف CSV
+      const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `مبيعات_${lastReport.from}_${lastReport.to}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
@@ -282,6 +316,7 @@
       document.getElementById("to_date").value = olvToday();
       document.getElementById("run-btn").addEventListener("click", runReport);
       document.getElementById("pdf-btn").addEventListener("click", exportPdf);
+      document.getElementById("csv-btn").addEventListener("click", exportCsv);
       await runReport();
     })();
   </script>
