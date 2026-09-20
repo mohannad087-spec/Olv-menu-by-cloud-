@@ -24,7 +24,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # ٢٢+ لازمة لأن @supabase/supabase-js الحديثة بتعتمد على WebSocket
+          # المدمج بـ Node نفسه بدل ما تجيب حزمة ws منفصلة
+          node-version: '22'
 
       - name: Install dependencies
         working-directory: drive-backup
