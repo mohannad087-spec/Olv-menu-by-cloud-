@@ -20,11 +20,53 @@
   window.olvApplyTheme();
 })();
 </script>
+<style>
+  #print-area{display:none;}
+  @media print {
+    body *{visibility:hidden;}
+    #print-area, #print-area *{visibility:visible;}
+    #print-area{display:block; position:absolute; inset:0 0 auto 0; padding:24px; background:#fff; color:#111;}
+    #print-area h1{font-size:20px; margin-bottom:2px;}
+    #print-area .range{color:#555; font-size:13px; margin-bottom:18px;}
+    #print-area table{width:100%; border-collapse:collapse; margin-bottom:22px;}
+    #print-area th, #print-area td{border:1px solid #ccc; padding:6px 8px; text-align:right; font-size:13px;}
+    #print-area th{background:#f2f2f2;}
+    #print-area .totals td{font-weight:700;}
+  }
+</style>
 </head>
 <body>
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
+
+    <div id="print-area">
+      <h1>ملخص اليوم — OLV</h1>
+      <div class="range" id="print-date"></div>
+      <table>
+        <tbody>
+          <tr><td>مبيعات اليوم</td><td id="print-sales"></td></tr>
+          <tr><td>مصروفات اليوم</td><td id="print-expenses"></td></tr>
+          <tr class="totals"><td>صافي اليوم</td><td id="print-net"></td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th>التاريخ</th><th>كاش</th><th>شبكة</th><th>توصيل</th><th>الإجمالي</th></tr></thead>
+        <tbody id="print-sales-body"></tbody>
+      </table>
+      <table>
+        <thead><tr><th>التاريخ</th><th>التصنيف</th><th>البيان</th><th>المبلغ</th></tr></thead>
+        <tbody id="print-expenses-body"></tbody>
+      </table>
+    </div>
+
+    <div class="group" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h2 style="margin-bottom:2px;">ملخص اليوم</h2>
+        <div class="hint" id="today-label"></div>
+      </div>
+      <button class="btn" id="pdf-btn">⬇ تصدير PDF</button>
+    </div>
 
     <div class="stats">
       <div class="stat">
@@ -77,11 +119,34 @@
   <script>
     olvRenderNav("dashboard");
 
+    let todaySummary = null;
+
+    function exportPdf() {
+      if (!todaySummary) return;
+      const s = todaySummary;
+      document.getElementById("print-date").textContent = s.today;
+      document.getElementById("print-sales").textContent = olvFormatMoney(s.totalSales);
+      document.getElementById("print-expenses").textContent = olvFormatMoney(s.totalExpenses);
+      document.getElementById("print-net").textContent = olvFormatMoney(s.net);
+      document.getElementById("print-sales-body").innerHTML = s.recentSales.length
+        ? s.recentSales.map((r) => {
+            const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+            return `<tr><td>${r.entry_date}</td><td>${olvFormatMoney(r.cash_amount)}</td><td>${olvFormatMoney(r.card_amount)}</td><td>${olvFormatMoney(r.delivery_amount)}</td><td>${olvFormatMoney(total)}</td></tr>`;
+          }).join("")
+        : `<tr><td colspan="5">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
+      document.getElementById("print-expenses-body").innerHTML = s.recentExpenses.length
+        ? s.recentExpenses.map((r) => `<tr><td>${r.expense_date}</td><td>${r.expense_categories ? r.expense_categories.name : "—"}</td><td>${r.description || "—"}</td><td>${olvFormatMoney(r.amount)}</td></tr>`).join("")
+        : `<tr><td colspan="4">لا يوجد مصروفات مسجّلة بعد</td></tr>`;
+      window.print();
+    }
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
       const errBox = document.getElementById("err");
       const today = olvToday();
+      document.getElementById("today-label").textContent = today;
+      document.getElementById("pdf-btn").addEventListener("click", exportPdf);
 
       try {
         const { data: todaySales, error: e1 } = await window.supabaseClient
@@ -140,6 +205,8 @@
             </tr>
           `).join("");
         }
+
+        todaySummary = { today, totalSales, totalExpenses, net, recentSales: recentSales || [], recentExpenses: recentExpenses || [] };
       } catch (err) {
         olvShowError(errBox, err);
       }
