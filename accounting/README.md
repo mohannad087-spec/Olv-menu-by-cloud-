@@ -77,6 +77,7 @@
      12. [`schema-menu-integration.sql`](./schema-menu-integration.sql) — ربط منتجات المحاسبة بأصناف موقع المنيو الحقيقي
      13. [`schema-supplies.sql`](./schema-supplies.sql) — جرد المستلزمات/الورقيات (منفصل عن المواد الخام)
      14. [`schema-customer-name.sql`](./schema-customer-name.sql) — اسم الزبون على طلبات الصالة والسفري (لازم بعد `schema-void-sale-item.sql`، وإلا فشلت كل عملية بيع من شاشة البيع السريع)
+     15. [`schema-product-description.sql`](./schema-product-description.sql) — وصف قصير اختياري لكل منتج، يظهر تحت اسمه بشاشة البيع السريع
    - إذا ظهرت رسالة خطأ من نوع "column ... does not exist" عند إتمام دفع من
      شاشة البيع السريع (عادةً لأن أحد الملفات فوق انفاتك بالترتيب)، شغّل
      [`schema-fix-checkout-error.sql`](./schema-fix-checkout-error.sql) — ملف

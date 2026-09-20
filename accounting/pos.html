@@ -35,6 +35,15 @@
     position:sticky; top:var(--nav-h, 112px); align-self:flex-start;
     max-height:calc(100vh - var(--nav-h, 112px)); overflow-y:auto;
   }
+  /* عمود التصنيفات الجانبي — أول عنصر بالـ layout فبيطلع بأقصى يمين
+     الصفحة (RTL)، بين شريط التنقل والأصناف، وبيضل ظاهر بدون تمرير */
+  .pos-cat-sidebar{
+    flex:0 0 168px; min-width:168px; background:var(--ink-2);
+    border-inline-end:1px solid var(--hair);
+    position:sticky; top:var(--nav-h, 112px); align-self:flex-start;
+    max-height:calc(100vh - var(--nav-h, 112px)); overflow-y:auto;
+    padding:16px 10px; display:flex; flex-direction:column; gap:6px;
+  }
   @media (max-width:900px){
     .pos-layout{flex-direction:column; min-height:0; align-items:stretch;}
     .pos-main{padding:16px 20px;}
@@ -43,6 +52,12 @@
       border-inline-start:none; border-top:1px solid var(--hair);
       position:sticky; bottom:0; top:auto; z-index:20; height:auto; max-height:65vh;
       align-self:auto; width:100%;
+    }
+    .pos-cat-sidebar{
+      flex:0 0 auto; min-width:0; width:100%; flex-direction:row;
+      border-inline-end:none; border-bottom:1px solid var(--hair);
+      position:static; max-height:none; overflow-x:auto; overflow-y:visible;
+      padding:12px 16px;
     }
   }
 
@@ -53,15 +68,19 @@
     min-height:44px;
   }
   .pos-toolbar input[type=search]:focus{outline:none; border-color:var(--gold);}
-  .cat-tabs{display:flex; gap:8px; overflow-x:auto; margin-bottom:16px; padding-bottom:2px;}
+  .cat-tabs{display:flex; flex-direction:column; gap:6px;}
   .cat-tab{
-    flex:none; display:inline-flex; align-items:center; gap:6px;
-    background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
-    padding:10px 16px; border-radius:999px; font-size:13px; white-space:nowrap; min-height:44px;
-    transition:.15s;
+    flex:none; display:inline-flex; align-items:center; gap:8px; justify-content:flex-start;
+    background:var(--ink-3); border:1px solid var(--hair); color:var(--muted);
+    padding:10px 14px; border-radius:10px; font-size:13px; white-space:nowrap; min-height:44px;
+    transition:.15s; width:100%;
   }
   .cat-tab .cat-tab-icon{font-size:15px; line-height:1;}
   .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px rgba(201,162,75,.25);}
+  @media (max-width:900px){
+    .cat-tabs{flex-direction:row; overflow-x:auto; padding-bottom:2px;}
+    .cat-tab{width:auto; border-radius:999px; justify-content:center;}
+  }
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; margin-bottom:20px;}
   .card{
     background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; overflow:hidden; cursor:pointer;
@@ -83,9 +102,20 @@
     background:linear-gradient(135deg,var(--ink-3),var(--ink-2));
     font-size:40px;
   }
-  .card .info{padding:9px 9px 12px;}
-  .card .name{font-size:13.5px; margin-bottom:5px; font-weight:600; line-height:1.3;}
+  .card .info{padding:9px 9px 12px; text-align:center;}
+  .card .name{font-size:13.5px; margin-bottom:3px; font-weight:600; line-height:1.3;}
+  .card .desc{
+    font-size:11px; color:var(--muted); line-height:1.35; margin-bottom:6px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .card .info-bottom{display:flex; align-items:center; justify-content:space-between; gap:6px;}
   .card .price{font-size:14.5px; color:var(--gold-hi); font-weight:700; font-family:'Cormorant Garamond',serif;}
+  .card .add-btn{
+    flex:none; background:linear-gradient(180deg,var(--olive-hi,#9dab63),var(--olive));
+    color:#0d1206; font-weight:700; font-size:11px; border:none; border-radius:999px;
+    padding:6px 11px; display:inline-flex; align-items:center; gap:2px; line-height:1;
+  }
+  .card .add-btn:active{filter:brightness(.92);}
 
   .sheet{
     position:fixed; inset:auto 0 0 0; background:var(--ink-2); border-top:1px solid var(--hair);
@@ -196,10 +226,17 @@
   }
   .cart-bar{
     background:var(--ink-2); border-top:1px solid var(--hair); flex:none;
-    padding:14px 0 0; margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 0 0; margin-top:14px; display:flex; flex-direction:column; gap:10px;
+  }
+  .cart-totals{display:flex; flex-direction:column; gap:4px;}
+  .cart-total-row{display:flex; align-items:center; justify-content:space-between; font-size:13px; color:var(--muted);}
+  .cart-total-row.grand{
+    font-size:15px; color:var(--paper); font-weight:600; padding-top:8px;
+    border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));
   }
   .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:24px; color:var(--gold-hi); font-weight:700;}
   .cart-bar .actions{display:flex; gap:8px;}
+  .cart-bar .actions .btn{flex:1;}
   .cart-list{margin-bottom:0;}
   .cart-item{
     background:var(--ink-3); border:1px solid var(--hair-soft,rgba(201,162,75,.14));
@@ -257,11 +294,14 @@
     <div class="err" id="err"></div>
 
     <div class="pos-layout">
+      <aside class="pos-cat-sidebar">
+        <div class="cat-tabs" id="cat-tabs"></div>
+      </aside>
+
       <div class="pos-main">
         <div class="pos-toolbar">
           <input type="search" id="product-search" placeholder="🔍 ابحث عن صنف...">
         </div>
-        <div class="cat-tabs" id="cat-tabs"></div>
         <div class="grid" id="products-grid">
           <div class="hint">جاري التحميل...</div>
         </div>
@@ -300,7 +340,10 @@
           </div>
           <div class="cart-list" id="cart-list"></div>
           <div class="cart-bar">
-            <div>الإجمالي: <span class="total" id="cart-total">0.00</span></div>
+            <div class="cart-totals">
+              <div class="cart-total-row"><span>المجموع الفرعي</span><span id="cart-subtotal">0.00</span></div>
+              <div class="cart-total-row grand"><span>الإجمالي</span><span class="total" id="cart-total">0.00</span></div>
+            </div>
             <div class="actions">
               <button class="btn" id="save-draft-btn" disabled>حفظ</button>
               <button class="btn gold" id="checkout-btn" disabled>الدفع</button>
@@ -424,7 +467,7 @@
       const targetCardWidth = 150;
       const columns = Math.max(1, Math.floor((containerWidth + gap) / (targetCardWidth + gap)));
       const cardWidth = (containerWidth - (columns - 1) * gap) / columns;
-      const infoHeight = 62;
+      const infoHeight = 88;
       const cardHeight = cardWidth + infoHeight;
       const gridTop = grid.getBoundingClientRect().top;
       const reservedBottom = 56;
@@ -517,12 +560,22 @@
           }
           <div class="info">
             <div class="name">${p.name}</div>
-            <div class="price">${olvFormatMoney(p.price)}</div>
+            ${p.description ? `<div class="desc">${p.description}</div>` : ""}
+            <div class="info-bottom">
+              <span class="price">${olvFormatMoney(p.price)}</span>
+              <button type="button" class="add-btn" data-add="${p.id}" data-sound="add">+ أضف</button>
+            </div>
           </div>
         </div>
       `).join("");
       grid.querySelectorAll(".card").forEach((card) => {
         card.addEventListener("click", () => quickAddToCart(card.dataset.id));
+      });
+      grid.querySelectorAll(".add-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          quickAddToCart(btn.dataset.add);
+        });
       });
 
       pagination.hidden = totalPages <= 1;
@@ -733,6 +786,7 @@
         checkoutBtn.disabled = false;
         saveDraftBtn.disabled = false;
       }
+      document.getElementById("cart-subtotal").textContent = olvFormatMoney(OlvCart.total());
       document.getElementById("cart-total").textContent = olvFormatMoney(OlvCart.total());
     }
 
