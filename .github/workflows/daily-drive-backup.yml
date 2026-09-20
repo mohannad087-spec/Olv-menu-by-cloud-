@@ -1,0 +1,41 @@
+name: Daily Drive Backup
+
+on:
+  # 23:00 UTC ≈ الساعة ١-٢ فجرًا بتوقيت الأردن (حسب التوقيت الصيفي/الشتوي)
+  # — تعديل التوقيت مش حرج لأنه مجرد وقت تشغيل النسخة الاحتياطية اليومية
+  schedule:
+    - cron: '0 23 * * *'
+  # يسمح بتشغيل النسخة الاحتياطية يدويًا من تبويب Actions بالمستودع، أو
+  # لتجربتها بعد أول إعداد
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: 'تاريخ محدد للنسخ الاحتياطي (YYYY-MM-DD) — اتركه فاضي لتاريخ أمس تلقائيًا'
+        required: false
+        type: string
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: drive-backup
+        run: npm install
+
+      - name: Run backup
+        working-directory: drive-backup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_BACKUP_FOLDER_ID: ${{ secrets.GDRIVE_BACKUP_FOLDER_ID }}
+          BACKUP_DATE: ${{ inputs.backup_date }}
+        run: npm start
