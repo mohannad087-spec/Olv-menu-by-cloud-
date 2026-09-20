@@ -88,6 +88,11 @@
           </div>
         </div>
         <div class="field">
+          <label>وصف قصير (اختياري)</label>
+          <input type="text" id="p-description" placeholder="مثال: خبز طازج، لحمة مشوية، صلصة خاصة">
+          <div class="hint">يظهر تحت اسم الصنف بشاشة البيع السريع</div>
+        </div>
+        <div class="field">
           <label>أولوية الظهور في البيع السريع (اختياري)</label>
           <input type="number" id="p-priority" value="0">
           <div class="hint">رقم أصغر يعني ظهورًا أقرب إلى بداية القائمة، مفيد لصنف تتوقع رواجه قبل توفر بيانات مبيعات فعلية له</div>
@@ -277,7 +282,7 @@
             ${open ? `
             <div class="table-wrap">
               <table>
-                <thead><tr><th>المنتج</th><th>السعر</th><th>صورة</th><th>الأولوية</th><th></th></tr></thead>
+                <thead><tr><th>المنتج</th><th>الوصف</th><th>السعر</th><th>صورة</th><th>الأولوية</th><th></th></tr></thead>
                 <tbody>
                   ${byCategory[cat].map((p) => `
                     <tr>
@@ -287,6 +292,12 @@
                           <span class="badge" title="مربوط بـ: ${p.external_id}">🔗</span>
                           <button class="btn small" data-unlink="${p.id}" title="فك الربط بموقع المنيو">✕ فك الربط</button>
                         ` : ""}
+                      </td>
+                      <td>
+                        <div style="display:flex; gap:6px; min-width:180px;">
+                          <input type="text" value="${p.description || ""}" placeholder="بدون وصف" style="min-width:120px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-description-input="${p.id}">
+                          <button class="btn small" data-save-description="${p.id}">حفظ</button>
+                        </div>
                       </td>
                       <td>${olvFormatMoney(p.price)}</td>
                       <td>
@@ -343,6 +354,16 @@
             const value = input.value.trim() || null;
             const { error } = await window.supabaseClient
               .from("products").update({ image_url: value }).eq("id", btn.dataset.saveImage);
+            if (error) { olvShowError(errBox, error); return; }
+            await loadProducts();
+          });
+        });
+        container.querySelectorAll("button[data-save-description]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const input = container.querySelector(`input[data-description-input="${btn.dataset.saveDescription}"]`);
+            const value = input.value.trim() || null;
+            const { error } = await window.supabaseClient
+              .from("products").update({ description: value }).eq("id", btn.dataset.saveDescription);
             if (error) { olvShowError(errBox, error); return; }
             await loadProducts();
           });
@@ -472,6 +493,7 @@
           price: Number(document.getElementById("p-price").value || 0),
           category: document.getElementById("p-category").value.trim() || "عام",
           image_url: document.getElementById("p-image").value.trim() || null,
+          description: document.getElementById("p-description").value.trim() || null,
           sort_order: Number(document.getElementById("p-priority").value || 0),
         };
         const { error } = await window.supabaseClient.from("products").insert(payload);
