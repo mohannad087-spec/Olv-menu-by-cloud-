@@ -41,15 +41,8 @@
   }
   .recipe-card > summary{list-style:none; cursor:pointer; display:block;}
   .recipe-card > summary::-webkit-details-marker{display:none;}
-  .recipe-card.hot{ --ac: var(--gold-hi); }
-  .recipe-card.cold{ --ac: var(--olive-hi); }
-  .art{
-    aspect-ratio:4/3; display:grid; place-items:center; border-bottom:1px solid var(--hair);
-    background:
-      radial-gradient(ellipse 66% 58% at 50% 56%, color-mix(in srgb, var(--ac) 16%, transparent) 0%, transparent 72%),
-      var(--ink-3);
-  }
-  .art svg{width:48%; height:auto; overflow:visible;}
+  .art{aspect-ratio:4/3; overflow:hidden; background:var(--ink-3); border-bottom:1px solid var(--hair);}
+  .art img{width:100%; height:100%; object-fit:cover; display:block;}
   .recipe-body{padding:14px 16px 0;}
   .recipe-card h3{font-size:18px; margin:0 0 1px;}
   .recipe-en{font-size:11px; letter-spacing:.04em; color:var(--muted); text-transform:uppercase; font-family:'Tajawal',sans-serif;}
@@ -79,11 +72,6 @@
   .recipe-card.cold .step-num{background:linear-gradient(180deg,var(--olive-hi),var(--olive));}
   .steps .txt{padding-top:3px; font-size:13.5px; line-height:1.65;}
 
-  .ac-stroke{stroke:var(--ac);}
-
-  @keyframes rise{0%{transform:translateY(4px); opacity:0;} 30%{opacity:.6;} 100%{transform:translateY(-9px); opacity:0;}}
-  .wisp{animation:rise 3.4s ease-in-out infinite;}
-  @media (prefers-reduced-motion: reduce){ .wisp{animation:none; opacity:.5;} }
 
   #print-area{display:none;}
   @media print {
@@ -142,78 +130,13 @@
   <script>
     olvRenderNav("recipes");
 
-    var GLASS_Y = {
-      teaGlass: { top:[58,102], bot:[66,94], y0:55, y1:150 },
-      tumbler:  { top:[52,108], bot:[60,100], y0:82, y1:155 },
-      highball: { top:[56,104], bot:[60,100], y0:50, y1:160 }
-    };
-
-    function steamMarks(cx){
-      function wisp(x,delay){
-        return '<polyline class="wisp ac-stroke" style="animation-delay:'+delay+'s" points="'+
-          (x-3)+',44 '+(x+3)+',33 '+(x-3)+',22 '+(x+3)+',11' +
-          '" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".65"/>';
-      }
-      return '<g>'+wisp(cx-9,0)+wisp(cx+9,.6)+'</g>';
-    }
-
-    function iceCubes(cx,cy){
-      return '<g class="ac-stroke" fill="none" stroke-width="2" opacity=".85">' +
-        '<rect x="'+(cx-20)+'" y="'+(cy-4)+'" width="14" height="14" rx="3" transform="rotate(-10 '+(cx-13)+' '+(cy+3)+')"/>' +
-        '<rect x="'+(cx+6)+'" y="'+(cy-11)+'" width="13" height="13" rx="3" transform="rotate(8 '+(cx+12)+' '+(cy-5)+')"/>' +
-      '</g>';
-    }
-
-    function mintLeaf(x,y,rot){
-      return '<g class="ac-stroke" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate('+x+' '+y+') rotate('+rot+')">' +
-        '<path d="M-9,3 C-6,-6 6,-6 9,3 C3,5.5 -3,5.5 -9,3 Z"/>' +
-        '<path d="M-7,2.6 C-2,1 2,1 7,2.6"/>' +
-      '</g>';
-    }
-
-    function strawLine(x1,y1,x2,y2){
-      return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" class="ac-stroke" stroke-width="3" stroke-linecap="round"/>';
-    }
-
-    function ceramicCup(d){
-      var tall = d.shape==='mug';
-      var bx = tall?52:56, by = tall?58:72, bw = tall?56:48, bh = tall?82:50;
-      var out = '';
-      if(!tall){
-        out += '<ellipse cx="80" cy="'+(by+bh+9)+'" rx="40" ry="6" class="ac-stroke" fill="none" stroke-width="2"/>';
-      }
-      out += '<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="'+(tall?16:14)+'" class="ac-stroke" fill="none" stroke-width="2.5"/>';
-      if(tall){
-        out += '<path d="M'+(bx+bw-2)+','+(by+18)+' q22,2 22,23 q0,21 -22,23" fill="none" class="ac-stroke" stroke-width="2.5" stroke-linecap="round"/>';
-      }
-      return { markup:out, cx:80, rimY:by, baseY:by+bh };
-    }
-
-    function glassVessel(d){
-      var m = GLASS_Y[d.shape];
-      var outer = m.top[0]+','+m.y0+' '+m.top[1]+','+m.y0+' '+m.bot[1]+','+m.y1+' '+m.bot[0]+','+m.y1;
-      var out = '<polygon points="'+outer+'" fill="none" class="ac-stroke" stroke-width="2.5" stroke-linejoin="round"/>' +
-        '<line x1="'+m.bot[0]+'" y1="'+m.y1+'" x2="'+m.bot[1]+'" y2="'+m.y1+'" class="ac-stroke" stroke-width="2.5" stroke-linecap="round"/>';
-      return { markup:out, cx:(m.top[0]+m.top[1])/2, rimY:m.y0, baseY:m.y1 };
-    }
-
     function illustrate(d){
-      var isCup = d.shape==='mug' || d.shape==='demitasse';
-      var v = isCup ? ceramicCup(d) : glassVessel(d);
-      var extras = '';
-      if(d.steam) extras += steamMarks(v.cx);
-      if(d.ice) extras += iceCubes(v.cx, v.rimY+16);
-      if(d.straw) extras += strawLine(v.cx+14, v.baseY-8, v.cx+3, v.rimY-24);
-      (d.garnish||[]).forEach(function(g){
-        if(g==='mint') extras += mintLeaf(v.cx+5, v.rimY-1, -15);
-      });
-      return '<svg viewBox="0 0 160 175" role="img" aria-label="رسم توضيحي لكوب '+d.name+'">' +
-        v.markup + extras +
-      '</svg>';
+      var url = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + d.photo + '?width=480';
+      return '<img src="'+url+'" alt="صورة '+d.name+'" loading="lazy" referrerpolicy="no-referrer">';
     }
 
     var DRINKS = [
-      { id:'ar-coffee', cat:'hot', open:true, shape:'demitasse', c1:'#D9A75C', c2:'#8B5A2B', steam:true,
+      { id:'ar-coffee', cat:'hot', open:true, shape:'demitasse', c1:'#D9A75C', c2:'#8B5A2B', steam:true, photo:'Finjan_Arabic_coffee.jpg',
         name:'قهوة عربية', en:'Arabic Coffee — Qahwa',
         teaser:'قهوة خفيفة بالهيل تُغلى بهدوء وتُقدَّم في الدلة.',
         time:'15 دقيقة', level:'سهل', yield:'4 أكواب',
@@ -226,7 +149,7 @@
           'ارفع الدلة عن النار واتركها ترتاح دقيقتين.',
           'اسكب القهوة في فناجين صغيرة دون تحريك الرواسب في القاع.'
         ]},
-      { id:'tr-coffee', cat:'hot', shape:'demitasse', c1:'#5B3A24', c2:'#241209', foam:'#C9A27A', foamRatio:0.16, steam:true,
+      { id:'tr-coffee', cat:'hot', shape:'demitasse', c1:'#5B3A24', c2:'#241209', foam:'#C9A27A', foamRatio:0.16, steam:true, photo:'Turkish_Coffee_with_Crema.jpg',
         name:'قهوة تركية', en:'Turkish Coffee',
         teaser:'قهوة مطحونة ناعمًا جدًا تُطهى ببطء حتى يتكوّن وجهها المميز.',
         time:'10 دقائق', level:'متوسط', yield:'2 كوب',
@@ -239,7 +162,7 @@
           'وزّع الوجه على الفناجين، ثم أعد الركوة للنار حتى الغليان النهائي.',
           'اسكب القهوة بهدوء واتركها ترتاح قبل التقديم.'
         ]},
-      { id:'espresso', cat:'hot', shape:'demitasse', c1:'#4A2E1C', c2:'#1D0F08', foam:'#C69A6D', foamRatio:0.14, steam:true,
+      { id:'espresso', cat:'hot', shape:'demitasse', c1:'#4A2E1C', c2:'#1D0F08', foam:'#C69A6D', foamRatio:0.14, steam:true, photo:'Espresso_shot.jpg',
         name:'إسبريسو', en:'Espresso',
         teaser:'جرعة قهوة مركّزة، أساس كل مشروبات القهوة الساخنة والباردة.',
         time:'5 دقائق', level:'متوسط', yield:'1 كوب',
@@ -252,7 +175,7 @@
           'أوقف الاستخلاص عند نحو 30 مل مع طبقة كريما ذهبية.',
           'قدّمه فورًا في فنجان دافئ قبل أن تخفّ الكريما.'
         ]},
-      { id:'cappuccino', cat:'hot', shape:'mug', c1:'#4A2E1C', c2:'#1D0F08', foam:'#FFFDF6', foamRatio:0.34, steam:true,
+      { id:'cappuccino', cat:'hot', shape:'mug', c1:'#4A2E1C', c2:'#1D0F08', foam:'#FFFDF6', foamRatio:0.34, steam:true, photo:'Classic_Cappuccino.jpg',
         name:'كابتشينو', en:'Cappuccino',
         teaser:'إسبريسو وحليب مبخّر ورغوة كثيفة بأجزاء متساوية تقريبًا.',
         time:'8 دقائق', level:'متوسط', yield:'1 كوب',
@@ -265,7 +188,7 @@
           'أنهِ بملعقة من الرغوة على السطح.',
           'رُشّ القرفة أو الكاكاو إن رغبت وقدّمه فورًا.'
         ]},
-      { id:'latte', cat:'hot', shape:'mug', c1:'#6F4A2E', c2:'#33210F', foam:'#FFFDF6', foamRatio:0.12, steam:true,
+      { id:'latte', cat:'hot', shape:'mug', c1:'#6F4A2E', c2:'#33210F', foam:'#FFFDF6', foamRatio:0.12, steam:true, photo:'Caffe_latte_(6064969604).jpg',
         name:'لاتيه', en:'Caffè Latte',
         teaser:'حليب حريري وفير مع إسبريسو وطبقة رغوة رقيقة على السطح.',
         time:'8 دقائق', level:'متوسط', yield:'1 كوب',
@@ -278,7 +201,7 @@
           'أكمل السكب حتى يمتلئ الكوب.',
           'قدّمه ساخنًا فور تحضيره.'
         ]},
-      { id:'mint-tea', cat:'hot', shape:'teaGlass', c1:'#D4A017', c2:'#7A5A0E', steam:true, garnish:['mint'],
+      { id:'mint-tea', cat:'hot', shape:'teaGlass', c1:'#D4A017', c2:'#7A5A0E', steam:true, garnish:['mint'], photo:'Moroccan_Mint_Tea_-_1.jpg',
         name:'شاي بالنعناع', en:'Moroccan Mint Tea',
         teaser:'شاي مركّز محلّى بالسكر ومنعش بالنعناع الطازج.',
         time:'15 دقيقة', level:'سهل', yield:'4 أكواب',
@@ -291,7 +214,7 @@
           'اسكب كأسًا واعده للإبريق مرتين لتوزيع الطعم.',
           'اسكب الشاي من ارتفاع لتكوين رغوة خفيفة، وقدّمه ساخنًا.'
         ]},
-      { id:'karak', cat:'hot', shape:'teaGlass', c1:'#B97A3D', c2:'#5C3A1C', foam:'#E9C9A0', foamH:10, steam:true,
+      { id:'karak', cat:'hot', shape:'teaGlass', c1:'#B97A3D', c2:'#5C3A1C', foam:'#E9C9A0', foamH:10, steam:true, photo:'Karak_(traditionally_Indian_tea).jpg',
         name:'شاي كرك', en:'Karak Tea',
         teaser:'شاي خليجي غني بالحليب والهيل، يُغلى طويلًا حتى يتركّز لونه.',
         time:'20 دقيقة', level:'سهل', yield:'3 أكواب',
@@ -304,7 +227,7 @@
           'صفِّ الشاي عدة مرات بين وعاءين لتكوين رغوة ناعمة.',
           'قدّمه ساخنًا جدًا في كاسات صغيرة.'
         ]},
-      { id:'sahlab', cat:'hot', shape:'mug', c1:'#FFF6E8', c2:'#EDD9B7', steam:true, garnish:['cinnamon'],
+      { id:'sahlab', cat:'hot', shape:'mug', c1:'#FFF6E8', c2:'#EDD9B7', steam:true, garnish:['cinnamon'], photo:'Salep_drink.jpg',
         name:'سحلب', en:'Sahlab',
         teaser:'مشروب شتوي كريمي القوام يُزيَّن بالقرفة وجوز الهند والمكسرات.',
         time:'12 دقيقة', level:'سهل', yield:'3 أكواب',
@@ -317,7 +240,7 @@
           'اسكبه في أكواب التقديم فورًا.',
           'زيّنه بالقرفة وجوز الهند والمكسرات المجروشة.'
         ]},
-      { id:'hot-choc', cat:'hot', shape:'mug', c1:'#6B4226', c2:'#301A0C', steam:true, garnish:['cream'],
+      { id:'hot-choc', cat:'hot', shape:'mug', c1:'#6B4226', c2:'#301A0C', steam:true, garnish:['cream'], photo:'Hot_Chocolate_(Unsplash).jpg',
         name:'شوكولاتة ساخنة', en:'Hot Chocolate',
         teaser:'حليب دافئ بالشوكولاتة الداكنة الذائبة، مزيّن بالكريمة المخفوقة.',
         time:'10 دقائق', level:'سهل', yield:'2 كوب',
@@ -331,7 +254,7 @@
           'زيّنها بالكريمة المخفوقة ورشّة كاكاو إن رغبت.'
         ]},
 
-      { id:'americano', cat:'hot', shape:'mug', c1:'#5C3A22', c2:'#2A160A', steam:true,
+      { id:'americano', cat:'hot', shape:'mug', c1:'#5C3A22', c2:'#2A160A', steam:true, photo:'Caf%C3%A9_Americain_2.jpg',
         name:'أمريكانو', en:'Americano',
         teaser:'إسبريسو مخفّف بالماء الساخن، بقوام أخف وحجم أكبر من الإسبريسو الصرف.',
         time:'5 دقائق', level:'سهل', yield:'1 كوب',
@@ -344,7 +267,7 @@
           'حرّك برفق فقط إن رغبت بمزج أخف.',
           'قدّمه ساخنًا فورًا.'
         ]},
-      { id:'macchiato', cat:'hot', shape:'demitasse', c1:'#4A2E1C', c2:'#1D0F08', foam:'#FFFDF6', foamRatio:0.12, steam:true,
+      { id:'macchiato', cat:'hot', shape:'demitasse', c1:'#4A2E1C', c2:'#1D0F08', foam:'#FFFDF6', foamRatio:0.12, steam:true, photo:'2014_0508_Caffe_macchiato.jpg',
         name:'ماكياتو', en:'Espresso Macchiato',
         teaser:'إسبريسو "موسوم" بملعقة رغوة حليب كثيفة فقط، أقوى نكهة من الكابتشينو.',
         time:'5 دقائق', level:'متوسط', yield:'1 كوب',
@@ -357,7 +280,7 @@
           'تجنّب تحريك الفنجان حتى لا تختلط الطبقات.',
           'قدّمه فورًا وهو لا يزال ساخنًا.'
         ]},
-      { id:'mocha', cat:'hot', shape:'mug', c1:'#5A3620', c2:'#2A160A', foam:'#FFFDF6', foamRatio:0.14, steam:true,
+      { id:'mocha', cat:'hot', shape:'mug', c1:'#5A3620', c2:'#2A160A', foam:'#FFFDF6', foamRatio:0.14, steam:true, photo:'Mocha_coffee.jpg',
         name:'موكا', en:'Caffè Mocha',
         teaser:'إسبريسو وشوكولاتة وحليب مبخّر، لمحبي القهوة الحلوة بنكهة الكاكاو.',
         time:'8 دقائق', level:'متوسط', yield:'1 كوب',
@@ -370,7 +293,7 @@
           'أضف السكر حسب الرغبة وحرّك برفق.',
           'زيّنه برشّة كاكاو وقدّمه ساخنًا.'
         ]},
-      { id:'flat-white', cat:'hot', shape:'mug', c1:'#5E3D24', c2:'#2A170B', foam:'#FFFDF6', foamRatio:0.08, steam:true,
+      { id:'flat-white', cat:'hot', shape:'mug', c1:'#5E3D24', c2:'#2A170B', foam:'#FFFDF6', foamRatio:0.08, steam:true, photo:'Flat_white.jpg',
         name:'فلات وايت', en:'Flat White',
         teaser:'إسبريسو مزدوج وميكروفوم حليب ناعم جدًا، بنسبة قهوة أعلى من اللاتيه.',
         time:'8 دقائق', level:'متوسط', yield:'1 كوب',
@@ -384,7 +307,7 @@
           'قدّمه فورًا في كوب دافئ.'
         ]},
 
-      { id:'lemon-mint', cat:'cold', open:true, shape:'highball', c1:'#CFE59A', c2:'#7FB93F', ice:true, straw:'#146F68', garnish:['mint'],
+      { id:'lemon-mint', cat:'cold', open:true, shape:'highball', c1:'#CFE59A', c2:'#7FB93F', ice:true, straw:'#146F68', garnish:['mint'], photo:'Limonana.png',
         name:'ليمون بالنعناع', en:'Lemon Mint',
         teaser:'المشروب الأكثر انتشارًا في المقاهي العربية صيفًا؛ حامض ومنعش.',
         time:'10 دقائق', level:'سهل', yield:'4 أكواب',
@@ -397,7 +320,7 @@
           'املأ الكاسات بمكعبات الثلج.',
           'اسكب المشروب وزيّنه بورقة نعناع وشريحة ليمون.'
         ]},
-      { id:'tamarind', cat:'cold', shape:'tumbler', c1:'#7A3220', c2:'#3C170D', ice:true,
+      { id:'tamarind', cat:'cold', shape:'tumbler', c1:'#7A3220', c2:'#3C170D', ice:true, photo:'Es_Asem_Jawa_(Javanese_Tamarind_Juice).jpg',
         name:'تمر هندي', en:'Tamarind — Tamr Hindi',
         teaser:'مشروب حامض مركّز محبوب في رمضان، يُصفّى من عجينة التمر الهندي.',
         time:'ساعتان نقع', level:'سهل', yield:'6 أكواب',
@@ -410,7 +333,7 @@
           'أضف ماء الورد وبرّد المشروب في الثلاجة.',
           'قدّمه باردًا جدًا مع مكعبات الثلج.'
         ]},
-      { id:'jallab', cat:'cold', shape:'tumbler', c1:'#5A2A16', c2:'#26100A', ice:true, garnish:['raisins'],
+      { id:'jallab', cat:'cold', shape:'tumbler', c1:'#5A2A16', c2:'#26100A', ice:true, garnish:['raisins'], photo:'Jallab.jpg',
         name:'جلاب', en:'Jallab',
         teaser:'دبس التمر والعنب وماء الورد، يُقدَّم بالثلج المجروش مع الزبيب والصنوبر.',
         time:'15 دقيقة', level:'سهل', yield:'4 أكواب',
@@ -423,7 +346,7 @@
           'املأ الكاسات بالثلج المجروش.',
           'اسكب الجلاب فوق الثلج ورُشّ الزبيب والصنوبر على السطح.'
         ]},
-      { id:'iced-latte', cat:'cold', shape:'highball', c1:'#F1E4D2', c2:'#D8C3A5', foam:'#3B2414', foamH:34, ice:true,
+      { id:'iced-latte', cat:'cold', shape:'highball', c1:'#F1E4D2', c2:'#D8C3A5', foam:'#3B2414', foamH:34, ice:true, photo:'Iced_Latte.jpg',
         name:'آيس لاتيه', en:'Iced Latte',
         teaser:'حليب بارد وإسبريسو مضاعف يُسكب فوقه، فيتكوّن تدرّج لوني قبل التحريك.',
         time:'6 دقائق', level:'سهل', yield:'1 كوب',
@@ -436,7 +359,7 @@
           'اسكب الإسبريسو ببطء فوق الحليب ليطفو في طبقة علوية.',
           'حرّك قبل الشرب وقدّمه باردًا فورًا.'
         ]},
-      { id:'frappe', cat:'cold', shape:'highball', c1:'#4A2E1C', c2:'#1D0F08', foam:'#DCC69C', foamH:46, ice:true, straw:'#8C4A1E',
+      { id:'frappe', cat:'cold', shape:'highball', c1:'#4A2E1C', c2:'#1D0F08', foam:'#DCC69C', foamH:46, ice:true, straw:'#8C4A1E', photo:'Caramel_Frappechino.jpg',
         name:'فرابيه', en:'Frappé',
         teaser:'قهوة فورية مخفوقة بقوة حتى تتكوّن رغوة كثيفة، تُسكب فوق الثلج والحليب.',
         time:'5 دقائق', level:'سهل', yield:'1 كوب',
@@ -449,7 +372,7 @@
           'أضف الحليب البارد حسب الرغبة من جانب الكوب.',
           'ضع شفاطة وقدّمه فورًا قبل أن تهبط الرغوة.'
         ]},
-      { id:'iced-tea', cat:'cold', shape:'highball', c1:'#C9922E', c2:'#7C4E0E', ice:true, garnish:['lemon'],
+      { id:'iced-tea', cat:'cold', shape:'highball', c1:'#C9922E', c2:'#7C4E0E', ice:true, garnish:['lemon'], photo:'Glass_of_Iced_Tea.jpg',
         name:'آيس تي', en:'Iced Tea',
         teaser:'شاي أسود محلّى يُبرَّد جيدًا ويُقدَّم مع شرائح الليمون.',
         time:'ساعة تبريد', level:'سهل', yield:'4 أكواب',
@@ -462,7 +385,7 @@
           'املأ الكاسات بالثلج وشرائح الليمون.',
           'اسكب الشاي البارد فوق الثلج وقدّمه منعشًا.'
         ]},
-      { id:'mojito', cat:'cold', shape:'highball', c1:'#DCEFC0', c2:'#8FBE5A', ice:true, straw:'#146F68', garnish:['mint'],
+      { id:'mojito', cat:'cold', shape:'highball', c1:'#DCEFC0', c2:'#8FBE5A', ice:true, straw:'#146F68', garnish:['mint'], photo:'Strawberry_Mojito_(Unsplash).jpg',
         name:'موهيتو (بدون كحول)', en:'Virgin Mojito',
         teaser:'نعناع مهروس وليمون وصودا منعشة، من أشهر المشروبات المنعشة عالميًا.',
         time:'5 دقائق', level:'سهل', yield:'1 كوب',
@@ -475,7 +398,7 @@
           'أكمل بماء الصودا البارد حتى الحافة.',
           'قلّب برفق وزيّنه بغصن نعناع وشريحة ليمون.'
         ]},
-      { id:'mango', cat:'cold', shape:'tumbler', c1:'#FFC65C', c2:'#E67E12', ice:true,
+      { id:'mango', cat:'cold', shape:'tumbler', c1:'#FFC65C', c2:'#E67E12', ice:true, photo:'Glass_of_Mango_Juice.jpg',
         name:'عصير مانجو', en:'Mango Juice',
         teaser:'مانجو ناضجة مخفوقة بالحليب أو الماء، من أكثر عصائر الفاكهة شعبية.',
         time:'8 دقائق', level:'سهل', yield:'3 أكواب',
@@ -488,7 +411,7 @@
           'أضف الثلج واخلط ثانية لثوانٍ قليلة.',
           'اسكبه في كاسات وقدّمه فورًا.'
         ]},
-      { id:'lemonade', cat:'cold', shape:'highball', c1:'#FBF3C7', c2:'#F0DC7E', ice:true, garnish:['lemon'],
+      { id:'lemonade', cat:'cold', shape:'highball', c1:'#FBF3C7', c2:'#F0DC7E', ice:true, garnish:['lemon'], photo:'Mug_of_Lemonade.jpg',
         name:'ليموناضة', en:'Lemonade',
         teaser:'عصير ليمون طازج وشراب سكر بسيط، الكلاسيكية العالمية للمشروبات الباردة.',
         time:'10 دقائق', level:'سهل', yield:'6 أكواب',
@@ -501,7 +424,7 @@
           'برّده في الثلاجة أو أضف الثلج مباشرة.',
           'قدّمه باردًا مزيّنًا بشرائح ليمون وأوراق نعناع.'
         ]},
-      { id:'iced-americano', cat:'cold', shape:'highball', c1:'#5C3A22', c2:'#2A160A', ice:true,
+      { id:'iced-americano', cat:'cold', shape:'highball', c1:'#5C3A22', c2:'#2A160A', ice:true, photo:'Iced_americano.jpg',
         name:'آيس أمريكانو', en:'Iced Americano',
         teaser:'إسبريسو وماء بارد فوق الثلج، من أكثر مشروبات القهوة طلبًا صيفًا.',
         time:'5 دقائق', level:'سهل', yield:'1 كوب',
@@ -514,7 +437,7 @@
           'حرّك برفق لدمج الطبقات.',
           'قدّمه باردًا فورًا قبل أن يذوب الثلج كثيرًا.'
         ]},
-      { id:'cold-brew', cat:'cold', shape:'highball', c1:'#3A2213', c2:'#190D06', ice:true,
+      { id:'cold-brew', cat:'cold', shape:'highball', c1:'#3A2213', c2:'#190D06', ice:true, photo:'Iced_cold_brew_coffee.jpg',
         name:'كولد برو', en:'Cold Brew',
         teaser:'بن مطحون منقوع بالماء البارد لساعات، نكهة ناعمة وحموضة أقل من القهوة العادية.',
         time:'12 ساعة نقع', level:'سهل', yield:'4 أكواب مركّز',
@@ -527,7 +450,7 @@
           'املأ كوبًا بالثلج واسكب المركّز فوقه.',
           'خفّفه بماء أو حليب حسب الرغبة وقدّمه باردًا.'
         ]},
-      { id:'iced-spanish-latte', cat:'cold', shape:'highball', c1:'#F0DEC0', c2:'#D9B98C', foam:'#3B2414', foamH:30, ice:true,
+      { id:'iced-spanish-latte', cat:'cold', shape:'highball', c1:'#F0DEC0', c2:'#D9B98C', foam:'#3B2414', foamH:30, ice:true, photo:'Ca_Phe_Sua_Da.jpg',
         name:'سبانش لاتيه بارد', en:'Iced Spanish Latte',
         teaser:'لاتيه بارد بالحليب المكثف المحلى، أكثر دسامة وحلاوة من اللاتيه العادي.',
         time:'6 دقائق', level:'سهل', yield:'1 كوب',
