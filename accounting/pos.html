@@ -507,6 +507,18 @@
       return Math.round(Math.max(0, Math.min(raw, subtotal)) * 100) / 100;
     }
 
+    // يعلّم الطاولة "مشغولة" بخريطة الطاولات تلقائيًا بعد نجاح طلب صالة —
+    // ميزة إضافية بس، فما بنوقف عملية البيع لو فشلت (مثلاً الطاولة مش
+    // مضافة أصلًا بالإعدادات)
+    async function markTableOccupied(tableNumber) {
+      try {
+        await window.supabaseClient.from("table_occupancy").upsert(
+          { table_number: tableNumber, is_occupied: true, occupied_at: new Date().toISOString(), freed_at: null },
+          { onConflict: "table_number" }
+        );
+      } catch (e) { /* تجاهل — الطاولة قد لا تكون مضافة بالإعدادات بعد */ }
+    }
+
     function resetDiscount() {
       discountMode = "percent";
       discountValue = 0;
@@ -1013,6 +1025,7 @@
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
             discountAmount,
           });
+          if (orderType === "صالة" && tableNumber) markTableOccupied(tableNumber);
           clearDraft();
           resetDiscount();
           renderCart();

@@ -4,6 +4,7 @@ function olvRenderNav(active) {
     { id: "dashboard", href: "index.html", label: "الرئيسية" },
     { id: "pos", href: "pos.html", label: "بيع سريع" },
     { id: "sales", href: "sales.html", label: "المبيعات" },
+    { id: "tables", href: "tables.html", label: "الطاولات" },
     { id: "incoming-orders", href: "incoming-orders.html", label: "الطلبات الواردة" },
     { id: "kitchen", href: "kitchen.html", label: "المطبخ" },
     { id: "recipes", href: "recipes.html", label: "وصفات المشروبات" },
