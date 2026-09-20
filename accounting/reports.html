@@ -100,6 +100,24 @@
       <h2>المصروفات حسب التصنيف</h2>
       <div class="bars" id="category-bars"></div>
     </div>
+
+    <div class="group">
+      <h2>أداء الموظفين</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الموظف</th>
+              <th>عدد الفواتير</th>
+              <th>إجمالي المبيعات</th>
+              <th>متوسط الفاتورة</th>
+              <th>عدد الإلغاءات</th>
+            </tr>
+          </thead>
+          <tbody id="employee-perf-body"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -130,6 +148,55 @@
     }
 
     let lastReport = null;
+
+    // يلخّص أداء كل موظف بالفترة المحددة: عدد الفواتير المكتملة وإجماليها
+    // ومتوسطها، وعدد العمليات اللي سجّلها هو وانلغت (مفيد لضبط الأخطاء)
+    async function loadEmployeePerformance(from, to) {
+      const body = document.getElementById("employee-perf-body");
+      const { data: salesRows, error: e1 } = await window.supabaseClient
+        .from("sales_entries")
+        .select("created_by, status, cash_amount, card_amount, delivery_amount")
+        .gte("entry_date", from).lte("entry_date", to);
+      if (e1) throw e1;
+
+      const { data: profiles, error: e2 } = await window.supabaseClient
+        .from("profiles").select("id, full_name");
+      if (e2) throw e2;
+      const nameById = {};
+      (profiles || []).forEach((p) => { nameById[p.id] = p.full_name || "بدون اسم"; });
+
+      const byEmployee = {};
+      (salesRows || []).forEach((r) => {
+        const key = r.created_by || "unknown";
+        if (!byEmployee[key]) byEmployee[key] = { completedCount: 0, total: 0, voidedCount: 0 };
+        if (r.status === "voided") {
+          byEmployee[key].voidedCount += 1;
+        } else {
+          byEmployee[key].completedCount += 1;
+          byEmployee[key].total += Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+        }
+      });
+
+      const rows = Object.entries(byEmployee)
+        .map(([id, stats]) => ({
+          name: nameById[id] || "غير معروف",
+          ...stats,
+          avg: stats.completedCount ? stats.total / stats.completedCount : 0,
+        }))
+        .sort((a, b) => b.total - a.total);
+
+      body.innerHTML = rows.length
+        ? rows.map((r) => `
+            <tr>
+              <td>${r.name}</td>
+              <td>${r.completedCount}</td>
+              <td>${olvFormatMoney(r.total)}</td>
+              <td>${olvFormatMoney(r.avg)}</td>
+              <td>${r.voidedCount || "—"}</td>
+            </tr>
+          `).join("")
+        : `<tr class="empty-row"><td colspan="5">لا يوجد بيانات في هذه الفترة</td></tr>`;
+    }
 
     async function runReport() {
       const errBox = document.getElementById("err");
@@ -174,6 +241,8 @@
           .map(([label, value]) => ({ label, value }))
           .sort((a, b) => b.value - a.value);
         renderBars("category-bars", catItems);
+
+        await loadEmployeePerformance(from, to);
 
         lastReport = {
           from, to, totalSales, totalExpenses, net,
