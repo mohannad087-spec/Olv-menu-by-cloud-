@@ -30,12 +30,30 @@
   .cat-accordion-head .caret{color:var(--gold); transition:.2s; display:inline-block;}
   .cat-accordion-head .caret.open{transform:rotate(90deg);}
   .cat-accordion-head span:nth-child(2){flex:1;}
+  .sub-tabs{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .sub-tab{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
+    padding:10px 18px; border-radius:999px; font-size:13px; min-height:44px;
+  }
+  .sub-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
+  .settings-panel{display:none;}
+  .settings-panel.on{display:block;}
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
+
+    <div class="sub-tabs">
+      <button type="button" class="sub-tab on" data-settings-tab="general">عام</button>
+      <button type="button" class="sub-tab" data-settings-tab="products">المنتجات والإضافات</button>
+      <button type="button" class="sub-tab" data-settings-tab="printing">الطباعة</button>
+      <button type="button" class="sub-tab" data-settings-tab="danger">منطقة الخطر</button>
+    </div>
+
+    <div class="settings-panel on" data-panel="general">
 
     <div class="group">
       <h2>تصنيفات المصروفات</h2>
@@ -75,6 +93,10 @@
         </table>
       </div>
     </div>
+
+    </div>
+
+    <div class="settings-panel" data-panel="products">
 
     <div class="group">
       <h2>المنتجات (للبيع السريع)</h2>
@@ -147,6 +169,10 @@
       </div>
     </div>
 
+    </div>
+
+    <div class="settings-panel" data-panel="printing">
+
     <div class="group">
       <h2>الطباعة التلقائية</h2>
       <p class="hint" style="margin-bottom:14px;">
@@ -205,6 +231,10 @@
       </div>
     </div>
 
+    </div>
+
+    <div class="settings-panel" data-panel="danger">
+
     <div class="group" style="border-color:rgba(193,88,63,.5);">
       <h2 style="color:var(--danger-hi);">منطقة الخطر</h2>
       <p class="hint" style="margin-bottom:16px;">
@@ -220,6 +250,10 @@
       </div>
     </div>
 
+    </div>
+
+    <div class="settings-panel on" data-panel="general">
+
     <div class="group">
       <h2>حسابي</h2>
       <p class="hint" id="me-info">جاري التحميل...</p>
@@ -227,6 +261,8 @@
         لإضافة مستخدم جديد (كاشير / مدير): افتح Supabase Dashboard → Authentication → Add user،
         ثم عدّل دوره من جدول <code>profiles</code> إذا احتجت صلاحية أعلى من "staff".
       </p>
+    </div>
+
     </div>
   </div>
 
@@ -240,6 +276,14 @@
   <script src="assets/incoming-orders-poll.js"></script>
   <script>
     olvRenderNav("settings");
+
+    document.querySelectorAll(".sub-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.settingsTab;
+        document.querySelectorAll(".sub-tab").forEach((b) => b.classList.toggle("on", b === btn));
+        document.querySelectorAll(".settings-panel").forEach((p) => p.classList.toggle("on", p.dataset.panel === tab));
+      });
+    });
 
     async function loadCategories() {
       const errBox = document.getElementById("err");
