@@ -182,6 +182,8 @@ accounting/
   assets/                        التصميم (theme.css) والأكواد المشتركة (JS)
 print-bridge/                    برنامج يعمل على جهاز داخل شبكة المطعم لإرسال
                                   الطباعة الفعلية للطابعات الحرارية — راجع README الخاص فيه
+drive-backup/                    نسخة احتياطية يومية تلقائية (تقرير Excel شامل)
+                                  ترفع لـ Google Drive عبر GitHub Actions — راجع README الخاص فيه
 supabase/
   functions/olv-menu-proxy/      وسيط آمن ينشر بلوحة تحكم Supabase — يربط
                                   المحاسبة بموقع المنيو الحقيقي بدون كشف مفتاحه
