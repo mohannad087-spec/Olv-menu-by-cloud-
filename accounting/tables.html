@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الطاولات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  window.olvApplyTheme = function(){
+    document.documentElement.setAttribute('data-theme', computeTheme());
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .tables-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:16px;}
+  .table-card{
+    border-radius:16px; padding:22px 14px; text-align:center; border:1px solid var(--hair);
+    background:var(--ink-2); display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .table-card.free{border-color:rgba(124,138,74,.4); box-shadow:0 0 0 1px rgba(124,138,74,.15);}
+  .table-card.occupied{border-color:rgba(193,88,63,.45); box-shadow:0 0 0 1px rgba(193,88,63,.15);}
+  .table-card .t-number{font-family:'Cormorant Garamond',serif; font-size:34px; font-weight:700; color:var(--paper);}
+  .table-card .t-status{font-size:12px; font-weight:700; padding:4px 12px; border-radius:999px;}
+  .table-card.free .t-status{background:rgba(124,138,74,.15); color:var(--ok);}
+  .table-card.occupied .t-status{background:rgba(193,88,63,.15); color:var(--danger-hi);}
+  .table-card .t-duration{font-size:11.5px; color:var(--muted);}
+  .table-card .t-release-btn{margin-top:4px; width:100%;}
+  .tables-legend{display:flex; gap:18px; margin-bottom:18px; font-size:13px; color:var(--muted);}
+  .tables-legend .dot{display:inline-block; width:10px; height:10px; border-radius:50%; margin-inline-end:6px;}
+  .tables-legend .dot.free{background:var(--ok);}
+  .tables-legend .dot.occupied{background:var(--danger-hi);}
+  .empty-state{color:var(--muted); text-align:center; padding:40px 0; font-size:14px;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>خريطة الطاولات</h2>
+      <div class="tables-legend">
+        <span><span class="dot free"></span>فاضية</span>
+        <span><span class="dot occupied"></span>مشغولة</span>
+      </div>
+      <div class="tables-grid" id="tables-grid">
+        <div class="empty-state">جاري التحميل...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script src="assets/notify-sound.js"></script>
+  <script src="assets/connection-status.js"></script>
+  <script src="assets/incoming-orders-poll.js"></script>
+  <script>
+    olvRenderNav("tables");
+
+    function minutesSince(ts) {
+      return Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+    }
+
+    async function loadTables() {
+      const errBox = document.getElementById("err");
+      const grid = document.getElementById("tables-grid");
+      try {
+        const { data: tables, error: e1 } = await window.supabaseClient
+          .from("restaurant_tables").select("*").order("sort_order");
+        if (e1) throw e1;
+
+        const { data: occ, error: e2 } = await window.supabaseClient
+          .from("table_occupancy").select("*");
+        if (e2) throw e2;
+        const occByNumber = {};
+        (occ || []).forEach((o) => { occByNumber[o.table_number] = o; });
+
+        if (!tables || !tables.length) {
+          grid.innerHTML = `<div class="empty-state">لا يوجد طاولات مضافة — أضفها من شاشة الإعدادات</div>`;
+          return;
+        }
+
+        grid.innerHTML = tables.map((t) => {
+          const o = occByNumber[t.table_number];
+          const isOccupied = !!(o && o.is_occupied);
+          const duration = isOccupied && o.occupied_at ? minutesSince(o.occupied_at) : null;
+          return `
+            <div class="table-card ${isOccupied ? "occupied" : "free"}">
+              <div class="t-number">${t.table_number}</div>
+              <div class="t-status">${isOccupied ? "مشغولة" : "فاضية"}</div>
+              ${duration !== null ? `<div class="t-duration">منذ ${duration} د</div>` : ""}
+              ${isOccupied ? `<button type="button" class="btn small t-release-btn" data-release="${t.table_number}">تحرير الطاولة</button>` : ""}
+            </div>
+          `;
+        }).join("");
+
+        grid.querySelectorAll("[data-release]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm(`تحرير الطاولة ${btn.dataset.release}؟`)) return;
+            const { error } = await window.supabaseClient
+              .from("table_occupancy")
+              .update({ is_occupied: false, freed_at: new Date().toISOString() })
+              .eq("table_number", btn.dataset.release);
+            if (error) { olvShowError(errBox, error); return; }
+            loadTables();
+          });
+        });
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      await loadTables();
+      setInterval(loadTables, 15000);
+    })();
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
