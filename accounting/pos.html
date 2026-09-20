@@ -228,8 +228,35 @@
     background:var(--ink-2); border-top:1px solid var(--hair); flex:none;
     padding:14px 0 0; margin-top:14px; display:flex; flex-direction:column; gap:10px;
   }
+  .discount-toggle-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px; width:100%;
+    background:var(--ink-3); border:1px dashed var(--hair); border-radius:10px;
+    color:var(--olive-hi,#9dab63); font-size:12.5px; font-weight:600; padding:8px; cursor:pointer;
+  }
+  .discount-toggle-btn.active{border-style:solid; border-color:var(--gold); color:var(--gold-hi);}
+  .discount-form{
+    display:flex; flex-direction:column; gap:8px; background:var(--ink-3); border:1px solid var(--hair);
+    border-radius:10px; padding:10px; margin-top:8px;
+  }
+  .discount-mode-tabs{display:flex; gap:6px;}
+  .discount-mode-tab{
+    flex:1; background:var(--ink-2); border:1px solid var(--hair); border-radius:8px;
+    color:var(--muted); font-size:12px; font-weight:600; padding:6px; cursor:pointer;
+  }
+  .discount-mode-tab.on{background:var(--gold); border-color:var(--gold); color:#100e08;}
+  .discount-input-wrap{display:flex; align-items:center; gap:8px;}
+  .discount-input-wrap input{
+    flex:1; background:var(--ink-2); border:1px solid var(--hair); border-radius:8px;
+    color:var(--paper); font-size:14px; padding:8px 10px; min-width:0;
+  }
+  .discount-input-wrap input:focus{outline:none; border-color:var(--gold);}
+  .discount-remove-btn{
+    flex:none; width:34px; height:34px; border-radius:8px; border:1px solid var(--hair);
+    background:var(--ink-2); color:var(--danger-hi); font-size:14px; cursor:pointer;
+  }
   .cart-totals{display:flex; flex-direction:column; gap:4px;}
   .cart-total-row{display:flex; align-items:center; justify-content:space-between; font-size:13px; color:var(--muted);}
+  .cart-total-row.discount span:last-child{color:var(--danger-hi);}
   .cart-total-row.grand{
     font-size:15px; color:var(--paper); font-weight:600; padding-top:8px;
     border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));
@@ -340,8 +367,20 @@
           </div>
           <div class="cart-list" id="cart-list"></div>
           <div class="cart-bar">
+            <button type="button" class="discount-toggle-btn" id="discount-toggle-btn">🏷 إضافة خصم</button>
+            <div class="discount-form" id="discount-form" hidden>
+              <div class="discount-mode-tabs">
+                <button type="button" class="discount-mode-tab on" data-discount-mode="percent">نسبة %</button>
+                <button type="button" class="discount-mode-tab" data-discount-mode="fixed">مبلغ ثابت</button>
+              </div>
+              <div class="discount-input-wrap">
+                <input type="number" id="discount-value-input" inputmode="decimal" min="0" step="0.01" placeholder="0" dir="ltr">
+                <button type="button" class="discount-remove-btn" id="discount-remove-btn" aria-label="إلغاء الخصم">✕</button>
+              </div>
+            </div>
             <div class="cart-totals">
               <div class="cart-total-row"><span>المجموع الفرعي</span><span id="cart-subtotal">0.00</span></div>
+              <div class="cart-total-row discount" id="cart-discount-row" style="display:none;"><span>الخصم</span><span id="cart-discount">0.00</span></div>
               <div class="cart-total-row grand"><span>الإجمالي</span><span class="total" id="cart-total">0.00</span></div>
             </div>
             <div class="actions">
@@ -457,6 +496,27 @@
     let currentPage = 1;
     const BEST_SELLERS = "الأكثر مبيعًا";
     const DRAFT_KEY = "olv_pos_draft";
+    let discountMode = "percent"; // "percent" أو "fixed"
+    let discountValue = 0;
+
+    // يحسب قيمة الخصم الفعلية بالعملة، مع سقف بحيث ما يتعدى المجموع الفرعي
+    // (يمنع رقم خصم سالب أو إجمالي سالب بأي حال)
+    function computeDiscountAmount(subtotal) {
+      if (!discountValue || discountValue <= 0) return 0;
+      const raw = discountMode === "percent" ? subtotal * (discountValue / 100) : discountValue;
+      return Math.round(Math.max(0, Math.min(raw, subtotal)) * 100) / 100;
+    }
+
+    function resetDiscount() {
+      discountMode = "percent";
+      discountValue = 0;
+      document.getElementById("discount-value-input").value = "";
+      document.getElementById("discount-form").hidden = true;
+      document.getElementById("discount-toggle-btn").classList.remove("active");
+      document.querySelectorAll(".discount-mode-tab").forEach((btn) => {
+        btn.classList.toggle("on", btn.dataset.discountMode === "percent");
+      });
+    }
 
     // يحسب عدد الأعمدة/الصفوف اللي بتتسع فعليًا داخل الشاشة المفتوحة حاليًا
     // بدون سكرول، عشان باقي الأصناف تتوزع على صفحات بدل ما تتزاحم أو تختفي
@@ -699,6 +759,8 @@
         tableNumber: document.getElementById("table-number").value,
         customerPhone: document.getElementById("customer-phone").value,
         customerName: document.getElementById("customer-name").value,
+        discountMode,
+        discountValue,
       }));
       const btn = document.getElementById("save-draft-btn");
       const original = btn.textContent;
@@ -718,6 +780,16 @@
           if (draft.tableNumber) document.getElementById("table-number").value = draft.tableNumber;
           if (draft.customerPhone) document.getElementById("customer-phone").value = draft.customerPhone;
           if (draft.customerName) document.getElementById("customer-name").value = draft.customerName;
+          if (draft.discountValue > 0) {
+            discountMode = draft.discountMode === "fixed" ? "fixed" : "percent";
+            discountValue = Number(draft.discountValue) || 0;
+            document.getElementById("discount-value-input").value = discountValue;
+            document.getElementById("discount-form").hidden = false;
+            document.getElementById("discount-toggle-btn").classList.add("active");
+            document.querySelectorAll(".discount-mode-tab").forEach((btn) => {
+              btn.classList.toggle("on", btn.dataset.discountMode === discountMode);
+            });
+          }
         }
       } catch (e) { /* تجاهل أي تذكرة محفوظة تالفة */ }
     }
@@ -786,8 +858,17 @@
         checkoutBtn.disabled = false;
         saveDraftBtn.disabled = false;
       }
-      document.getElementById("cart-subtotal").textContent = olvFormatMoney(OlvCart.total());
-      document.getElementById("cart-total").textContent = olvFormatMoney(OlvCart.total());
+      const subtotal = OlvCart.total();
+      const discountAmount = computeDiscountAmount(subtotal);
+      const discountRow = document.getElementById("cart-discount-row");
+      document.getElementById("cart-subtotal").textContent = olvFormatMoney(subtotal);
+      if (discountAmount > 0) {
+        discountRow.style.display = "";
+        document.getElementById("cart-discount").textContent = "- " + olvFormatMoney(discountAmount);
+      } else {
+        discountRow.style.display = "none";
+      }
+      document.getElementById("cart-total").textContent = olvFormatMoney(subtotal - discountAmount);
     }
 
     function openCheckoutSheet() {
@@ -813,7 +894,9 @@
       }
       errBox.style.display = "none";
 
-      const total = OlvCart.total();
+      const subtotal = OlvCart.total();
+      const discountAmount = computeDiscountAmount(subtotal);
+      const total = subtotal - discountAmount;
       const cartSnapshot = OlvCart.all().slice();
       const exact = Math.round(total * 100) / 100;
       let method = "cash";
@@ -853,6 +936,10 @@
             ${cartSnapshot.map((item) => `
               <div class="row"><span>${item.qty}× ${item.name}</span><span>${olvFormatMoney(OlvCart.lineTotal(item))}</span></div>
             `).join("")}
+            ${discountAmount > 0 ? `
+              <div class="row"><span>المجموع الفرعي</span><span>${olvFormatMoney(subtotal)}</span></div>
+              <div class="row"><span>الخصم${discountMode === "percent" ? ` (${discountValue}%)` : ""}</span><span>- ${olvFormatMoney(discountAmount)}</span></div>
+            ` : ""}
           </div>
           <div class="pm-tiles">
             <button type="button" class="pm-tile${method === "cash" ? " on" : ""}" data-method="cash"><span class="icon">💵</span>كاش</button>
@@ -924,8 +1011,10 @@
           await OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
+            discountAmount,
           });
           clearDraft();
+          resetDiscount();
           renderCart();
           refreshPopularityAndGrid();
           modal.querySelector("#checkout-success").classList.add("show");
@@ -991,6 +1080,24 @@
       document.getElementById("order-type").addEventListener("change", updateOrderTypeFields);
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
       document.getElementById("save-draft-btn").addEventListener("click", saveDraft);
+      document.getElementById("discount-toggle-btn").addEventListener("click", () => {
+        const form = document.getElementById("discount-form");
+        form.hidden = !form.hidden;
+        if (!form.hidden) document.getElementById("discount-value-input").focus();
+      });
+      document.querySelectorAll(".discount-mode-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          discountMode = btn.dataset.discountMode;
+          document.querySelectorAll(".discount-mode-tab").forEach((b) => b.classList.toggle("on", b === btn));
+          renderCart();
+        });
+      });
+      document.getElementById("discount-value-input").addEventListener("input", (e) => {
+        discountValue = Math.max(0, Number(e.target.value) || 0);
+        document.getElementById("discount-toggle-btn").classList.toggle("active", discountValue > 0);
+        renderCart();
+      });
+      document.getElementById("discount-remove-btn").addEventListener("click", resetDiscount);
       document.getElementById("product-search").addEventListener("input", (e) => {
         searchTerm = e.target.value.trim().toLowerCase();
         currentPage = 1;

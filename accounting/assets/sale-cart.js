@@ -54,14 +54,19 @@ const OlvCart = (function () {
     return items.reduce((s, item) => s + lineTotal(item), 0);
   }
 
-  async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue, tableNumber, customerPhone, customerName }) {
+  async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue, tableNumber, customerPhone, customerName, discountAmount }) {
     if (!items.length) throw new Error("السلة فاضية");
-    const grand = total();
+    const subtotal = total();
+    // الخصم يُطبّق هون قبل التوزيع على كاش/شبكة/توصيل — لا يوجد عمود خصم مخصص
+    // بجدول المبيعات حاليًا، فبنسجّله كملاحظة بس المبلغ الفعلي المحصّل هو الصافي بعد الخصم
+    const discount = Math.min(Math.max(Number(discountAmount) || 0, 0), subtotal);
+    const grand = subtotal - discount;
     const notesParts = items.map((item) => {
       const addonsTxt = item.addons.length ? ` (${item.addons.map((a) => a.name).join("، ")})` : "";
       const noteTxt = item.note ? ` [${item.note}]` : "";
       return `${item.qty}x ${item.name}${addonsTxt}${noteTxt}`;
     });
+    if (discount > 0) notesParts.push(`خصم ${olvFormatMoney(discount)}`);
     if (extraNotes) notesParts.push(extraNotes);
     const notes = notesParts.join("، ");
 
