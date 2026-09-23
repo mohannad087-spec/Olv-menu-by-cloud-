@@ -27,13 +27,13 @@
      يتبع محتواها فعليًا بدل ما يتمدد على طول الشاشة كلها */
   .wrap{max-width:none; padding:0; margin:0;}
   #err.err{margin:14px 20px 0;}
-  .pos-layout{display:flex; align-items:flex-start; min-height:calc(100vh - var(--nav-h, 112px));}
+  .pos-layout{display:flex; align-items:flex-start; min-height:calc(100vh - var(--nav-h, 112px) - var(--status-h, 0px));}
   .pos-main{flex:1 1 auto; min-width:0; padding:20px;}
   .pos-cart-panel{
     flex:0 0 25%; min-width:260px; max-width:340px; background:var(--ink-2);
     border-inline-start:1px solid var(--hair);
     position:sticky; top:var(--nav-h, 112px); align-self:flex-start;
-    max-height:calc(100vh - var(--nav-h, 112px)); overflow-y:auto;
+    max-height:calc(100vh - var(--nav-h, 112px) - var(--status-h, 0px)); overflow-y:auto;
   }
   /* عمود التصنيفات الجانبي — أول عنصر بالـ layout فبيطلع بأقصى يمين
      الصفحة (RTL)، بين شريط التنقل والأصناف، وبيضل ظاهر بدون تمرير */
@@ -41,7 +41,7 @@
     flex:0 0 168px; min-width:168px; background:var(--ink-2);
     border-inline-end:1px solid var(--hair);
     position:sticky; top:var(--nav-h, 112px); align-self:flex-start;
-    max-height:calc(100vh - var(--nav-h, 112px)); overflow-y:auto;
+    max-height:calc(100vh - var(--nav-h, 112px) - var(--status-h, 0px)); overflow-y:auto;
     padding:16px 10px; display:flex; flex-direction:column; gap:6px;
   }
   @media (max-width:900px){
@@ -62,6 +62,15 @@
   }
 
   .pos-toolbar{display:flex; gap:10px; margin-bottom:14px;}
+  .pos-clock{
+    flex:none; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:1px;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:10px;
+    padding:6px 16px; min-height:44px;
+  }
+  .pos-clock .pos-clock-time{
+    font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:700; color:var(--gold-hi); line-height:1.15;
+  }
+  .pos-clock .pos-clock-date{font-size:11px; color:var(--muted); line-height:1.3;}
   .search-wrap{position:relative; flex:1;}
   .search-wrap .icon{position:absolute; inset-inline-start:14px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;}
   .pos-toolbar input[type=search]{
@@ -326,6 +335,22 @@
   }
   .pos-pagination button:disabled{opacity:.35;}
   .pos-pagination .page-info{color:var(--muted); font-size:13px; min-width:70px; text-align:center;}
+
+  /* شريط سفلي ثابت بعرض الشاشة الكامل (تحت التصنيفات/القائمة/التذكرة
+     كلها) بيلخّص عدد الأصناف والكمية بالسلة الحالية، مع اسم البرنامج
+     والنسخة — نقلّص ارتفاع بقية الشاشة بمقدار ارتفاعه الفعلي (متغيّر
+     CSS محسوب بالجافاسكربت، نفس أسلوب --nav-h) حتى ما يغطي شي */
+  .pos-status-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    background:var(--ink-2); border-top:1px solid var(--hair);
+    padding:9px 20px; font-size:12.5px; color:var(--muted);
+  }
+  .pos-status-bar .psb-counts{display:flex; gap:18px; align-items:center;}
+  .pos-status-bar .psb-counts b{color:var(--paper); font-weight:700;}
+  .pos-status-bar .psb-brand{display:flex; align-items:center; gap:6px;}
+  @media (max-width:900px){
+    .pos-status-bar{display:none;}
+  }
 </style>
 </head>
 <body>
@@ -340,6 +365,10 @@
 
       <div class="pos-main">
         <div class="pos-toolbar">
+          <div class="pos-clock">
+            <span class="pos-clock-time" id="pos-clock-time">--:--</span>
+            <span class="pos-clock-date" id="pos-clock-date"></span>
+          </div>
           <div class="search-wrap">
             <span class="search-icon" id="search-icon"></span>
             <input type="search" id="product-search" placeholder="ابحث عن صنف...">
@@ -407,6 +436,14 @@
         </div>
       </aside>
     </div>
+
+    <div class="pos-status-bar" id="pos-status-bar">
+      <div class="psb-counts">
+        <span><b id="psb-item-count">0</b> صنف</span>
+        <span><b id="psb-qty-count">0</b> قطعة</span>
+      </div>
+      <div class="psb-brand"><span id="psb-brand-icon"></span> محاسبة OLV</div>
+    </div>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -434,6 +471,29 @@
     }
     updateNavHeight();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateNavHeight);
+
+    // نفس فكرة updateNavHeight بس للشريط السفلي — يختفي بالموبايل
+    // (display:none)، فبيرجع ارتفاعه صفر تلقائيًا بدون أي كود إضافي
+    function updateStatusBarHeight() {
+      const bar = document.getElementById("pos-status-bar");
+      if (bar) document.documentElement.style.setProperty("--status-h", bar.offsetHeight + "px");
+    }
+    updateStatusBarHeight();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateStatusBarHeight);
+
+    document.getElementById("psb-brand-icon").innerHTML = olvIcon("brand");
+
+    // ساعة وتاريخ حيّين بأعلى شاشة بيع سريع — أرقام إنجليزية دايمًا
+    // (numberingSystem: latn) بنفس قاعدة باقي البرنامج
+    function updatePosClock() {
+      const now = new Date();
+      document.getElementById("pos-clock-time").textContent =
+        now.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", numberingSystem: "latn" });
+      document.getElementById("pos-clock-date").textContent =
+        now.toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long", year: "numeric", numberingSystem: "latn" });
+    }
+    updatePosClock();
+    setInterval(updatePosClock, 15000);
 
     // أيقونة تعبيرية مناسبة للتصنيف تُستخدم كواجهة افتراضية أنيقة عند عدم توفر صورة حقيقية للصنف
     function categoryEmoji(category) {
@@ -867,6 +927,8 @@
       const saveDraftBtn = document.getElementById("save-draft-btn");
       const itemCount = cart.reduce((s, item) => s + item.qty, 0);
       document.getElementById("ticket-badge").textContent = itemCount;
+      document.getElementById("psb-item-count").textContent = cart.length;
+      document.getElementById("psb-qty-count").textContent = itemCount;
       if (!cart.length) {
         list.innerHTML = `<div class="cart-empty">السلة فارغة — اختر أصنافًا من القائمة</div>`;
         checkoutBtn.disabled = true;
@@ -1171,7 +1233,7 @@
       let resizeTimer = null;
       window.addEventListener("resize", () => {
         clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => { updateNavHeight(); renderGrid(); }, 200);
+        resizeTimer = setTimeout(() => { updateNavHeight(); updateStatusBarHeight(); renderGrid(); }, 200);
       });
 
       await checkForReadyOrders();
