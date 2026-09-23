@@ -26,12 +26,12 @@ const OlvLowStockPoll = (function () {
 
   function showToast(msg) {
     const toast = document.createElement("div");
-    toast.textContent = msg;
+    toast.innerHTML = (typeof olvIcon === "function" ? olvIcon("warning") : "") + `<span>${msg}</span>`;
     toast.style.cssText = [
       "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
       "background:var(--danger)", "color:#fff", "padding:12px 22px", "border-radius:10px",
       "font-size:14px", "font-weight:700", "z-index:100", "box-shadow:0 4px 16px rgba(0,0,0,.3)",
-      "max-width:90vw", "text-align:center",
+      "max-width:90vw", "text-align:center", "display:flex", "align-items:center", "gap:8px",
     ].join(";");
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3200);
@@ -46,7 +46,7 @@ const OlvLowStockPoll = (function () {
       if (typeof OlvSound !== "undefined") OlvSound.playError();
       const names = newItems.slice(0, 3).map((i) => i.name).join("، ");
       const extra = newItems.length > 3 ? ` و${newItems.length - 3} غيرها` : "";
-      showToast(`⚠️ نقص مخزون: ${names}${extra}`);
+      showToast(`نقص مخزون: ${names}${extra}`);
     }
   }
 

@@ -29,6 +29,7 @@
     box-shadow:var(--card-shadow); display:flex; flex-direction:column;
   }
   .io-card.io-new{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 8px 24px rgba(201,162,75,.15);}
+  .io-card .hint .icon{width:13px; height:13px; vertical-align:-2px;}
   .io-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px;}
   .io-head b{font-family:'Cormorant Garamond',serif; font-size:21px; color:var(--gold-hi);}
   .io-total{font-family:'Cormorant Garamond',serif; font-size:19px; color:var(--gold-hi); font-weight:700; white-space:nowrap;}
@@ -37,6 +38,7 @@
     font-size:11.5px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px;
     color:var(--muted); display:inline-flex; align-items:center; gap:4px;
   }
+  .io-mode-badge .icon{width:12px; height:12px;}
   .io-status-badge{font-size:11px; font-weight:700; border-radius:999px; padding:3px 10px;}
   .io-status-new{background:var(--gold); color:#100e08;}
   .io-status-preparing{background:rgba(124,138,74,.15); color:var(--ok); border:1px solid rgba(124,138,74,.35);}
@@ -54,6 +56,7 @@
   .io-item-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .io-item-price{color:var(--muted); flex:none; white-space:nowrap;}
   .io-item-note{color:var(--olive-hi,#9dab63); font-size:12px; margin-top:3px; margin-inline-start:32px;}
+  .io-item-note .icon, .io-matched .icon{width:11px; height:11px; vertical-align:-1px;}
   .io-matched{color:var(--ok); font-size:11.5px; margin-top:3px; margin-inline-start:32px;}
   .io-unmatched select{margin-top:6px; width:100%; background:var(--ink-3); border:1px solid var(--danger); color:var(--paper); padding:9px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
   .io-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));}
@@ -141,9 +144,9 @@
             </div>
             <span class="io-item-price">${olvFormatMoney(it.price * it.qty)}</span>
           </div>
-          ${noteText ? `<div class="io-item-note">📝 ${noteText}</div>` : ""}
+          ${noteText ? `<div class="io-item-note">${olvIcon("note")} ${noteText}</div>` : ""}
           ${matched
-            ? `<div class="io-matched">🔗 مربوط بـ: ${matched.name}</div>`
+            ? `<div class="io-matched">${olvIcon("link")} مربوط بـ: ${matched.name}</div>`
             : `<div class="io-unmatched">
                 <select data-map-item="${it.id}">
                   <option value="">— اختر المنتج المقابل —</option>
@@ -173,18 +176,18 @@
               <div class="io-total">${olvFormatMoney(o.total)}</div>
             </div>
             <div class="io-badges">
-              <span class="io-mode-badge">${o.mode === "delivery" ? "🛵" : "🍽️"} ${MODE_LABELS[o.mode] || o.mode}</span>
+              <span class="io-mode-badge">${o.mode === "delivery" ? olvIcon("mapPin") : olvIcon("dineIn")} ${MODE_LABELS[o.mode] || o.mode}</span>
               <span class="io-status-badge ${statusClass}">${STATUS_LABELS[o.status] || o.status}</span>
             </div>
-            ${o.table ? `<div class="hint">🪑 طاولة رقم ${o.table}</div>` : ""}
-            ${o.phone ? `<div class="hint" dir="ltr">📞 ${o.phone}</div>` : ""}
-            ${o.address ? `<div class="hint">📍 ${o.address}</div>` : ""}
-            ${o.notes ? `<div class="hint">🗒️ ${o.notes}</div>` : ""}
+            ${o.table ? `<div class="hint">${olvIcon("grid")} طاولة رقم ${o.table}</div>` : ""}
+            ${o.phone ? `<div class="hint" dir="ltr">${olvIcon("phone")} ${o.phone}</div>` : ""}
+            ${o.address ? `<div class="hint">${olvIcon("mapPin")} ${o.address}</div>` : ""}
+            ${o.notes ? `<div class="hint">${olvIcon("note")} ${o.notes}</div>` : ""}
             <div class="io-items">${(o.items || []).map((it) => renderItemRow(o, it)).join("")}</div>
             ${isNew ? `
               <div class="io-actions">
-                <button class="btn gold small" data-approve="${o.id}" data-method="cash" ${mapped ? "" : "disabled"}>💵 قبول (كاش)</button>
-                <button class="btn gold small" data-approve="${o.id}" data-method="card" ${mapped ? "" : "disabled"}>💳 قبول (شبكة)</button>
+                <button class="btn gold small" data-approve="${o.id}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
+                <button class="btn gold small" data-approve="${o.id}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
                 <button class="btn danger small" data-reject="${o.id}">رفض</button>
               </div>
               ${!mapped ? `<div class="hint">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}

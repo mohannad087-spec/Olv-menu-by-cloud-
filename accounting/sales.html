@@ -26,9 +26,11 @@
   .addon-row .a-price{color:var(--muted); font-size:12.5px;}
   .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:13.5px;}
   .cart-item .meta{color:var(--muted); font-size:12px;}
+  .meta .icon{width:12px; height:12px; vertical-align:-1px;}
   .row-voided{opacity:.55;}
   .status-voided{color:var(--danger-hi); font-weight:700; font-size:12.5px;}
   .status-completed{color:var(--ok); font-size:12.5px;}
+  .status-voided .icon, .status-completed .icon{width:12px; height:12px; vertical-align:-1px;}
   .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
   .items-detail{background:var(--ink-3); border-radius:10px; padding:10px 14px;}
   .item-detail-row{
@@ -155,7 +157,7 @@
           <div>
             <div>${item.qty}× ${item.name}</div>
             ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
-            ${item.note ? `<div class="meta">📝 ${item.note}</div>` : ""}
+            ${item.note ? `<div class="meta">${olvIcon("note")} ${item.note}</div>` : ""}
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
             <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
@@ -215,7 +217,7 @@
             <div class="name ${itemVoided ? "item-voided" : ""}">
               <div>${it.qty}× ${it.product_name}</div>
               ${it.addons_summary ? `<div class="meta">+ ${it.addons_summary}</div>` : ""}
-              ${it.note ? `<div class="meta">📝 ${it.note}</div>` : ""}
+              ${it.note ? `<div class="meta">${olvIcon("note")} ${it.note}</div>` : ""}
             </div>
             <div style="display:flex; align-items:center; gap:10px;">
               <span>${olvFormatMoney(lineTotal)}</span>
@@ -251,7 +253,7 @@
             <td>${olvFormatMoney(r.delivery_amount)}</td>
             <td>${olvFormatMoney(total)}</td>
             <td>${r.notes || "—"}${voided && r.void_reason ? ` — سبب الإلغاء: ${r.void_reason}` : ""}</td>
-            <td>${voided ? `<span class="status-voided">ملغى ✕</span>` : `<span class="status-completed">مكتمل ✓</span>`}</td>
+            <td>${voided ? `<span class="status-voided">${olvIcon("x")} ملغى</span>` : `<span class="status-completed">${olvIcon("check")} مكتمل</span>`}</td>
             <td>
               <div class="row-actions">
                 <button class="btn small" data-toggle="${r.id}">الأصناف (${itemCount})</button>

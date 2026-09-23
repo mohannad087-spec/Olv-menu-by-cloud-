@@ -105,7 +105,7 @@
         تلقائيًا بمعرّف كل صنف هناك — فتشغيل الزر مرة ثانية يحدّث الأسعار/الأسماء الموجودة
         بدل ما يكرّرها، وهاي نفس عملية الربط المطلوبة لشاشة "الطلبات الواردة".
       </p>
-      <button type="button" class="btn gold" id="import-menu-btn">🔄 مزامنة الأصناف من موقع المنيو الحقيقي</button>
+      <button type="button" class="btn gold" id="import-menu-btn"></button>
       <div style="height:18px;"></div>
       <form id="product-form">
         <div class="row2">
@@ -277,6 +277,7 @@
   <script src="assets/low-stock-poll.js"></script>
   <script>
     olvRenderNav("settings");
+    document.getElementById("import-menu-btn").innerHTML = olvIcon("refresh") + "<span>مزامنة الأصناف من موقع المنيو الحقيقي</span>";
 
     document.querySelectorAll(".sub-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -385,8 +386,8 @@
                       <td>
                         ${p.name}
                         ${p.external_id ? `
-                          <span class="badge" title="مربوط بـ: ${p.external_id}">🔗</span>
-                          <button class="btn small" data-unlink="${p.id}" title="فك الربط بموقع المنيو">✕ فك الربط</button>
+                          <span class="badge" title="مربوط بـ: ${p.external_id}">${olvIcon("link")}</span>
+                          <button class="btn small" data-unlink="${p.id}" title="فك الربط بموقع المنيو">${olvIcon("x")} فك الربط</button>
                         ` : ""}
                       </td>
                       <td>
@@ -514,7 +515,7 @@
       errBox.style.display = "none";
       const btn = document.getElementById("import-menu-btn");
       btn.disabled = true;
-      const originalLabel = btn.textContent;
+      const originalLabel = btn.innerHTML;
       btn.textContent = "جاري المزامنة...";
       try {
         const res = await fetch("https://olv-menu.pages.dev/data/menu.json", { cache: "no-store" });
@@ -573,7 +574,7 @@
         olvShowError(errBox, err);
       } finally {
         btn.disabled = false;
-        btn.textContent = originalLabel;
+        btn.innerHTML = originalLabel;
       }
     }
 
@@ -646,7 +647,7 @@
     };
     const PRINT_STATUS_LABELS = {
       pending: "قيد الإرسال",
-      printed: "تمت الطباعة ✓",
+      printed: `تمت الطباعة ${olvIcon("check")}`,
       error: "خطأ",
       skipped: "الطابعة غير مفعّلة",
     };

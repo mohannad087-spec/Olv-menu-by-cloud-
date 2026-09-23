@@ -104,10 +104,10 @@
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
         <div class="sub-tabs" id="filter-tabs">
           <button class="sub-tab on" data-tab="all">الكل</button>
-          <button class="sub-tab" data-tab="hot">🔥 ساخنة</button>
-          <button class="sub-tab" data-tab="cold">🧊 باردة</button>
+          <button class="sub-tab" data-tab="hot" id="tab-hot"></button>
+          <button class="sub-tab" data-tab="cold" id="tab-cold"></button>
         </div>
-        <button class="btn" id="pdf-btn">⬇ تصدير PDF</button>
+        <button class="btn" id="pdf-btn"></button>
       </div>
     </div>
 
@@ -129,6 +129,9 @@
   <script src="assets/layout.js"></script>
   <script>
     olvRenderNav("recipes");
+    document.getElementById("tab-hot").innerHTML = olvIcon("flame") + "<span>ساخنة</span>";
+    document.getElementById("tab-cold").innerHTML = olvIcon("snowflake") + "<span>باردة</span>";
+    document.getElementById("pdf-btn").innerHTML = olvIcon("download") + "<span>تصدير PDF</span>";
 
     function illustrate(d){
       var url = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + d.photo + '?width=480';

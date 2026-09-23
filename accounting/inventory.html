@@ -22,11 +22,12 @@
 </script>
 <style>
   .low-stock{color:var(--danger-hi); font-weight:700;}
+  .low-stock .icon{width:13px; height:13px; vertical-align:-2px;}
   .urgent-banner{
     background:rgba(193,88,63,.12); border:1px solid rgba(193,88,63,.4); border-radius:12px;
     padding:16px; margin-bottom:20px;
   }
-  .urgent-banner h3{color:var(--danger-hi); font-size:15px; margin-bottom:10px;}
+  .urgent-banner h3{color:var(--danger-hi); font-size:15px; margin-bottom:10px; display:flex; align-items:center; gap:7px;}
   .urgent-item{display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px;}
   .urgent-item .days{color:var(--danger-hi); font-weight:700;}
   .sub-tabs{display:flex; gap:8px; margin-bottom:16px;}
@@ -49,7 +50,7 @@
 
     <div id="tab-stock">
       <div class="urgent-banner" id="urgent-banner" hidden>
-        <h3>⚠️ مواد قاربت تنفد</h3>
+        <h3 id="urgent-title"></h3>
         <div id="urgent-list"></div>
       </div>
 
@@ -161,6 +162,7 @@
   <script src="assets/low-stock-poll.js"></script>
   <script>
     olvRenderNav("inventory");
+    document.getElementById("urgent-title").innerHTML = olvIcon("warning") + "<span>مواد قاربت تنفد</span>";
 
     let ingredients = [];
     let products = [];
@@ -261,7 +263,7 @@
               <tr>
                 <td>${ing.name}</td>
                 <td>${ing.unit}</td>
-                <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " ⚠" : ""}</td>
+                <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
                 <td>${daysCell}</td>
                 <td>
                   <div style="display:flex; gap:6px;">

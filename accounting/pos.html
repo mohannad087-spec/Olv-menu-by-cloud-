@@ -62,9 +62,11 @@
   }
 
   .pos-toolbar{display:flex; gap:10px; margin-bottom:14px;}
+  .search-wrap{position:relative; flex:1;}
+  .search-wrap .icon{position:absolute; inset-inline-start:14px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;}
   .pos-toolbar input[type=search]{
-    flex:1; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
-    padding:12px 14px; border-radius:10px; font-size:16px; font-family:'Tajawal',sans-serif;
+    width:100%; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
+    padding:12px 14px 12px 14px; padding-inline-start:40px; border-radius:10px; font-size:16px; font-family:'Tajawal',sans-serif;
     min-height:44px;
   }
   .pos-toolbar input[type=search]:focus{outline:none; border-color:var(--gold);}
@@ -76,6 +78,7 @@
     transition:.15s; width:100%;
   }
   .cat-tab .cat-tab-icon{font-size:15px; line-height:1;}
+  .cat-tab .cat-tab-icon .icon{width:15px; height:15px; vertical-align:-2px;}
   .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px rgba(201,162,75,.25);}
   @media (max-width:900px){
     .cat-tabs{flex-direction:row; overflow-x:auto; padding-bottom:2px;}
@@ -94,6 +97,7 @@
     font-size:10.5px; font-weight:700; border-radius:999px; padding:3px 8px;
     display:flex; align-items:center; gap:3px; box-shadow:0 2px 8px rgba(0,0,0,.25);
   }
+  .card .best-badge .icon{width:11px; height:11px; stroke-width:2.5;}
   .card .thumb{
     width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:var(--ink-3);
   }
@@ -143,7 +147,9 @@
   .checkout-close{
     width:34px; height:34px; border-radius:50%; border:1px solid var(--hair); background:var(--ink-3);
     color:var(--muted); font-size:15px; flex:none;
+    display:flex; align-items:center; justify-content:center;
   }
+  .checkout-close .icon{width:16px; height:16px;}
   .checkout-total{text-align:center; padding:18px 0 20px;}
   .checkout-total .label{font-size:12.5px; color:var(--muted); margin-bottom:4px;}
   .checkout-total .amount{
@@ -162,7 +168,7 @@
     display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12.5px; color:var(--muted);
     min-height:72px;
   }
-  .pm-tile .icon{font-size:24px;}
+  .pm-tile .icon{width:24px; height:24px;}
   .pm-tile.on{border-color:var(--gold); background:rgba(201,162,75,.12); color:var(--gold-hi); font-weight:700;}
 
   .cash-panel{margin-bottom:8px;}
@@ -207,6 +213,7 @@
     display:flex; align-items:center; justify-content:center; font-size:38px;
     transform:scale(.5); transition:transform .3s cubic-bezier(.34,1.56,.64,1);
   }
+  .checkout-success .check .icon{width:38px; height:38px; stroke-width:3;}
   .checkout-success.show .check{transform:scale(1);}
   .checkout-success .msg{font-size:16px; font-weight:700; color:var(--gold-hi);}
   .qty-row{display:flex; align-items:center; gap:14px; margin:14px 0;}
@@ -253,7 +260,9 @@
   .discount-remove-btn{
     flex:none; width:34px; height:34px; border-radius:8px; border:1px solid var(--hair);
     background:var(--ink-2); color:var(--danger-hi); font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
   }
+  .discount-remove-btn .icon{width:15px; height:15px;}
   .cart-totals{display:flex; flex-direction:column; gap:4px;}
   .cart-total-row{display:flex; align-items:center; justify-content:space-between; font-size:13px; color:var(--muted);}
   .cart-total-row.discount span:last-child{color:var(--danger-hi);}
@@ -278,6 +287,7 @@
   .cart-item-info{flex:1; min-width:0; cursor:pointer;}
   .cart-item-info .name{font-weight:600; font-size:15px; line-height:1.35;}
   .cart-item-info .meta{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:3px; line-height:1.5;}
+  .cart-item-info .meta .icon{width:12px; height:12px; vertical-align:-1px;}
   .cart-item-price{flex:none; font-weight:700; color:var(--gold-hi); font-size:14.5px; white-space:nowrap;}
   .cart-item-controls{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
@@ -296,7 +306,9 @@
   .cart-item-remove{
     width:32px; height:32px; border-radius:8px; border:1px solid transparent; background:transparent;
     color:var(--danger-hi); font-size:15px; flex:none; opacity:.75;
+    display:flex; align-items:center; justify-content:center;
   }
+  .cart-item-remove .icon{width:16px; height:16px;}
   .cart-item-remove:hover{opacity:1; background:rgba(193,88,63,.12); border-color:rgba(193,88,63,.3);}
   .cart-empty{color:var(--muted); font-size:14px; text-align:center; padding:60px 0;}
   .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
@@ -327,7 +339,10 @@
 
       <div class="pos-main">
         <div class="pos-toolbar">
-          <input type="search" id="product-search" placeholder="🔍 ابحث عن صنف...">
+          <div class="search-wrap">
+            <span class="search-icon" id="search-icon"></span>
+            <input type="search" id="product-search" placeholder="ابحث عن صنف...">
+          </div>
         </div>
         <div class="grid" id="products-grid">
           <div class="hint">جاري التحميل...</div>
@@ -367,7 +382,7 @@
           </div>
           <div class="cart-list" id="cart-list"></div>
           <div class="cart-bar">
-            <button type="button" class="discount-toggle-btn" id="discount-toggle-btn">🏷 إضافة خصم</button>
+            <button type="button" class="discount-toggle-btn" id="discount-toggle-btn"></button>
             <div class="discount-form" id="discount-form" hidden>
               <div class="discount-mode-tabs">
                 <button type="button" class="discount-mode-tab on" data-discount-mode="percent">نسبة %</button>
@@ -375,7 +390,7 @@
               </div>
               <div class="discount-input-wrap">
                 <input type="number" id="discount-value-input" inputmode="decimal" min="0" step="0.01" placeholder="0" dir="ltr">
-                <button type="button" class="discount-remove-btn" id="discount-remove-btn" aria-label="إلغاء الخصم">✕</button>
+                <button type="button" class="discount-remove-btn" id="discount-remove-btn" aria-label="إلغاء الخصم"></button>
               </div>
             </div>
             <div class="cart-totals">
@@ -405,6 +420,9 @@
   <script src="assets/low-stock-poll.js"></script>
   <script>
     olvRenderNav("pos");
+    document.getElementById("search-icon").innerHTML = olvIcon("search");
+    document.getElementById("discount-toggle-btn").innerHTML = olvIcon("tag") + "<span>إضافة خصم</span>";
+    document.getElementById("discount-remove-btn").innerHTML = olvIcon("x");
 
     // يحسب ارتفاع الشريط العلوي فعليًا (يتغيّر حسب حجم الشاشة) ويخزّنه
     // كمتغيّر CSS، حتى تبدأ التذكرة والقائمة مباشرة تحته بدون أي فراغ
@@ -447,13 +465,14 @@
 
     // إشعار مؤقت يظهر أسفل الشاشة (نجاح بيع، أو تنبيه طلب جاهز)، بما إن
     // الشاشة بقيت مفتوحة على بيع سريع نفسها بدل الانتقال لصفحة منفصلة
-    function showToast(msg, color) {
+    function showToast(msg, color, icon) {
       const toast = document.createElement("div");
-      toast.textContent = msg;
+      toast.innerHTML = (icon ? olvIcon(icon) : "") + `<span>${msg}</span>`;
       toast.style.cssText = [
         "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
         `background:${color || "var(--ok)"}`, "color:#fff", "padding:12px 22px", "border-radius:10px",
         "font-size:14px", "font-weight:700", "z-index:100", "box-shadow:0 4px 16px rgba(0,0,0,.3)",
+        "display:flex", "align-items:center", "gap:8px",
       ].join(";");
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 2200);
@@ -483,7 +502,7 @@
       if (newOnes.length) {
         OlvSound.playOrderReady();
         newOnes.forEach((order) => {
-          showToast(`✓ طلب ${order.order_type || ""} جاهز من المطبخ`, "var(--gold-dp)");
+          showToast(`طلب ${order.order_type || ""} جاهز من المطبخ`, "var(--gold-dp)", "checkCircle");
         });
       }
     }
@@ -573,7 +592,7 @@
       ];
       document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
         <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">
-          <span class="cat-tab-icon">${c === "الكل" ? "🍽️" : c === BEST_SELLERS ? "⭐" : categoryEmoji(c)}</span>
+          <span class="cat-tab-icon">${c === "الكل" ? olvIcon("grid") : c === BEST_SELLERS ? olvIcon("star") : categoryEmoji(c)}</span>
           ${c}
         </button>
       `).join("");
@@ -626,7 +645,7 @@
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => `
         <div class="card" data-id="${p.id}" data-sound="add">
-          ${topSellerIds.has(p.id) ? `<span class="best-badge">⭐ الأكثر طلبًا</span>` : ""}
+          ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
           ${p.image_url
             ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-emoji="${categoryEmoji(p.category)}" onerror="olvHandleImageError(this)">`
             : `<div class="thumb-fallback">${categoryEmoji(p.category)}</div>`
@@ -776,9 +795,9 @@
         discountValue,
       }));
       const btn = document.getElementById("save-draft-btn");
-      const original = btn.textContent;
-      btn.textContent = "تم الحفظ ✓";
-      setTimeout(() => { btn.textContent = original; }, 1500);
+      const original = btn.innerHTML;
+      btn.innerHTML = olvIcon("check") + "<span>تم الحفظ</span>";
+      setTimeout(() => { btn.innerHTML = original; }, 1500);
     }
 
     function restoreDraftIfAny() {
@@ -830,7 +849,7 @@
               <div class="cart-item-info" data-edit="${idx}">
                 <div class="name">${item.name}</div>
                 ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
-                ${item.note ? `<div class="meta">📝 ${item.note}</div>` : ""}
+                ${item.note ? `<div class="meta">${olvIcon("note")} ${item.note}</div>` : ""}
               </div>
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
@@ -840,7 +859,7 @@
                 <span class="qty-value">${item.qty}</span>
                 <button type="button" data-inc="${idx}">+</button>
               </div>
-              <button type="button" class="cart-item-remove" data-remove="${idx}" data-sound="remove" aria-label="حذف الصنف">🗑</button>
+              <button type="button" class="cart-item-remove" data-remove="${idx}" data-sound="remove" aria-label="حذف الصنف">${olvIcon("trash")}</button>
             </div>
           </div>
         `).join("");
@@ -939,7 +958,7 @@
         modal.innerHTML = `
           <div class="checkout-head">
             <h2>إتمام الدفع</h2>
-            <button type="button" class="checkout-close" id="checkout-close">✕</button>
+            <button type="button" class="checkout-close" id="checkout-close">${olvIcon("x")}</button>
           </div>
           <div class="checkout-total">
             <div class="label">الإجمالي المطلوب</div>
@@ -955,9 +974,9 @@
             ` : ""}
           </div>
           <div class="pm-tiles">
-            <button type="button" class="pm-tile${method === "cash" ? " on" : ""}" data-method="cash"><span class="icon">💵</span>كاش</button>
-            <button type="button" class="pm-tile${method === "card" ? " on" : ""}" data-method="card"><span class="icon">💳</span>شبكة</button>
-            <button type="button" class="pm-tile${method === "delivery" ? " on" : ""}" data-method="delivery"><span class="icon">🛵</span>توصيل</button>
+            <button type="button" class="pm-tile${method === "cash" ? " on" : ""}" data-method="cash">${olvIcon("banknote")}كاش</button>
+            <button type="button" class="pm-tile${method === "card" ? " on" : ""}" data-method="card">${olvIcon("creditCard")}شبكة</button>
+            <button type="button" class="pm-tile${method === "delivery" ? " on" : ""}" data-method="delivery">${olvIcon("mapPin")}توصيل</button>
           </div>
           ${method === "cash" ? `
             <div class="cash-panel">
@@ -979,7 +998,7 @@
           ` : ""}
           <button type="button" class="btn gold checkout-confirm" id="checkout-confirm"${canConfirm ? "" : " disabled"}>تأكيد الدفع</button>
           <div class="checkout-success" id="checkout-success">
-            <div class="check">✓</div>
+            <div class="check">${olvIcon("check")}</div>
             <div class="msg">تم تسجيل البيع بنجاح</div>
           </div>
         `;

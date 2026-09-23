@@ -65,7 +65,7 @@
         <h2 style="margin-bottom:2px;">ملخص اليوم</h2>
         <div class="hint" id="today-label"></div>
       </div>
-      <button class="btn" id="pdf-btn">⬇ تصدير PDF</button>
+      <button class="btn" id="pdf-btn"></button>
     </div>
 
     <div class="stats">
@@ -139,6 +139,7 @@
     document.getElementById("stat-net").closest(".stat").querySelector(".stat-icon").innerHTML = olvIcon("wallet");
     document.getElementById("recent-sales-body").closest(".group").querySelector("h2").innerHTML = olvIcon("receipt") + "<span>آخر مبيعات مسجّلة</span>";
     document.getElementById("recent-expenses-title").innerHTML = olvIcon("minusCircle") + "<span>آخر مصروفات مسجّلة</span>";
+    document.getElementById("pdf-btn").innerHTML = olvIcon("download") + "<span>تصدير PDF</span>";
 
     let todaySummary = null;
 
