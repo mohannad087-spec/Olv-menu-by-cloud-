@@ -73,8 +73,8 @@
         </div>
       </div>
       <button class="btn gold" id="run-btn">عرض التقرير</button>
-      <button class="btn" id="pdf-btn">⬇ تصدير PDF</button>
-      <button class="btn" id="csv-btn">⬇ تصدير Excel (CSV)</button>
+      <button class="btn" id="pdf-btn"></button>
+      <button class="btn" id="csv-btn"></button>
     </div>
 
     <div class="stats">
@@ -132,6 +132,8 @@
   <script src="assets/low-stock-poll.js"></script>
   <script>
     olvRenderNav("reports");
+    document.getElementById("pdf-btn").innerHTML = olvIcon("download") + "<span>تصدير PDF</span>";
+    document.getElementById("csv-btn").innerHTML = olvIcon("download") + "<span>تصدير Excel (CSV)</span>";
 
     function renderBars(containerId, items) {
       const el = document.getElementById(containerId);

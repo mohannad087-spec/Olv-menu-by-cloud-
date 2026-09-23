@@ -41,11 +41,17 @@
   .order-time{font-family:'Cormorant Garamond',serif; font-size:21px; color:var(--gold-hi); font-weight:700;}
   .order-age{font-size:11.5px; color:var(--muted);}
   .order-age.overdue{color:var(--danger-hi); font-weight:700;}
+  .order-age .icon{width:12px; height:12px; vertical-align:-1px;}
   .order-type-badge{
     font-size:12px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px; color:var(--muted);
     display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
   }
-  .order-route{font-size:13.5px; font-weight:700; color:var(--gold-hi); margin-bottom:8px;}
+  .order-type-badge .icon{width:13px; height:13px;}
+  .order-route{
+    font-size:13.5px; font-weight:700; color:var(--gold-hi); margin-bottom:8px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .order-route .icon{width:14px; height:14px; flex:none;}
   .order-items{flex:1; margin-bottom:14px;}
   .order-line{padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); font-size:14px;}
   .order-line:last-child{border-bottom:none;}
@@ -58,6 +64,8 @@
   .order-line .item-name{font-weight:600;}
   .order-line .addons{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:2px; margin-inline-start:32px;}
   .order-line .note{color:var(--danger-hi); font-size:12.5px; margin-top:2px; margin-inline-start:32px;}
+  .order-line .note .icon{width:12px; height:12px; vertical-align:-1px;}
+  .sub-tab .icon{width:15px; height:15px;}
   .empty-state{color:var(--muted); text-align:center; padding:60px 0; grid-column:1/-1;}
 </style>
 </head>
@@ -67,8 +75,8 @@
     <div class="err" id="err"></div>
 
     <div class="sub-tabs">
-      <button class="sub-tab on" data-tab="pending"><span>⏳</span> قيد التحضير</button>
-      <button class="sub-tab" data-tab="ready"><span>✅</span> جاهز</button>
+      <button class="sub-tab on" data-tab="pending"><span id="sub-tab-icon-pending"></span> قيد التحضير</button>
+      <button class="sub-tab" data-tab="ready"><span id="sub-tab-icon-ready"></span> جاهز</button>
       <span class="hint" style="margin-inline-start:auto;">تحديث تلقائي كل 15 ثانية</span>
     </div>
 
@@ -88,6 +96,8 @@
   <script src="assets/low-stock-poll.js"></script>
   <script>
     olvRenderNav("kitchen");
+    document.getElementById("sub-tab-icon-pending").innerHTML = olvIcon("hourglass");
+    document.getElementById("sub-tab-icon-ready").innerHTML = olvIcon("checkCircle");
 
     const PENDING_STATUS = "قيد التحضير";
     const READY_STATUS = "جاهز";
@@ -152,13 +162,13 @@
               <div class="order-head">
                 <div class="order-time-wrap">
                   <span class="order-time">${formatTime(o.created_at)}</span>
-                  ${activeTab === "pending" ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? "⏰ " : ""}قبل ${ageMinutes} د</span>` : ""}
+                  ${activeTab === "pending" ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
                 </div>
-                ${o.order_type ? `<span class="order-type-badge">${isDelivery ? "🛵" : "🍽️"} ${o.order_type}</span>` : ""}
+                ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${o.order_type}</span>` : ""}
               </div>
-              ${o.customer_name ? `<div class="order-route">👤 ${o.customer_name}</div>` : ""}
-              ${o.table_number ? `<div class="order-route">🪑 طاولة رقم ${o.table_number}</div>` : ""}
-              ${o.customer_phone ? `<div class="order-route" dir="ltr">📞 ${o.customer_phone}</div>` : ""}
+              ${o.customer_name ? `<div class="order-route">${olvIcon("person")} ${o.customer_name}</div>` : ""}
+              ${o.table_number ? `<div class="order-route">${olvIcon("grid")} طاولة رقم ${o.table_number}</div>` : ""}
+              ${o.customer_phone ? `<div class="order-route" dir="ltr">${olvIcon("phone")} ${o.customer_phone}</div>` : ""}
               <div class="order-items">
                 ${o.sale_items.map((it) => `
                   <div class="order-line">
@@ -167,12 +177,12 @@
                       <span class="item-name">${it.product_name}</span>
                     </div>
                     ${it.addons_summary ? `<div class="addons">+ ${it.addons_summary}</div>` : ""}
-                    ${it.note ? `<div class="note">📝 ${it.note}</div>` : ""}
+                    ${it.note ? `<div class="note">${olvIcon("note")} ${it.note}</div>` : ""}
                   </div>
                 `).join("")}
               </div>
               <button class="btn ${activeTab === "pending" ? "gold" : ""} small" data-id="${o.id}" data-next="${activeTab === "pending" ? READY_STATUS : PENDING_STATUS}">
-                ${activeTab === "pending" ? "✓ تم التجهيز" : "↺ إرجاع لقيد التحضير"}
+                ${activeTab === "pending" ? olvIcon("check") + " تم التجهيز" : olvIcon("undo") + " إرجاع لقيد التحضير"}
               </button>
             </div>
           `;

@@ -98,7 +98,7 @@
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
         <h2 id="detail-name" style="margin:0;">—</h2>
         <div style="display:flex; gap:8px;">
-          <button type="button" class="btn small" id="print-statement-btn">🖨 طباعة كشف حساب</button>
+          <button type="button" class="btn small" id="print-statement-btn"></button>
           <button type="button" class="btn small" id="close-detail-btn">إغلاق</button>
         </div>
       </div>
@@ -186,6 +186,7 @@
   <script src="assets/low-stock-poll.js"></script>
   <script>
     olvRenderNav("suppliers");
+    document.getElementById("print-statement-btn").innerHTML = olvIcon("printer") + "<span>طباعة كشف حساب</span>";
 
     let suppliers = [];
     let balances = {}; // supplier_id -> { total_invoiced, total_paid, balance }

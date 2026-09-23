@@ -209,6 +209,7 @@ tr:hover td{background:rgba(201,162,75,.06);}
 }
 .brand-mark .icon{width:34px; height:34px; color:#100e08; stroke-width:1.6;}
 .badge{display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; border:1px solid var(--hair); color:var(--muted);}
+.badge .icon{width:11px; height:11px; vertical-align:-1px;}
 
 .olv-footer{
   text-align:center; color:var(--muted); font-size:12px;
