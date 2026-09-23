@@ -14,8 +14,29 @@
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
+  function applyAccent(theme){
+    var root = document.documentElement.style;
+    var props = ['--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_accent_palette');
+      var palette = raw ? JSON.parse(raw)[theme] : null;
+      if (!palette) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return;
+      }
+      root.setProperty('--gold', palette.gold);
+      root.setProperty('--gold-hi', palette.goldHi);
+      root.setProperty('--gold-dp', palette.goldDp);
+      root.setProperty('--gold-rgb', palette.goldRgb);
+      root.setProperty('--on-gold', palette.onGold);
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+    }
+  }
   window.olvApplyTheme = function(){
-    document.documentElement.setAttribute('data-theme', computeTheme());
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    applyAccent(theme);
   };
   window.olvApplyTheme();
 })();
@@ -29,7 +50,7 @@
     background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
     padding:10px 18px; border-radius:999px; font-size:13px; min-height:44px;
   }
-  .sub-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
+  .sub-tab.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .sub-tab.on[data-tab="cold"]{background:var(--olive); border-color:var(--olive);}
 
   .section-title{font-size:16px; margin:22px 4px 10px;}
@@ -66,7 +87,7 @@
   }
   .step-num{
     flex:none; width:26px; height:26px; border-radius:50%; z-index:1;
-    background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08;
+    background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold);
     display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px;
   }
   .recipe-card.cold .step-num{background:linear-gradient(180deg,var(--olive-hi),var(--olive));}

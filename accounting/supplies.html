@@ -14,8 +14,29 @@
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
+  function applyAccent(theme){
+    var root = document.documentElement.style;
+    var props = ['--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_accent_palette');
+      var palette = raw ? JSON.parse(raw)[theme] : null;
+      if (!palette) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return;
+      }
+      root.setProperty('--gold', palette.gold);
+      root.setProperty('--gold-hi', palette.goldHi);
+      root.setProperty('--gold-dp', palette.goldDp);
+      root.setProperty('--gold-rgb', palette.goldRgb);
+      root.setProperty('--on-gold', palette.onGold);
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+    }
+  }
   window.olvApplyTheme = function(){
-    document.documentElement.setAttribute('data-theme', computeTheme());
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    applyAccent(theme);
   };
   window.olvApplyTheme();
 })();
@@ -34,7 +55,7 @@
   .cat-accordion-head .caret.open{transform:rotate(90deg);}
   .cat-accordion-head span:nth-child(2){flex:1;}
   .order-qty-input{width:70px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:9px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
-  .order-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1));}
+  .order-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
   .order-row .o-name{flex:1; font-size:13.5px;}
   .order-row .o-stock{color:var(--muted); font-size:12px; min-width:90px;}
   #order-text{width:100%; min-height:200px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:13.5px; line-height:1.9; white-space:pre-wrap;}
