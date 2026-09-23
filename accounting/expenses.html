@@ -128,8 +128,7 @@
       session = await olvRequireAuth();
       if (!session) return;
       document.getElementById("expense_date").value = olvToday();
-      await loadCategories();
-      await loadExpenses();
+      await Promise.all([loadCategories(), loadExpenses()]);
     })();
 
     document.getElementById("expense-form").addEventListener("submit", async (e) => {
