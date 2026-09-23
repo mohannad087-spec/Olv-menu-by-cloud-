@@ -70,19 +70,20 @@
     min-height:44px;
   }
   .pos-toolbar input[type=search]:focus{outline:none; border-color:var(--gold);}
-  .cat-tabs{display:flex; flex-direction:column; gap:6px;}
+  .cat-tabs{display:flex; flex-direction:column; gap:8px;}
   .cat-tab{
-    flex:none; display:inline-flex; align-items:center; gap:8px; justify-content:flex-start;
+    flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px;
     background:var(--ink-3); border:1px solid var(--hair); color:var(--muted);
-    padding:10px 14px; border-radius:10px; font-size:13px; white-space:nowrap; min-height:44px;
-    transition:.15s; width:100%;
+    padding:14px 6px; border-radius:14px; font-size:11.5px; white-space:normal; text-align:center;
+    min-height:78px; line-height:1.25; transition:.15s; width:100%;
   }
-  .cat-tab .cat-tab-icon{font-size:15px; line-height:1;}
-  .cat-tab .cat-tab-icon .icon{width:15px; height:15px; vertical-align:-2px;}
+  .cat-tab .cat-tab-icon{font-size:26px; line-height:1;}
+  .cat-tab .cat-tab-icon .icon{width:24px; height:24px;}
+  .cat-tab .cat-tab-label{font-weight:600;}
   .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px rgba(201,162,75,.25);}
   @media (max-width:900px){
     .cat-tabs{flex-direction:row; overflow-x:auto; padding-bottom:2px;}
-    .cat-tab{width:auto; border-radius:999px; justify-content:center;}
+    .cat-tab{width:84px; flex:none;}
   }
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; margin-bottom:20px;}
   .card{
@@ -457,12 +458,36 @@
       return "🍽️";
     }
 
-    function olvHandleImageError(img) {
+    // صورة مؤقتة مطابقة لاسم/تصنيف الصنف (ريثما يرفع صاحب المطعم صورة
+    // حقيقية من صفحة الإعدادات) — نفس منطق categoryEmoji بس برابط صورة
+    // فعلية بدل إيموجي. لو الصورة ما اشتغلت (رابط معطّل) بيرجع تلقائيًا
+    // لإيموجي التصنيف عبر olvHandleImageError
+    function productPhotoUrl(name, category) {
+      const text = `${name || ""} ${category || ""}`;
+      const rules = [
+        [/برغر|هامبرغر/, "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=400&q=60"],
+        [/بيتزا/, "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=400&q=60"],
+        [/دجاج/, "https://images.unsplash.com/photo-1562967914-608f82629710?auto=format&fit=crop&w=400&q=60"],
+        [/كباب|مشوي|مشاوي|لحم/, "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&w=400&q=60"],
+        [/مكرونة|باستا/, "https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=400&q=60"],
+        [/سندويش|شاورما|راب/, "https://images.unsplash.com/photo-1553909489-cd47e0ef937f?auto=format&fit=crop&w=400&q=60"],
+        [/سلطة|مقبلات|حمص|فتوش/, "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=400&q=60"],
+        [/بطاطا|سناك|أجنحة|وودجز/, "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=400&q=60"],
+        [/قهوة|إسبريسو|كابتشينو|لاتيه/, "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=400&q=60"],
+        [/كيك|تشيز كيك|تيراميسو|حلويات|بوظة|آيس كريم/, "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=400&q=60"],
+      ];
+      for (const [pattern, url] of rules) {
+        if (pattern.test(text)) return url;
+      }
+      return null;
+    }
+
+    window.olvHandleImageError = function (img) {
       const fallback = document.createElement("div");
       fallback.className = "thumb-fallback";
       fallback.textContent = img.dataset.fallbackEmoji || "🍽️";
       img.replaceWith(fallback);
-    }
+    };
 
     // إشعار مؤقت يظهر أسفل الشاشة (نجاح بيع، أو تنبيه طلب جاهز)، بما إن
     // الشاشة بقيت مفتوحة على بيع سريع نفسها بدل الانتقال لصفحة منفصلة
@@ -594,7 +619,7 @@
       document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
         <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">
           <span class="cat-tab-icon">${c === "الكل" ? olvIcon("grid") : c === BEST_SELLERS ? olvIcon("star") : categoryEmoji(c)}</span>
-          ${c}
+          <span class="cat-tab-label">${c}</span>
         </button>
       `).join("");
       document.querySelectorAll(".cat-tab").forEach((btn) => {
@@ -644,12 +669,15 @@
           );
 
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
-      grid.innerHTML = pageItems.map((p) => `
+      grid.innerHTML = pageItems.map((p) => {
+        const fallbackEmoji = categoryEmoji(p.category);
+        const src = p.image_url || productPhotoUrl(p.name, p.category);
+        return `
         <div class="card" data-id="${p.id}" data-sound="add">
           ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
-          ${p.image_url
-            ? `<img class="thumb" src="${p.image_url}" alt="${p.name}" data-fallback-emoji="${categoryEmoji(p.category)}" onerror="olvHandleImageError(this)">`
-            : `<div class="thumb-fallback">${categoryEmoji(p.category)}</div>`
+          ${src
+            ? `<img class="thumb" src="${src}" alt="${p.name}" data-fallback-emoji="${fallbackEmoji}" onerror="olvHandleImageError(this)">`
+            : `<div class="thumb-fallback">${fallbackEmoji}</div>`
           }
           <div class="info">
             <div class="name">${p.name}</div>
@@ -660,7 +688,8 @@
             </div>
           </div>
         </div>
-      `).join("");
+      `;
+      }).join("");
       grid.querySelectorAll(".card").forEach((card) => {
         card.addEventListener("click", () => quickAddToCart(card.dataset.id));
       });
