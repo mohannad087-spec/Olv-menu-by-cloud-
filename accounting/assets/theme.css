@@ -4,6 +4,9 @@
   --paper:#ece5d5; --muted:#95897a; --hair:rgba(201,162,75,.25); --hair-soft:rgba(201,162,75,.1);
   --danger:#c1583f; --danger-hi:#e0a190; --ok:#7c8a4a;
   --overlay-bg:rgba(10,10,9,.94);
+  --card-shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px -8px rgba(0,0,0,.6);
+  --card-shadow-hover:0 2px 4px rgba(0,0,0,.55), 0 16px 36px -10px rgba(0,0,0,.7), 0 0 0 1px rgba(201,162,75,.18);
+  --ease:cubic-bezier(.2,.7,.3,1);
   color-scheme:dark;
 }
 :root[data-theme="light"]{
@@ -14,16 +17,22 @@
   --danger:#a8402a; --danger-hi:#8f3220; --ok:#3f4b20;
   --overlay-bg:rgba(250,247,240,.94);
   --card-shadow:0 1px 3px rgba(40,30,10,.08), 0 1px 2px rgba(40,30,10,.06);
+  --card-shadow-hover:0 4px 8px rgba(40,30,10,.1), 0 12px 28px -8px rgba(40,30,10,.14), 0 0 0 1px rgba(184,134,58,.2);
 }
-:root:not([data-theme="light"]){ --card-shadow:none; }
 *{box-sizing:border-box;}
 body{
-  margin:0; background:var(--ink); color:var(--paper);
+  margin:0; color:var(--paper);
   font-family:'Tajawal',system-ui,sans-serif; padding:0 0 90px;
+  background:
+    radial-gradient(1100px 560px at 12% -8%, rgba(201,162,75,.09), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(138,154,82,.07), transparent 55%),
+    var(--ink);
+  background-attachment:fixed;
 }
 h1,h2,h3{font-family:'Cormorant Garamond',serif; margin:0; color:var(--gold-hi); font-weight:600;}
 a{color:var(--gold-hi);}
 button{font-family:'Tajawal',sans-serif; cursor:pointer;}
+.icon{width:18px; height:18px; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-4px;}
 
 .wrap{max-width:960px; margin:0 auto; padding:22px 20px;}
 
@@ -31,10 +40,19 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 .top{
   position:sticky; top:0; z-index:30; background:var(--overlay-bg);
   backdrop-filter:blur(10px); border-bottom:1px solid var(--hair);
+  box-shadow:0 8px 24px -12px rgba(0,0,0,.5);
   padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
 }
-.top h1{font-size:20px; letter-spacing:2px;}
-.top h1 span{color:var(--muted); font-size:12px; letter-spacing:1px; font-family:'Tajawal',sans-serif; display:block; margin-top:2px;}
+.olv-brand{display:flex; align-items:center; gap:10px;}
+.brand-mark-sm{
+  flex:none; width:34px; height:34px; border-radius:9px;
+  background:linear-gradient(160deg,var(--gold-hi),var(--gold) 60%,var(--gold-dp));
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 10px -3px rgba(201,162,75,.55), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.brand-mark-sm .icon{width:19px; height:19px; color:#100e08; stroke-width:1.8;}
+.brand-text{font-size:20px; letter-spacing:2px;}
+.brand-text span{color:var(--muted); font-size:12px; letter-spacing:1px; font-family:'Tajawal',sans-serif; font-weight:400; display:block; margin-top:2px;}
 .top .actions{display:flex; gap:8px; flex-wrap:wrap;}
 
 .tabs{
@@ -45,9 +63,14 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
   position:relative;
   flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
   padding:11px 18px; border-radius:999px; font-size:13px; white-space:nowrap; text-decoration:none;
-  display:inline-flex; align-items:center; min-height:44px;
+  display:inline-flex; align-items:center; gap:7px; min-height:44px;
+  transition:background .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
 }
-.tab-link.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
+.tab-link:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
+.tab-link .icon{width:15px; height:15px; opacity:.85;}
+.tab-link.on{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08; border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px -4px rgba(201,162,75,.45);}
+.tab-link.on:hover{transform:none;}
+.tab-link.on .icon{opacity:1;}
 .tab-badge{
   position:absolute; top:-6px; inset-inline-end:-6px;
   background:var(--danger); color:#fff; font-size:10.5px; font-weight:700;
@@ -61,17 +84,19 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
    بالماوس */
 .btn{
   border:1px solid var(--hair); background:transparent; color:var(--paper);
-  padding:11px 16px; border-radius:8px; font-size:13px; transition:.2s;
+  padding:11px 16px; border-radius:8px; font-size:13px;
+  transition:border-color .16s var(--ease), color .16s var(--ease), transform .12s var(--ease), box-shadow .16s var(--ease), filter .16s var(--ease), background .16s var(--ease);
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
   min-height:44px; -webkit-tap-highlight-color:transparent;
 }
-.btn:hover{border-color:var(--gold); color:var(--gold-hi);}
-.btn.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08; font-weight:700; border:none;}
-.btn.gold:hover{filter:brightness(1.06);}
+.btn:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
+.btn:active{transform:translateY(0); filter:brightness(.96);}
+.btn.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08; font-weight:700; border:none; box-shadow:0 4px 14px -4px rgba(201,162,75,.5);}
+.btn.gold:hover{filter:brightness(1.06); box-shadow:0 6px 18px -4px rgba(201,162,75,.6);}
 .btn.danger{border-color:rgba(193,88,63,.4); color:var(--danger-hi);}
 .btn.danger:hover{border-color:var(--danger); color:#f0b7a8;}
 .btn.small{padding:8px 13px; font-size:12.5px; min-height:38px;}
-.btn:disabled{opacity:.5; cursor:not-allowed;}
+.btn:disabled{opacity:.5; cursor:not-allowed; transform:none;}
 
 /* ---- forms ---- */
 .field{margin-bottom:16px;}
@@ -102,8 +127,10 @@ input[type="checkbox"], input[type="radio"]{
 .group{
   background:var(--ink-2); border:1px solid var(--hair); border-radius:14px;
   padding:18px; margin-bottom:20px; box-shadow:var(--card-shadow);
+  transition:box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
-.group h2{font-size:17px; margin-bottom:14px;}
+.group h2{font-size:17px; margin-bottom:14px; display:flex; align-items:center; gap:9px;}
+.group h2 .icon{width:19px; height:19px; color:var(--gold);}
 
 /* ---- stat cards ---- */
 .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px;}
@@ -111,9 +138,21 @@ input[type="checkbox"], input[type="radio"]{
 .stat{
   background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px;
   box-shadow:var(--card-shadow);
+  transition:transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
-.stat .label{font-size:12px; color:var(--muted); margin-bottom:6px;}
-.stat .value{font-family:'Cormorant Garamond',serif; font-size:28px; color:var(--gold-hi); font-weight:600;}
+.stat:hover{transform:translateY(-3px); box-shadow:var(--card-shadow-hover); border-color:var(--hair);}
+/* .stat-row مضافة اختياريًا داخل .stat لعرض أيقونة جنب الرقم — الأقسام
+   القديمة اللي بتحط label/value مباشرة جوا .stat (بدون .stat-row)
+   بتضل شغالة زي ما هي، بترتيبها العمودي الافتراضي */
+.stat-row{display:flex; align-items:center; gap:14px;}
+.stat .stat-icon{
+  flex:none; width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(160deg, rgba(201,162,75,.18), rgba(201,162,75,.06)); color:var(--gold-hi);
+}
+.stat .stat-icon .icon{width:21px; height:21px;}
+.stat .stat-body{min-width:0;}
+.stat .label{font-size:12px; color:var(--muted); margin-bottom:4px;}
+.stat .value{font-family:'Cormorant Garamond',serif; font-size:28px; color:var(--gold-hi); font-weight:600; line-height:1.1;}
 .stat .value.bad{color:var(--danger-hi);}
 .stat .value.good{color:var(--ok);}
 
@@ -127,7 +166,8 @@ input[type="checkbox"], input[type="radio"]{
 table{width:max-content; min-width:100%; border-collapse:collapse; font-size:13.5px;}
 th,td{padding:10px 8px; text-align:right; border-bottom:1px solid var(--hair);}
 th{color:var(--muted); font-weight:500; font-size:12px;}
-tr:hover td{background:rgba(201,162,75,.05);}
+tbody tr{transition:background .15s var(--ease);}
+tr:hover td{background:rgba(201,162,75,.06);}
 .table-wrap{overflow-x:auto;}
 .empty-row td{text-align:center; color:var(--muted); padding:24px 8px;}
 
@@ -155,10 +195,19 @@ tr:hover td{background:rgba(201,162,75,.05);}
 .olv-connection-banner.offline{background:var(--danger); color:#fff;}
 .olv-connection-banner.online{background:var(--ok); color:#fff;}
 .center-card{
-  max-width:380px; margin:60px auto; background:var(--ink-2); border:1px solid var(--hair);
-  border-radius:16px; padding:28px; box-shadow:var(--card-shadow);
+  max-width:380px; margin:min(11vh,80px) auto 40px; background:var(--ink-2); border:1px solid var(--hair);
+  border-radius:18px; padding:32px 28px; box-shadow:0 1px 2px rgba(0,0,0,.5), 0 24px 60px -16px rgba(0,0,0,.65);
+  animation:olv-card-in .5s var(--ease) both;
 }
+@keyframes olv-card-in{from{opacity:0; transform:translateY(10px) scale(.98);} to{opacity:1; transform:none;}}
 .center-card h1{text-align:center; margin-bottom:22px; font-size:22px;}
+.brand-mark{
+  width:64px; height:64px; margin:0 auto 18px; border-radius:16px;
+  background:linear-gradient(160deg,var(--gold-hi),var(--gold) 60%,var(--gold-dp));
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 10px 24px -8px rgba(201,162,75,.55), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.brand-mark .icon{width:34px; height:34px; color:#100e08; stroke-width:1.6;}
 .badge{display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; border:1px solid var(--hair); color:var(--muted);}
 
 .olv-footer{

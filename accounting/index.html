@@ -70,21 +70,36 @@
 
     <div class="stats">
       <div class="stat">
-        <div class="label">مبيعات اليوم</div>
-        <div class="value" id="stat-sales">—</div>
+        <div class="stat-row">
+          <div class="stat-icon"></div>
+          <div class="stat-body">
+            <div class="label">مبيعات اليوم</div>
+            <div class="value" id="stat-sales">—</div>
+          </div>
+        </div>
       </div>
       <div class="stat">
-        <div class="label">مصروفات اليوم</div>
-        <div class="value" id="stat-expenses">—</div>
+        <div class="stat-row">
+          <div class="stat-icon"></div>
+          <div class="stat-body">
+            <div class="label">مصروفات اليوم</div>
+            <div class="value" id="stat-expenses">—</div>
+          </div>
+        </div>
       </div>
       <div class="stat">
-        <div class="label">صافي اليوم</div>
-        <div class="value" id="stat-net">—</div>
+        <div class="stat-row">
+          <div class="stat-icon"></div>
+          <div class="stat-body">
+            <div class="label">صافي اليوم</div>
+            <div class="value" id="stat-net">—</div>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="group">
-      <h2>آخر مبيعات مسجّلة</h2>
+      <h2></h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>التاريخ</th><th>كاش</th><th>شبكة</th><th>توصيل</th><th>الإجمالي</th></tr></thead>
@@ -96,7 +111,7 @@
     </div>
 
     <div class="group">
-      <h2>آخر مصروفات مسجّلة</h2>
+      <h2 id="recent-expenses-title"></h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>التاريخ</th><th>التصنيف</th><th>البيان</th><th>المبلغ</th></tr></thead>
@@ -119,6 +134,11 @@
   <script src="assets/low-stock-poll.js"></script>
   <script>
     olvRenderNav("dashboard");
+    document.getElementById("stat-sales").closest(".stat").querySelector(".stat-icon").innerHTML = olvIcon("receipt");
+    document.getElementById("stat-expenses").closest(".stat").querySelector(".stat-icon").innerHTML = olvIcon("minusCircle");
+    document.getElementById("stat-net").closest(".stat").querySelector(".stat-icon").innerHTML = olvIcon("wallet");
+    document.getElementById("recent-sales-body").closest(".group").querySelector("h2").innerHTML = olvIcon("receipt") + "<span>آخر مبيعات مسجّلة</span>";
+    document.getElementById("recent-expenses-title").innerHTML = olvIcon("minusCircle") + "<span>آخر مصروفات مسجّلة</span>";
 
     let todaySummary = null;
 

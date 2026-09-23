@@ -23,6 +23,7 @@
 </head>
 <body>
   <div class="center-card">
+    <div class="brand-mark" id="login-brand-mark"></div>
     <h1>محاسبة OLV</h1>
     <div class="err" id="err"></div>
     <form id="login-form">
@@ -45,9 +46,12 @@
   <script src="config.js"></script>
   <script src="assets/supabase-client.js"></script>
   <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
   <script src="assets/notify-sound.js"></script>
   <script src="assets/connection-status.js"></script>
   <script>
+    document.getElementById("login-brand-mark").innerHTML = olvIcon("brand");
+
     (async () => {
       if (!window.supabaseClient) return;
       const { data: { session } } = await window.supabaseClient.auth.getSession();
