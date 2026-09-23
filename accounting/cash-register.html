@@ -127,8 +127,7 @@
       session = await olvRequireAuth();
       if (!session) return;
       document.getElementById("closing_date").value = olvToday();
-      await loadClosings();
-      await suggestExpected(olvToday());
+      await Promise.all([loadClosings(), suggestExpected(olvToday())]);
 
       document.getElementById("closing_date").addEventListener("change", (e) => suggestExpected(e.target.value));
       document.getElementById("opening_balance").addEventListener("change", () =>

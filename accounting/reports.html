@@ -158,14 +158,17 @@
     // ومتوسطها، وعدد العمليات اللي سجّلها هو وانلغت (مفيد لضبط الأخطاء)
     async function loadEmployeePerformance(from, to) {
       const body = document.getElementById("employee-perf-body");
-      const { data: salesRows, error: e1 } = await window.supabaseClient
-        .from("sales_entries")
-        .select("created_by, status, cash_amount, card_amount, delivery_amount")
-        .gte("entry_date", from).lte("entry_date", to);
+      const [
+        { data: salesRows, error: e1 },
+        { data: profiles, error: e2 },
+      ] = await Promise.all([
+        window.supabaseClient
+          .from("sales_entries")
+          .select("created_by, status, cash_amount, card_amount, delivery_amount")
+          .gte("entry_date", from).lte("entry_date", to),
+        window.supabaseClient.from("profiles").select("id, full_name"),
+      ]);
       if (e1) throw e1;
-
-      const { data: profiles, error: e2 } = await window.supabaseClient
-        .from("profiles").select("id, full_name");
       if (e2) throw e2;
       const nameById = {};
       (profiles || []).forEach((p) => { nameById[p.id] = p.full_name || "بدون اسم"; });
@@ -209,13 +212,17 @@
       const from = document.getElementById("from_date").value;
       const to = document.getElementById("to_date").value;
       try {
-        const { data: sales, error: e1 } = await window.supabaseClient
-          .from("sales_entries").select("*").eq("status", "completed").gte("entry_date", from).lte("entry_date", to);
+        const [
+          { data: sales, error: e1 },
+          { data: expenses, error: e2 },
+        ] = await Promise.all([
+          window.supabaseClient
+            .from("sales_entries").select("*").eq("status", "completed").gte("entry_date", from).lte("entry_date", to),
+          window.supabaseClient
+            .from("expenses").select("amount, expense_categories(name)")
+            .gte("expense_date", from).lte("expense_date", to),
+        ]);
         if (e1) throw e1;
-
-        const { data: expenses, error: e2 } = await window.supabaseClient
-          .from("expenses").select("amount, expense_categories(name)")
-          .gte("expense_date", from).lte("expense_date", to);
         if (e2) throw e2;
 
         const cash = (sales || []).reduce((s, r) => s + Number(r.cash_amount), 0);

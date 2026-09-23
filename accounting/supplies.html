@@ -328,8 +328,7 @@
       if (!session) return;
       const errBox = document.getElementById("err");
       try {
-        await loadSuppliersSelect();
-        await loadSupplies();
+        await Promise.all([loadSuppliersSelect(), loadSupplies()]);
       } catch (err) {
         olvShowError(errBox, err);
       }

@@ -769,12 +769,14 @@
       const session = await olvRequireAuth();
       if (!session) return;
       document.getElementById("me-info").textContent = `مسجّل دخول بحساب: ${session.user.email}`;
-      await loadCategories();
-      await loadTables();
-      await loadProducts();
-      await loadAddons();
-      await loadPrinterSettings();
-      await loadPrintJobs();
+      await Promise.all([
+        loadCategories(),
+        loadTables(),
+        loadProducts(),
+        loadAddons(),
+        loadPrinterSettings(),
+        loadPrintJobs(),
+      ]);
     })();
 
     document.getElementById("cat-form").addEventListener("submit", async (e) => {
