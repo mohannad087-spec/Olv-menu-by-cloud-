@@ -10,6 +10,7 @@ function olvRenderNav(active) {
     { id: "recipes", href: "recipes.html", label: "وصفات المشروبات" },
     { id: "inventory", href: "inventory.html", label: "المخزون" },
     { id: "supplies", href: "supplies.html", label: "المستلزمات" },
+    { id: "purchases", href: "purchases.html", label: "تسجيل شراء" },
     { id: "expenses", href: "expenses.html", label: "المصروفات" },
     { id: "suppliers", href: "suppliers.html", label: "الموردون" },
     { id: "cash", href: "cash-register.html", label: "الخزينة" },
