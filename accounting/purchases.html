@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل شراء — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  window.olvApplyTheme = function(){
+    document.documentElement.setAttribute('data-theme', computeTheme());
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .item-type-tabs{display:flex; gap:8px; margin-bottom:16px;}
+  .item-type-tab{
+    flex:1; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
+    padding:12px; border-radius:10px; font-size:14px; font-weight:600; text-align:center;
+  }
+  .item-type-tab.on{background:var(--gold); border-color:var(--gold); color:#100e08;}
+  .purchase-total{
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:10px;
+    padding:14px 16px; display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .purchase-total .label{font-size:13px; color:var(--muted);}
+  .purchase-total .value{font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:700; color:var(--gold-hi);}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>تسجيل شراء</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        سجّل هون أي عملية شراء (مواد خام أو مستلزمات/ورقيات) بسعر الوحدة الفعلي — بيتحدّث تلقائيًا
+        مخزون الصنف وآخر سعر معروف له، وينضاف قيد مصروف تلقائي بتصنيف "مشتريات ومخزون".
+      </p>
+
+      <div class="item-type-tabs">
+        <button type="button" class="item-type-tab on" data-item-type="ingredient">مادة خام</button>
+        <button type="button" class="item-type-tab" data-item-type="supply">مستلزم / ورقيات</button>
+      </div>
+
+      <form id="purchase-form">
+        <div class="field">
+          <label>الصنف</label>
+          <select id="p-item" required></select>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label id="p-qty-label">الكمية</label>
+            <input type="number" id="p-qty" step="0.001" min="0.001" required>
+          </div>
+          <div class="field">
+            <label id="p-price-label">سعر الوحدة</label>
+            <input type="number" id="p-price" step="0.01" min="0" required>
+          </div>
+        </div>
+        <div class="purchase-total">
+          <span class="label">الإجمالي</span>
+          <span class="value" id="p-total">0.00</span>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>المورد (اختياري)</label>
+            <select id="p-supplier"></select>
+          </div>
+          <div class="field">
+            <label>تاريخ الشراء</label>
+            <input type="date" id="p-date">
+          </div>
+        </div>
+        <div class="field">
+          <label>ملاحظات (اختياري)</label>
+          <input type="text" id="p-notes" placeholder="مثال: رقم فاتورة، أو أي تفصيل">
+        </div>
+        <button type="submit" class="btn gold" id="p-submit-btn">تسجيل الشراء</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <h2>سجل المشتريات الأخيرة</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>التاريخ</th>
+              <th>الصنف</th>
+              <th>الكمية</th>
+              <th>سعر الوحدة</th>
+              <th>الإجمالي</th>
+              <th>المورد</th>
+            </tr>
+          </thead>
+          <tbody id="purchases-body">
+            <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/supabase-client.js"></script>
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/layout.js"></script>
+  <script src="assets/notify-sound.js"></script>
+  <script src="assets/connection-status.js"></script>
+  <script src="assets/incoming-orders-poll.js"></script>
+  <script>
+    olvRenderNav("purchases");
+
+    let itemType = "ingredient";
+    let ingredients = [];
+    let supplies = [];
+    let suppliers = [];
+
+    function currentItems() {
+      return itemType === "ingredient" ? ingredients : supplies;
+    }
+
+    function currentItem() {
+      const id = document.getElementById("p-item").value;
+      return currentItems().find((i) => i.id === id);
+    }
+
+    function renderItemSelect() {
+      const sel = document.getElementById("p-item");
+      const items = currentItems();
+      sel.innerHTML = items.length
+        ? items.map((i) => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("")
+        : `<option value="">لا يوجد أصناف — أضفها أولًا</option>`;
+      updateUnitLabels();
+    }
+
+    function updateUnitLabels() {
+      const item = currentItem();
+      const unit = item ? item.unit : "";
+      document.getElementById("p-qty-label").textContent = unit ? `الكمية (${unit})` : "الكمية";
+      document.getElementById("p-price-label").textContent = unit ? `سعر الـ ${unit} الواحد` : "سعر الوحدة";
+      if (item && item.unit_price) {
+        document.getElementById("p-price").value = item.unit_price;
+      }
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const qty = Number(document.getElementById("p-qty").value || 0);
+      const price = Number(document.getElementById("p-price").value || 0);
+      document.getElementById("p-total").textContent = olvFormatMoney(qty * price);
+    }
+
+    async function loadIngredients() {
+      const { data, error } = await window.supabaseClient.from("ingredients").select("id, name, unit, unit_price").order("name");
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      ingredients = data || [];
+    }
+
+    async function loadSupplies() {
+      const { data, error } = await window.supabaseClient.from("supplies").select("id, name, unit, unit_price").order("name");
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      supplies = data || [];
+    }
+
+    async function loadSuppliersSelect() {
+      const { data, error } = await window.supabaseClient.from("suppliers").select("id, name").order("name");
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      suppliers = data || [];
+      const sel = document.getElementById("p-supplier");
+      sel.innerHTML = `<option value="">— بدون —</option>` + suppliers.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+    }
+
+    async function loadPurchases() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("purchases-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("purchases").select("*, suppliers(name)").order("created_at", { ascending: false }).limit(50);
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد مشتريات مسجّلة بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((p) => `
+          <tr>
+            <td>${p.purchase_date}</td>
+            <td>${p.item_name}</td>
+            <td>${p.quantity} ${p.unit}</td>
+            <td>${olvFormatMoney(p.unit_price)}</td>
+            <td>${olvFormatMoney(p.total_amount)}</td>
+            <td>${p.suppliers ? p.suppliers.name : "—"}</td>
+          </tr>
+        `).join("");
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    document.querySelectorAll(".item-type-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        itemType = btn.dataset.itemType;
+        document.querySelectorAll(".item-type-tab").forEach((b) => b.classList.toggle("on", b === btn));
+        renderItemSelect();
+      });
+    });
+    document.getElementById("p-item").addEventListener("change", updateUnitLabels);
+    document.getElementById("p-qty").addEventListener("input", updateTotal);
+    document.getElementById("p-price").addEventListener("input", updateTotal);
+
+    document.getElementById("purchase-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const item = currentItem();
+      if (!item) { olvShowError(errBox, new Error("لازم تختار صنف")); return; }
+      const qty = Number(document.getElementById("p-qty").value || 0);
+      const price = Number(document.getElementById("p-price").value || 0);
+      const supplierId = document.getElementById("p-supplier").value || null;
+      const purchaseDate = document.getElementById("p-date").value || olvToday();
+      const notes = document.getElementById("p-notes").value.trim() || null;
+
+      const btn = document.getElementById("p-submit-btn");
+      btn.disabled = true;
+      try {
+        const { error } = await window.supabaseClient.rpc("record_purchase", {
+          p_ingredient_id: itemType === "ingredient" ? item.id : null,
+          p_supply_id: itemType === "supply" ? item.id : null,
+          p_quantity: qty,
+          p_unit_price: price,
+          p_supplier_id: supplierId,
+          p_purchase_date: purchaseDate,
+          p_notes: notes,
+        });
+        if (error) throw error;
+        document.getElementById("purchase-form").reset();
+        document.getElementById("p-date").value = olvToday();
+        await Promise.all([loadIngredients(), loadSupplies()]);
+        renderItemSelect();
+        updateTotal();
+        await loadPurchases();
+        if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      document.getElementById("p-date").value = olvToday();
+      await Promise.all([loadIngredients(), loadSupplies(), loadSuppliersSelect()]);
+      renderItemSelect();
+      await loadPurchases();
+    })();
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>

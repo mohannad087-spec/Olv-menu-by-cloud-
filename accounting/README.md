@@ -79,6 +79,7 @@
      14. [`schema-customer-name.sql`](./schema-customer-name.sql) — اسم الزبون على طلبات الصالة والسفري (لازم بعد `schema-void-sale-item.sql`، وإلا فشلت كل عملية بيع من شاشة البيع السريع)
      15. [`schema-product-description.sql`](./schema-product-description.sql) — وصف قصير اختياري لكل منتج، يظهر تحت اسمه بشاشة البيع السريع
      16. [`schema-restaurant-tables.sql`](./schema-restaurant-tables.sql) — طاولات الصالة وحالة إشغالها (خريطة الطاولات)
+     17. [`schema-purchases.sql`](./schema-purchases.sql) — تسجيل شراء المواد الخام/المستلزمات بسعر الوحدة، مع تحديث تلقائي للمخزون وقيد مصروف
    - إذا ظهرت رسالة خطأ من نوع "column ... does not exist" عند إتمام دفع من
      شاشة البيع السريع (عادةً لأن أحد الملفات فوق انفاتك بالترتيب)، شغّل
      [`schema-fix-checkout-error.sql`](./schema-fix-checkout-error.sql) — ملف
@@ -164,6 +165,7 @@ accounting/
   recipes.html                   دليل تحضير المشروبات الساخنة والباردة (مكوّنات وخطوات مرقّمة لكل صنف)
   inventory.html                 المواد الخام ووصفات الأصناف والإضافات
   supplies.html                  جرد المستلزمات/الورقيات وتجهيز طلبية شراء
+  purchases.html                 تسجيل شراء المواد الخام/المستلزمات بسعر الوحدة الفعلي
   expenses.html                  تسجيل وعرض المصروفات
   suppliers.html                 الموردون، فواتيرهم ودفعاتهم، وكشف الحساب
   cash-register.html             تقفيل الخزينة اليومي
@@ -186,6 +188,7 @@ accounting/
   schema-fix-checkout-error.sql  إصلاح شامل لأي عمود/دالة ناقصة بمسار البيع (شغّله لو ظهر خطأ "column ... does not exist")
   schema-product-description.sql وصف قصير اختياري لكل منتج
   schema-restaurant-tables.sql   طاولات الصالة وحالة إشغالها (خريطة الطاولات)
+  schema-purchases.sql           تسجيل شراء بسعر الوحدة — يحدّث المخزون وينشئ قيد مصروف تلقائي
   config.js                      بيانات الاتصال بمشروع Supabase الخاص بك
   assets/                        التصميم (theme.css) والأكواد المشتركة (JS)
 print-bridge/                    برنامج يعمل على جهاز داخل شبكة المطعم لإرسال
