@@ -58,16 +58,17 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="assets/supabase-client.js"></script>
-  <script src="assets/auth-guard.js"></script>
-  <script src="assets/layout.js"></script>
-  <script src="assets/notify-sound.js"></script>
-  <script src="assets/connection-status.js"></script>
-  <script src="assets/incoming-orders-poll.js"></script>
-  <script src="assets/low-stock-poll.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
   <script>
+    document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("tables");
 
     function minutesSince(ts) {
@@ -129,6 +130,7 @@
       await loadTables();
       setInterval(loadTables, 15000);
     })();
+    });
   </script>
   <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
 </body>
