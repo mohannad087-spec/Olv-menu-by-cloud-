@@ -14,8 +14,29 @@
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
+  function applyAccent(theme){
+    var root = document.documentElement.style;
+    var props = ['--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_accent_palette');
+      var palette = raw ? JSON.parse(raw)[theme] : null;
+      if (!palette) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return;
+      }
+      root.setProperty('--gold', palette.gold);
+      root.setProperty('--gold-hi', palette.goldHi);
+      root.setProperty('--gold-dp', palette.goldDp);
+      root.setProperty('--gold-rgb', palette.goldRgb);
+      root.setProperty('--on-gold', palette.onGold);
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+    }
+  }
   window.olvApplyTheme = function(){
-    document.documentElement.setAttribute('data-theme', computeTheme());
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    applyAccent(theme);
   };
   window.olvApplyTheme();
 })();

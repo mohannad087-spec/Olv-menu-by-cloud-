@@ -125,3 +125,123 @@ function olvInitThemeToggle() {
     btn.innerHTML = olvThemeModeIcon(next);
   });
 }
+
+// ================= تخصيص لون البرنامج الأساسي (بدل الذهبي الافتراضي) =================
+// المستخدم بيختار لون واحد بس، وهاي الدوال بتشتق منه تلقائيًا نسخة أفتح
+// (hi) وأغمق (dp) لكل من وضع الفاتح والداكن، بنفس فرق التدرج المستخدم
+// أصلًا بألوان الذهبي الافتراضية (محسوبة من قيمها الحالية بـ HSL)، بالإضافة
+// للون النص المناسب فوق خلفية بلون العلامة (--on-gold: أسود قريب لو اللون
+// فاتح، أو كريمي فاتح لو اللون غامق) — حتى يضل واضح القراءة أيًا كان اللون
+const OLV_ACCENT_KEY = "olv_accent_palette";
+
+function olvHexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
+  if (!m) return null;
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+
+function olvRgbToHex(r, g, b) {
+  const h = (n) => Math.round(Math.max(0, Math.min(255, n))).toString(16).padStart(2, "0");
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+function olvRgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s: s * 100, l: l * 100 };
+}
+
+function olvHslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+}
+
+// يولّد نسخة أفتح/أغمق من لون أساسي عبر تعديل الإضاءة (L) والتشبع (S) في
+// فضاء HSL، مع حدود دنيا/قصوى تمنع وصول اللون لأسود أو أبيض خالص
+function olvShadeHex(baseHex, lDelta, sDelta) {
+  const rgb = olvHexToRgb(baseHex);
+  if (!rgb) return baseHex;
+  const hsl = olvRgbToHsl(rgb.r, rgb.g, rgb.b);
+  const l = Math.max(8, Math.min(92, hsl.l + lDelta));
+  const s = Math.max(0, Math.min(100, hsl.s + sDelta));
+  const out = olvHslToRgb(hsl.h, s, l);
+  return olvRgbToHex(out.r, out.g, out.b);
+}
+
+function olvContrastTextColor(baseHex) {
+  const rgb = olvHexToRgb(baseHex);
+  if (!rgb) return "#100e08";
+  const yiq = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+  return yiq >= 140 ? "#100e08" : "#faf7f0";
+}
+
+// يبني كامل لوحة الألوان المشتقة (فاتح + داكن) من لون واحد يختاره المستخدم
+function olvComputeAccentPalette(baseHex) {
+  const rgb = olvHexToRgb(baseHex);
+  if (!rgb) return null;
+  const rgbStr = `${Math.round(rgb.r)},${Math.round(rgb.g)},${Math.round(rgb.b)}`;
+  const onColor = olvContrastTextColor(baseHex);
+  return {
+    dark: {
+      gold: baseHex,
+      goldHi: olvShadeHex(baseHex, 26, 15),
+      goldDp: olvShadeHex(baseHex, -23, 17),
+      goldRgb: rgbStr,
+      onGold: onColor,
+    },
+    light: {
+      gold: baseHex,
+      goldHi: olvShadeHex(baseHex, -16, 27),
+      goldDp: olvShadeHex(baseHex, -26, 24),
+      goldRgb: rgbStr,
+      onGold: onColor,
+    },
+  };
+}
+
+function olvSaveAccentColor(baseHex) {
+  const palette = olvComputeAccentPalette(baseHex);
+  if (!palette) return false;
+  localStorage.setItem(OLV_ACCENT_KEY, JSON.stringify(palette));
+  if (window.olvApplyTheme) window.olvApplyTheme();
+  return true;
+}
+
+function olvResetAccentColor() {
+  localStorage.removeItem(OLV_ACCENT_KEY);
+  if (window.olvApplyTheme) window.olvApplyTheme();
+}
+
+// يرجّع اللون الأساسي المخزَّن حاليًا (لتعبئة حقل اختيار اللون بصفحة
+// الإعدادات)، أو null لو ما في تخصيص محفوظ (يعني لسا على الذهبي الافتراضي)
+function olvGetAccentBaseColor() {
+  try {
+    const raw = localStorage.getItem(OLV_ACCENT_KEY);
+    if (!raw) return null;
+    const palette = JSON.parse(raw);
+    return (palette && palette.dark && palette.dark.gold) || null;
+  } catch (e) {
+    return null;
+  }
+}

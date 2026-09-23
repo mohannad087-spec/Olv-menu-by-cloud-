@@ -14,8 +14,29 @@
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
+  function applyAccent(theme){
+    var root = document.documentElement.style;
+    var props = ['--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_accent_palette');
+      var palette = raw ? JSON.parse(raw)[theme] : null;
+      if (!palette) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return;
+      }
+      root.setProperty('--gold', palette.gold);
+      root.setProperty('--gold-hi', palette.goldHi);
+      root.setProperty('--gold-dp', palette.goldDp);
+      root.setProperty('--gold-rgb', palette.goldRgb);
+      root.setProperty('--on-gold', palette.onGold);
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+    }
+  }
   window.olvApplyTheme = function(){
-    document.documentElement.setAttribute('data-theme', computeTheme());
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    applyAccent(theme);
   };
   window.olvApplyTheme();
 })();
@@ -89,7 +110,7 @@
   .cat-tab .cat-tab-icon{font-size:26px; line-height:1;}
   .cat-tab .cat-tab-icon .icon{width:24px; height:24px;}
   .cat-tab .cat-tab-label{font-weight:600;}
-  .cat-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px rgba(201,162,75,.25);}
+  .cat-tab.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px rgba(var(--gold-rgb),.25);}
   @media (max-width:900px){
     .cat-tabs{flex-direction:row; overflow-x:auto; padding-bottom:2px;}
     .cat-tab{width:84px; flex:none;}
@@ -103,7 +124,7 @@
   .card:active{transform:scale(.97);}
   .card .best-badge{
     position:absolute; top:8px; inset-inline-start:8px; z-index:1;
-    background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08;
+    background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold);
     font-size:10.5px; font-weight:700; border-radius:999px; padding:3px 8px;
     display:flex; align-items:center; gap:3px; box-shadow:0 2px 8px rgba(0,0,0,.25);
   }
@@ -179,7 +200,7 @@
     min-height:72px;
   }
   .pm-tile .icon{width:24px; height:24px;}
-  .pm-tile.on{border-color:var(--gold); background:rgba(201,162,75,.12); color:var(--gold-hi); font-weight:700;}
+  .pm-tile.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.12); color:var(--gold-hi); font-weight:700;}
 
   .cash-panel{margin-bottom:8px;}
   .received-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
@@ -233,7 +254,7 @@
   }
   .addon-row{
     display:flex; align-items:center; gap:10px; padding:12px 0;
-    border-bottom:1px solid var(--hair-soft,rgba(201,162,75,.1)); cursor:pointer; width:100%;
+    border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); cursor:pointer; width:100%;
   }
   .addon-row .addon-name{flex:1; font-size:13.5px;}
   .addon-row .a-price{color:var(--muted); font-size:12.5px;}
@@ -260,7 +281,7 @@
     flex:1; background:var(--ink-2); border:1px solid var(--hair); border-radius:8px;
     color:var(--muted); font-size:12px; font-weight:600; padding:6px; cursor:pointer;
   }
-  .discount-mode-tab.on{background:var(--gold); border-color:var(--gold); color:#100e08;}
+  .discount-mode-tab.on{background:var(--gold); border-color:var(--gold); color:var(--on-gold);}
   .discount-input-wrap{display:flex; align-items:center; gap:8px;}
   .discount-input-wrap input{
     flex:1; background:var(--ink-2); border:1px solid var(--hair); border-radius:8px;
@@ -278,19 +299,19 @@
   .cart-total-row.discount span:last-child{color:var(--danger-hi);}
   .cart-total-row.grand{
     font-size:15px; color:var(--paper); font-weight:600; padding-top:8px;
-    border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));
+    border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.12));
   }
   .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:24px; color:var(--gold-hi); font-weight:700;}
   .cart-bar .actions{display:flex; gap:8px;}
   .cart-bar .actions .btn{flex:1;}
   .cart-list{margin-bottom:0;}
   .cart-item{
-    background:var(--ink-3); border:1px solid var(--hair-soft,rgba(201,162,75,.14));
+    background:var(--ink-3); border:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));
     border-radius:14px; padding:12px 14px; margin-bottom:10px;
   }
   .cart-item-top{display:flex; align-items:flex-start; gap:10px;}
   .qty-badge{
-    flex:none; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#100e08;
+    flex:none; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold);
     font-weight:700; font-size:12.5px; min-width:24px; height:24px; border-radius:7px;
     display:flex; align-items:center; justify-content:center; padding:0 4px;
   }
@@ -301,7 +322,7 @@
   .cart-item-price{flex:none; font-weight:700; color:var(--gold-hi); font-size:14.5px; white-space:nowrap;}
   .cart-item-controls{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft,rgba(201,162,75,.12));
+    margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.12));
   }
   .qty-stepper{
     display:flex; align-items:center; gap:2px; background:var(--ink-2); border:1px solid var(--hair);
@@ -311,7 +332,7 @@
     width:30px; height:30px; border-radius:50%; border:0; background:transparent;
     color:var(--gold); font-size:17px; flex:none; line-height:0;
   }
-  .qty-stepper button:active{background:var(--gold); color:#100e08;}
+  .qty-stepper button:active{background:var(--gold); color:var(--on-gold);}
   .qty-stepper .qty-value{min-width:24px; text-align:center; font-size:14px; font-weight:700;}
   .cart-item-remove{
     width:32px; height:32px; border-radius:8px; border:1px solid transparent; background:transparent;
@@ -324,7 +345,7 @@
   .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .ticket-header h2{margin:0;}
   .ticket-badge{
-    background:var(--gold); color:#100e08; font-size:12px; font-weight:700;
+    background:var(--gold); color:var(--on-gold); font-size:12px; font-weight:700;
     border-radius:999px; min-width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center;
     padding:0 6px;
   }

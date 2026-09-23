@@ -14,8 +14,29 @@
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
+  function applyAccent(theme){
+    var root = document.documentElement.style;
+    var props = ['--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_accent_palette');
+      var palette = raw ? JSON.parse(raw)[theme] : null;
+      if (!palette) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return;
+      }
+      root.setProperty('--gold', palette.gold);
+      root.setProperty('--gold-hi', palette.goldHi);
+      root.setProperty('--gold-dp', palette.goldDp);
+      root.setProperty('--gold-rgb', palette.goldRgb);
+      root.setProperty('--on-gold', palette.onGold);
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+    }
+  }
   window.olvApplyTheme = function(){
-    document.documentElement.setAttribute('data-theme', computeTheme());
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    applyAccent(theme);
   };
   window.olvApplyTheme();
 })();
@@ -36,7 +57,7 @@
     background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
     padding:10px 18px; border-radius:999px; font-size:13px; min-height:44px;
   }
-  .sub-tab.on{background:var(--gold); color:#100e08; border-color:var(--gold); font-weight:700;}
+  .sub-tab.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .settings-panel{display:none;}
   .settings-panel.on{display:block;}
 </style>
@@ -263,6 +284,24 @@
       </p>
     </div>
 
+    <div class="group">
+      <h2>لون البرنامج الأساسي</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        اختر لونًا واحدًا ليصير هو لون العلامة بكل البرنامج بدل الذهبي الافتراضي — تتولّد منه
+        تلقائيًا الدرجات الفاتحة/الغامقة المطلوبة بوضعي الفاتح والداكن. التخصيص محفوظ على هالجهاز/المتصفح فقط.
+      </p>
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px;">
+        <input type="color" id="accent-color-input" value="#c9a24b"
+          style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
+        <button type="button" class="btn gold" id="accent-preview-btn" style="pointer-events:none;">مثال على الزر</button>
+        <span class="tab-link on" id="accent-preview-tab" style="pointer-events:none;">مثال تبويب</span>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button type="button" class="btn gold" id="accent-save-btn">حفظ اللون</button>
+        <button type="button" class="btn" id="accent-reset-btn">استعادة الذهبي الافتراضي</button>
+      </div>
+    </div>
+
     </div>
   </div>
 
@@ -279,6 +318,40 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("settings");
     document.getElementById("import-menu-btn").innerHTML = olvIcon("refresh") + "<span>مزامنة الأصناف من موقع المنيو الحقيقي</span>";
+
+    // ---- تخصيص لون البرنامج الأساسي ----
+    const DEFAULT_ACCENT = "#c9a24b";
+    const accentInput = document.getElementById("accent-color-input");
+    accentInput.value = olvGetAccentBaseColor() || DEFAULT_ACCENT;
+
+    // معاينة حيّة بكل الصفحة أثناء السحب على منتقي اللون (قبل الحفظ) —
+    // بتطبّق درجات وضع العرض الحالي (فاتح/داكن) بس، بدون تخزين أي شي
+    function previewAccentColor(hex) {
+      const palette = olvComputeAccentPalette(hex);
+      if (!palette) return;
+      const theme = document.documentElement.getAttribute("data-theme") || "dark";
+      const shades = palette[theme] || palette.dark;
+      const root = document.documentElement.style;
+      root.setProperty("--gold", shades.gold);
+      root.setProperty("--gold-hi", shades.goldHi);
+      root.setProperty("--gold-dp", shades.goldDp);
+      root.setProperty("--gold-rgb", shades.goldRgb);
+      root.setProperty("--on-gold", shades.onGold);
+    }
+    accentInput.addEventListener("input", () => previewAccentColor(accentInput.value));
+
+    document.getElementById("accent-save-btn").addEventListener("click", () => {
+      olvSaveAccentColor(accentInput.value);
+      const btn = document.getElementById("accent-save-btn");
+      const original = btn.textContent;
+      btn.textContent = "تم الحفظ";
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    });
+
+    document.getElementById("accent-reset-btn").addEventListener("click", () => {
+      olvResetAccentColor();
+      accentInput.value = DEFAULT_ACCENT;
+    });
 
     document.querySelectorAll(".sub-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
