@@ -122,12 +122,13 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="assets/supabase-client.js"></script>
-  <script src="assets/auth-guard.js"></script>
-  <script src="assets/layout.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
   <script>
+    document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("recipes");
     document.getElementById("tab-hot").innerHTML = olvIcon("flame") + "<span>ساخنة</span>";
     document.getElementById("tab-cold").innerHTML = olvIcon("snowflake") + "<span>باردة</span>";
@@ -536,6 +537,7 @@
       if (!session) return;
       renderAll();
     })();
+    });
   </script>
   <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
 </body>
