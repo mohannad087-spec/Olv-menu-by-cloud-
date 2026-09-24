@@ -240,6 +240,7 @@ function olvComputeCustomTheme(bgHex, accentHex) {
   const onGold = olvContrastTextColor(accentHex);
 
   return {
+    isDark,
     ink, ink2, ink3, paper, muted,
     hair: `rgba(${accentRgbStr},.25)`,
     hairSoft: `rgba(${accentRgbStr},.1)`,

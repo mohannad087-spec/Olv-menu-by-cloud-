@@ -25,6 +25,7 @@
         props.forEach(function (p) { root.removeProperty(p); });
         return false;
       }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
       root.setProperty('--ink', t.ink);
       root.setProperty('--ink-2', t.ink2);
       root.setProperty('--ink-3', t.ink3);
@@ -352,6 +353,7 @@
     function previewCustomTheme() {
       const theme = olvComputeCustomTheme(bgInput.value, themeAccentInput.value);
       if (!theme) return;
+      document.documentElement.setAttribute("data-theme", theme.isDark ? "dark" : "light");
       const root = document.documentElement.style;
       root.setProperty("--ink", theme.ink);
       root.setProperty("--ink-2", theme.ink2);
