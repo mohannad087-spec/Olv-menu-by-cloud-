@@ -115,24 +115,35 @@ function olvThemeModeIcon(mode) {
 function olvInitThemeToggle() {
   const btn = document.getElementById("theme-toggle-btn");
   if (!btn) return;
+  // لما يكون في ثيم كامل مخصَّص فعّال، زر تبديل الفاتح/الداكن ما إله معنى
+  // (الثيم المخصَّص بيغطي كل الألوان بغض النظر عن data-theme) — نخفيه بدل
+  // ما يظهر وكأنه شغال وهو مش مؤثر فعليًا
+  if (window.olvCustomThemeActive) {
+    btn.style.display = "none";
+    return;
+  }
+  btn.style.display = "";
   const currentMode = localStorage.getItem("olv_theme_mode") || "auto";
   btn.innerHTML = olvThemeModeIcon(currentMode);
-  btn.addEventListener("click", () => {
+  // onclick بدل addEventListener عمدًا: الدالة هاي ممكن تُستدعى أكثر من
+  // مرة بنفس تحميل الصفحة (بعد حفظ/استعادة الثيم المخصَّص من الإعدادات)،
+  // وonclick بيستبدل المعالج السابق بدل ما يراكم معالجات مكرَّرة فوق بعض
+  btn.onclick = () => {
     const mode = localStorage.getItem("olv_theme_mode") || "auto";
     const next = mode === "auto" ? "light" : mode === "light" ? "dark" : "auto";
     localStorage.setItem("olv_theme_mode", next);
     if (window.olvApplyTheme) window.olvApplyTheme();
     btn.innerHTML = olvThemeModeIcon(next);
-  });
+  };
 }
 
-// ================= تخصيص لون البرنامج الأساسي (بدل الذهبي الافتراضي) =================
-// المستخدم بيختار لون واحد بس، وهاي الدوال بتشتق منه تلقائيًا نسخة أفتح
-// (hi) وأغمق (dp) لكل من وضع الفاتح والداكن، بنفس فرق التدرج المستخدم
-// أصلًا بألوان الذهبي الافتراضية (محسوبة من قيمها الحالية بـ HSL)، بالإضافة
-// للون النص المناسب فوق خلفية بلون العلامة (--on-gold: أسود قريب لو اللون
-// فاتح، أو كريمي فاتح لو اللون غامق) — حتى يضل واضح القراءة أيًا كان اللون
-const OLV_ACCENT_KEY = "olv_accent_palette";
+// ================= تخصيص ثيم كامل للبرنامج (خلفية + لون علامة) =================
+// المستخدم بيختار لونين بس: لون الخلفية الأساسي ولون العلامة/الأزرار،
+// وهاي الدوال بتشتق منهم كل الألوان التانية (خلفيات البطاقات، النص،
+// النص الخافت، الحدود، ودرجات لون العلامة الفاتحة/الغامقة) عبر HSL —
+// ثيم ثابت واحد بيستبدل تبديل الفاتح/الداكن التلقائي بالكامل، تمامًا متل
+// موقع مرجعي بلونين محددين (خلفية + تمييز) بدون تبديل أوضاع
+const OLV_THEME_KEY = "olv_custom_theme";
 
 function olvHexToRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
@@ -178,69 +189,87 @@ function olvHslToRgb(h, s, l) {
 }
 
 // يولّد نسخة أفتح/أغمق من لون أساسي عبر تعديل الإضاءة (L) والتشبع (S) في
-// فضاء HSL، مع حدود دنيا/قصوى تمنع وصول اللون لأسود أو أبيض خالص
+// فضاء HSL، مع حدود دنيا/قصوى واسعة (2–98) تمنع وصول اللون لأسود/أبيض
+// خالص بس بدون ما "تعكس" اتجاه الفرق المطلوب — حد أضيق متل 8–92 كان
+// عمليًا بيرجّع لون أساسي قريب من الأبيض (خلفية فاتحة جدًا) أغمق من
+// الأصل رغم إن lDelta موجب، لأن القيمة الأصلية كانت أعلى من سقف الحد
 function olvShadeHex(baseHex, lDelta, sDelta) {
   const rgb = olvHexToRgb(baseHex);
   if (!rgb) return baseHex;
   const hsl = olvRgbToHsl(rgb.r, rgb.g, rgb.b);
-  const l = Math.max(8, Math.min(92, hsl.l + lDelta));
+  const l = Math.max(2, Math.min(98, hsl.l + lDelta));
   const s = Math.max(0, Math.min(100, hsl.s + sDelta));
   const out = olvHslToRgb(hsl.h, s, l);
   return olvRgbToHex(out.r, out.g, out.b);
 }
 
-function olvContrastTextColor(baseHex) {
+function olvContrastTextColor(baseHex, lightColor, darkColor) {
   const rgb = olvHexToRgb(baseHex);
-  if (!rgb) return "#100e08";
+  if (!rgb) return darkColor || "#100e08";
   const yiq = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-  return yiq >= 140 ? "#100e08" : "#faf7f0";
+  return yiq >= 140 ? (darkColor || "#100e08") : (lightColor || "#faf7f0");
 }
 
-// يبني كامل لوحة الألوان المشتقة (فاتح + داكن) من لون واحد يختاره المستخدم
-function olvComputeAccentPalette(baseHex) {
-  const rgb = olvHexToRgb(baseHex);
-  if (!rgb) return null;
-  const rgbStr = `${Math.round(rgb.r)},${Math.round(rgb.g)},${Math.round(rgb.b)}`;
-  const onColor = olvContrastTextColor(baseHex);
+// يبني كامل ثيم البرنامج (خلفيات، نصوص، حدود، درجات لون العلامة) من لونين
+// بس يختارهم المستخدم: لون الخلفية الأساسي ولون العلامة/الأزرار. يكتشف
+// تلقائيًا إذا الخلفية غامقة أو فاتحة (عبر إضاءة HSL) ويشتق باقي الدرجات
+// بنفس اتجاه التدرّج المناسب لكل حالة
+function olvComputeCustomTheme(bgHex, accentHex) {
+  const bgRgb = olvHexToRgb(bgHex);
+  const accentRgb = olvHexToRgb(accentHex);
+  if (!bgRgb || !accentRgb) return null;
+  const bgHsl = olvRgbToHsl(bgRgb.r, bgRgb.g, bgRgb.b);
+  const isDark = bgHsl.l < 50;
+  const bgRgbStr = `${Math.round(bgRgb.r)},${Math.round(bgRgb.g)},${Math.round(bgRgb.b)}`;
+  const accentRgbStr = `${Math.round(accentRgb.r)},${Math.round(accentRgb.g)},${Math.round(accentRgb.b)}`;
+
+  const ink = bgHex;
+  const ink2 = isDark ? olvShadeHex(bgHex, 5, 2) : olvShadeHex(bgHex, 6, 0);
+  const ink3 = isDark ? olvShadeHex(bgHex, 10, 3) : olvShadeHex(bgHex, -6, 5);
+  const textRgb = isDark
+    ? olvHslToRgb(bgHsl.h, Math.min(25, bgHsl.s * 0.3), 90)
+    : olvHslToRgb(bgHsl.h, Math.min(45, bgHsl.s * 0.5 + 10), 12);
+  const mutedRgb = isDark
+    ? olvHslToRgb(bgHsl.h, Math.min(25, bgHsl.s * 0.3), 60)
+    : olvHslToRgb(bgHsl.h, Math.min(35, bgHsl.s * 0.4), 32);
+  const paper = olvRgbToHex(textRgb.r, textRgb.g, textRgb.b);
+  const muted = olvRgbToHex(mutedRgb.r, mutedRgb.g, mutedRgb.b);
+
+  const goldHi = isDark ? olvShadeHex(accentHex, 26, 15) : olvShadeHex(accentHex, -16, 27);
+  const goldDp = isDark ? olvShadeHex(accentHex, -23, 17) : olvShadeHex(accentHex, -26, 24);
+  const onGold = olvContrastTextColor(accentHex);
+
   return {
-    dark: {
-      gold: baseHex,
-      goldHi: olvShadeHex(baseHex, 26, 15),
-      goldDp: olvShadeHex(baseHex, -23, 17),
-      goldRgb: rgbStr,
-      onGold: onColor,
-    },
-    light: {
-      gold: baseHex,
-      goldHi: olvShadeHex(baseHex, -16, 27),
-      goldDp: olvShadeHex(baseHex, -26, 24),
-      goldRgb: rgbStr,
-      onGold: onColor,
-    },
+    ink, ink2, ink3, paper, muted,
+    hair: `rgba(${accentRgbStr},.25)`,
+    hairSoft: `rgba(${accentRgbStr},.1)`,
+    overlayBg: `rgba(${bgRgbStr},.94)`,
+    gold: accentHex, goldHi, goldDp, goldRgb: accentRgbStr, onGold,
   };
 }
 
-function olvSaveAccentColor(baseHex) {
-  const palette = olvComputeAccentPalette(baseHex);
-  if (!palette) return false;
-  localStorage.setItem(OLV_ACCENT_KEY, JSON.stringify(palette));
+function olvSaveCustomTheme(bgHex, accentHex) {
+  const theme = olvComputeCustomTheme(bgHex, accentHex);
+  if (!theme) return false;
+  localStorage.setItem(OLV_THEME_KEY, JSON.stringify(theme));
   if (window.olvApplyTheme) window.olvApplyTheme();
   return true;
 }
 
-function olvResetAccentColor() {
-  localStorage.removeItem(OLV_ACCENT_KEY);
+function olvResetCustomTheme() {
+  localStorage.removeItem(OLV_THEME_KEY);
   if (window.olvApplyTheme) window.olvApplyTheme();
 }
 
-// يرجّع اللون الأساسي المخزَّن حاليًا (لتعبئة حقل اختيار اللون بصفحة
-// الإعدادات)، أو null لو ما في تخصيص محفوظ (يعني لسا على الذهبي الافتراضي)
-function olvGetAccentBaseColor() {
+// يرجّع لوني الخلفية/العلامة الأساسيين المخزَّنين حاليًا (لتعبئة حقول
+// اختيار اللون بصفحة الإعدادات)، أو null لو ما في ثيم مخصَّص محفوظ
+function olvGetCustomThemeColors() {
   try {
-    const raw = localStorage.getItem(OLV_ACCENT_KEY);
+    const raw = localStorage.getItem(OLV_THEME_KEY);
     if (!raw) return null;
-    const palette = JSON.parse(raw);
-    return (palette && palette.dark && palette.dark.gold) || null;
+    const theme = JSON.parse(raw);
+    if (!theme || !theme.ink || !theme.gold) return null;
+    return { bg: theme.ink, accent: theme.gold };
   } catch (e) {
     return null;
   }
