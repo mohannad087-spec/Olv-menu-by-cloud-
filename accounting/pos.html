@@ -147,8 +147,8 @@
   .card .thumb-fallback{
     width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
     background:linear-gradient(135deg,var(--ink-3),var(--ink-2));
-    font-size:40px;
   }
+  .card .thumb-fallback .icon{width:34px; height:34px; color:var(--gold); opacity:.55; stroke-width:1.5;}
   .card .info{padding:9px 9px 12px; text-align:center;}
   .card .name{font-size:13.5px; margin-bottom:3px; font-weight:600; line-height:1.3;}
   .card .desc{
@@ -528,33 +528,35 @@
     updatePosClock();
     setInterval(updatePosClock, 15000);
 
-    // أيقونة تعبيرية مناسبة للتصنيف تُستخدم كواجهة افتراضية أنيقة عند عدم توفر صورة حقيقية للصنف
-    function categoryEmoji(category) {
+    // أيقونة خطوط ذهبية مناسبة للتصنيف — تُستخدم بتبويبات التصنيف
+    // وكواجهة افتراضية أنيقة عند عدم توفر صورة حقيقية للصنف، بدل الإيموجي
+    // الملوّن القديم يلي كان يكسر وحدة الشكل البصري جنب باقي أيقونات
+    // البرنامج (الشريط العلوي، الأزرار) اللي كلها بنفس نمط الخطوط الذهبية
+    function categoryIconName(category) {
       const c = category || "";
       const rules = [
-        [/برغر|سندويش|شاورما/, "🍔"],
-        [/بطاطا|سناك|ناتشوز|أجنحة|وودجز/, "🍟"],
-        [/سلطة|مقبلات|حمص|فتوش|مناقيش/, "🥗"],
-        [/قهوة|إسبريسو|كابتشينو|لاتيه|شاي|ساخن/, "☕"],
-        [/عصير|سموذي|كوكتيل/, "🥤"],
-        [/بارد|موهيتو|ليموناضة|آيس/, "🧊"],
-        [/بوظة|آيس كريم|ميلك شيك/, "🍨"],
-        [/دونات/, "🍩"],
-        [/كيك|تشيز كيك|تيراميسو|حلويات/, "🍰"],
-        [/أرجيلة|نكهات|شيشة/, "💨"],
-        [/إضاف/, "➕"],
-        [/مشروبات/, "🥤"],
+        [/برغر|سندويش|شاورما/, "burger"],
+        [/بطاطا|سناك|ناتشوز|أجنحة|وودجز/, "fries"],
+        [/سلطة|سلطات|مقبلات|حمص|فتوش|مناقيش/, "salad"],
+        [/قهوة|إسبريسو|كابتشينو|لاتيه|شاي|ساخن/, "coffee"],
+        [/عصير|عصائر|سموذي|كوكتيل/, "cup"],
+        [/بارد|موهيتو|ليموناضة|آيس/, "snowflake"],
+        [/بوظة|آيس كريم|ميلك شيك/, "iceCream"],
+        [/دونات/, "donut"],
+        [/كيك|تشيز كيك|تيراميسو|حلويات/, "cake"],
+        [/أرجيلة|نكهات|شيشة/, "shisha"],
+        [/إضاف/, "plus"],
+        [/مشروبات/, "cup"],
       ];
-      for (const [pattern, emoji] of rules) {
-        if (pattern.test(c)) return emoji;
+      for (const [pattern, icon] of rules) {
+        if (pattern.test(c)) return icon;
       }
-      return "🍽️";
+      return "dish";
     }
 
     // صورة مؤقتة مطابقة لاسم/تصنيف الصنف (ريثما يرفع صاحب المطعم صورة
-    // حقيقية من صفحة الإعدادات) — نفس منطق categoryEmoji بس برابط صورة
-    // فعلية بدل إيموجي. لو الصورة ما اشتغلت (رابط معطّل) بيرجع تلقائيًا
-    // لإيموجي التصنيف عبر olvHandleImageError
+    // حقيقية من صفحة الإعدادات). لو الصورة ما اشتغلت (رابط معطّل) بيرجع
+    // تلقائيًا لأيقونة التصنيف عبر olvHandleImageError
     function productPhotoUrl(name, category) {
       const text = `${name || ""} ${category || ""}`;
       const rules = [
@@ -578,7 +580,7 @@
     window.olvHandleImageError = function (img) {
       const fallback = document.createElement("div");
       fallback.className = "thumb-fallback";
-      fallback.textContent = img.dataset.fallbackEmoji || "🍽️";
+      fallback.innerHTML = olvIcon(img.dataset.fallbackIcon || "dish");
       img.replaceWith(fallback);
     };
 
@@ -711,7 +713,7 @@
       ];
       document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
         <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">
-          <span class="cat-tab-icon">${c === "الكل" ? olvIcon("grid") : c === BEST_SELLERS ? olvIcon("star") : categoryEmoji(c)}</span>
+          <span class="cat-tab-icon">${c === "الكل" ? olvIcon("grid") : c === BEST_SELLERS ? olvIcon("star") : olvIcon(categoryIconName(c))}</span>
           <span class="cat-tab-label">${c}</span>
         </button>
       `).join("");
@@ -763,14 +765,14 @@
 
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => {
-        const fallbackEmoji = categoryEmoji(p.category);
+        const fallbackIcon = categoryIconName(p.category);
         const src = p.image_url || productPhotoUrl(p.name, p.category);
         return `
         <div class="card" data-id="${p.id}" data-sound="add">
           ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
           ${src
-            ? `<img class="thumb" src="${src}" alt="${p.name}" data-fallback-emoji="${fallbackEmoji}" onerror="olvHandleImageError(this)">`
-            : `<div class="thumb-fallback">${fallbackEmoji}</div>`
+            ? `<img class="thumb" src="${src}" alt="${p.name}" data-fallback-icon="${fallbackIcon}" onerror="olvHandleImageError(this)">`
+            : `<div class="thumb-fallback">${olvIcon(fallbackIcon)}</div>`
           }
           <div class="info">
             <div class="name">${p.name}</div>

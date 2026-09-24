@@ -52,6 +52,17 @@ const OLV_ICON_PATHS = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
   hourglass: '<path d="M6 3h12M6 21h12"/><path d="M7 3c0 4.5 3 6 5 7-2 1-5 2.5-5 7M17 3c0 4.5-3 6-5 7 2 1 5 2.5 5 7"/>',
   chevronDown: '<path d="M6 9l6 6 6-6"/>',
+
+  // ---- أيقونات تصنيفات المنيو (بدل الإيموجي الملوّن بتبويبات بيع سريع) ----
+  burger: '<path d="M4 10a8 8 0 0116 0z"/><path d="M3 13h18"/><path d="M4 16h16a1 1 0 01-1 3H5a1 1 0 01-1-3z"/>',
+  fries: '<path d="M7 21L6 10h12l-1 11z"/><path d="M9 10V5M12 10V4M15 10V5"/>',
+  salad: '<path d="M3 12a9 9 0 0018 0z"/><path d="M12 12V6"/><path d="M12 6c2-1 3-3 2-5-2 1-3 3-2 5z"/>',
+  cup: '<path d="M6 3h12l-1.4 15.2A2 2 0 0114.6 20H9.4a2 2 0 01-2-1.8L6 3z"/><path d="M5 3h14"/>',
+  iceCream: '<circle cx="12" cy="8" r="4.2"/><path d="M8.3 10.2L12 21l3.7-10.8"/>',
+  donut: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/>',
+  cake: '<path d="M4 20h16"/><path d="M5 20v-6a2 2 0 012-2h10a2 2 0 012 2v6"/><path d="M9 12V9M12 12V7M15 12V9"/><circle cx="12" cy="5" r="1" style="fill:currentColor;stroke:none"/>',
+  shisha: '<path d="M8.5 7h7l-1.2 3h-4.6z"/><path d="M12 10v5.5"/><path d="M7 21c0-3.5 2.2-5.5 5-5.5s5 2 5 5.5"/>',
+  dish: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.3"/>',
 };
 
 function olvIcon(name, cls) {
