@@ -80,6 +80,42 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
   padding:0 4px; line-height:1; box-shadow:0 0 0 2px var(--ink);
 }
 
+/* ---- tab-more dropdown ("المزيد") ---- */
+.tab-more-btn{border:none; -webkit-tap-highlight-color:transparent;}
+.tab-more-chevron{width:12px; height:12px; margin-inline-start:-3px; opacity:.7; transition:transform .16s var(--ease);}
+.tab-more.open .tab-more-chevron{transform:rotate(180deg);}
+.tab-more-btn.has-badge::after{
+  content:""; position:absolute; top:7px; inset-inline-end:9px;
+  width:8px; height:8px; border-radius:999px; background:var(--danger);
+  box-shadow:0 0 0 2px var(--ink-2);
+}
+.tab-more-panel{
+  display:none; position:fixed; z-index:60; width:260px; max-width:calc(100vw - 24px);
+  max-height:calc(100vh - 100px); overflow-y:auto;
+  background:var(--ink-2); border:1px solid var(--hair); border-radius:14px;
+  padding:10px; box-shadow:var(--card-shadow-hover);
+}
+.tab-more.open .tab-more-panel{display:block;}
+.tab-more-group + .tab-more-group{margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft, rgba(var(--gold-rgb),.1));}
+.tab-more-group-label{font-size:11px; color:var(--muted); letter-spacing:.5px; padding:2px 10px 6px;}
+.tab-more-link{
+  position:relative; background:transparent; border:none; min-height:40px;
+  display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:9px;
+  color:var(--paper); text-decoration:none; font-size:13.5px; white-space:normal;
+  transition:background .14s var(--ease), color .14s var(--ease);
+}
+.tab-more-link:hover{background:var(--ink-3); color:var(--gold-hi); transform:none;}
+.tab-more-link.on{background:rgba(var(--gold-rgb),.14); color:var(--gold-hi); font-weight:700; box-shadow:none;}
+.tab-more-link .icon{opacity:.85;}
+.tab-more-link.on .icon{opacity:1;}
+/* الشارة الأصلية (.tab-badge) موضعها absolute بزاوية الفقاعة الصغيرة —
+   بصف عريض بالقائمة المنسدلة هاد بيخلّيها تطفو بعيد عن الأيقونة/الاسم،
+   فهون منحولها لعنصر عادي بآخر الصف (margin-inline-start:auto يدفعها
+   لأقصى الصف) بدل ما تبقى معلّقة بزاوية absolute */
+.tab-more-link .tab-badge{
+  position:static; inset:auto; margin-inline-start:auto; box-shadow:none;
+}
+
 /* ---- buttons ---- */
 /* الحد الأدنى لارتفاع أي زر 44px تقريبًا، حتى يكون سهل الضغط عليه
    باللمس (إصبع) على الآيباد والموبايل والكمبيوترات اللمسية، وليس فقط

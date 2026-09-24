@@ -51,6 +51,7 @@ const OLV_ICON_PATHS = {
   tag: '<path d="M11.5 3H4v7.5L14 20.5 21 13.5 11.5 3z"/><circle cx="8" cy="7.5" r="1.3" style="fill:currentColor;stroke:none"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
   hourglass: '<path d="M6 3h12M6 21h12"/><path d="M7 3c0 4.5 3 6 5 7-2 1-5 2.5-5 7M17 3c0 4.5-3 6-5 7 2 1 5 2.5 5 7"/>',
+  chevronDown: '<path d="M6 9l6 6 6-6"/>',
 };
 
 function olvIcon(name, cls) {
@@ -58,26 +59,52 @@ function olvIcon(name, cls) {
   return `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24">${inner}</svg>`;
 }
 
-// يرسم شريط التنقل العلوي المشترك بين كل صفحات المحاسبة
+// يرسم شريط التنقل العلوي المشترك بين كل صفحات المحاسبة — التبويبات
+// اليومية عالية التكرار تضل ظاهرة مباشرة، والباقي مجمّع تحت "المزيد"
+// بمجموعات منطقية، حتى ما يصير الشريط جدار عريض من 16 تبويب متراصين
 function olvRenderNav(active) {
-  const links = [
+  const primaryLinks = [
     { id: "dashboard", href: "index.html", label: "الرئيسية", icon: "home" },
     { id: "pos", href: "pos.html", label: "بيع سريع", icon: "bolt" },
     { id: "sales", href: "sales.html", label: "المبيعات", icon: "receipt" },
     { id: "tables", href: "tables.html", label: "الطاولات", icon: "grid" },
     { id: "incoming-orders", href: "incoming-orders.html", label: "الطلبات الواردة", icon: "bell" },
     { id: "kitchen", href: "kitchen.html", label: "المطبخ", icon: "flame" },
-    { id: "recipes", href: "recipes.html", label: "وصفات المشروبات", icon: "coffee" },
-    { id: "inventory", href: "inventory.html", label: "المخزون", icon: "box" },
-    { id: "supplies", href: "supplies.html", label: "المستلزمات", icon: "archive" },
-    { id: "purchases", href: "purchases.html", label: "تسجيل شراء", icon: "cart" },
-    { id: "expenses", href: "expenses.html", label: "المصروفات", icon: "minusCircle" },
-    { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
-    { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
-    { id: "cash", href: "cash-register.html", label: "الخزينة", icon: "wallet" },
-    { id: "reports", href: "reports.html", label: "التقارير", icon: "barChart" },
-    { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
   ];
+  const moreGroups = [
+    {
+      label: "الجرد والمشتريات",
+      links: [
+        { id: "recipes", href: "recipes.html", label: "وصفات المشروبات", icon: "coffee" },
+        { id: "inventory", href: "inventory.html", label: "المخزون", icon: "box" },
+        { id: "supplies", href: "supplies.html", label: "المستلزمات", icon: "archive" },
+        { id: "purchases", href: "purchases.html", label: "تسجيل شراء", icon: "cart" },
+        { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
+      ],
+    },
+    {
+      label: "الإدارة المالية",
+      links: [
+        { id: "expenses", href: "expenses.html", label: "المصروفات", icon: "minusCircle" },
+        { id: "cash", href: "cash-register.html", label: "الخزينة", icon: "wallet" },
+        { id: "reports", href: "reports.html", label: "التقارير", icon: "barChart" },
+      ],
+    },
+    {
+      label: "العملاء والإعدادات",
+      links: [
+        { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
+        { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
+      ],
+    },
+  ];
+  const moreActive = moreGroups.some((g) => g.links.some((l) => l.id === active));
+
+  const tabLinkHtml = (l) =>
+    `<a class="tab-link${l.id === active ? " on" : ""}" href="${l.href}">${olvIcon(l.icon)}<span>${l.label}</span></a>`;
+  const moreLinkHtml = (l) =>
+    `<a class="tab-link tab-more-link${l.id === active ? " on" : ""}" href="${l.href}">${olvIcon(l.icon)}<span>${l.label}</span></a>`;
+
   const nav = document.getElementById("olv-nav");
   if (!nav) return;
   nav.innerHTML = `
@@ -93,17 +120,81 @@ function olvRenderNav(active) {
       </div>
     </div>
     <div class="tabs">
-      ${links
-        .map(
-          (l) =>
-            `<a class="tab-link${l.id === active ? " on" : ""}" href="${l.href}">${olvIcon(l.icon)}<span>${l.label}</span></a>`
-        )
-        .join("")}
+      ${primaryLinks.map(tabLinkHtml).join("")}
+      <div class="tab-more" id="olv-nav-more">
+        <button type="button" class="tab-link tab-more-btn${moreActive ? " on" : ""}" id="olv-nav-more-btn">
+          ${olvIcon("grid")}<span>المزيد</span>${olvIcon("chevronDown", "tab-more-chevron")}
+        </button>
+        <div class="tab-more-panel" id="olv-nav-more-panel">
+          ${moreGroups
+            .map(
+              (g) => `
+            <div class="tab-more-group">
+              <div class="tab-more-group-label">${g.label}</div>
+              ${g.links.map(moreLinkHtml).join("")}
+            </div>`
+            )
+            .join("")}
+        </div>
+      </div>
     </div>
   `;
   const logoutBtn = document.getElementById("olv-logout-btn");
   if (logoutBtn) logoutBtn.addEventListener("click", olvLogout);
   olvInitThemeToggle();
+  olvInitMoreMenu();
+}
+
+// يتحكم بفتح/قفل قائمة "المزيد" المنسدلة — position:fixed عمدًا (بدل
+// absolute) لأنها لو بقيت داخل .tabs (اللي عندها overflow-x:auto) رح
+// تنقص/تتقص عند الفتح؛ fixed بيفلت من قصّ العنصر الأب تلقائيًا
+function olvInitMoreMenu() {
+  const wrap = document.getElementById("olv-nav-more");
+  const btn = document.getElementById("olv-nav-more-btn");
+  const panel = document.getElementById("olv-nav-more-panel");
+  if (!wrap || !btn || !panel) return;
+
+  function position() {
+    const r = btn.getBoundingClientRect();
+    const panelWidth = panel.offsetWidth || 260;
+    panel.style.top = Math.round(r.bottom + 8) + "px";
+    let right = window.innerWidth - r.right;
+    right = Math.min(right, window.innerWidth - panelWidth - 12);
+    right = Math.max(right, 12);
+    panel.style.right = Math.round(right) + "px";
+  }
+
+  // ما في تسكير على scroll عمدًا: #olv-nav بره sticky بأعلى الشاشة دايمًا
+  // (position:sticky top:0)، فزر "المزيد" ما بيتحرك أصلًا لما الصفحة
+  // تتمرجل — وربط close() بـscroll سبب علة حقيقية: الضغطة نفسها على الزر
+  // ممكن تحرّك تمرير شريط التبويبات الأفقي شوي (عشان الزر يضل ظاهر بالكامل)،
+  // وهاد كان يقفل القائمة فور ما تنفتح
+  function close() {
+    wrap.classList.remove("open");
+    document.removeEventListener("click", onOutsideClick);
+    window.removeEventListener("resize", close);
+  }
+
+  function onOutsideClick(e) {
+    if (!wrap.contains(e.target)) close();
+  }
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    if (wrap.classList.contains("open")) { close(); return; }
+    wrap.classList.add("open");
+    position();
+    document.addEventListener("click", onOutsideClick);
+    window.addEventListener("resize", close);
+  };
+
+  // شارة تنبيه مجمّعة على زر "المزيد" — لو صنف بمخزون منخفض داخل القائمة
+  // المطوية (مثلاً)، المستخدم لازم يشوف إشارة حتى بدون ما يفتحها
+  function syncBadge() {
+    btn.classList.toggle("has-badge", !!panel.querySelector(".tab-badge"));
+  }
+  syncBadge();
+  new MutationObserver(syncBadge).observe(panel, { childList: true, subtree: true });
 }
 
 // يبني زر تبديل الإضاءة (تلقائي حسب الوقت / فاتح / داكن) في شريط التنقل
