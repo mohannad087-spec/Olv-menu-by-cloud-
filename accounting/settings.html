@@ -14,29 +14,40 @@
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
-  function applyAccent(theme){
+  function applyCustomTheme(){
     var root = document.documentElement.style;
-    var props = ['--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
     try {
-      var raw = localStorage.getItem('olv_accent_palette');
-      var palette = raw ? JSON.parse(raw)[theme] : null;
-      if (!palette) {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
         props.forEach(function (p) { root.removeProperty(p); });
-        return;
+        return false;
       }
-      root.setProperty('--gold', palette.gold);
-      root.setProperty('--gold-hi', palette.goldHi);
-      root.setProperty('--gold-dp', palette.goldDp);
-      root.setProperty('--gold-rgb', palette.goldRgb);
-      root.setProperty('--on-gold', palette.onGold);
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
     } catch (e) {
       props.forEach(function (p) { root.removeProperty(p); });
+      return false;
     }
   }
   window.olvApplyTheme = function(){
     var theme = computeTheme();
     document.documentElement.setAttribute('data-theme', theme);
-    applyAccent(theme);
+    window.olvCustomThemeActive = applyCustomTheme();
   };
   window.olvApplyTheme();
 })();
@@ -285,20 +296,29 @@
     </div>
 
     <div class="group">
-      <h2>لون البرنامج الأساسي</h2>
+      <h2>ثيم البرنامج الكامل</h2>
       <p class="hint" style="margin-bottom:14px;">
-        اختر لونًا واحدًا ليصير هو لون العلامة بكل البرنامج بدل الذهبي الافتراضي — تتولّد منه
-        تلقائيًا الدرجات الفاتحة/الغامقة المطلوبة بوضعي الفاتح والداكن. التخصيص محفوظ على هالجهاز/المتصفح فقط.
+        اختر لون الخلفية ولون العلامة/الأزرار — بيتولّد منهم تلقائيًا كل ألوان البرنامج
+        (خلفيات البطاقات، النصوص، الحدود، درجات لون العلامة الفاتحة/الغامقة) كثيم واحد ثابت،
+        بيستبدل تبديل الفاتح/الداكن التلقائي بالكامل. التخصيص محفوظ على هالجهاز/المتصفح فقط.
       </p>
-      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px;">
-        <input type="color" id="accent-color-input" value="#c9a24b"
-          style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
-        <button type="button" class="btn gold" id="accent-preview-btn" style="pointer-events:none;">مثال على الزر</button>
-        <span class="tab-link on" id="accent-preview-tab" style="pointer-events:none;">مثال تبويب</span>
+      <div style="display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-bottom:16px;">
+        <div>
+          <label class="hint" style="display:block; margin-bottom:6px;">لون الخلفية</label>
+          <input type="color" id="theme-bg-input" value="#0a0a09"
+            style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
+        </div>
+        <div>
+          <label class="hint" style="display:block; margin-bottom:6px;">لون العلامة/الأزرار</label>
+          <input type="color" id="theme-accent-input" value="#c9a24b"
+            style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
+        </div>
+        <button type="button" class="btn gold" id="theme-preview-btn" style="pointer-events:none;">مثال على الزر</button>
+        <span class="tab-link on" id="theme-preview-tab" style="pointer-events:none;">مثال تبويب</span>
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button type="button" class="btn gold" id="accent-save-btn">حفظ اللون</button>
-        <button type="button" class="btn" id="accent-reset-btn">استعادة الذهبي الافتراضي</button>
+        <button type="button" class="btn gold" id="theme-save-btn">حفظ الثيم</button>
+        <button type="button" class="btn" id="theme-reset-btn">استعادة الثيم الافتراضي</button>
       </div>
     </div>
 
@@ -319,38 +339,51 @@
     olvRenderNav("settings");
     document.getElementById("import-menu-btn").innerHTML = olvIcon("refresh") + "<span>مزامنة الأصناف من موقع المنيو الحقيقي</span>";
 
-    // ---- تخصيص لون البرنامج الأساسي ----
+    // ---- تخصيص ثيم البرنامج الكامل (خلفية + لون علامة) ----
+    const DEFAULT_BG = "#0a0a09";
     const DEFAULT_ACCENT = "#c9a24b";
-    const accentInput = document.getElementById("accent-color-input");
-    accentInput.value = olvGetAccentBaseColor() || DEFAULT_ACCENT;
+    const bgInput = document.getElementById("theme-bg-input");
+    const themeAccentInput = document.getElementById("theme-accent-input");
+    const savedTheme = olvGetCustomThemeColors();
+    bgInput.value = (savedTheme && savedTheme.bg) || DEFAULT_BG;
+    themeAccentInput.value = (savedTheme && savedTheme.accent) || DEFAULT_ACCENT;
 
-    // معاينة حيّة بكل الصفحة أثناء السحب على منتقي اللون (قبل الحفظ) —
-    // بتطبّق درجات وضع العرض الحالي (فاتح/داكن) بس، بدون تخزين أي شي
-    function previewAccentColor(hex) {
-      const palette = olvComputeAccentPalette(hex);
-      if (!palette) return;
-      const theme = document.documentElement.getAttribute("data-theme") || "dark";
-      const shades = palette[theme] || palette.dark;
+    // معاينة حيّة بكل الصفحة أثناء السحب على أي من المنتقيين (قبل الحفظ)
+    function previewCustomTheme() {
+      const theme = olvComputeCustomTheme(bgInput.value, themeAccentInput.value);
+      if (!theme) return;
       const root = document.documentElement.style;
-      root.setProperty("--gold", shades.gold);
-      root.setProperty("--gold-hi", shades.goldHi);
-      root.setProperty("--gold-dp", shades.goldDp);
-      root.setProperty("--gold-rgb", shades.goldRgb);
-      root.setProperty("--on-gold", shades.onGold);
+      root.setProperty("--ink", theme.ink);
+      root.setProperty("--ink-2", theme.ink2);
+      root.setProperty("--ink-3", theme.ink3);
+      root.setProperty("--paper", theme.paper);
+      root.setProperty("--muted", theme.muted);
+      root.setProperty("--hair", theme.hair);
+      root.setProperty("--hair-soft", theme.hairSoft);
+      root.setProperty("--overlay-bg", theme.overlayBg);
+      root.setProperty("--gold", theme.gold);
+      root.setProperty("--gold-hi", theme.goldHi);
+      root.setProperty("--gold-dp", theme.goldDp);
+      root.setProperty("--gold-rgb", theme.goldRgb);
+      root.setProperty("--on-gold", theme.onGold);
     }
-    accentInput.addEventListener("input", () => previewAccentColor(accentInput.value));
+    bgInput.addEventListener("input", previewCustomTheme);
+    themeAccentInput.addEventListener("input", previewCustomTheme);
 
-    document.getElementById("accent-save-btn").addEventListener("click", () => {
-      olvSaveAccentColor(accentInput.value);
-      const btn = document.getElementById("accent-save-btn");
+    document.getElementById("theme-save-btn").addEventListener("click", () => {
+      olvSaveCustomTheme(bgInput.value, themeAccentInput.value);
+      olvInitThemeToggle();
+      const btn = document.getElementById("theme-save-btn");
       const original = btn.textContent;
       btn.textContent = "تم الحفظ";
       setTimeout(() => { btn.textContent = original; }, 1500);
     });
 
-    document.getElementById("accent-reset-btn").addEventListener("click", () => {
-      olvResetAccentColor();
-      accentInput.value = DEFAULT_ACCENT;
+    document.getElementById("theme-reset-btn").addEventListener("click", () => {
+      olvResetCustomTheme();
+      bgInput.value = DEFAULT_BG;
+      themeAccentInput.value = DEFAULT_ACCENT;
+      olvInitThemeToggle();
     });
 
     document.querySelectorAll(".sub-tab").forEach((btn) => {

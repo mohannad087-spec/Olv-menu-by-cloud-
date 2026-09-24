@@ -14,29 +14,40 @@
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
-  function applyAccent(theme){
+  function applyCustomTheme(){
     var root = document.documentElement.style;
-    var props = ['--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
     try {
-      var raw = localStorage.getItem('olv_accent_palette');
-      var palette = raw ? JSON.parse(raw)[theme] : null;
-      if (!palette) {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
         props.forEach(function (p) { root.removeProperty(p); });
-        return;
+        return false;
       }
-      root.setProperty('--gold', palette.gold);
-      root.setProperty('--gold-hi', palette.goldHi);
-      root.setProperty('--gold-dp', palette.goldDp);
-      root.setProperty('--gold-rgb', palette.goldRgb);
-      root.setProperty('--on-gold', palette.onGold);
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
     } catch (e) {
       props.forEach(function (p) { root.removeProperty(p); });
+      return false;
     }
   }
   window.olvApplyTheme = function(){
     var theme = computeTheme();
     document.documentElement.setAttribute('data-theme', theme);
-    applyAccent(theme);
+    window.olvCustomThemeActive = applyCustomTheme();
   };
   window.olvApplyTheme();
 })();
