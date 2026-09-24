@@ -73,6 +73,7 @@ function olvRenderNav(active) {
     { id: "purchases", href: "purchases.html", label: "تسجيل شراء", icon: "cart" },
     { id: "expenses", href: "expenses.html", label: "المصروفات", icon: "minusCircle" },
     { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
+    { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
     { id: "cash", href: "cash-register.html", label: "الخزينة", icon: "wallet" },
     { id: "reports", href: "reports.html", label: "التقارير", icon: "barChart" },
     { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },

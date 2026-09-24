@@ -90,6 +90,7 @@
      16. [`schema-restaurant-tables.sql`](./schema-restaurant-tables.sql) — طاولات الصالة وحالة إشغالها (خريطة الطاولات)
      17. [`schema-purchases.sql`](./schema-purchases.sql) — تسجيل شراء المواد الخام/المستلزمات بسعر الوحدة، مع تحديث تلقائي للمخزون وقيد مصروف
      18. [`schema-low-stock-view.sql`](./schema-low-stock-view.sql) — يجمع المواد اللي وصلت حدّها الأدنى بمكان واحد، لتنبيه نقص المخزون الاستباقي
+     19. [`schema-loyalty.sql`](./schema-loyalty.sql) — برنامج ولاء بسيط للعملاء المتكررين (زيارات، نقاط) مربوط برقم الهاتف، مع إرجاع تلقائي للنقاط عند إلغاء طلب أو صنف
    - إذا ظهرت رسالة خطأ من نوع "column ... does not exist" عند إتمام دفع من
      شاشة البيع السريع (عادةً لأن أحد الملفات فوق انفاتك بالترتيب)، شغّل
      [`schema-fix-checkout-error.sql`](./schema-fix-checkout-error.sql) — ملف
@@ -193,6 +194,7 @@ accounting/
   purchases.html                 تسجيل شراء المواد الخام/المستلزمات بسعر الوحدة الفعلي
   expenses.html                  تسجيل وعرض المصروفات
   suppliers.html                 الموردون، فواتيرهم ودفعاتهم، وكشف الحساب
+  customers.html                 العملاء المتكررون وبرنامج الولاء (زيارات، نقاط)
   cash-register.html             تقفيل الخزينة اليومي
   reports.html                   تقارير الأرباح والخسائر، وتصدير PDF
   settings.html                  التصنيفات، المنتجات، الإضافات، الطابعات، ومنطقة الخطر
@@ -215,6 +217,7 @@ accounting/
   schema-restaurant-tables.sql   طاولات الصالة وحالة إشغالها (خريطة الطاولات)
   schema-purchases.sql           تسجيل شراء بسعر الوحدة — يحدّث المخزون وينشئ قيد مصروف تلقائي
   schema-low-stock-view.sql      يجمع المواد اللي وصلت الحد الأدنى — لتنبيه نقص المخزون الاستباقي
+  schema-loyalty.sql             برنامج ولاء العملاء المتكررين (زيارات ونقاط)
   config.js                      بيانات الاتصال بمشروع Supabase الخاص بك
   assets/                        التصميم (theme.css) والأكواد المشتركة (JS)
 print-bridge/                    برنامج يعمل على جهاز داخل شبكة المطعم لإرسال

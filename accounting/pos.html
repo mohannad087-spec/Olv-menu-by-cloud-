@@ -439,8 +439,8 @@
             <label>اسم الزبون</label>
             <input type="text" id="customer-name" placeholder="مثال: أحمد">
           </div>
-          <div class="field" id="customer-phone-field" style="margin-bottom:12px;" hidden>
-            <label>رقم تلفون الزبون</label>
+          <div class="field" id="customer-phone-field" style="margin-bottom:12px;">
+            <label id="customer-phone-label">رقم تلفون الزبون</label>
             <input type="tel" id="customer-phone" placeholder="07xxxxxxxx">
           </div>
           <div class="cart-list" id="cart-list"></div>
@@ -897,14 +897,16 @@
     function updateOrderTypeFields() {
       const type = document.getElementById("order-type").value;
       const tableField = document.getElementById("table-number-field");
-      const phoneField = document.getElementById("customer-phone-field");
       const nameField = document.getElementById("customer-name-field");
       tableField.hidden = type !== "صالة";
-      phoneField.hidden = type !== "توصيل";
       nameField.hidden = type === "توصيل";
       if (type !== "صالة") document.getElementById("table-number").value = "";
-      if (type !== "توصيل") document.getElementById("customer-phone").value = "";
       if (type === "توصيل") document.getElementById("customer-name").value = "";
+      // حقل رقم الهاتف ظاهر دايمًا الآن (مش بس لطلبات التوصيل) — إجباري
+      // لسا لطلبات التوصيل بس (نفس التحقق بالأسفل)، واختياري لباقي
+      // الأنواع عشان يقدر الكاشير يسجّل نقاط ولاء حتى لزبون صالة/سفري
+      document.getElementById("customer-phone-label").textContent =
+        type === "توصيل" ? "رقم تلفون الزبون" : "رقم تلفون الزبون (اختياري — لبرنامج الولاء)";
     }
 
     function saveDraft() {
@@ -1237,6 +1239,17 @@
       renderCart();
       document.getElementById("order-type").addEventListener("change", updateOrderTypeFields);
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
+      // فحص سريع (مو إجباري) لما الكاشير يخلص كتابة رقم هاتف — لو الرقم
+      // لزبون متكرر موجود أصلًا ببرنامج الولاء، بيطلعله تنبيه ترحيبي
+      document.getElementById("customer-phone").addEventListener("blur", async (e) => {
+        const phone = e.target.value.trim();
+        if (!phone) return;
+        const { data } = await window.supabaseClient
+          .from("customers").select("name, visit_count, points_balance").eq("phone", phone).maybeSingle();
+        if (data) {
+          showToast(`عميل متكرر: ${data.name || phone} — زيارة رقم ${data.visit_count + 1}، ${data.points_balance} نقطة`, "var(--gold-dp)", "star");
+        }
+      });
       document.getElementById("save-draft-btn").addEventListener("click", saveDraft);
       document.getElementById("discount-toggle-btn").addEventListener("click", () => {
         const form = document.getElementById("discount-form");

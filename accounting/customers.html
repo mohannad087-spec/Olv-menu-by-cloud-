@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>العملاء والولاء — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .customer-row{cursor:pointer;}
+  .customer-row:hover td{background:rgba(var(--gold-rgb),.08);}
+  .customer-row.on td{background:rgba(var(--gold-rgb),.12);}
+  .points-badge{
+    display:inline-flex; align-items:center; gap:4px; background:rgba(var(--gold-rgb),.14);
+    color:var(--gold-hi); font-weight:700; border-radius:999px; padding:3px 10px; font-size:12.5px;
+  }
+  .points-badge .icon{width:12px; height:12px;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>العملاء والولاء</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        بينسجّل الزبون تلقائيًا أول ما يدخل رقم هاتفه بأي عملية بيع (بيع سريع)، وبتتراكم
+        له زيارات ونقاط (نقطة لكل وحدة عملة تُنفق) — بدون أي إدخال يدوي. إلغاء طلب أو صنف
+        بيرجّع النقاط المتأثرة تلقائيًا.
+      </p>
+      <div class="field" style="margin-bottom:0;">
+        <label>بحث بالاسم أو رقم الهاتف</label>
+        <input type="search" id="customer-search" placeholder="مثال: أحمد أو 079...">
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">عدد العملاء المسجَّلين</div>
+        <div class="value" id="stat-count">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">عملاء بزيارة تانية أو أكثر</div>
+        <div class="value" id="stat-repeat">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">إجمالي النقاط الممنوحة</div>
+        <div class="value" id="stat-points">—</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>قائمة العملاء</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الاسم</th><th>الهاتف</th><th>الزيارات</th><th>إجمالي المصروف</th><th>النقاط</th><th>آخر زيارة</th></tr></thead>
+          <tbody id="customers-body">
+            <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="group" id="detail-group" hidden>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+        <h2 style="margin:0;" id="detail-name">—</h2>
+        <button type="button" class="btn small" id="close-detail-btn">إغلاق</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label">الزيارات</div>
+          <div class="value" id="d-visits">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">إجمالي المصروف</div>
+          <div class="value" id="d-spent">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">النقاط الحالية</div>
+          <div class="value" id="d-points">—</div>
+        </div>
+      </div>
+
+      <h3 style="font-size:15px; color:var(--muted); margin-bottom:10px;">سجل الطلبات</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>التاريخ</th><th>النوع</th><th>الإجمالي</th></tr></thead>
+          <tbody id="orders-body">
+            <tr class="empty-row"><td colspan="3">لا يوجد طلبات بعد</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("customers");
+
+    let customers = [];
+    let selectedPhone = null;
+    let searchTerm = "";
+
+    function renderCustomers() {
+      const body = document.getElementById("customers-body");
+      const list = customers.filter((c) => {
+        if (!searchTerm) return true;
+        const hay = `${c.name || ""} ${c.phone}`.toLowerCase();
+        return hay.includes(searchTerm);
+      });
+      if (!list.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="6">${customers.length ? "لا يوجد نتائج مطابقة" : "لا يوجد عملاء مسجَّلون بعد — بيتسجّلوا تلقائيًا أول ما تدخل رقم هاتف الزبون بشاشة البيع السريع"}</td></tr>`;
+        return;
+      }
+      body.innerHTML = list.map((c) => `
+        <tr class="customer-row${selectedPhone === c.phone ? " on" : ""}" data-select="${c.phone}">
+          <td>${c.name || "—"}</td>
+          <td dir="ltr" style="text-align:right;">${c.phone}</td>
+          <td>${c.visit_count}</td>
+          <td>${olvFormatMoney(c.total_spent)}</td>
+          <td><span class="points-badge">${olvIcon("star")}${c.points_balance}</span></td>
+          <td>${c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString("ar-EG", { numberingSystem: "latn" }) : "—"}</td>
+        </tr>
+      `).join("");
+      body.querySelectorAll("tr[data-select]").forEach((row) => {
+        row.addEventListener("click", () => selectCustomer(row.dataset.select));
+      });
+    }
+
+    async function loadCustomers() {
+      const errBox = document.getElementById("err");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("customers").select("*").order("visit_count", { ascending: false });
+        if (error) throw error;
+        customers = data || [];
+        document.getElementById("stat-count").textContent = customers.length;
+        document.getElementById("stat-repeat").textContent = customers.filter((c) => c.visit_count > 1).length;
+        document.getElementById("stat-points").textContent = customers.reduce((s, c) => s + Number(c.points_balance), 0);
+        renderCustomers();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    const ORDER_TYPE_LABELS = { "صالة": "صالة", "سفري": "سفري", "توصيل": "توصيل" };
+
+    async function selectCustomer(phone) {
+      selectedPhone = phone;
+      const customer = customers.find((c) => c.phone === phone);
+      if (!customer) return;
+      document.getElementById("detail-group").hidden = false;
+      document.getElementById("detail-name").textContent = customer.name || customer.phone;
+      document.getElementById("d-visits").textContent = customer.visit_count;
+      document.getElementById("d-spent").textContent = olvFormatMoney(customer.total_spent);
+      document.getElementById("d-points").textContent = customer.points_balance;
+      renderCustomers();
+
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("orders-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("sales_entries")
+          .select("entry_date, order_type, cash_amount, card_amount, delivery_amount, status")
+          .eq("customer_phone", phone)
+          .eq("status", "completed")
+          .order("entry_date", { ascending: false })
+          .limit(30);
+        if (error) throw error;
+        const orders = data || [];
+        body.innerHTML = orders.length
+          ? orders.map((o) => `
+              <tr>
+                <td>${o.entry_date}</td>
+                <td>${ORDER_TYPE_LABELS[o.order_type] || o.order_type || "—"}</td>
+                <td>${olvFormatMoney(Number(o.cash_amount) + Number(o.card_amount) + Number(o.delivery_amount))}</td>
+              </tr>
+            `).join("")
+          : `<tr class="empty-row"><td colspan="3">لا يوجد طلبات بعد</td></tr>`;
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+      document.getElementById("detail-group").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    document.getElementById("close-detail-btn").addEventListener("click", () => {
+      selectedPhone = null;
+      document.getElementById("detail-group").hidden = true;
+      renderCustomers();
+    });
+
+    document.getElementById("customer-search").addEventListener("input", (e) => {
+      searchTerm = e.target.value.trim().toLowerCase();
+      renderCustomers();
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      await loadCustomers();
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
