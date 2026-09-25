@@ -379,3 +379,12 @@ function olvGetCustomThemeColors() {
     return null;
   }
 }
+
+// يسجّل الـ service worker (sw.js) على كل صفحة محاسبة — وجوده وحده هو
+// شرط تثبيت البرنامج كتطبيق (PWA) من كروم/الموبايل، وهو عمدًا بدون أي
+// تخزين مؤقت (راجع sw.js) حتى ما يعرض بيانات أو جلسة دخول قديمة
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
