@@ -222,53 +222,32 @@
     let ingredients = [];
     let products = [];
     let addons = [];
-    let consumptionRates = {}; // ingredient_id -> استهلاك يومي تقديري
+    let daysLeftById = {}; // ingredient_id -> أيام متبقية تقديريًا (من view ingredient_consumption)
     let currentRecipeIngredientIds = new Set(); // مواد الصنف المختار المرتبطة أصلًا (لاستثنائها من الاقتراحات)
 
-    const CONSUMPTION_WINDOW_DAYS = 14;
+    // نفس حد "٣ أيام" المستخدم بـ schema-low-stock-view.sql (view
+    // low_stock_items) — لازم يضلوا متطابقين حتى البانر هون والتنبيه
+    // الاستباقي (شارة شريط التنقل) يتفقوا على نفس الأصناف "العاجلة"
     const URGENT_DAYS_THRESHOLD = 3;
 
-    // يحسب استهلاك كل مادة خام يوميًا تقريبًا، بالاعتماد على مبيعات
-    // الأصناف الأساسية خلال آخر 14 يومًا مضروبة بوصفة كل صنف — حسبة
-    // رياضية بسيطة على البيانات الموجودة أصلًا، بدون أي خدمة ذكاء اصطناعي خارجية
-    async function computeConsumptionRates() {
-      const cutoff = new Date(Date.now() - CONSUMPTION_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-      const [{ data: recentItems, error: e1 }, { data: recipes, error: e2 }] = await Promise.all([
-        window.supabaseClient.from("sale_items").select("product_id, qty").gte("created_at", cutoff),
-        window.supabaseClient.from("product_ingredients").select("product_id, ingredient_id, quantity"),
-      ]);
-      if (e1 || e2) return {};
-
-      const recipesByProduct = {};
-      (recipes || []).forEach((r) => {
-        (recipesByProduct[r.product_id] = recipesByProduct[r.product_id] || []).push(r);
-      });
-
-      const totalConsumption = {}; // ingredient_id -> إجمالي المستهلك خلال الفترة
-      (recentItems || []).forEach((item) => {
-        const lines = recipesByProduct[item.product_id] || [];
-        lines.forEach((line) => {
-          totalConsumption[line.ingredient_id] =
-            (totalConsumption[line.ingredient_id] || 0) + Number(line.quantity) * Number(item.qty);
-        });
-      });
-
-      const rates = {};
-      Object.keys(totalConsumption).forEach((ingId) => {
-        rates[ingId] = totalConsumption[ingId] / CONSUMPTION_WINDOW_DAYS;
-      });
-      return rates;
+    // أيام تكفي كل مادة خام تقريبًا — محسوبة بالكامل داخل view
+    // ingredient_consumption (schema-low-stock-view.sql) من متوسط
+    // مبيعات آخر 14 يومًا المكتملة فعليًا (بدون الملغاة) مضروبة بوصفة كل
+    // صنف، حتى نفس الحسبة تُستخدم هون وبالتنبيه الاستباقي بدون تكرار أو
+    // احتمال تعارض بين الاثنين
+    async function loadDaysLeft() {
+      const { data, error } = await window.supabaseClient.from("ingredient_consumption").select("*");
+      if (error) return {};
+      const map = {};
+      (data || []).forEach((row) => { map[row.ingredient_id] = row.days_left; });
+      return map;
     }
 
     function renderUrgentBanner() {
       const banner = document.getElementById("urgent-banner");
       const list = document.getElementById("urgent-list");
       const urgent = ingredients
-        .map((ing) => {
-          const rate = consumptionRates[ing.id] || 0;
-          const daysLeft = rate > 0 ? Number(ing.current_stock) / rate : null;
-          return { ing, daysLeft };
-        })
+        .map((ing) => ({ ing, daysLeft: daysLeftById[ing.id] ?? null }))
         .filter((x) => x.daysLeft !== null && x.daysLeft <= URGENT_DAYS_THRESHOLD)
         .sort((a, b) => a.daysLeft - b.daysLeft);
 
@@ -295,21 +274,20 @@
       const errBox = document.getElementById("err");
       const body = document.getElementById("ing-body");
       try {
-        const [{ data, error }, rates] = await Promise.all([
+        const [{ data, error }, daysLeftMap] = await Promise.all([
           window.supabaseClient.from("ingredients").select("*").order("name"),
-          computeConsumptionRates(),
+          loadDaysLeft(),
         ]);
         if (error) throw error;
         ingredients = data || [];
-        consumptionRates = rates;
+        daysLeftById = daysLeftMap;
         renderUrgentBanner();
         if (!ingredients.length) {
           body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد مواد خام بعد</td></tr>`;
         } else {
           body.innerHTML = ingredients.map((ing) => {
             const low = Number(ing.current_stock) <= Number(ing.low_stock_threshold) && Number(ing.low_stock_threshold) > 0;
-            const rate = consumptionRates[ing.id] || 0;
-            const daysLeft = rate > 0 ? Number(ing.current_stock) / rate : null;
+            const daysLeft = daysLeftById[ing.id] ?? null;
             let daysCell = `<span class="hint">لا يوجد بيانات كافية</span>`;
             if (daysLeft !== null) {
               const urgent = daysLeft <= URGENT_DAYS_THRESHOLD;
