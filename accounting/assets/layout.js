@@ -52,6 +52,7 @@ const OLV_ICON_PATHS = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
   hourglass: '<path d="M6 3h12M6 21h12"/><path d="M7 3c0 4.5 3 6 5 7-2 1-5 2.5-5 7M17 3c0 4.5-3 6-5 7 2 1 5 2.5 5 7"/>',
   chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  chevronUp: '<path d="M6 15l6-6 6 6"/>',
 
   // ---- أيقونات تصنيفات المنيو (بدل الإيموجي الملوّن بتبويبات بيع سريع) ----
   burger: '<path d="M4 10a8 8 0 0116 0z"/><path d="M3 13h18"/><path d="M4 16h16a1 1 0 01-1 3H5a1 1 0 01-1-3z"/>',

@@ -66,6 +66,18 @@
     #print-area th{background:#f2f2f2;}
     #print-area .totals td{font-weight:700;}
   }
+  .insights{display:flex; flex-direction:column; gap:10px;}
+  .insight-row{
+    display:flex; align-items:center; gap:10px; padding:11px 14px;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:11px; font-size:13.5px;
+  }
+  .insight-row .icon{width:18px; height:18px; flex:none;}
+  .insight-row.up{color:var(--ok);}
+  .insight-row.up .icon{color:var(--ok);}
+  .insight-row.down{color:var(--danger-hi);}
+  .insight-row.down .icon{color:var(--danger-hi);}
+  .insight-row.fact .icon{color:var(--gold-hi);}
+  .insight-row b{font-weight:700;}
 </style>
 </head>
 <body>
@@ -123,6 +135,11 @@
         <div class="label">صافي الربح</div>
         <div class="value" id="r-net">—</div>
       </div>
+    </div>
+
+    <div class="group" id="insights-group" hidden>
+      <h2>ملاحظات ذكية</h2>
+      <div class="insights" id="insights-list"></div>
     </div>
 
     <div class="group">
@@ -239,6 +256,94 @@
         : `<tr class="empty-row"><td colspan="5">لا يوجد بيانات في هذه الفترة</td></tr>`;
     }
 
+    // بيبني سطر مقارنة "زاد/نزل/بدون تغيير" بين رقم الفترة الحالية ونفس
+    // الرقم بالفترة السابقة مباشرة (نفس عدد الأيام) — نسبة % بتظهر بس لو
+    // رقم الفترة السابقة موجب (نسبة من أساس صفري أو سالب مضلّلة)، وبأي
+    // الحالتين المبلغ المطلق بالعملة بيظهر دايمًا فهمي وواضح
+    function trendRow(label, current, prior) {
+      const diff = current - prior;
+      const flat = Math.abs(diff) < 0.005;
+      const up = diff > 0;
+      const pctText = prior > 0 ? ` (${Math.abs((diff / prior) * 100).toFixed(0)}%)` : "";
+      if (flat) {
+        return `<div class="insight-row fact">${olvIcon("barChart")}<span>${label} بدون تغيير يُذكر عن نفس المدة قبلها</span></div>`;
+      }
+      const dirWord = up ? "زاد" : "نزل";
+      const cls = up ? "up" : "down";
+      const icon = up ? "chevronUp" : "chevronDown";
+      return `<div class="insight-row ${cls}">${olvIcon(icon)}<span>${label} <b>${dirWord}</b> ${olvFormatMoney(Math.abs(diff))}${pctText} عن نفس المدة قبلها</span></div>`;
+    }
+
+    function computeBestDay(sales) {
+      const byDate = {};
+      (sales || []).forEach((r) => {
+        const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+        byDate[r.entry_date] = (byDate[r.entry_date] || 0) + total;
+      });
+      const entries = Object.entries(byDate).sort((a, b) => b[1] - a[1]);
+      return entries.length ? { date: entries[0][0], total: entries[0][1] } : null;
+    }
+
+    function computeTopProduct(sales) {
+      const byProduct = {};
+      (sales || []).forEach((sale) => {
+        (sale.sale_items || []).forEach((item) => {
+          if (item.status === "voided") return;
+          byProduct[item.product_name] = (byProduct[item.product_name] || 0) + Number(item.qty);
+        });
+      });
+      const entries = Object.entries(byProduct).sort((a, b) => b[1] - a[1]);
+      return entries.length ? { name: entries[0][0], qty: entries[0][1] } : null;
+    }
+
+    // يبني ملاحظات ذكية بمقارنة الفترة الحالية بنفس عدد الأيام قبلها
+    // مباشرة، بالإضافة لأعلى يوم مبيعات وأكثر صنف مبيعًا بالفترة —
+    // حسابات مباشرة على بيانات المبيعات الموجودة أصلًا، بدون أي خدمة
+    // ذكاء اصطناعي خارجية
+    async function loadInsights(from, to, sales, totalSales, net) {
+      const group = document.getElementById("insights-group");
+      const list = document.getElementById("insights-list");
+      if (!sales || !sales.length) { group.hidden = true; return; }
+
+      const fromD = new Date(from + "T00:00:00");
+      const toD = new Date(to + "T00:00:00");
+      const days = Math.round((toD - fromD) / 86400000) + 1;
+      const priorToD = new Date(fromD); priorToD.setDate(priorToD.getDate() - 1);
+      const priorFromD = new Date(priorToD); priorFromD.setDate(priorFromD.getDate() - (days - 1));
+      const priorFrom = priorFromD.toISOString().slice(0, 10);
+      const priorTo = priorToD.toISOString().slice(0, 10);
+
+      const rows = [];
+      try {
+        const [{ data: priorSales, error: e1 }, { data: priorExpenses, error: e2 }] = await Promise.all([
+          window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount")
+            .eq("status", "completed").gte("entry_date", priorFrom).lte("entry_date", priorTo),
+          window.supabaseClient.from("expenses").select("amount")
+            .gte("expense_date", priorFrom).lte("expense_date", priorTo),
+        ]);
+        if (!e1 && !e2 && ((priorSales || []).length || (priorExpenses || []).length)) {
+          const priorTotalSales = (priorSales || []).reduce((s, r) => s + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
+          const priorTotalExpenses = (priorExpenses || []).reduce((s, r) => s + Number(r.amount), 0);
+          rows.push(trendRow("المبيعات", totalSales, priorTotalSales));
+          rows.push(trendRow("صافي الربح", net, priorTotalSales - priorTotalExpenses));
+        }
+      } catch (e) { /* المقارنة بالفترة السابقة إضافية فقط — لو فشلت نكمّل بباقي الملاحظات */ }
+
+      const bestDay = days > 1 ? computeBestDay(sales) : null;
+      if (bestDay) {
+        rows.push(`<div class="insight-row fact">${olvIcon("star")}<span>أعلى يوم مبيعات بالفترة: <b>${bestDay.date}</b> بقيمة ${olvFormatMoney(bestDay.total)}</span></div>`);
+      }
+
+      const topProduct = computeTopProduct(sales);
+      if (topProduct) {
+        rows.push(`<div class="insight-row fact">${olvIcon("star")}<span>الأكثر مبيعًا بالفترة: <b>${topProduct.name}</b> (${topProduct.qty} قطعة)</span></div>`);
+      }
+
+      if (!rows.length) { group.hidden = true; return; }
+      group.hidden = false;
+      list.innerHTML = rows.join("");
+    }
+
     async function runReport() {
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
@@ -250,7 +355,7 @@
           { data: expenses, error: e2 },
         ] = await Promise.all([
           window.supabaseClient
-            .from("sales_entries").select("*").eq("status", "completed").gte("entry_date", from).lte("entry_date", to),
+            .from("sales_entries").select("*, sale_items(product_name, qty, status)").eq("status", "completed").gte("entry_date", from).lte("entry_date", to),
           window.supabaseClient
             .from("expenses").select("amount, expense_categories(name)")
             .gte("expense_date", from).lte("expense_date", to),
@@ -270,6 +375,8 @@
         const netEl = document.getElementById("r-net");
         netEl.textContent = olvFormatMoney(net);
         netEl.className = "value " + (net >= 0 ? "good" : "bad");
+
+        await loadInsights(from, to, sales, totalSales, net);
 
         renderBars("payment-bars", [
           { label: "كاش", value: cash },
