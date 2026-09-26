@@ -88,6 +88,11 @@
     document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("login-brand-mark").innerHTML = olvIcon("brand");
 
+    if (new URLSearchParams(location.search).get("deactivated") === "1") {
+      olvShowError(document.getElementById("err"), new Error("تم إيقاف حسابك — راجع مديرك."));
+      history.replaceState(null, "", "login.html");
+    }
+
     (async () => {
       if (!window.supabaseClient) return;
       const { data: { session } } = await window.supabaseClient.auth.getSession();

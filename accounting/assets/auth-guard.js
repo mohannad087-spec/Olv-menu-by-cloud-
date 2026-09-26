@@ -6,6 +6,16 @@ async function olvRequireAuth() {
     window.location.href = "login.html";
     return null;
   }
+  // إيقاف حساب موظف (زر "إيقاف" بصفحة الموظفين) بيمنع تسجيل دخول/تجديد
+  // جلسة جديد فورًا من عند Supabase، بس ما بيلغي جلسة مفتوحة أصلًا من
+  // تلقاء نفسه — هاد الفحص هون بيسكّرها فعليًا من أول صفحة يفتحها بعدها
+  const { data: profile } = await window.supabaseClient
+    .from("profiles").select("is_active").eq("id", session.user.id).single();
+  if (profile && profile.is_active === false) {
+    await window.supabaseClient.auth.signOut();
+    window.location.href = "login.html?deactivated=1";
+    return null;
+  }
   return session;
 }
 
