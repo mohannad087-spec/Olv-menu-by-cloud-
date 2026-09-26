@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الحضور — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .punch-time{white-space:nowrap;}
+  .punch-time .manual-badge{font-size:10.5px; color:var(--muted); margin-inline-start:4px;}
+  .open-shift{color:var(--gold-hi); font-weight:700;}
+  .shift-edit-row input[type="datetime-local"]{
+    background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
+    padding:8px; border-radius:8px; font-size:13.5px; font-family:'Tajawal',sans-serif; width:100%;
+  }
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group" id="manual-punch-group" hidden>
+      <h2>تصحيح بصمة يدويًا</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        لموظف نسي يبصم دخوله/خروجه، أو حالة تعطّل مؤقت بجهاز البصمة — تُحفظ البصمة اليدوية
+        بنفس طريقة بصمة الجهاز، ويحدَّد كونها دخول أو خروج تلقائيًا حسب ترتيبها الزمني.
+      </p>
+      <form id="punch-form">
+        <div class="row3">
+          <div class="field">
+            <label>الموظف</label>
+            <select id="p-employee" required></select>
+          </div>
+          <div class="field">
+            <label>وقت البصمة</label>
+            <input type="datetime-local" id="p-time" required>
+          </div>
+          <div class="field">
+            <label>ملاحظة (اختياري)</label>
+            <input type="text" id="p-note" placeholder="مثال: نسي يبصم خروج">
+          </div>
+        </div>
+        <button type="submit" class="btn gold">إضافة البصمة</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <h2>سجل الحضور</h2>
+      <div class="row3" id="filter-row">
+        <div class="field">
+          <label>من تاريخ</label>
+          <input type="date" id="from_date">
+        </div>
+        <div class="field">
+          <label>إلى تاريخ</label>
+          <input type="date" id="to_date">
+        </div>
+        <div class="field" id="employee-filter-field" hidden>
+          <label>الموظف</label>
+          <select id="f-employee"><option value="">كل الموظفين</option></select>
+        </div>
+      </div>
+      <button class="btn gold" id="run-btn">عرض</button>
+
+      <div class="table-wrap" style="margin-top:16px;">
+        <table>
+          <thead>
+            <tr>
+              <th>الموظف</th><th>التاريخ</th><th>دخول</th><th>خروج</th><th>عدد الساعات</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="shifts-body">
+            <tr class="empty-row"><td colspan="6">اختر فترة واضغط "عرض"</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("attendance");
+
+    let myRole = null;
+    let myId = null;
+    let profilesById = new Map();
+    let punches = [];
+    const editingKeys = new Set();
+
+    function fmtTime(iso) {
+      return new Date(iso).toLocaleString("ar-EG", {
+        hour: "2-digit", minute: "2-digit", numberingSystem: "latn",
+      });
+    }
+
+    function toLocalInputValue(iso) {
+      const d = new Date(iso);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    async function loadProfiles() {
+      const { data, error } = await window.supabaseClient.from("profiles").select("id, full_name").order("full_name");
+      if (error) throw error;
+      profilesById = new Map((data || []).map((p) => [p.id, p.full_name]));
+      const empSelects = [document.getElementById("p-employee"), document.getElementById("f-employee")];
+      const optionsHtml = (data || []).map((p) => `<option value="${p.id}">${p.full_name}</option>`).join("");
+      document.getElementById("p-employee").innerHTML = optionsHtml;
+      document.getElementById("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
+    }
+
+    // يحوّل قائمة بصمات مجرّدة إلى ورديات (دخول/خروج) بنفس المنطق تمامًا
+    // المستخدم بـview employee_shifts (schema-attendance.sql): ترقيم
+    // تسلسلي لكل موظف بكل يوم حسب الترتيب الزمني، وتزويج كل بصمتين
+    // متتاليتين — نعيد حسابها هون (بدل الاستعلام من الـview مباشرة) حتى
+    // يبقى معنا معرّف (id) كل بصمة على حدة، ونقدر نعدّل/نحذف بصمة واحدة
+    // بعينها بدل الوردية ككل
+    function computeShifts(rows) {
+      const byKey = new Map();
+      rows.forEach((p) => {
+        const day = p.punched_at.slice(0, 10);
+        const key = p.profile_id + "|" + day;
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push(p);
+      });
+      const shifts = [];
+      for (const [key, list] of byKey) {
+        list.sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at));
+        const [profileId, day] = key.split("|");
+        for (let i = 0; i < list.length; i += 2) {
+          shifts.push({
+            key: key + "|" + i,
+            profile_id: profileId,
+            work_date: day,
+            clockIn: list[i],
+            clockOut: list[i + 1] || null,
+          });
+        }
+      }
+      shifts.sort((a, b) => b.work_date.localeCompare(a.work_date) || (profilesById.get(a.profile_id) || "").localeCompare(profilesById.get(b.profile_id) || ""));
+      return shifts;
+    }
+
+    function hoursBetween(a, b) {
+      if (!a || !b) return null;
+      return (new Date(b) - new Date(a)) / 3600000;
+    }
+
+    function renderShifts() {
+      const body = document.getElementById("shifts-body");
+      const shifts = computeShifts(punches);
+      const canEdit = myRole === "owner" || myRole === "manager";
+      if (!shifts.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد بصمات بهذه الفترة</td></tr>`;
+        return;
+      }
+      body.innerHTML = shifts.map((s) => {
+        if (editingKeys.has(s.key)) {
+          return `
+          <tr class="shift-edit-row" data-key="${s.key}">
+            <td>${profilesById.get(s.profile_id) || "—"}</td>
+            <td>${s.work_date}</td>
+            <td><input type="datetime-local" data-edit-in="${s.key}" value="${toLocalInputValue(s.clockIn.punched_at)}"></td>
+            <td><input type="datetime-local" data-edit-out="${s.key}" value="${s.clockOut ? toLocalInputValue(s.clockOut.punched_at) : ""}"></td>
+            <td>—</td>
+            <td>
+              <div style="display:flex; gap:6px;">
+                <button class="btn small gold" data-save="${s.key}">حفظ</button>
+                <button class="btn small" data-cancel="${s.key}">إلغاء</button>
+              </div>
+            </td>
+          </tr>`;
+        }
+        const hrs = hoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
+        return `
+        <tr data-key="${s.key}">
+          <td>${profilesById.get(s.profile_id) || "—"}</td>
+          <td>${s.work_date}</td>
+          <td class="punch-time">${fmtTime(s.clockIn.punched_at)}${s.clockIn.source === "manual" ? '<span class="manual-badge">(يدوي)</span>' : ""}</td>
+          <td class="punch-time">${s.clockOut ? fmtTime(s.clockOut.punched_at) + (s.clockOut.source === "manual" ? '<span class="manual-badge">(يدوي)</span>' : "") : '<span class="open-shift">مفتوحة</span>'}</td>
+          <td>${hrs != null ? hrs.toFixed(1) : "—"}</td>
+          <td>${canEdit ? `<button class="btn small" data-edit="${s.key}">تعديل</button>` : ""}</td>
+        </tr>`;
+      }).join("");
+
+      body.querySelectorAll("button[data-edit]").forEach((btn) => {
+        btn.addEventListener("click", () => { editingKeys.add(btn.dataset.edit); renderShifts(); });
+      });
+      body.querySelectorAll("button[data-cancel]").forEach((btn) => {
+        btn.addEventListener("click", () => { editingKeys.delete(btn.dataset.cancel); renderShifts(); });
+      });
+      body.querySelectorAll("button[data-save]").forEach((btn) => {
+        btn.addEventListener("click", () => saveShiftEdit(btn.dataset.save, shifts));
+      });
+    }
+
+    async function saveShiftEdit(key, shifts) {
+      const errBox = document.getElementById("err");
+      const shift = shifts.find((s) => s.key === key);
+      if (!shift) return;
+      const inVal = document.querySelector(`input[data-edit-in="${key}"]`).value;
+      const outVal = document.querySelector(`input[data-edit-out="${key}"]`).value;
+      if (!inVal) { olvShowError(errBox, new Error("وقت الدخول مطلوب")); return; }
+      try {
+        const newInIso = new Date(inVal).toISOString();
+        if (newInIso !== shift.clockIn.punched_at) {
+          const { error } = await window.supabaseClient.from("employee_punches")
+            .update({ punched_at: newInIso }).eq("id", shift.clockIn.id);
+          if (error) throw error;
+        }
+        if (outVal) {
+          const newOutIso = new Date(outVal).toISOString();
+          if (shift.clockOut) {
+            if (newOutIso !== shift.clockOut.punched_at) {
+              const { error } = await window.supabaseClient.from("employee_punches")
+                .update({ punched_at: newOutIso }).eq("id", shift.clockOut.id);
+              if (error) throw error;
+            }
+          } else {
+            const { error } = await window.supabaseClient.from("employee_punches")
+              .insert({ profile_id: shift.profile_id, punched_at: newOutIso, source: "manual" });
+            if (error) throw error;
+          }
+        } else if (shift.clockOut) {
+          // إفراغ حقل الخروج يعني حذف بصمة الخروج (تصحيح بصمة زايدة/خاطئة)
+          const { error } = await window.supabaseClient.from("employee_punches")
+            .delete().eq("id", shift.clockOut.id);
+          if (error) throw error;
+        }
+        editingKeys.delete(key);
+        await runReport();
+      } catch (err) {
+        if (err && err.code === "23505") {
+          err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
+        }
+        olvShowError(errBox, err);
+      }
+    }
+
+    async function runReport() {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const from = document.getElementById("from_date").value;
+      const to = document.getElementById("to_date").value;
+      const toExclusive = new Date(new Date(to).getTime() + 86400000).toISOString().slice(0, 10);
+      const employeeId = document.getElementById("f-employee").value;
+      try {
+        let query = window.supabaseClient
+          .from("employee_punches").select("id, profile_id, punched_at, source")
+          .gte("punched_at", from).lt("punched_at", toExclusive)
+          .order("punched_at");
+        if (employeeId) query = query.eq("profile_id", employeeId);
+        const { data, error } = await query;
+        if (error) throw error;
+        punches = data || [];
+        editingKeys.clear();
+        renderShifts();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    document.getElementById("punch-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      try {
+        const timeVal = document.getElementById("p-time").value;
+        if (!timeVal) throw new Error("وقت البصمة مطلوب");
+        const { error } = await window.supabaseClient.from("employee_punches").insert({
+          profile_id: document.getElementById("p-employee").value,
+          punched_at: new Date(timeVal).toISOString(),
+          source: "manual",
+          note: document.getElementById("p-note").value.trim() || null,
+        });
+        if (error) throw error;
+        document.getElementById("punch-form").reset();
+        await runReport();
+      } catch (err) {
+        if (err && err.code === "23505") {
+          err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
+        }
+        olvShowError(errBox, err);
+      }
+    });
+
+    document.getElementById("run-btn").addEventListener("click", runReport);
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      myId = session.user.id;
+      const { data: myProfile, error } = await window.supabaseClient
+        .from("profiles").select("role").eq("id", myId).single();
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      myRole = myProfile ? myProfile.role : null;
+      const canManage = myRole === "owner" || myRole === "manager";
+      document.getElementById("manual-punch-group").hidden = !canManage;
+      document.getElementById("employee-filter-field").hidden = !canManage;
+
+      const today = new Date();
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      document.getElementById("from_date").value = firstOfMonth.toISOString().slice(0, 10);
+      document.getElementById("to_date").value = olvToday();
+
+      try {
+        await loadProfiles();
+        await runReport();
+      } catch (err) {
+        olvShowError(document.getElementById("err"), err);
+      }
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
