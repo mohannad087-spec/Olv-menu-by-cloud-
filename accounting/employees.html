@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الموظفون — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .role-badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 10px;
+    font-size:11.5px; font-weight:700; border:1px solid var(--hair);
+  }
+  .role-badge.owner{background:rgba(var(--gold-rgb),.18); color:var(--gold-hi); border-color:var(--gold);}
+  .role-badge.manager{background:rgba(124,138,74,.15); color:var(--ok); border-color:rgba(124,138,74,.35);}
+  .role-badge.staff{color:var(--muted);}
+  .status-badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 10px; font-size:11.5px; font-weight:700;
+  }
+  .status-badge.active{background:rgba(124,138,74,.15); color:var(--ok);}
+  .status-badge.inactive{background:rgba(193,88,63,.15); color:var(--danger-hi);}
+  .temp-pass-box{
+    background:var(--ink-3); border:1px solid var(--gold); border-radius:10px; padding:14px;
+    margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  }
+  .temp-pass-box code{font-size:18px; font-weight:700; color:var(--gold-hi); letter-spacing:1px; direction:ltr;}
+  .employee-row.inactive{opacity:.55;}
+  .no-access{padding:40px 20px; text-align:center; color:var(--muted);}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div id="no-access" class="group" hidden>
+      <div class="no-access">هذه الصفحة لصاحب المطعم والمدير فقط.</div>
+    </div>
+
+    <div id="employees-content" hidden>
+      <div class="group">
+        <h2>إضافة موظف جديد</h2>
+        <p class="hint" style="margin-bottom:14px;">
+          بينعمل حساب دخول فعلي مباشرة (بدون الحاجة لـSupabase Dashboard) — بعد الإضافة رح
+          تطلع كلمة سر مؤقتة مرة وحدة بس، سلّمها للموظف وخلّيه يسجّل دخول فيها.
+        </p>
+        <form id="add-form">
+          <div class="row2">
+            <div class="field">
+              <label>الاسم الكامل</label>
+              <input type="text" id="f-name" required>
+            </div>
+            <div class="field">
+              <label>البريد الإلكتروني (لتسجيل الدخول)</label>
+              <input type="email" id="f-email" required dir="ltr">
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label>رقم الهاتف (اختياري)</label>
+              <input type="tel" id="f-phone" dir="ltr">
+            </div>
+            <div class="field">
+              <label>الأجر بالساعة (اختياري)</label>
+              <input type="number" id="f-wage" step="0.01" min="0">
+            </div>
+          </div>
+          <div class="field">
+            <label>الدور</label>
+            <select id="f-role">
+              <option value="staff">كاشير (staff)</option>
+              <option value="manager">مدير (manager)</option>
+              <option value="owner">صاحب المطعم (owner)</option>
+            </select>
+          </div>
+          <button type="submit" class="btn gold" id="add-btn">إضافة الموظف</button>
+        </form>
+        <div class="temp-pass-box" id="temp-pass-box" hidden>
+          <span>كلمة السر المؤقتة: <code id="temp-pass-value"></code></span>
+          <button type="button" class="btn small" id="copy-pass-btn">نسخ</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h2>الموظفون الحاليون</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>الاسم</th><th>الهاتف</th><th>الدور</th><th>الأجر/ساعة</th><th>الحالة</th><th></th></tr></thead>
+            <tbody id="employees-body">
+              <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="group" id="edit-group" hidden>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+          <h2 style="margin:0;">تعديل بيانات <span id="edit-name-label"></span></h2>
+          <button type="button" class="btn small" id="close-edit-btn">إغلاق</button>
+        </div>
+        <form id="edit-form">
+          <div class="row2">
+            <div class="field">
+              <label>الاسم الكامل</label>
+              <input type="text" id="e-name" required>
+            </div>
+            <div class="field">
+              <label>رقم الهاتف</label>
+              <input type="tel" id="e-phone" dir="ltr">
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label>الأجر بالساعة</label>
+              <input type="number" id="e-wage" step="0.01" min="0">
+            </div>
+            <div class="field">
+              <label>الدور</label>
+              <select id="e-role">
+                <option value="staff">كاشير (staff)</option>
+                <option value="manager">مدير (manager)</option>
+                <option value="owner">صاحب المطعم (owner)</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn gold">حفظ التعديلات</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("employees");
+
+    const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "كاشير" };
+    let employees = [];
+    let myRole = null;
+    let myId = null;
+
+    function proxyUrl() {
+      const base = (window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "";
+      return base.replace(/\/$/, "") + "/functions/v1/manage-employees";
+    }
+
+    // نفس أسلوب باقي الوسطاء بالبرنامج (olv-menu-proxy) — نمرر توكن جلسة
+    // المستخدم الحالي، والدالة نفسها بتتحقق إنه owner/manager قبل أي عملية
+    async function callProxy(payload) {
+      const { data } = await window.supabaseClient.auth.getSession();
+      const accessToken = data && data.session && data.session.access_token;
+      if (!accessToken) throw new Error("لا توجد جلسة دخول");
+      const res = await fetch(proxyUrl(), {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      });
+      const out = await res.json();
+      if (!res.ok || out.ok === false) throw new Error(out.error || "فشل الاتصال بخدمة إدارة الموظفين");
+      return out;
+    }
+
+    function showTempPassword(pass) {
+      document.getElementById("temp-pass-value").textContent = pass;
+      document.getElementById("temp-pass-box").hidden = false;
+    }
+
+    document.getElementById("copy-pass-btn").addEventListener("click", async () => {
+      const val = document.getElementById("temp-pass-value").textContent;
+      try { await navigator.clipboard.writeText(val); showToastMsg("تم نسخ كلمة السر"); } catch (e) {}
+    });
+
+    function showToastMsg(msg) {
+      const toast = document.createElement("div");
+      toast.textContent = msg;
+      toast.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:700;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.3);";
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2200);
+    }
+
+    function renderEmployees() {
+      const body = document.getElementById("employees-body");
+      if (!employees.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد موظفون بعد</td></tr>`;
+        return;
+      }
+      body.innerHTML = employees.map((e) => `
+        <tr class="employee-row${e.is_active ? "" : " inactive"}" data-id="${e.id}">
+          <td>${e.full_name || "—"}</td>
+          <td dir="ltr" style="text-align:right;">${e.phone || "—"}</td>
+          <td><span class="role-badge ${e.role}">${ROLE_LABELS[e.role] || e.role}</span></td>
+          <td>${e.hourly_wage != null ? olvFormatMoney(e.hourly_wage) : "—"}</td>
+          <td><span class="status-badge ${e.is_active ? "active" : "inactive"}">${e.is_active ? "فعّال" : "موقوف"}</span></td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn small" data-edit="${e.id}">تعديل</button>
+              ${e.id !== myId ? `<button type="button" class="btn small ${e.is_active ? "danger" : ""}" data-toggle="${e.id}" data-active="${e.is_active}">${e.is_active ? "إيقاف" : "تفعيل"}</button>` : ""}
+              <button type="button" class="btn small" data-reset="${e.id}">كلمة سر جديدة</button>
+            </div>
+          </td>
+        </tr>
+      `).join("");
+
+      body.querySelectorAll("[data-edit]").forEach((btn) => {
+        btn.addEventListener("click", () => openEdit(btn.dataset.edit));
+      });
+      body.querySelectorAll("[data-toggle]").forEach((btn) => {
+        btn.addEventListener("click", () => toggleActive(btn.dataset.toggle, btn.dataset.active === "true"));
+      });
+      body.querySelectorAll("[data-reset]").forEach((btn) => {
+        btn.addEventListener("click", () => resetPassword(btn.dataset.reset));
+      });
+    }
+
+    async function loadEmployees() {
+      const errBox = document.getElementById("err");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("profiles").select("*").order("full_name");
+        if (error) throw error;
+        employees = data || [];
+        renderEmployees();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    document.getElementById("add-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      document.getElementById("temp-pass-box").hidden = true;
+      const btn = document.getElementById("add-btn");
+      btn.disabled = true;
+      try {
+        const out = await callProxy({
+          action: "create",
+          full_name: document.getElementById("f-name").value.trim(),
+          email: document.getElementById("f-email").value.trim(),
+          phone: document.getElementById("f-phone").value.trim(),
+          hourly_wage: document.getElementById("f-wage").value || null,
+          role: document.getElementById("f-role").value,
+        });
+        document.getElementById("add-form").reset();
+        showTempPassword(out.tempPassword);
+        await loadEmployees();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    let editingId = null;
+    function openEdit(id) {
+      const emp = employees.find((e) => e.id === id);
+      if (!emp) return;
+      editingId = id;
+      document.getElementById("edit-name-label").textContent = emp.full_name || "";
+      document.getElementById("e-name").value = emp.full_name || "";
+      document.getElementById("e-phone").value = emp.phone || "";
+      document.getElementById("e-wage").value = emp.hourly_wage != null ? emp.hourly_wage : "";
+      document.getElementById("e-role").value = emp.role;
+      document.getElementById("edit-group").hidden = false;
+      document.getElementById("edit-group").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    document.getElementById("close-edit-btn").addEventListener("click", () => {
+      editingId = null;
+      document.getElementById("edit-group").hidden = true;
+    });
+
+    // تعديل الاسم/الهاتف/الأجر/الدور بنداء تحديث مباشر لـSupabase (بدون
+    // الحاجة للوسيط) — محمي بسياسة profiles_update + trigger
+    // protect_profile_privileges (schema-employees.sql) اللي بيسمحوا لـ
+    // owner/manager يعدّلوا أي موظف، وبيمنعوا أي حدا تاني حتى من تعديل
+    // دوره/أجره بنفسه
+    document.getElementById("edit-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!editingId) return;
+      const errBox = document.getElementById("err");
+      try {
+        const { error } = await window.supabaseClient.from("profiles").update({
+          full_name: document.getElementById("e-name").value.trim(),
+          phone: document.getElementById("e-phone").value.trim() || null,
+          hourly_wage: document.getElementById("e-wage").value || null,
+          role: document.getElementById("e-role").value,
+        }).eq("id", editingId);
+        if (error) throw error;
+        document.getElementById("edit-group").hidden = true;
+        editingId = null;
+        await loadEmployees();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    });
+
+    async function toggleActive(id, currentlyActive) {
+      const emp = employees.find((e) => e.id === id);
+      const msg = currentlyActive
+        ? `إيقاف حساب ${emp ? emp.full_name : ""}؟ لن يقدر يسجّل دخول بعدها.`
+        : `تفعيل حساب ${emp ? emp.full_name : ""}؟`;
+      if (!confirm(msg)) return;
+      const errBox = document.getElementById("err");
+      try {
+        await callProxy({ action: "set_active", userId: id, active: !currentlyActive });
+        await loadEmployees();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    async function resetPassword(id) {
+      const emp = employees.find((e) => e.id === id);
+      if (!confirm(`تعيين كلمة سر جديدة لـ${emp ? emp.full_name : "هذا الموظف"}؟`)) return;
+      const errBox = document.getElementById("err");
+      try {
+        const out = await callProxy({ action: "reset_password", userId: id });
+        showTempPassword(out.tempPassword);
+        showToastMsg("كلمة سر جديدة جاهزة — سلّمها للموظف");
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      myId = session.user.id;
+      const { data: myProfile, error } = await window.supabaseClient
+        .from("profiles").select("role").eq("id", myId).single();
+      if (error || !myProfile || !["owner", "manager"].includes(myProfile.role)) {
+        document.getElementById("no-access").hidden = false;
+        return;
+      }
+      myRole = myProfile.role;
+      // المدير يقدر يضيف كاشير بس (نفس القيد المفروض بالوسيط) — نخفي
+      // خياري owner/manager من القائمة حتى ما يحاول أصلًا ويشوف رفض
+      if (myRole === "manager") {
+        document.getElementById("f-role").querySelectorAll('option[value="owner"], option[value="manager"]').forEach((o) => o.remove());
+      }
+      document.getElementById("employees-content").hidden = false;
+      await loadEmployees();
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>

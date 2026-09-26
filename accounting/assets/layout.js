@@ -106,6 +106,7 @@ function olvRenderNav(active) {
       label: "العملاء والإعدادات",
       links: [
         { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
+        { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
         { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
       ],
     },
