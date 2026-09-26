@@ -1,0 +1,15 @@
+{
+  "name": "olv-attendance-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "برنامج جسر يراقب جهاز بصمة (بروتوكول ZK) على شبكة المطعم وينقل سجلات الحضور إلى قاعدة بيانات محاسبة OLV",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5",
+    "node-zklib": "^1.3.0"
+  }
+}
