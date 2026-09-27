@@ -11,5 +11,9 @@
     });
     return;
   }
-  window.supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  // fetch مخصَّص (olvOfflineFetch من offline-queue.js إن وُجد) يعترض
+  // فشل الكتابة بسبب انقطاع إنترنت حقيقي ويخزّنها محليًا بدل ما تضيع —
+  // راجع تعليق offline-queue.js لتفاصيل الآلية الكاملة
+  const opts = window.olvOfflineFetch ? { global: { fetch: window.olvOfflineFetch } } : undefined;
+  window.supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, opts);
 })();
