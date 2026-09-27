@@ -141,6 +141,7 @@
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/shift-utils.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("attendance");
@@ -173,46 +174,18 @@
       document.getElementById("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
     }
 
-    // يحوّل قائمة بصمات مجرّدة إلى ورديات (دخول/خروج) بنفس المنطق تمامًا
-    // المستخدم بـview employee_shifts (schema-attendance.sql): ترقيم
-    // تسلسلي لكل موظف بكل يوم حسب الترتيب الزمني، وتزويج كل بصمتين
-    // متتاليتين — نعيد حسابها هون (بدل الاستعلام من الـview مباشرة) حتى
-    // يبقى معنا معرّف (id) كل بصمة على حدة، ونقدر نعدّل/نحذف بصمة واحدة
-    // بعينها بدل الوردية ككل
-    function computeShifts(rows) {
-      const byKey = new Map();
-      rows.forEach((p) => {
-        const day = p.punched_at.slice(0, 10);
-        const key = p.profile_id + "|" + day;
-        if (!byKey.has(key)) byKey.set(key, []);
-        byKey.get(key).push(p);
-      });
-      const shifts = [];
-      for (const [key, list] of byKey) {
-        list.sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at));
-        const [profileId, day] = key.split("|");
-        for (let i = 0; i < list.length; i += 2) {
-          shifts.push({
-            key: key + "|" + i,
-            profile_id: profileId,
-            work_date: day,
-            clockIn: list[i],
-            clockOut: list[i + 1] || null,
-          });
-        }
-      }
+    // olvComputeShifts (assets/shift-utils.js) بيحوّل البصمات المجرّدة
+    // لورديات دخول/خروج — نفس المنطق المستخدم بـview employee_shifts
+    // بالضبط، بس معاد حسابه هون حتى يبقى معنا معرّف (id) كل بصمة على حدة
+    function shiftsForPage() {
+      const shifts = olvComputeShifts(punches);
       shifts.sort((a, b) => b.work_date.localeCompare(a.work_date) || (profilesById.get(a.profile_id) || "").localeCompare(profilesById.get(b.profile_id) || ""));
       return shifts;
     }
 
-    function hoursBetween(a, b) {
-      if (!a || !b) return null;
-      return (new Date(b) - new Date(a)) / 3600000;
-    }
-
     function renderShifts() {
       const body = document.getElementById("shifts-body");
-      const shifts = computeShifts(punches);
+      const shifts = shiftsForPage();
       const canEdit = myRole === "owner" || myRole === "manager";
       if (!shifts.length) {
         body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد بصمات بهذه الفترة</td></tr>`;
@@ -235,7 +208,7 @@
             </td>
           </tr>`;
         }
-        const hrs = hoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
+        const hrs = olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
         return `
         <tr data-key="${s.key}">
           <td>${profilesById.get(s.profile_id) || "—"}</td>

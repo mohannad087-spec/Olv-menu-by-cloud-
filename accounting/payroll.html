@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الرواتب — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .open-shift-warn{color:var(--gold-hi); font-size:11.5px; display:block; margin-top:2px;}
+  .net-negative{color:var(--danger-hi); font-weight:700;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div id="payroll-content" hidden>
+
+      <div class="group" id="advance-group" hidden>
+        <h2>سلف الموظفين</h2>
+        <p class="hint" style="margin-bottom:14px;">
+          أي سلفة مسجَّلة هون بتنخصم تلقائيًا من أقرب راتب تأكّد دفعه لنفس الموظف،
+          بغض النظر عن الفترة المحددة وقتها.
+        </p>
+        <form id="advance-form">
+          <div class="row3">
+            <div class="field">
+              <label>الموظف</label>
+              <select id="a-employee" required></select>
+            </div>
+            <div class="field">
+              <label>المبلغ</label>
+              <input type="number" id="a-amount" step="0.01" min="0.01" required>
+            </div>
+            <div class="field">
+              <label>التاريخ</label>
+              <input type="date" id="a-date" required>
+            </div>
+          </div>
+          <div class="field">
+            <label>ملاحظة (اختياري)</label>
+            <input type="text" id="a-note" placeholder="مثال: سلفة طارئة">
+          </div>
+          <button type="submit" class="btn gold">تسجيل سلفة</button>
+        </form>
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead><tr><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>ملاحظة</th><th></th></tr></thead>
+            <tbody id="advances-body"><tr class="empty-row"><td colspan="5">لا يوجد سلف غير مسوّاة حاليًا</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="group" id="compute-group" hidden>
+        <h2>احتساب الرواتب</h2>
+        <div class="row3">
+          <div class="field">
+            <label>من تاريخ</label>
+            <input type="date" id="from_date">
+          </div>
+          <div class="field">
+            <label>إلى تاريخ</label>
+            <input type="date" id="to_date">
+          </div>
+          <div class="field">
+            <label>الموظف</label>
+            <select id="f-employee"><option value="">كل الموظفين</option></select>
+          </div>
+        </div>
+        <button class="btn gold" id="run-btn">احسب</button>
+
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead>
+              <tr><th>الموظف</th><th>ساعات العمل</th><th>الأجر/ساعة</th><th>الإجمالي</th><th>السلف المخصومة</th><th>الصافي</th><th></th></tr>
+            </thead>
+            <tbody id="preview-body"><tr class="empty-row"><td colspan="7">اختر فترة واضغط "احسب"</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="group">
+        <h2>سجل الرواتب المدفوعة</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>الموظف</th><th>الفترة</th><th>الساعات</th><th>الإجمالي</th><th>السلف</th><th>الصافي</th><th>تاريخ الدفع</th></tr>
+            </thead>
+            <tbody id="history-body"><tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/shift-utils.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("payroll");
+
+    let myRole = null;
+    let profilesById = new Map();
+    let employees = [];
+    let unsettledAdvances = [];
+    let previewRows = [];
+
+    function fmtDate(iso) { return String(iso).slice(0, 10); }
+
+    async function loadProfiles() {
+      const { data, error } = await window.supabaseClient
+        .from("profiles").select("id, full_name, role, hourly_wage").order("full_name");
+      if (error) throw error;
+      employees = data || [];
+      profilesById = new Map(employees.map((p) => [p.id, p]));
+      const optionsHtml = employees.map((p) => `<option value="${p.id}">${p.full_name}</option>`).join("");
+      document.getElementById("a-employee").innerHTML = optionsHtml;
+      document.getElementById("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
+    }
+
+    function empName(id) {
+      const p = profilesById.get(id);
+      return p ? p.full_name : "—";
+    }
+
+    async function loadUnsettledAdvances() {
+      const { data, error } = await window.supabaseClient
+        .from("salary_advances").select("*").is("settled_payroll_id", null).order("advance_date");
+      if (error) throw error;
+      unsettledAdvances = data || [];
+      renderAdvances();
+    }
+
+    function renderAdvances() {
+      const body = document.getElementById("advances-body");
+      if (!unsettledAdvances.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد سلف غير مسوّاة حاليًا</td></tr>`;
+        return;
+      }
+      body.innerHTML = unsettledAdvances.map((a) => `
+        <tr>
+          <td>${empName(a.profile_id)}</td>
+          <td>${a.advance_date}</td>
+          <td>${olvFormatMoney(a.amount)}</td>
+          <td>${a.note || "—"}</td>
+          <td><button class="btn small danger" data-del="${a.id}">حذف</button></td>
+        </tr>
+      `).join("");
+      body.querySelectorAll("button[data-del]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("حذف هذه السلفة؟ (استخدم هذا فقط لو أُدخلت غلط)")) return;
+          const { error } = await window.supabaseClient.from("salary_advances").delete().eq("id", btn.dataset.del);
+          if (error) { olvShowError(document.getElementById("err"), error); return; }
+          await loadUnsettledAdvances();
+        });
+      });
+    }
+
+    document.getElementById("advance-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      try {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const { error } = await window.supabaseClient.from("salary_advances").insert({
+          profile_id: document.getElementById("a-employee").value,
+          amount: Number(document.getElementById("a-amount").value || 0),
+          advance_date: document.getElementById("a-date").value,
+          note: document.getElementById("a-note").value.trim() || null,
+          created_by: session ? session.user.id : null,
+        });
+        if (error) throw error;
+        document.getElementById("advance-form").reset();
+        document.getElementById("a-date").value = olvToday();
+        await loadUnsettledAdvances();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    });
+
+    // نفس منطق تزويج البصمات المستخدم بصفحة الحضور (assets/shift-utils.js)
+    // — نحسب الساعات بس من الورديات المكتملة (دخول وخروج)؛ أي وردية
+    // مفتوحة (نسي يبصم خروج) بتنستثنى من المجموع وتظهر كتحذير، حتى ما
+    // يُحتسب راتب ناقص بالغلط قبل ما تُصحَّح من صفحة الحضور
+    function computeHoursByEmployee(punches) {
+      const shifts = olvComputeShifts(punches);
+      const result = new Map(); // profile_id -> { hours, openCount }
+      shifts.forEach((s) => {
+        if (!result.has(s.profile_id)) result.set(s.profile_id, { hours: 0, openCount: 0 });
+        const entry = result.get(s.profile_id);
+        const hrs = olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
+        if (hrs == null) entry.openCount += 1;
+        else entry.hours += hrs;
+      });
+      return result;
+    }
+
+    function advancesTotalFor(profileId) {
+      return unsettledAdvances
+        .filter((a) => a.profile_id === profileId)
+        .reduce((s, a) => s + Number(a.amount), 0);
+    }
+
+    function renderPreview() {
+      const body = document.getElementById("preview-body");
+      if (!previewRows.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد ساعات عمل أو سلف غير مسوّاة بهذه الفترة</td></tr>`;
+        return;
+      }
+      body.innerHTML = previewRows.map((r) => `
+        <tr>
+          <td>${empName(r.profileId)}</td>
+          <td>${r.hours.toFixed(1)}${r.openCount ? `<span class="open-shift-warn">⚠ ${r.openCount} وردية مفتوحة — راجع صفحة الحضور</span>` : ""}</td>
+          <td>${r.hourlyWage != null ? olvFormatMoney(r.hourlyWage) : "—"}</td>
+          <td>${olvFormatMoney(r.gross)}</td>
+          <td>${olvFormatMoney(r.advancesTotal)}</td>
+          <td class="${r.net < 0 ? "net-negative" : ""}">${olvFormatMoney(r.net)}</td>
+          <td><button class="btn small gold" data-pay="${r.profileId}">تأكيد الدفع</button></td>
+        </tr>
+      `).join("");
+      body.querySelectorAll("button[data-pay]").forEach((btn) => {
+        btn.addEventListener("click", () => confirmPay(btn.dataset.pay, btn));
+      });
+    }
+
+    async function runCompute() {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const from = document.getElementById("from_date").value;
+      const to = document.getElementById("to_date").value;
+      const toExclusive = new Date(new Date(to).getTime() + 86400000).toISOString().slice(0, 10);
+      const employeeId = document.getElementById("f-employee").value;
+      try {
+        let query = window.supabaseClient
+          .from("employee_punches").select("id, profile_id, punched_at")
+          .gte("punched_at", from).lt("punched_at", toExclusive);
+        if (employeeId) query = query.eq("profile_id", employeeId);
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const hoursMap = computeHoursByEmployee(data || []);
+        const profileIds = new Set([...hoursMap.keys(), ...unsettledAdvances.map((a) => a.profile_id)]);
+        if (employeeId) {
+          [...profileIds].forEach((id) => { if (id !== employeeId) profileIds.delete(id); });
+        }
+
+        previewRows = [...profileIds]
+          .map((profileId) => {
+            const h = hoursMap.get(profileId) || { hours: 0, openCount: 0 };
+            const prof = profilesById.get(profileId);
+            const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
+            const gross = hourlyWage != null ? h.hours * hourlyWage : 0;
+            const advancesTotal = advancesTotalFor(profileId);
+            return {
+              profileId, hours: h.hours, openCount: h.openCount, hourlyWage, gross,
+              advancesTotal, net: gross - advancesTotal,
+            };
+          })
+          .filter((r) => r.hours > 0 || r.advancesTotal > 0)
+          .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId)));
+
+        renderPreview();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    async function confirmPay(profileId, btn) {
+      const row = previewRows.find((r) => r.profileId === profileId);
+      if (!row) return;
+      const msg = `تأكيد دفع ${olvFormatMoney(row.net)} لـ${empName(profileId)}؟\n` +
+        `(${row.hours.toFixed(1)} ساعة × ${row.hourlyWage != null ? olvFormatMoney(row.hourlyWage) : "—"} = ${olvFormatMoney(row.gross)}` +
+        `${row.advancesTotal ? `، مطروح منه سلف ${olvFormatMoney(row.advancesTotal)}` : ""})`;
+      if (!confirm(msg)) return;
+      const errBox = document.getElementById("err");
+      if (btn) btn.disabled = true;
+      try {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const from = document.getElementById("from_date").value;
+        const to = document.getElementById("to_date").value;
+        const paymentId = (crypto.randomUUID ? crypto.randomUUID() : "pay-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+        const { error: insertErr } = await window.supabaseClient.from("payroll_payments").insert({
+          id: paymentId,
+          profile_id: profileId,
+          period_start: from,
+          period_end: to,
+          hours_worked: row.hours,
+          hourly_wage: row.hourlyWage || 0,
+          gross_amount: row.gross,
+          advances_deducted: row.advancesTotal,
+          net_amount: row.net,
+          paid_by: session ? session.user.id : null,
+        });
+        if (insertErr) throw insertErr;
+
+        if (row.advancesTotal > 0) {
+          const { error: settleErr } = await window.supabaseClient.from("salary_advances")
+            .update({ settled_payroll_id: paymentId }).eq("profile_id", profileId).is("settled_payroll_id", null);
+          if (settleErr) throw settleErr;
+        }
+
+        await Promise.all([loadUnsettledAdvances(), loadHistory()]);
+        previewRows = previewRows.filter((r) => r.profileId !== profileId);
+        renderPreview();
+      } catch (err) {
+        olvShowError(errBox, err);
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function loadHistory() {
+      const body = document.getElementById("history-body");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("payroll_payments").select("*").order("paid_at", { ascending: false }).limit(50);
+        if (error) throw error;
+        if (!data || !data.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد رواتب مدفوعة بعد</td></tr>`;
+          return;
+        }
+        body.innerHTML = data.map((p) => `
+          <tr>
+            <td>${empName(p.profile_id)}</td>
+            <td>${fmtDate(p.period_start)} — ${fmtDate(p.period_end)}</td>
+            <td>${Number(p.hours_worked).toFixed(1)}</td>
+            <td>${olvFormatMoney(p.gross_amount)}</td>
+            <td>${olvFormatMoney(p.advances_deducted)}</td>
+            <td>${olvFormatMoney(p.net_amount)}</td>
+            <td>${fmtDate(p.paid_at)}</td>
+          </tr>
+        `).join("");
+      } catch (err) {
+        olvShowError(document.getElementById("err"), err);
+      }
+    }
+
+    document.getElementById("run-btn").addEventListener("click", runCompute);
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      const { data: myProfile, error } = await window.supabaseClient
+        .from("profiles").select("role").eq("id", session.user.id).single();
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      myRole = myProfile ? myProfile.role : null;
+      const canManage = myRole === "owner" || myRole === "manager";
+
+      // staff بيشوف بس سجل رواتبه هو (RLS بتحصر النتيجة تلقائيًا)، بدون
+      // أي واجهة احتساب/سلف
+      document.getElementById("payroll-content").hidden = false;
+      document.getElementById("advance-group").hidden = !canManage;
+      document.getElementById("compute-group").hidden = !canManage;
+
+      const today = new Date();
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      document.getElementById("from_date").value = firstOfMonth.toISOString().slice(0, 10);
+      document.getElementById("to_date").value = olvToday();
+      document.getElementById("a-date").value = olvToday();
+
+      try {
+        await loadProfiles();
+        if (canManage) await loadUnsettledAdvances();
+        await loadHistory();
+      } catch (err) {
+        olvShowError(document.getElementById("err"), err);
+      }
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
