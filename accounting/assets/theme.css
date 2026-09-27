@@ -232,6 +232,7 @@ tr:hover td{background:rgba(var(--gold-rgb),.06);}
 .olv-connection-banner.show{display:block;}
 .olv-connection-banner.offline{background:var(--danger); color:#fff;}
 .olv-connection-banner.online{background:var(--ok); color:#fff;}
+.olv-connection-banner.queued{background:var(--gold); color:var(--on-gold);}
 .center-card{
   max-width:380px; margin:min(11vh,80px) auto 40px; background:var(--ink-2); border:1px solid var(--hair);
   border-radius:18px; padding:32px 28px; box-shadow:0 1px 2px rgba(0,0,0,.5), 0 24px 60px -16px rgba(0,0,0,.65);
