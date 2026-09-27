@@ -83,6 +83,8 @@
   .insight-row.down .icon{color:var(--danger-hi);}
   .insight-row.fact .icon{color:var(--gold-hi);}
   .insight-row b{font-weight:700;}
+  .no-recipe-warn{color:var(--gold-hi); font-size:11px; display:block; margin-top:2px;}
+  .margin-negative{color:var(--danger-hi); font-weight:700;}
 </style>
 </head>
 <body>
@@ -155,6 +157,32 @@
     <div class="group">
       <h2>المصروفات حسب التصنيف</h2>
       <div class="bars" id="category-bars"></div>
+    </div>
+
+    <div class="group">
+      <h2>ربحية الأصناف</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        الأكثر مبيعًا مو بالضرورة الأكثر ربحًا — هاد الجدول بيحسب هامش الربح
+        الفعلي لكل صنف (الإيراد مطروح منه تكلفة المكوّنات التقديرية حسب آخر
+        سعر شراء معروف لكل مادة)، ومرتّب من الأعلى هامشًا للأقل. تكلفة
+        الإضافات المختارة غير محتسبة (لا يوجد ربط محفوظ بين سطر البيع
+        والإضافات، نفس القيد الموثّق بإلغاء الأصناف).
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الصنف</th>
+              <th>الكمية المباعة</th>
+              <th>الإيراد</th>
+              <th>تكلفة المكوّنات (تقديرية)</th>
+              <th>هامش الربح</th>
+              <th>نسبة الهامش</th>
+            </tr>
+          </thead>
+          <tbody id="profitability-body"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="group">
@@ -350,6 +378,79 @@
       list.innerHTML = rows.join("");
     }
 
+    // تكلفة المكوّنات لكل صنف ثابتة نسبيًا (وصفة + آخر سعر شراء معروف)،
+    // فنحمّلها مرة وحدة بس عند فتح الصفحة (مو بكل تشغيل تقرير) — راجع
+    // product_ingredients و ingredients.unit_price (schema-inventory.sql
+    // و schema-purchases.sql)
+    let productCostById = new Map(); // product_id -> { cost, hasRecipe }
+    async function loadProductCosts() {
+      const [{ data: recipeRows, error: e1 }, { data: ingredients, error: e2 }] = await Promise.all([
+        window.supabaseClient.from("product_ingredients").select("product_id, ingredient_id, quantity"),
+        window.supabaseClient.from("ingredients").select("id, unit_price"),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+      const priceById = new Map((ingredients || []).map((i) => [i.id, Number(i.unit_price || 0)]));
+      const map = new Map();
+      (recipeRows || []).forEach((r) => {
+        if (!map.has(r.product_id)) map.set(r.product_id, { cost: 0, hasRecipe: true });
+        const entry = map.get(r.product_id);
+        entry.cost += Number(r.quantity) * (priceById.get(r.ingredient_id) || 0);
+      });
+      productCostById = map;
+    }
+
+    // هامش الربح الفعلي لكل صنف بالفترة: الإيراد الحقيقي (سعر البيع وقت
+    // كل عملية، مو السعر الحالي) مطروح منه تكلفة المكوّنات التقديرية —
+    // بيستثني الأصناف الملغاة فرادى (status voided)، وبيتجاهل تكلفة
+    // الإضافات (غير محسوبة أصلًا، راجع تعليق قسم الربحية بالصفحة)
+    function computeProfitability(sales) {
+      const byProduct = new Map(); // product_id -> { name, qty, revenue }
+      (sales || []).forEach((sale) => {
+        (sale.sale_items || []).forEach((item) => {
+          if (item.status === "voided" || !item.product_id) return;
+          if (!byProduct.has(item.product_id)) {
+            byProduct.set(item.product_id, { name: item.product_name, qty: 0, revenue: 0 });
+          }
+          const entry = byProduct.get(item.product_id);
+          entry.qty += Number(item.qty);
+          entry.revenue += Number(item.qty) * Number(item.unit_price);
+        });
+      });
+      return [...byProduct.entries()]
+        .map(([productId, e]) => {
+          const costInfo = productCostById.get(productId);
+          const costPerUnit = costInfo ? costInfo.cost : 0;
+          const cost = costPerUnit * e.qty;
+          const margin = e.revenue - cost;
+          return {
+            name: e.name, qty: e.qty, revenue: e.revenue, cost, margin,
+            marginPct: e.revenue > 0 ? (margin / e.revenue) * 100 : null,
+            hasRecipe: !!costInfo,
+          };
+        })
+        .sort((a, b) => b.margin - a.margin);
+    }
+
+    function renderProfitability(sales) {
+      const body = document.getElementById("profitability-body");
+      const rows = computeProfitability(sales);
+      if (!rows.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد مبيعات بهذه الفترة</td></tr>`;
+        return;
+      }
+      body.innerHTML = rows.map((r) => `
+        <tr>
+          <td>${r.name}${!r.hasRecipe ? `<span class="no-recipe-warn">${olvIcon("warning")} لا توجد وصفة محددة — التكلفة غير محسوبة</span>` : ""}</td>
+          <td>${r.qty}</td>
+          <td>${olvFormatMoney(r.revenue)}</td>
+          <td>${olvFormatMoney(r.cost)}</td>
+          <td class="${r.margin < 0 ? "margin-negative" : ""}">${olvFormatMoney(r.margin)}</td>
+          <td>${r.marginPct != null ? r.marginPct.toFixed(0) + "%" : "—"}</td>
+        </tr>
+      `).join("");
+    }
+
     async function runReport() {
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
@@ -361,7 +462,7 @@
           { data: expenses, error: e2 },
         ] = await Promise.all([
           window.supabaseClient
-            .from("sales_entries").select("*, sale_items(product_name, qty, status)").eq("status", "completed").gte("entry_date", from).lte("entry_date", to),
+            .from("sales_entries").select("*, sale_items(product_id, product_name, qty, unit_price, status)").eq("status", "completed").gte("entry_date", from).lte("entry_date", to),
           window.supabaseClient
             .from("expenses").select("amount, expense_categories(name)")
             .gte("expense_date", from).lte("expense_date", to),
@@ -383,6 +484,7 @@
         netEl.className = "value " + (net >= 0 ? "good" : "bad");
 
         await loadInsights(from, to, sales, totalSales, net);
+        renderProfitability(sales);
 
         renderBars("payment-bars", [
           { label: "كاش", value: cash },
@@ -474,6 +576,7 @@
       document.getElementById("run-btn").addEventListener("click", runReport);
       document.getElementById("pdf-btn").addEventListener("click", exportPdf);
       document.getElementById("csv-btn").addEventListener("click", exportCsv);
+      try { await loadProductCosts(); } catch (err) { olvShowError(document.getElementById("err"), err); }
       await runReport();
     })();
     });
