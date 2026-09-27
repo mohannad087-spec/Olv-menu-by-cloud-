@@ -108,6 +108,7 @@ function olvRenderNav(active) {
         { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
         { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
         { id: "attendance", href: "attendance.html", label: "الحضور", icon: "clock" },
+        { id: "payroll", href: "payroll.html", label: "الرواتب", icon: "banknote" },
         { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
       ],
     },
