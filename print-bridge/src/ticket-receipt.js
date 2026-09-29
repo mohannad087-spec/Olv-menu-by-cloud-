@@ -24,7 +24,11 @@ function buildReceiptTicket(sale, settings) {
   const restaurantName = (settings && settings.restaurant_name) || "OLV";
 
   t.center(restaurantName, `bold 38px ${BOLD}`, 50);
+  if (settings && settings.restaurant_address) t.center(settings.restaurant_address, `20px ${REG}`, 28);
+  if (settings && settings.restaurant_phone) t.center(settings.restaurant_phone, `20px ${REG}`, 28);
   t.center(formatDateTime(sale.created_at), `22px ${REG}`, 32);
+  const cashierName = sale.created_by_profile && sale.created_by_profile.full_name;
+  if (cashierName) t.row("الكاشير", cashierName, `20px ${REG}`, 30);
   if (sale.order_type) t.center(sale.order_type, `22px ${REG}`, 32);
   if (sale.customer_name) t.row("اسم الزبون", String(sale.customer_name), `22px ${REG}`, 32);
   if (sale.table_number) t.row("رقم الطاولة", String(sale.table_number), `22px ${REG}`, 32);
