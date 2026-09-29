@@ -55,7 +55,13 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 .brand-mark-sm .icon{width:19px; height:19px; color:var(--on-gold); stroke-width:1.8;}
 .brand-text{font-size:20px; letter-spacing:2px;}
 .brand-text span{color:var(--muted); font-size:12px; letter-spacing:1px; font-family:'Tajawal',sans-serif; font-weight:400; display:block; margin-top:2px;}
-.top .actions{display:flex; gap:8px; flex-wrap:wrap;}
+.top .actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+.olv-user-badge{
+  display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:999px;
+  font-size:13px; font-weight:700; color:var(--gold-hi); background:rgba(var(--gold-rgb),.12);
+  border:1px solid var(--gold);
+}
+.olv-user-badge .icon{width:15px; height:15px;}
 
 .tabs{
   display:flex; gap:8px; overflow-x:auto; padding:12px 20px 4px; margin:0;
