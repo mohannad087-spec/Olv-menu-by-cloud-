@@ -129,6 +129,7 @@ function olvRenderNav(active) {
         <span class="brand-text">محاسبة OLV <span>لوحة تحكم المطعم</span></span>
       </h1>
       <div class="actions">
+        <span class="olv-user-badge" id="olv-user-badge" hidden>${olvIcon("person")}<span id="olv-user-name"></span></span>
         <button class="btn small" id="theme-toggle-btn"></button>
         <a class="btn small" href="https://olv-menu.pages.dev" target="_blank" rel="noopener">${olvIcon("externalLink")} الموقع</a>
         <button class="btn small danger" id="olv-logout-btn">${olvIcon("logOut")} خروج</button>
@@ -158,6 +159,29 @@ function olvRenderNav(active) {
   if (logoutBtn) logoutBtn.addEventListener("click", olvLogout);
   olvInitThemeToggle();
   olvInitMoreMenu();
+  olvLoadCurrentUserBadge();
+}
+
+// يعرض اسم الموظف المسجّل دخوله ودوره أعلى كل صفحة — بيصير مهم لما أكتر
+// من كاشير بيستخدموا نفس الجهاز بنوبات مختلفة، حتى يتأكدوا بلمحة مين
+// شغّال حاليًا (خصوصًا بشاشة "بيع سريع"). يعمل بشكل غير متزامن منفصل عن
+// olvRenderNav نفسها (اللي بترسم فورًا قبل ما نعرف الجلسة أصلًا) — الشارة
+// تضل مخفية لحد ما يوصل رد الاسم فعليًا
+const OLV_ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "كاشير" };
+async function olvLoadCurrentUserBadge() {
+  const badge = document.getElementById("olv-user-badge");
+  const nameEl = document.getElementById("olv-user-name");
+  if (!badge || !nameEl || !window.supabaseClient) return;
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if (!session) return;
+    const { data: profile } = await window.supabaseClient
+      .from("profiles").select("full_name, role").eq("id", session.user.id).single();
+    if (!profile) return;
+    const roleLabel = OLV_ROLE_LABELS[profile.role] || profile.role;
+    nameEl.textContent = `${profile.full_name || "—"} (${roleLabel})`;
+    badge.hidden = false;
+  } catch (e) { /* شارة تعريفية بس — تجاهل أي فشل صامت */ }
 }
 
 // يتحكم بفتح/قفل قائمة "المزيد" المنسدلة — position:fixed عمدًا (بدل
