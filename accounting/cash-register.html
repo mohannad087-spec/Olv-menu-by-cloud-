@@ -123,11 +123,21 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("cash");
     let session = null;
+    // لو المستخدم عدّل حقل "المتوقع بالخزينة" يدويًا، نوقف الاقتراح
+    // التلقائي عن الكتابة فوقه — وإلا ممكن نداء الشبكة غير المتزامن
+    // (suggestExpected) يوصل رده بالضبط وهو وسط الكتابة، فيطغى جزئيًا
+    // على رقم أدخله بنفسه (سباق نادر لكنه حقيقي)
+    let userEditedExpected = false;
+    document.getElementById("expected_closing").addEventListener("input", () => {
+      userEditedExpected = true;
+    });
 
     async function suggestExpected(dateStr) {
+      if (userEditedExpected) return;
       try {
         const { data: sales } = await window.supabaseClient
           .from("sales_entries").select("cash_amount").eq("entry_date", dateStr).eq("status", "completed");
+        if (userEditedExpected) return; // ممكن يكون عدّل أثناء انتظار الرد
         const cashSales = (sales || []).reduce((s, r) => s + Number(r.cash_amount), 0);
         const opening = Number(document.getElementById("opening_balance").value || 0);
         document.getElementById("expected_closing").value = (opening + cashSales).toFixed(2);
@@ -168,7 +178,10 @@
       document.getElementById("closing_date").value = olvToday();
       await Promise.all([loadClosings(), suggestExpected(olvToday())]);
 
-      document.getElementById("closing_date").addEventListener("change", (e) => suggestExpected(e.target.value));
+      document.getElementById("closing_date").addEventListener("change", (e) => {
+        userEditedExpected = false; // تغيير التاريخ = بداية جديدة، الاقتراح التلقائي يرجع يشتغل
+        suggestExpected(e.target.value);
+      });
       document.getElementById("opening_balance").addEventListener("change", () =>
         suggestExpected(document.getElementById("closing_date").value)
       );
