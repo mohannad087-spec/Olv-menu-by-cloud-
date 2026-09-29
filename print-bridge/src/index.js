@@ -24,8 +24,13 @@ async function loadPrinterSettings() {
 }
 
 async function loadSaleWithItems(saleId) {
+  // created_by_profile!created_by يحدد صراحة عمود created_by (بدل
+  // voided_by) لأن sales_entries فيها أكتر من عمود يشير لـprofiles —
+  // بدون هالتحديد PostgREST بيرفض الطلب بخطأ "غموض العلاقة"
   const { data, error } = await supabase
-    .from("sales_entries").select("*, sale_items(*)").eq("id", saleId).maybeSingle();
+    .from("sales_entries")
+    .select("*, sale_items(*), created_by_profile:profiles!created_by(full_name)")
+    .eq("id", saleId).maybeSingle();
   if (error) throw error;
   return data;
 }

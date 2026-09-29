@@ -227,6 +227,16 @@
         </div>
         <div class="row2">
           <div class="field">
+            <label>عنوان المطعم (اختياري، يظهر على الفاتورة)</label>
+            <input type="text" id="pr-restaurant-address" placeholder="مثال: عمّان، شارع الجامعة">
+          </div>
+          <div class="field">
+            <label>رقم هاتف المطعم (اختياري، يظهر على الفاتورة)</label>
+            <input type="tel" id="pr-restaurant-phone" placeholder="07xxxxxxxx" dir="ltr">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
             <label>
               <input type="checkbox" id="pr-kitchen-enabled">
               تفعيل طابعة المطبخ
@@ -745,6 +755,8 @@
         if (error) throw error;
         const s = data || {};
         document.getElementById("pr-restaurant-name").value = s.restaurant_name || "";
+        document.getElementById("pr-restaurant-address").value = s.restaurant_address || "";
+        document.getElementById("pr-restaurant-phone").value = s.restaurant_phone || "";
         document.getElementById("pr-kitchen-enabled").checked = !!s.kitchen_enabled;
         document.getElementById("pr-kitchen-ip").value = s.kitchen_ip || "";
         document.getElementById("pr-kitchen-port").value = s.kitchen_port || 9100;
@@ -814,6 +826,8 @@
         const payload = {
           id: 1,
           restaurant_name: document.getElementById("pr-restaurant-name").value.trim() || "OLV",
+          restaurant_address: document.getElementById("pr-restaurant-address").value.trim() || null,
+          restaurant_phone: document.getElementById("pr-restaurant-phone").value.trim() || null,
           kitchen_enabled: document.getElementById("pr-kitchen-enabled").checked,
           kitchen_ip: document.getElementById("pr-kitchen-ip").value.trim() || null,
           kitchen_port: Number(document.getElementById("pr-kitchen-port").value || 9100),
