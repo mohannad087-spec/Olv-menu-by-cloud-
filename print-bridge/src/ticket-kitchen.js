@@ -8,7 +8,9 @@ const REG = "Tajawal";
 // وبخط كبير يسهل قراءته من بعيد في بيئة مطبخ مزدحمة
 // stationName: اسم المحطة (مطبخ/بار/أراجيل...) بيظهر كعنوان التذكرة حتى
 // يعرف كل قسم إنها إلو — الافتراضي "طلب مطبخ" للمسار القديم بدون توزيع
-function buildKitchenTicket(sale, stationName) {
+// hasOtherStations: الطلب معه أصناف بأقسام تانية — بننبّه بدون ما نذكر شو هي،
+// حتى ينتبه الموظف إنه الطلب مش كامل عنده (خصوصًا بطلبات الصالة)
+function buildKitchenTicket(sale, stationName, hasOtherStations) {
   const t = new TicketBuilder();
   t.center(stationName ? `طلب ${stationName}` : "طلب مطبخ", `bold 40px ${BOLD}`, 54);
   if (sale.order_no) t.center(`#${sale.order_no}`, `bold 56px ${BOLD}`, 72);
@@ -23,6 +25,10 @@ function buildKitchenTicket(sale, stationName) {
   }
   if (sale.customer_phone) {
     t.centerLtr(sale.customer_phone, `bold 26px ${BOLD}`, 36);
+  }
+  if (hasOtherStations) {
+    t.spacer(8);
+    t.center("+++ معه طلب على قسم آخر +++", `bold 28px ${BOLD}`, 40);
   }
   t.spacer(10);
   t.divider();
@@ -43,6 +49,7 @@ function buildKitchenTicket(sale, stationName) {
   t.spacer(16);
   t.divider();
   t.spacer(10);
+  if (hasOtherStations) t.center("+++ معه طلب على قسم آخر +++", `bold 24px ${BOLD}`, 34);
   t.center("-- انتهى الطلب --", `22px ${REG}`, 30);
 
   return t.build();
