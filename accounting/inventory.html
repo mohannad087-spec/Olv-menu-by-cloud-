@@ -262,7 +262,7 @@
       banner.hidden = false;
       list.innerHTML = urgent.map(({ ing, daysLeft }) => `
         <div class="urgent-item">
-          <span>${ing.name}</span>
+          <span>${olvEsc(ing.name)}</span>
           <span class="days">${daysLeft <= 0 ? "نفدت تقريبًا" : `يكفي لـ ${daysLeft.toFixed(1)} يوم تقريبًا`}</span>
         </div>
       `).join("");
@@ -302,7 +302,7 @@
             }
             return `
               <tr>
-                <td>${ing.name}</td>
+                <td>${olvEsc(ing.name)}</td>
                 <td>${ing.unit}</td>
                 <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
                 <td>${daysCell}</td>
@@ -449,9 +449,9 @@
       const addonSel = document.getElementById("recipe-addon");
       const ingSel1 = document.getElementById("recipe-ing-select");
       const ingSel2 = document.getElementById("addon-recipe-ing-select");
-      prodSel.innerHTML = products.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
-      addonSel.innerHTML = addons.map((a) => `<option value="${a.id}">${a.name}</option>`).join("");
-      const ingOptions = ingredients.map((i) => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("");
+      prodSel.innerHTML = products.map((p) => `<option value="${p.id}">${olvEsc(p.name)}</option>`).join("");
+      addonSel.innerHTML = addons.map((a) => `<option value="${a.id}">${olvEsc(a.name)}</option>`).join("");
+      const ingOptions = ingredients.map((i) => `<option value="${i.id}">${olvEsc(i.name)} (${i.unit})</option>`).join("");
       ingSel1.innerHTML = ingOptions;
       ingSel2.innerHTML = ingOptions;
     }
@@ -468,7 +468,7 @@
       el.innerHTML = (data || []).length
         ? data.map((r) => `
           <div class="recipe-row">
-            <div class="r-name">${r.ingredients.name}: ${r.quantity} ${r.ingredients.unit}</div>
+            <div class="r-name">${olvEsc(r.ingredients.name)}: ${r.quantity} ${r.ingredients.unit}</div>
             <button class="btn small danger" data-del-recipe="${r.id}">حذف</button>
           </div>
         `).join("")
@@ -506,7 +506,7 @@
           <div class="hint">اضغط على مادة لتعبئتها بالأسفل، حدد الكمية، واضغط "إضافة للوصفة"</div>
           <div class="recipe-suggest-chips">
             ${matches.map((ing) => `
-              <button type="button" class="recipe-suggest-chip" data-suggest-ing="${ing.id}">${ing.name} (${ing.unit})</button>
+              <button type="button" class="recipe-suggest-chip" data-suggest-ing="${ing.id}">${olvEsc(ing.name)} (${ing.unit})</button>
             `).join("")}
           </div>
         `
@@ -531,7 +531,7 @@
       el.innerHTML = (data || []).length
         ? data.map((r) => `
           <div class="recipe-row">
-            <div class="r-name">${r.ingredients.name}: ${r.quantity} ${r.ingredients.unit}</div>
+            <div class="r-name">${olvEsc(r.ingredients.name)}: ${r.quantity} ${r.ingredients.unit}</div>
             <button class="btn small danger" data-del-arecipe="${r.id}">حذف</button>
           </div>
         `).join("")

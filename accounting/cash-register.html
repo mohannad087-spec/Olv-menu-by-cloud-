@@ -165,7 +165,7 @@
             <td style="color:${Number(r.difference) < 0 ? '#e0a190' : (Number(r.difference) > 0 ? '#9dab63' : 'inherit')}">
               ${olvFormatMoney(r.difference)}
             </td>
-            <td>${r.notes || "—"}</td>
+            <td>${olvEsc(r.notes) || "—"}</td>
           </tr>
         `).join("");
       } catch (err) {

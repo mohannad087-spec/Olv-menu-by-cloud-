@@ -205,20 +205,20 @@
                   <span class="order-time">${o.order_no ? `#${o.order_no} · ` : ""}${formatTime(o.created_at)}</span>
                   ${activeTab === "pending" ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
                 </div>
-                ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${o.order_type}</span>` : ""}
+                ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(o.order_type)}</span>` : ""}
               </div>
-              ${o.customer_name ? `<div class="order-route">${olvIcon("person")} ${o.customer_name}</div>` : ""}
-              ${o.table_number ? `<div class="order-route">${olvIcon("grid")} طاولة رقم ${o.table_number}</div>` : ""}
-              ${o.customer_phone ? `<div class="order-route" dir="ltr">${olvIcon("phone")} ${o.customer_phone}</div>` : ""}
+              ${o.customer_name ? `<div class="order-route">${olvIcon("person")} ${olvEsc(o.customer_name)}</div>` : ""}
+              ${o.table_number ? `<div class="order-route">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table_number)}</div>` : ""}
+              ${o.customer_phone ? `<div class="order-route" dir="ltr">${olvIcon("phone")} ${olvEsc(o.customer_phone)}</div>` : ""}
               <div class="order-items">
                 ${o.sale_items.map((it) => `
                   <div class="order-line">
                     <div class="qty-line">
                       <span class="order-qty-badge">${it.qty}×</span>
-                      <span class="item-name">${it.product_name}</span>
+                      <span class="item-name">${olvEsc(it.product_name)}</span>
                     </div>
-                    ${it.addons_summary ? `<div class="addons">+ ${it.addons_summary}</div>` : ""}
-                    ${it.note ? `<div class="note">${olvIcon("note")} ${it.note}</div>` : ""}
+                    ${it.addons_summary ? `<div class="addons">+ ${olvEsc(it.addons_summary)}</div>` : ""}
+                    ${it.note ? `<div class="note">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
                   </div>
                 `).join("")}
               </div>
@@ -232,7 +232,7 @@
           btn.addEventListener("click", async () => {
             btn.disabled = true;
             const { error } = await window.supabaseClient
-              .from("sales_entries").update({ kitchen_status: btn.dataset.next }).eq("id", btn.dataset.id);
+              .rpc("set_kitchen_status", { p_sale_id: btn.dataset.id, p_status: btn.dataset.next });
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
             if (activeTab === "pending" && typeof OlvSound !== "undefined") OlvSound.playOrderReady();
             loadOrders();

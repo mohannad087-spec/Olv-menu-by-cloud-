@@ -259,8 +259,8 @@
           const bal = balances[s.id] ? Number(balances[s.id].balance) : 0;
           return `
             <tr class="supplier-row${selectedSupplier === s.id ? " on" : ""}" data-select="${s.id}">
-              <td>${s.name}</td>
-              <td>${s.phone || "—"}</td>
+              <td>${olvEsc(s.name)}</td>
+              <td>${olvEsc(s.phone) || "—"}</td>
               <td class="${balanceClass(bal)}">${olvFormatMoney(bal)}</td>
               <td><button class="btn small danger" data-del="${s.id}">حذف</button></td>
             </tr>
@@ -338,7 +338,7 @@
             <tr>
               <td>${t.transaction_date}</td>
               <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type]}</td>
-              <td>${t.description || "—"}</td>
+              <td>${olvEsc(t.description) || "—"}</td>
               <td>${olvFormatMoney(t.amount)}</td>
               <td><button class="btn small danger" data-del-tx="${t.id}">حذف</button></td>
             </tr>
@@ -376,7 +376,7 @@
             <tr>
               <td>${t.transaction_date}</td>
               <td>${TYPE_LABELS[t.type]}</td>
-              <td>${t.description || "—"}</td>
+              <td>${olvEsc(t.description) || "—"}</td>
               <td>${olvFormatMoney(t.amount)}</td>
             </tr>
           `).join("")

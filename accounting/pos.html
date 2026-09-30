@@ -595,7 +595,7 @@
     // الشاشة بقيت مفتوحة على بيع سريع نفسها بدل الانتقال لصفحة منفصلة
     function showToast(msg, color, icon) {
       const toast = document.createElement("div");
-      toast.innerHTML = (icon ? olvIcon(icon) : "") + `<span>${msg}</span>`;
+      toast.innerHTML = (icon ? olvIcon(icon) : "") + `<span>${olvEsc(msg)}</span>`;
       toast.style.cssText = [
         "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
         `background:${color || "var(--ok)"}`, "color:#fff", "padding:12px 22px", "border-radius:10px",
@@ -649,9 +649,13 @@
 
     // يحسب قيمة الخصم الفعلية بالعملة، مع سقف بحيث ما يتعدى المجموع الفرعي
     // (يمنع رقم خصم سالب أو إجمالي سالب بأي حال)
+    // الكاشير عليه سقف خصم يفرضه السيرفر (staff_max_discount_percent) — هون
+    // بنطبّقه كمان بالشاشة حتى ما يكتشف الكاشير الرفض بعد ما يجهّز الطلب
+    let staffMaxDiscountPct = null;
     function computeDiscountAmount(subtotal) {
       if (!discountValue || discountValue <= 0) return 0;
-      const raw = discountMode === "percent" ? subtotal * (discountValue / 100) : discountValue;
+      let raw = discountMode === "percent" ? subtotal * (discountValue / 100) : discountValue;
+      if (staffMaxDiscountPct !== null) raw = Math.min(raw, subtotal * staffMaxDiscountPct / 100);
       return Math.round(Math.max(0, Math.min(raw, subtotal)) * 100) / 100;
     }
 
@@ -719,9 +723,9 @@
         ...realCats,
       ];
       document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
-        <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${c}">
+        <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${olvEsc(c)}">
           <span class="cat-tab-icon">${c === "الكل" ? olvIcon("grid") : c === BEST_SELLERS ? olvIcon("star") : olvIcon(categoryIconName(c))}</span>
-          <span class="cat-tab-label">${c}</span>
+          <span class="cat-tab-label">${olvEsc(c)}</span>
         </button>
       `).join("");
       document.querySelectorAll(".cat-tab").forEach((btn) => {
@@ -778,12 +782,12 @@
         <div class="card" data-id="${p.id}" data-sound="add">
           ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
           ${src
-            ? `<img class="thumb" src="${src}" alt="${p.name}" data-fallback-icon="${fallbackIcon}" onerror="olvHandleImageError(this)">`
+            ? `<img class="thumb" src="${src}" alt="${olvEsc(p.name)}" data-fallback-icon="${fallbackIcon}" onerror="olvHandleImageError(this)">`
             : `<div class="thumb-fallback">${olvIcon(fallbackIcon)}</div>`
           }
           <div class="info">
-            <div class="name">${p.name}</div>
-            ${p.description ? `<div class="desc">${p.description}</div>` : ""}
+            <div class="name">${olvEsc(p.name)}</div>
+            ${p.description ? `<div class="desc">${olvEsc(p.description)}</div>` : ""}
             <div class="info-bottom">
               <span class="price">${olvFormatMoney(p.price)}</span>
               <button type="button" class="add-btn" data-add="${p.id}" data-sound="add">+ أضف</button>
@@ -841,14 +845,14 @@
 
       function render() {
         sheet.innerHTML = `
-          <h2 style="margin-bottom:10px;">${item.name}</h2>
+          <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
           ${addons.length ? `
             <div style="margin-bottom:10px;">
               ${addons.map((a) => `
                 <label class="addon-row" for="addon-${a.id}">
                   <input type="checkbox" data-addon="${a.id}" id="addon-${a.id}" ${selectedAddons.has(a.id) ? "checked" : ""}>
-                  <span class="addon-name">${a.name}</span>
+                  <span class="addon-name">${olvEsc(a.name)}</span>
                   <span class="a-price">+${olvFormatMoney(a.price)}</span>
                 </label>
               `).join("")}
@@ -983,9 +987,9 @@
             <div class="cart-item-top">
               <div class="qty-badge">${item.qty}×</div>
               <div class="cart-item-info" data-edit="${idx}">
-                <div class="name">${item.name}</div>
-                ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
-                ${item.note ? `<div class="meta">${olvIcon("note")} ${item.note}</div>` : ""}
+                <div class="name">${olvEsc(item.name)}</div>
+                ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => olvEsc(a.name)).join("، ")}</div>` : ""}
+                ${item.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(item.note)}</div>` : ""}
               </div>
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
@@ -1102,7 +1106,7 @@
           </div>
           <div class="checkout-summary">
             ${cartSnapshot.map((item) => `
-              <div class="row"><span>${item.qty}× ${item.name}</span><span>${olvFormatMoney(OlvCart.lineTotal(item))}</span></div>
+              <div class="row"><span>${item.qty}× ${olvEsc(item.name)}</span><span>${olvFormatMoney(OlvCart.lineTotal(item))}</span></div>
             `).join("")}
             ${discountAmount > 0 ? `
               <div class="row"><span>المجموع الفرعي</span><span>${olvFormatMoney(subtotal)}</span></div>
@@ -1238,6 +1242,21 @@
       session = await olvRequireAuth();
       if (!session) return;
       const errBox = document.getElementById("err");
+      if (window.olvRole === "staff") {
+        try {
+          const { data: lim } = await window.supabaseClient
+            .from("app_settings").select("value").eq("key", "staff_max_discount_percent").maybeSingle();
+          const n = lim ? Number(lim.value) : 10;
+          staffMaxDiscountPct = Number.isFinite(n) ? n : 10;
+          const hint = document.createElement("div");
+          hint.className = "hint";
+          hint.style.cssText = "font-size:12px; margin-top:6px;";
+          hint.textContent = staffMaxDiscountPct > 0
+            ? `أقصى خصم مسموح للكاشير: ${staffMaxDiscountPct}% — أكثر من هيك بيحتاج مدير`
+            : "الخصم غير مسموح للكاشير — بيحتاج مدير";
+          document.getElementById("discount-form").appendChild(hint);
+        } catch (e) { /* السيرفر بيفرض الحد بأي حال */ }
+      }
       try {
         const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }, { data: salesData, error: e3 }] = await Promise.all([
           window.supabaseClient.from("products").select("*").eq("is_active", true).order("category").order("sort_order"),

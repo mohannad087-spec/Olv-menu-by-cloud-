@@ -181,7 +181,7 @@
       if (error) { olvShowError(document.getElementById("err"), error); return; }
       suppliers = data || [];
       const sel = document.getElementById("s-supplier");
-      sel.innerHTML = `<option value="">— بدون —</option>` + suppliers.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+      sel.innerHTML = `<option value="">— بدون —</option>` + suppliers.map((s) => `<option value="${s.id}">${olvEsc(s.name)}</option>`).join("");
     }
 
     async function loadSupplies() {
@@ -219,7 +219,7 @@
                     const low = Number(s.current_stock) <= Number(s.low_stock_threshold) && Number(s.low_stock_threshold) > 0;
                     return `
                     <tr>
-                      <td>${s.name}</td>
+                      <td>${olvEsc(s.name)}</td>
                       <td>${s.unit}</td>
                       <td class="${low ? "low-stock" : ""}">${s.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
                       <td>
@@ -301,7 +301,7 @@
         const suggested = Math.max(0, Number(s.low_stock_threshold) - Number(s.current_stock));
         return `
           <div class="order-row">
-            <div class="o-name">${s.name}</div>
+            <div class="o-name">${olvEsc(s.name)}</div>
             <div class="o-stock">الحالي: ${s.current_stock} ${s.unit}</div>
             <input type="number" step="0.001" min="0" class="order-qty-input" value="${suggested || ""}" placeholder="0" data-order-qty="${s.id}">
           </div>

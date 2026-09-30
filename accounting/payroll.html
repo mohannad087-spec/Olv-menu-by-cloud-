@@ -178,7 +178,7 @@
       if (error) throw error;
       employees = data || [];
       profilesById = new Map(employees.map((p) => [p.id, p]));
-      const optionsHtml = employees.map((p) => `<option value="${p.id}">${p.full_name}</option>`).join("");
+      const optionsHtml = employees.map((p) => `<option value="${p.id}">${olvEsc(p.full_name)}</option>`).join("");
       document.getElementById("a-employee").innerHTML = optionsHtml;
       document.getElementById("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
     }
@@ -207,7 +207,7 @@
           <td>${empName(a.profile_id)}</td>
           <td>${a.advance_date}</td>
           <td>${olvFormatMoney(a.amount)}</td>
-          <td>${a.note || "—"}</td>
+          <td>${olvEsc(a.note) || "—"}</td>
           <td><button class="btn small danger" data-del="${a.id}">حذف</button></td>
         </tr>
       `).join("");

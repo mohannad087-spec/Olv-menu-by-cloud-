@@ -177,7 +177,7 @@
       el.innerHTML = addons.map((a) => `
         <label class="addon-row" for="sa-${a.id}">
           <input type="checkbox" data-addon="${a.id}" id="sa-${a.id}">
-          <span class="addon-name">${a.name}</span>
+          <span class="addon-name">${olvEsc(a.name)}</span>
           <span class="a-price">+${olvFormatMoney(a.price)}</span>
         </label>
       `).join("");
@@ -196,9 +196,9 @@
       list.innerHTML = cart.map((item, idx) => `
         <div class="cart-item">
           <div>
-            <div>${item.qty}× ${item.name}</div>
-            ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => a.name).join("، ")}</div>` : ""}
-            ${item.note ? `<div class="meta">${olvIcon("note")} ${item.note}</div>` : ""}
+            <div>${item.qty}× ${olvEsc(item.name)}</div>
+            ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => olvEsc(a.name)).join("، ")}</div>` : ""}
+            ${item.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(item.note)}</div>` : ""}
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
             <span>${olvFormatMoney(OlvCart.lineTotal(item))}</span>
@@ -246,6 +246,17 @@
 
     let expandedSaleId = null;
 
+    // السيرفر بيرفض الإلغاء بدون سبب واضح (3 أحرف على الأقل) — نسأل هون لحد ما
+    // يكتب سبب أو يتراجع
+    function askVoidReason() {
+      for (;;) {
+        const r = prompt("سبب الإلغاء (إلزامي، 3 أحرف على الأقل):");
+        if (r === null) return null;
+        if (r.trim().length >= 3) return r.trim();
+        alert("لازم تكتب سبب واضح للإلغاء");
+      }
+    }
+
     function renderItemsDetail(sale) {
       const items = sale.sale_items || [];
       if (!items.length) return `<div class="hint">لا توجد أصناف مسجّلة لهذا الطلب</div>`;
@@ -256,9 +267,9 @@
         return `
           <div class="item-detail-row">
             <div class="name ${itemVoided ? "item-voided" : ""}">
-              <div>${it.qty}× ${it.product_name}</div>
-              ${it.addons_summary ? `<div class="meta">+ ${it.addons_summary}</div>` : ""}
-              ${it.note ? `<div class="meta">${olvIcon("note")} ${it.note}</div>` : ""}
+              <div>${it.qty}× ${olvEsc(it.product_name)}</div>
+              ${it.addons_summary ? `<div class="meta">+ ${olvEsc(it.addons_summary)}</div>` : ""}
+              ${it.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
             </div>
             <div style="display:flex; align-items:center; gap:10px;">
               <span>${olvFormatMoney(lineTotal)}</span>
@@ -293,7 +304,7 @@
             <td>${olvFormatMoney(r.card_amount)}</td>
             <td>${olvFormatMoney(r.delivery_amount)}</td>
             <td>${olvFormatMoney(total)}</td>
-            <td>${r.notes || "—"}${voided && r.void_reason ? ` — سبب الإلغاء: ${r.void_reason}` : ""}</td>
+            <td>${olvEsc(r.notes) || "—"}${Number(r.discount_amount) > 0 ? ` <b style="color:var(--danger-hi);">[خصم مسجَّل ${olvFormatMoney(r.discount_amount)}]</b>` : ""}${voided && r.void_reason ? ` — سبب الإلغاء: ${olvEsc(r.void_reason)}` : ""}</td>
             <td>${voided ? `<span class="status-voided">${olvIcon("x")} ملغى</span>` : `<span class="status-completed">${olvIcon("check")} مكتمل</span>`}</td>
             <td>
               <div class="row-actions">
@@ -320,7 +331,8 @@
         body.querySelectorAll("button[data-void]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             if (!confirm("متأكد من إلغاء هذا الطلب؟ سيرجع كل ما استهلكه من مواد خام إلى المخزون تلقائيًا، ولن يُحتسب ضمن المبيعات أو التقارير بعد الآن.")) return;
-            const reason = prompt("سبب الإلغاء (اختياري):") || null;
+            const reason = askVoidReason();
+            if (!reason) return;
             btn.disabled = true;
             const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: btn.dataset.void, p_reason: reason });
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
@@ -330,7 +342,8 @@
         body.querySelectorAll("button[data-void-item]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             if (!confirm("متأكد من إلغاء هذا الصنف فقط؟ سيرجع للمخزون وينقص من إجمالي الطلب، وباقي الأصناف تضل كما هي.")) return;
-            const reason = prompt("سبب الإلغاء (اختياري):") || null;
+            const reason = askVoidReason();
+            if (!reason) return;
             btn.disabled = true;
             const { error } = await window.supabaseClient.rpc("void_sale_item", { p_sale_item_id: btn.dataset.voidItem, p_reason: reason });
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
@@ -363,8 +376,8 @@
           (byCategory[cat] = byCategory[cat] || []).push(p);
         });
         document.getElementById("product-select").innerHTML = Object.keys(byCategory).map((cat) => `
-          <optgroup label="${cat}">
-            ${byCategory[cat].map((p) => `<option value="${p.id}">${p.name} — ${olvFormatMoney(p.price)}</option>`).join("")}
+          <optgroup label="${olvEsc(cat)}">
+            ${byCategory[cat].map((p) => `<option value="${p.id}">${olvEsc(p.name)} — ${olvFormatMoney(p.price)}</option>`).join("")}
           </optgroup>
         `).join("");
         renderAddonPicker();

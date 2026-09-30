@@ -127,7 +127,7 @@
       if (error) { olvShowError(document.getElementById("err"), error); return; }
       categories = data || [];
       const sel = document.getElementById("category_id");
-      sel.innerHTML = categories.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+      sel.innerHTML = categories.map((c) => `<option value="${c.id}">${olvEsc(c.name)}</option>`).join("");
     }
 
     async function loadExpenses() {
@@ -145,10 +145,10 @@
         body.innerHTML = data.map((r) => `
           <tr>
             <td>${r.expense_date}</td>
-            <td>${r.expense_categories ? r.expense_categories.name : "—"}</td>
-            <td>${r.description || "—"}</td>
+            <td>${r.expense_categories ? olvEsc(r.expense_categories.name) : "—"}</td>
+            <td>${olvEsc(r.description) || "—"}</td>
             <td>${olvFormatMoney(r.amount)}</td>
-            <td><button class="btn small danger" data-id="${r.id}">حذف</button></td>
+            <td>${window.olvRole === "staff" ? "" : `<button class="btn small danger" data-id="${r.id}">حذف</button>`}</td>
           </tr>
         `).join("");
         body.querySelectorAll("button[data-id]").forEach((btn) => {

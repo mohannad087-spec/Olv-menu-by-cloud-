@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
       const { error: updateErr } = await admin.from("profiles").update({
         full_name: fullName,
         role,
+        is_active: true,
         phone: body.phone ? String(body.phone) : null,
         hourly_wage: body.hourly_wage != null && body.hourly_wage !== "" ? Number(body.hourly_wage) : null,
       }).eq("id", created.user.id);

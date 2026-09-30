@@ -256,8 +256,8 @@
       }
       body.innerHTML = employees.map((e) => `
         <tr class="employee-row${e.is_active ? "" : " inactive"}" data-id="${e.id}">
-          <td>${e.full_name || "—"}</td>
-          <td dir="ltr" style="text-align:right;">${e.phone || "—"}</td>
+          <td>${olvEsc(e.full_name) || "—"}</td>
+          <td dir="ltr" style="text-align:right;">${olvEsc(e.phone) || "—"}</td>
           <td><span class="role-badge ${e.role}">${ROLE_LABELS[e.role] || e.role}</span></td>
           <td>${e.hourly_wage != null ? olvFormatMoney(e.hourly_wage) : "—"}</td>
           <td><span class="status-badge ${e.is_active ? "active" : "inactive"}">${e.is_active ? "فعّال" : "موقوف"}</span></td>

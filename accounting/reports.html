@@ -230,7 +230,7 @@
       const max = Math.max(...items.map((i) => i.value), 1);
       el.innerHTML = items.map((i) => `
         <div class="bar-row">
-          <div class="bar-label">${i.label}</div>
+          <div class="bar-label">${olvEsc(i.label)}</div>
           <div class="bar-track"><div class="bar-fill" style="width:${(i.value / max) * 100}%"></div></div>
           <div class="bar-value">${olvFormatMoney(i.value)}</div>
         </div>
@@ -281,7 +281,7 @@
       body.innerHTML = rows.length
         ? rows.map((r) => `
             <tr>
-              <td>${r.name}</td>
+              <td>${olvEsc(r.name)}</td>
               <td>${r.completedCount}</td>
               <td>${olvFormatMoney(r.total)}</td>
               <td>${olvFormatMoney(r.avg)}</td>
@@ -371,7 +371,7 @@
 
       const topProduct = computeTopProduct(sales);
       if (topProduct) {
-        rows.push(`<div class="insight-row fact">${olvIcon("star")}<span>الأكثر مبيعًا بالفترة: <b>${topProduct.name}</b> (${topProduct.qty} قطعة)</span></div>`);
+        rows.push(`<div class="insight-row fact">${olvIcon("star")}<span>الأكثر مبيعًا بالفترة: <b>${olvEsc(topProduct.name)}</b> (${topProduct.qty} قطعة)</span></div>`);
       }
 
       if (!rows.length) { group.hidden = true; return; }
@@ -442,7 +442,7 @@
       }
       body.innerHTML = rows.map((r) => `
         <tr>
-          <td>${r.name}${!r.hasRecipe ? `<span class="no-recipe-warn">${olvIcon("warning")} لا توجد وصفة محددة — التكلفة غير محسوبة</span>` : ""}</td>
+          <td>${olvEsc(r.name)}${!r.hasRecipe ? `<span class="no-recipe-warn">${olvIcon("warning")} لا توجد وصفة محددة — التكلفة غير محسوبة</span>` : ""}</td>
           <td>${r.qty}</td>
           <td>${olvFormatMoney(r.revenue)}</td>
           <td>${olvFormatMoney(r.cost)}</td>
@@ -528,9 +528,9 @@
       document.getElementById("print-expenses").textContent = olvFormatMoney(r.totalExpenses);
       document.getElementById("print-net").textContent = olvFormatMoney(r.net);
       document.getElementById("print-payment-body").innerHTML = r.payment
-        .map((i) => `<tr><td>${i.label}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("");
+        .map((i) => `<tr><td>${olvEsc(i.label)}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("");
       document.getElementById("print-category-body").innerHTML = r.categories.length
-        ? r.categories.map((i) => `<tr><td>${i.label}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("")
+        ? r.categories.map((i) => `<tr><td>${olvEsc(i.label)}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("")
         : `<tr><td colspan="2">لا يوجد مصروفات في هذه الفترة</td></tr>`;
       window.print();
     }

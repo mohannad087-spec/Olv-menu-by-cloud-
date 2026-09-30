@@ -150,10 +150,10 @@
           const duration = isOccupied && o.occupied_at ? minutesSince(o.occupied_at) : null;
           return `
             <div class="table-card ${isOccupied ? "occupied" : "free"}">
-              <div class="t-number">${t.table_number}</div>
+              <div class="t-number">${olvEsc(t.table_number)}</div>
               <div class="t-status">${isOccupied ? "مشغولة" : "فاضية"}</div>
               ${duration !== null ? `<div class="t-duration">منذ ${duration} د</div>` : ""}
-              ${isOccupied ? `<button type="button" class="btn small t-release-btn" data-release="${t.table_number}">تحرير الطاولة</button>` : ""}
+              ${isOccupied ? `<button type="button" class="btn small t-release-btn" data-release="${olvEsc(t.table_number)}">تحرير الطاولة</button>` : ""}
             </div>
           `;
         }).join("");

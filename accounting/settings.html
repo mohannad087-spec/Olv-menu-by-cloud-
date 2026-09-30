@@ -88,6 +88,7 @@
       <button type="button" class="sub-tab on" data-settings-tab="general">عام</button>
       <button type="button" class="sub-tab" data-settings-tab="products">المنتجات والإضافات</button>
       <button type="button" class="sub-tab" data-settings-tab="printing">الطباعة</button>
+      <button type="button" class="sub-tab" data-settings-tab="security">الأمان والتدقيق</button>
       <button type="button" class="sub-tab" data-settings-tab="danger">منطقة الخطر</button>
     </div>
 
@@ -318,17 +319,73 @@
 
     </div>
 
+    <div class="settings-panel" data-panel="security">
+
+    <div class="group">
+      <h2>حدود صلاحيات الكاشير</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        الكاشير يقدر يبيع ويلغي طلباته هو فقط خلال مدة قصيرة وبسبب إلزامي، وخصمه
+        له سقف. أي شي فوق هذا الحد بيحتاج مدير أو صاحب المطعم. السيرفر بيفرض
+        هالحدود، مش بس الشاشة.
+      </p>
+      <form id="staff-limits-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="field" style="flex:1; min-width:180px; margin-bottom:0;">
+          <label for="lim-discount">أقصى خصم للكاشير (% من الطلب)</label>
+          <input type="number" id="lim-discount" min="0" max="100" step="1" inputmode="decimal" dir="ltr">
+        </div>
+        <div class="field" style="flex:1; min-width:180px; margin-bottom:0;">
+          <label for="lim-void">مدة سماح الكاشير بإلغاء طلبه (دقائق)</label>
+          <input type="number" id="lim-void" min="0" max="120" step="1" inputmode="numeric" dir="ltr">
+        </div>
+        <button type="submit" class="btn gold">حفظ</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <h2>نشاط الكاشيرية — آخر 7 أيام</h2>
+      <p class="hint" style="margin-bottom:10px;">
+        راقب الأرقام الغريبة: كاشير نسبة إلغاءاته أو خصوماته أعلى بوضوح من زملائه
+        يستاهل سؤال. الصفوف الملوّنة تجاوزت 10% إلغاء أو 5% خصم من مبيعاته.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الكاشير</th><th>الطلبات</th><th>المبيعات</th><th>ملغاة</th><th>قيمة الملغى</th><th>خصومات</th><th>قيمة الخصم</th></tr></thead>
+          <tbody id="cashier-activity-body"><tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="group">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h2 style="margin:0;">سجل التدقيق</h2>
+        <button type="button" class="btn small" id="refresh-audit-btn">تحديث</button>
+      </div>
+      <p class="hint" style="margin:8px 0 12px;">
+        كل تعديل حساس (إلغاء فاتورة، تغيير سعر، حذف، تعديل مصروف أو راتب...) بيتسجّل
+        تلقائيًا باسم فاعله ووقته، ولا يقدر أحد يعدّله أو يمسحه. لصاحب المطعم فقط.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>التفاصيل</th></tr></thead>
+          <tbody id="audit-body"><tr class="empty-row"><td colspan="4">جاري التحميل...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    </div>
+
     <div class="settings-panel" data-panel="danger">
 
     <div class="group" style="border-color:rgba(193,88,63,.5);">
       <h2 style="color:var(--danger-hi);">منطقة الخطر</h2>
       <p class="hint" style="margin-bottom:16px;">
         هذه الإجراءات تحذف بيانات فعليًا ولا يمكن التراجع عنها. تتطلب كل منها
-        إدخال الرقم السري ثم تأكيدًا إضافيًا. الرقم السري مخزَّن في جدول
-        <code>app_settings</code> (المفتاح <code>reset_pin</code>) ويمكن
-        تغييره في أي وقت مباشرة من Supabase Table Editor.
+        إدخال الرقم السري ثم تأكيدًا إضافيًا. الرقم السري محفوظ بقاعدة
+        البيانات ولا يمكن قراءته من المتصفح أبدًا (التحقق يتم على السيرفر)،
+        ومسح سجل المبيعات لصاحب المطعم فقط.
       </p>
       <div style="display:flex; flex-direction:column; gap:10px;">
+        <button type="button" class="btn" id="change-pin-btn">تغيير الرقم السري (لصاحب المطعم)</button>
         <button type="button" class="btn danger" id="reset-stock-btn">تصفير كميات كل المواد الخام</button>
         <button type="button" class="btn danger" id="delete-ingredients-btn">حذف كل المواد الخام ووصفاتها نهائيًا</button>
         <button type="button" class="btn danger" id="delete-sales-btn">حذف سجل المبيعات بالكامل</button>
@@ -463,7 +520,7 @@
         }
         body.innerHTML = data.map((c) => `
           <tr>
-            <td>${c.name}</td>
+            <td>${olvEsc(c.name)}</td>
             <td><button class="btn small danger" data-id="${c.id}">حذف</button></td>
           </tr>
         `).join("");
@@ -494,7 +551,7 @@
         }
         body.innerHTML = data.map((t) => `
           <tr>
-            <td>${t.table_number}</td>
+            <td>${olvEsc(t.table_number)}</td>
             <td><button class="btn small danger" data-id="${t.id}">حذف</button></td>
           </tr>
         `).join("");
@@ -534,9 +591,9 @@
           const open = openCategories.has(cat);
           return `
           <div class="cat-accordion" style="margin-bottom:10px;">
-            <button type="button" class="cat-accordion-head" data-cat-toggle="${cat}">
+            <button type="button" class="cat-accordion-head" data-cat-toggle="${olvEsc(cat)}">
               <span class="caret${open ? " open" : ""}">▸</span>
-              <span>${cat}</span>
+              <span>${olvEsc(cat)}</span>
               <span class="badge">${byCategory[cat].length}</span>
             </button>
             ${open ? `
@@ -547,7 +604,7 @@
                   ${byCategory[cat].map((p) => `
                     <tr>
                       <td>
-                        ${p.name}
+                        ${olvEsc(p.name)}
                         ${p.external_id ? `
                           <span class="badge" title="مربوط بـ: ${p.external_id}">${olvIcon("link")}</span>
                           <button class="btn small" data-unlink="${p.id}" title="فك الربط بموقع المنيو">${olvIcon("x")} فك الربط</button>
@@ -555,7 +612,7 @@
                       </td>
                       <td>
                         <div style="display:flex; gap:6px; min-width:180px;">
-                          <input type="text" value="${p.description || ""}" placeholder="بدون وصف" style="min-width:120px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-description-input="${p.id}">
+                          <input type="text" value="${olvEsc(p.description) || ""}" placeholder="بدون وصف" style="min-width:120px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-description-input="${p.id}">
                           <button class="btn small" data-save-description="${p.id}">حفظ</button>
                         </div>
                       </td>
@@ -655,7 +712,7 @@
         }
         body.innerHTML = data.map((a) => `
           <tr>
-            <td>${a.name}</td>
+            <td>${olvEsc(a.name)}</td>
             <td>${olvFormatMoney(a.price)}</td>
             <td><button class="btn small danger" data-id="${a.id}">حذف</button></td>
           </tr>
@@ -1033,14 +1090,99 @@
 
     document.getElementById("refresh-print-jobs-btn").addEventListener("click", loadPrintJobs);
 
+    let myRole = null;
+
+    const AUDIT_TABLE_LABELS = {
+      sales_entries: "فاتورة", sale_items: "صنف بفاتورة", products: "منتج", addons: "إضافة",
+      expenses: "مصروف", cash_closings: "تقفيل خزينة", customers: "عميل", ingredients: "مادة خام",
+      app_settings: "إعداد", profiles: "موظف", employee_punches: "بصمة حضور",
+      salary_advances: "سلفة", payroll_payments: "راتب",
+    };
+    const AUDIT_OP_LABELS = { INSERT: "إضافة", UPDATE: "تعديل", DELETE: "حذف" };
+
+    async function loadSecurity() {
+      const errBox = document.getElementById("err");
+      try {
+        const { data: settings } = await window.supabaseClient
+          .from("app_settings").select("key, value").in("key", ["staff_max_discount_percent", "staff_void_minutes"]);
+        const map = Object.fromEntries((settings || []).map((r) => [r.key, r.value]));
+        document.getElementById("lim-discount").value = map.staff_max_discount_percent ?? "10";
+        document.getElementById("lim-void").value = map.staff_void_minutes ?? "10";
+
+        const since = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+        const [{ data: sales, error: sErr }, { data: profs }] = await Promise.all([
+          window.supabaseClient.from("sales_entries")
+            .select("created_by, status, cash_amount, card_amount, delivery_amount, discount_amount, entry_date")
+            .gte("entry_date", since),
+          window.supabaseClient.from("profiles").select("id, full_name, role"),
+        ]);
+        if (sErr) throw sErr;
+        const names = Object.fromEntries((profs || []).map((p) => [p.id, p.full_name || "—"]));
+        const agg = {};
+        (sales || []).forEach((r) => {
+          const a = agg[r.created_by || "?"] || (agg[r.created_by || "?"] = { n: 0, total: 0, voidN: 0, voidAmt: 0, discN: 0, discAmt: 0 });
+          const amt = Number(r.cash_amount || 0) + Number(r.card_amount || 0) + Number(r.delivery_amount || 0);
+          a.n += 1;
+          if (r.status === "voided") { a.voidN += 1; a.voidAmt += amt; } else { a.total += amt; }
+          if (Number(r.discount_amount || 0) > 0) { a.discN += 1; a.discAmt += Number(r.discount_amount); }
+        });
+        const rows = Object.entries(agg).sort((x, y) => y[1].n - x[1].n).map(([id, a]) => {
+          const gross = a.total + a.voidAmt;
+          const flag = (a.n > 0 && a.voidN / a.n > 0.10) || (gross > 0 && a.discAmt / (gross + a.discAmt) > 0.05);
+          return `<tr${flag ? ' style="background:rgba(193,88,63,.14);"' : ""}>
+            <td>${olvEsc(names[id] || "غير معروف")}</td><td>${a.n}</td><td>${olvFormatMoney(a.total)}</td>
+            <td>${a.voidN}</td><td>${olvFormatMoney(a.voidAmt)}</td><td>${a.discN}</td><td>${olvFormatMoney(a.discAmt)}</td></tr>`;
+        });
+        document.getElementById("cashier-activity-body").innerHTML = rows.length
+          ? rows.join("") : `<tr class="empty-row"><td colspan="7">لا يوجد مبيعات بآخر 7 أيام</td></tr>`;
+      } catch (err) { olvShowError(errBox, err); }
+
+      const auditBody = document.getElementById("audit-body");
+      if (myRole !== "owner") {
+        auditBody.innerHTML = `<tr class="empty-row"><td colspan="4">سجل التدقيق لصاحب المطعم فقط</td></tr>`;
+        return;
+      }
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("audit_log").select("*").order("at", { ascending: false }).limit(150);
+        if (error) throw error;
+        auditBody.innerHTML = (data || []).length ? data.map((r) => {
+          const detail = r.op === "UPDATE"
+            ? Object.keys(r.new_data || {}).map((k) => `${olvEsc(k)}: ${olvEsc(JSON.stringify((r.old_data || {})[k]))} ← ${olvEsc(JSON.stringify(r.new_data[k]))}`).join("، ")
+            : olvEsc(JSON.stringify(r.op === "DELETE" ? r.old_data : r.new_data) || "");
+          return `<tr><td dir="ltr" style="text-align:right; white-space:nowrap;">${olvEsc(new Date(r.at).toLocaleString("en-GB"))}</td>
+            <td>${olvEsc(r.actor_name || "—")}</td>
+            <td>${olvEsc(AUDIT_OP_LABELS[r.op] || r.op)} ${olvEsc(AUDIT_TABLE_LABELS[r.table_name] || r.table_name)}</td>
+            <td style="max-width:420px; word-break:break-word; font-size:12.5px;" dir="ltr">${detail.length > 260 ? detail.slice(0, 260) + "…" : detail}</td></tr>`;
+        }).join("") : `<tr class="empty-row"><td colspan="4">ما في عمليات مسجّلة بعد</td></tr>`;
+      } catch (err) { olvShowError(errBox, err); }
+    }
+
+    document.getElementById("refresh-audit-btn").addEventListener("click", loadSecurity);
+    document.getElementById("staff-limits-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const disc = Number(document.getElementById("lim-discount").value);
+      const mins = Number(document.getElementById("lim-void").value);
+      if (!(disc >= 0 && disc <= 100) || !(mins >= 0 && mins <= 120)) {
+        olvShowError(errBox, new Error("قيم غير صالحة: الخصم بين 0 و100، المدة بين 0 و120 دقيقة"));
+        return;
+      }
+      const { error } = await window.supabaseClient.from("app_settings").upsert([
+        { key: "staff_max_discount_percent", value: String(disc) },
+        { key: "staff_void_minutes", value: String(mins) },
+      ]);
+      if (error) { olvShowError(errBox, error); return; }
+      alert("تم حفظ حدود الكاشير");
+    });
+
     async function checkResetPin() {
       const entered = prompt("أدخل الرقم السري لتأكيد هذا الإجراء:");
       if (entered === null) return false;
-      const { data, error } = await window.supabaseClient
-        .from("app_settings").select("value").eq("key", "reset_pin").maybeSingle();
+      const { data: pinOk, error } = await window.supabaseClient.rpc("verify_reset_pin", { p_pin: entered });
       if (error) { olvShowError(document.getElementById("err"), error); return false; }
-      const correctPin = data ? data.value : "1234";
-      if (entered !== correctPin) {
+      if (pinOk !== true) {
         alert("الرقم السري غير صحيح");
         return false;
       }
@@ -1069,13 +1211,27 @@
       alert("تم حذف كل المواد الخام ووصفاتها");
     });
 
+    document.getElementById("change-pin-btn").addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      if (myRole !== "owner") { alert("تغيير الرقم السري لصاحب المطعم فقط"); return; }
+      const oldPin = prompt("الرقم السري الحالي:");
+      if (oldPin === null) return;
+      const newPin = prompt("الرقم السري الجديد (4 خانات على الأقل):");
+      if (newPin === null) return;
+      const { error } = await window.supabaseClient.rpc("set_reset_pin", { p_old: oldPin, p_new: newPin });
+      if (error) { olvShowError(errBox, error); return; }
+      alert("تم تغيير الرقم السري");
+    });
+
     document.getElementById("delete-sales-btn").addEventListener("click", async () => {
+      if (myRole !== "owner") { alert("حذف سجل المبيعات لصاحب المطعم فقط"); return; }
       if (!(await checkResetPin())) return;
       if (!confirm("سيتم حذف سجل المبيعات بالكامل (بما في ذلك بيانات الأكثر مبيعًا) نهائيًا ولا يمكن التراجع. هل أنت متأكد؟")) return;
       const errBox = document.getElementById("err");
       const { error } = await window.supabaseClient.from("sales_entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       if (error) { olvShowError(errBox, error); return; }
       alert("تم حذف سجل المبيعات بالكامل");
+      loadSecurity();
     });
 
     (async () => {
@@ -1089,6 +1245,7 @@
         document.querySelector(".wrap").innerHTML = `<div class="group"><div style="padding:40px 20px; text-align:center; color:var(--muted);">صفحة الإعدادات لصاحب المطعم والمدير فقط.</div></div>`;
         return;
       }
+      myRole = me.role;
       document.getElementById("me-info").textContent = `مسجّل دخول بحساب: ${session.user.email}`;
       await Promise.all([
         loadCategories(),
@@ -1097,6 +1254,7 @@
         loadAddons(),
         loadPrinterSettings(),
         loadPrinters().then(loadPrintJobs),
+        loadSecurity(),
       ]);
     })();
 
