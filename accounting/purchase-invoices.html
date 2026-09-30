@@ -77,6 +77,8 @@
   .pi-pay label{flex:1; min-width:110px; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
   .pi-pay input{display:none;}
   .pi-pay label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
+  .pi-dt{border:1px dashed var(--hair); border-radius:12px; padding:12px 12px 2px; margin-bottom:12px;}
+  .pi-dt .field{margin-bottom:10px;}
   .pi-badge{display:inline-block; font-size:11.5px; border-radius:999px; padding:2px 9px; font-weight:700;}
   .pi-badge.cash{background:rgba(124,138,74,.25); color:var(--ok);}
   .pi-badge.credit{background:rgba(193,88,63,.2); color:var(--danger-hi);}
@@ -151,6 +153,26 @@
 
       <div class="pi-grid" style="margin-top:18px; align-items:start;">
         <div>
+          <div class="pi-dt">
+            <div class="field">
+              <label>الخصم</label>
+              <div style="display:flex; gap:6px;">
+                <input type="number" id="pi-discount" min="0" step="0.01" dir="ltr" placeholder="0" style="flex:1;">
+                <select id="pi-discount-mode" style="width:96px;"><option value="amount">مبلغ</option><option value="pct">نسبة %</option></select>
+              </div>
+            </div>
+            <div class="field">
+              <label>ضريبة المشتريات %</label>
+              <input type="number" id="pi-tax-rate" min="0" max="100" step="0.01" dir="ltr" placeholder="مثال: 16">
+            </div>
+            <div class="field">
+              <label>الأسعار المدخلة</label>
+              <select id="pi-tax-mode"><option value="excl">غير شاملة الضريبة (بتنضاف فوقها)</option><option value="incl">شاملة الضريبة (مضمّنة)</option></select>
+            </div>
+            <label class="le-check" style="display:flex; align-items:center; gap:8px; font-size:13px; margin:0 0 10px;">
+              <input type="checkbox" id="pi-tax-rec" checked style="width:18px; height:18px;"> الضريبة قابلة للاسترداد (ما بتدخل بتكلفة الأصناف)
+            </label>
+          </div>
           <label style="font-size:13px; color:var(--muted);">طريقة الدفع</label>
           <div class="pi-pay" id="pi-pay">
             <label class="on" data-pay="cash"><input type="radio" name="pi-pay" value="cash" checked>كاش (مدفوعة كاملة)</label>
@@ -172,7 +194,10 @@
         </div>
         <div class="pi-total-box">
           <div class="row"><span>عدد الأصناف</span><b id="pi-count">0</b></div>
-          <div class="row"><span>الإجمالي</span><span class="big" id="pi-total">0.00</span></div>
+          <div class="row"><span>مجموع الأصناف</span><b id="pi-subtotal">0.00</b></div>
+          <div class="row" id="pi-row-discount" hidden><span>الخصم</span><b id="pi-discount-val" style="color:var(--ok);">0.00</b></div>
+          <div class="row" id="pi-row-tax" hidden><span>ضريبة المشتريات</span><b id="pi-tax-val">0.00</b></div>
+          <div class="row"><span>الإجمالي المستحق</span><span class="big" id="pi-total">0.00</span></div>
           <div class="row"><span>المدفوع</span><b id="pi-paid">0.00</b></div>
           <div class="row"><span>المتبقي على المورّد (آجل)</span><b id="pi-remaining">0.00</b></div>
           <div class="pi-warn" id="pi-match-warn" hidden></div>
@@ -183,6 +208,7 @@
 
     <div class="group">
       <h2>سجل الفواتير</h2>
+      <div class="hint" id="pi-tax-summary" style="margin:-6px 0 10px; color:var(--gold-hi);"></div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>المورّد</th><th>الإجمالي</th><th>الدفع</th><th></th></tr></thead>
@@ -235,7 +261,25 @@
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
-    const invoiceTotal = () => round2(lines.reduce((s, l) => s + (itemOf(l) ? lineTotal(l) : 0), 0));
+    const subtotalOf = () => round2(lines.reduce((s, l) => s + (itemOf(l) ? lineTotal(l) : 0), 0));
+    // نفس حساب السيرفر بالضبط (record_purchase_invoice): الخصم ثم الضريبة، والسيرفر هو المرجع
+    function discountInputs() {
+      const v = Number(document.getElementById("pi-discount").value) || 0;
+      const pct = document.getElementById("pi-discount-mode").value === "pct";
+      return { pct: pct ? Math.min(Math.max(v, 0), 100) : null, amount: pct ? 0 : Math.max(v, 0) };
+    }
+    function computeTotals() {
+      const subtotal = subtotalOf();
+      const d = discountInputs();
+      const discount = d.pct ? round2(subtotal * d.pct / 100) : Math.min(d.amount, subtotal);
+      const net = round2(subtotal - discount);
+      const rate = Math.min(Math.max(Number(document.getElementById("pi-tax-rate").value) || 0, 0), 100);
+      const inclusive = document.getElementById("pi-tax-mode").value === "incl";
+      const tax = inclusive ? round2(net - net / (1 + rate / 100)) : round2(net * rate / 100);
+      const total = inclusive ? net : round2(net + tax);
+      return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct };
+    }
+    const invoiceTotal = () => computeTotals().total;
 
     // ---------- تحميل ----------
     async function loadItems() {
@@ -296,9 +340,15 @@
     }
 
     function updateTotals() {
-      const total = invoiceTotal();
+      const T = computeTotals();
+      const total = T.total;
       let paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
       document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l)).length;
+      document.getElementById("pi-subtotal").textContent = money(T.subtotal);
+      document.getElementById("pi-row-discount").hidden = !(T.discount > 0);
+      document.getElementById("pi-discount-val").textContent = "- " + money(T.discount);
+      document.getElementById("pi-row-tax").hidden = !(T.tax > 0);
+      document.getElementById("pi-tax-val").textContent = money(T.tax) + (T.inclusive ? " (مضمّنة)" : "");
       document.getElementById("pi-total").textContent = money(total);
       document.getElementById("pi-paid").textContent = money(paid);
       document.getElementById("pi-remaining").textContent = money(total - paid);
@@ -435,6 +485,32 @@
       updateTotals();
     });
     document.getElementById("pi-partial").addEventListener("input", updateTotals);
+    // الخصم والضريبة: نتذكّر آخر ضريبة استخدمتها (نسبة، شاملة/غير شاملة، قابلة للاسترداد) لأنها ثابتة غالبًا
+    const TAX_KEY = "olv_pi_tax_v1";
+    function restoreTaxPrefs() {
+      try {
+        const t = JSON.parse(localStorage.getItem(TAX_KEY) || "null");
+        if (t) {
+          document.getElementById("pi-tax-rate").value = t.rate ?? "";
+          document.getElementById("pi-tax-mode").value = t.mode === "incl" ? "incl" : "excl";
+          document.getElementById("pi-tax-rec").checked = t.rec !== false;
+        }
+      } catch (e) { /* تجاهل */ }
+    }
+    function saveTaxPrefs() {
+      try {
+        localStorage.setItem(TAX_KEY, JSON.stringify({
+          rate: document.getElementById("pi-tax-rate").value,
+          mode: document.getElementById("pi-tax-mode").value,
+          rec: document.getElementById("pi-tax-rec").checked,
+        }));
+      } catch (e) { /* تجاهل */ }
+    }
+    ["pi-discount", "pi-discount-mode", "pi-tax-rate", "pi-tax-mode", "pi-tax-rec"].forEach((id) => {
+      const el = document.getElementById(id);
+      el.addEventListener("input", () => { if (id.startsWith("pi-tax")) saveTaxPrefs(); updateTotals(); });
+      el.addEventListener("change", () => { if (id.startsWith("pi-tax")) saveTaxPrefs(); updateTotals(); });
+    });
     document.getElementById("pi-paper-total").addEventListener("input", updateTotals);
 
     // ---------- لصق أصناف ----------
@@ -611,7 +687,8 @@
       const bad = active.find((l) => !itemOf(l) || !(Number(l.qty) > 0) || !(Number(l.price) >= 0) || l.price === "");
       if (bad) { olvShowError(errBox, new Error("في سطر ناقص: لازم صنف من القائمة + كمية أكبر من صفر + سعر")); return; }
       const supplierId = document.getElementById("pi-supplier").value || null;
-      const total = invoiceTotal();
+      const T = computeTotals();
+      const total = T.total;
       const paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Number(document.getElementById("pi-partial").value) || 0;
       if (payMode !== "cash" && !supplierId) { olvShowError(errBox, new Error("الدفع الآجل أو الجزئي لازم يكون معه مورّد")); return; }
       if (payMode === "partial" && !(paid > 0 && paid < total)) { olvShowError(errBox, new Error("الدفعة الجزئية لازم تكون أكبر من صفر وأقل من الإجمالي")); return; }
@@ -638,10 +715,15 @@
           p_notes: document.getElementById("pi-notes").value.trim() || null,
           p_attachment: attachment,
           p_lines: payloadLines,
+          p_discount_amount: T.pct ? 0 : T.discount,
+          p_discount_pct: T.pct || null,
+          p_tax_rate: T.rate,
+          p_tax_inclusive: T.inclusive,
+          p_tax_recoverable: document.getElementById("pi-tax-rec").checked,
         });
         if (error) throw error;
         lines = [newLine()];
-        ["pi-no", "pi-notes", "pi-paper-total", "pi-partial"].forEach((id) => { document.getElementById(id).value = ""; });
+        ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         document.getElementById("pi-file").value = "";
         document.getElementById("pi-supplier").value = "";
         document.querySelector('#pi-pay input[value="cash"]').checked = true;
@@ -672,6 +754,8 @@
         tpl.innerHTML = `<option value="">نسخ أصناف من فاتورة سابقة...</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
           .map((i) => `<option value="${i.id}">${olvEsc(i.invoice_date)} — ${olvEsc(i.suppliers ? i.suppliers.name : "بدون مورّد")}${i.invoice_no ? " #" + olvEsc(i.invoice_no) : ""} (${money(i.total_amount)})</option>`).join("");
         if (!data || !data.length) { body.innerHTML = `<tr class="empty-row"><td colspan="6">ما في فواتير مسجّلة بعد</td></tr>`; return; }
+        const taxSum = data.filter((i) => i.status === "active").reduce((s, i) => s + Number(i.tax_amount || 0), 0);
+        document.getElementById("pi-tax-summary").textContent = taxSum > 0 ? `إجمالي ضريبة المشتريات بالفواتير الفعّالة المعروضة: ${money(taxSum)}` : "";
         body.innerHTML = data.map((i) => {
           const voided = i.status === "voided";
           const remaining = Number(i.total_amount) - Number(i.paid_amount);
@@ -680,14 +764,15 @@
             <td>${olvEsc(i.invoice_no) || "—"}</td>
             <td>${i.suppliers ? olvEsc(i.suppliers.name) : "—"}</td>
             <td>${money(i.total_amount)}</td>
-            <td>${voided ? `<span class="pi-badge credit">ملغاة</span>` : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${remaining > 0 ? ` <small>(متبقي ${money(remaining)})</small>` : ""}`}</td>
+            <td>${Number(i.tax_amount) > 0 && !voided ? `<small style="display:block; color:var(--muted);">شامل ضريبة ${money(i.tax_amount)}</small>` : ""}${voided ? `<span class="pi-badge credit">ملغاة</span>` : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${remaining > 0 ? ` <small>(متبقي ${money(remaining)})</small>` : ""}`}</td>
             <td><div class="row-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
               <button class="btn small" data-detail="${i.id}">الأصناف</button>
               ${i.attachment_path ? `<button class="btn small" data-file="${olvEsc(i.attachment_path)}">الصورة</button>` : ""}
               ${!voided && isOwner ? `<button class="btn small danger" data-void="${i.id}">إلغاء</button>` : ""}
             </div></td>
           </tr>
-          <tr id="det-${i.id}" hidden><td colspan="6"><div class="hint" data-det-body>جاري التحميل...</div>${voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}</td></tr>`;
+          <tr id="det-${i.id}" hidden><td colspan="6">${Number(i.discount_amount) > 0 || Number(i.tax_amount) > 0
+            ? `<div class="hint" style="margin-bottom:6px;">مجموع الأصناف <b>${money(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount)}</b>${Number(i.discount_amount) > 0 ? ` — خصم <b>${money(i.discount_amount)}</b>${i.discount_pct ? ` (${Number(i.discount_pct)}%)` : ""}` : ""}${Number(i.tax_amount) > 0 ? ` — ضريبة ${Number(i.tax_rate)}% = <b>${money(i.tax_amount)}</b> (${i.tax_inclusive ? "الأسعار كانت شاملة" : "أُضيفت فوق الأسعار"}، ${i.tax_recoverable === false ? "غير قابلة للاسترداد" : "قابلة للاسترداد"})` : ""}</div>` : ""}<div class="hint" data-det-body>جاري التحميل...</div>${voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}</td></tr>`;
         }).join("");
       } catch (err) { olvShowError(errBox, err); }
     }
@@ -701,8 +786,11 @@
         if (!row.hidden && !row.dataset.loaded) {
           const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", detail.dataset.detail);
           if (error) { olvShowError(errBox, error); return; }
-          row.querySelector("[data-det-body]").innerHTML = (data || []).map((p) =>
-            `• ${olvEsc(p.item_name)} — ${Number(p.quantity)} ${olvEsc(p.unit)} × ${money(p.unit_price)} = <b>${money(p.total_amount)}</b>`).join("<br>") || "لا أصناف";
+          row.querySelector("[data-det-body]").innerHTML = (data || []).map((p) => {
+            const lp = p.list_price != null ? Number(p.list_price) : Number(p.unit_price);
+            const costNote = p.list_price != null && Math.abs(Number(p.unit_price) - lp) > 0.00001 ? ` <small style="color:var(--muted);">(تكلفة فعلية ${Number(p.unit_price)} بعد الخصم/الضريبة)</small>` : "";
+            return `• ${olvEsc(p.item_name)} — ${Number(p.quantity)} ${olvEsc(p.unit)} × ${lp} = <b>${money(Math.round(Number(p.quantity) * lp * 100) / 100)}</b>${costNote}`;
+          }).join("<br>") || "لا أصناف";
           row.dataset.loaded = "1";
         }
         return;
@@ -732,6 +820,7 @@
       if (!session) return;
       isOwner = window.olvRole === "owner";
       document.getElementById("pi-date").value = olvToday();
+      restoreTaxPrefs();
       try {
         await Promise.all([loadItems(), loadSuppliers()]);
         lines = [newLine()];
