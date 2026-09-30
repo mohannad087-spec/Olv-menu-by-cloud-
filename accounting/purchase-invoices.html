@@ -273,17 +273,19 @@
       const body = document.getElementById("pi-lines");
       body.innerHTML = lines.map((line, idx) => {
         const it = itemOf(line);
+        const hasPU = it && it.purchase_unit && it.purchase_unit_factor;
         const unitOpts = it
           ? `<option value="stock"${line.unitMode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option>`
-            + (it.purchase_unit && it.purchase_unit_factor ? `<option value="purchase"${line.unitMode === "purchase" ? " selected" : ""}>${olvEsc(it.purchase_unit)} (= ${Number(it.purchase_unit_factor)} ${olvEsc(it.unit)})</option>` : "")
-          : `<option value="stock">—</option>`;
+            + (hasPU ? `<option value="purchase"${line.unitMode === "purchase" ? " selected" : ""}>${olvEsc(it.purchase_unit)} (= ${Number(it.purchase_unit_factor)} ${olvEsc(it.unit)})</option>` : "")
+            + `<option value="__new__">${hasPU ? "✎ تعديل وحدة الشراء..." : "＋ وحدة شراء (كرتونة، كيس، صندوق...)"}</option>`
+          : `<option value="stock">اختر الصنف أولًا</option>`;
         return `<tr data-idx="${idx}">
           <td>
             <input type="text" list="pi-items-list" data-f="item" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
             ${line.unmatchedName && !it ? `<div class="pi-warn bad">ما انعرف "${olvEsc(line.unmatchedName)}" — اختر الصنف من القائمة</div>` : ""}
             <div data-warn>${priceWarning(line, it)}</div>
           </td>
-          <td><select data-f="unit">${unitOpts}</select>${it ? `<button type="button" class="pi-mini" data-act="punit" style="margin-top:4px; padding:4px 8px; font-size:11.5px;">ضبط وحدة الشراء</button>` : ""}</td>
+          <td><select data-f="unit"${it ? "" : " disabled"}>${unitOpts}</select></td>
           <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}"></td>
           <td><input type="number" data-f="price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.price)}"></td>
           <td><span class="pi-line-total" data-total>${money(it ? lineTotal(line) : 0)}</span></td>
@@ -330,6 +332,31 @@
     });
     document.getElementById("pi-lines").addEventListener("change", (e) => {
       const tr = e.target.closest("tr"); if (!tr) return;
+      if (e.target.dataset.f === "unit" && e.target.value === "__new__") {
+        const line = lines[Number(tr.dataset.idx)]; const it = itemOf(line);
+        e.target.value = line.unitMode;
+        if (!it) return;
+        openUnitDialog(it).then(async (res) => {
+          if (!res) return;
+          const before = factorOf(line, it);
+          const table = it.kind === "ingredient" ? "ingredients" : "supplies";
+          const { error } = await window.supabaseClient.from(table)
+            .update({ purchase_unit: res.name, purchase_unit_factor: res.factor }).eq("id", it.id);
+          if (error) { olvShowError(document.getElementById("err"), error); return; }
+          await loadItems();
+          const fresh = itemOf(line);
+          if (res.name) {
+            // نحوّل السعر المعروض لوحدة الشراء الجديدة (سعر الكرتونة = سعر القطعة × المعامل)
+            if (line.price !== "") line.price = String(round2(Number(line.price) / before * res.factor));
+            line.unitMode = "purchase";
+          } else {
+            if (line.price !== "" && fresh) line.price = String(round2(Number(line.price) / before));
+            line.unitMode = "stock";
+          }
+          renderLines();
+        });
+        return;
+      }
       if (e.target.dataset.f === "unit") {
         const line = lines[Number(tr.dataset.idx)]; const it = itemOf(line);
         const before = factorOf(line, it);
@@ -343,18 +370,6 @@
       const btn = e.target.closest("[data-act]"); if (!btn) return;
       const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
       if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
-      if (btn.dataset.act === "punit") {
-        const it = itemOf(line); if (!it) return;
-        const name = prompt(`اسم وحدة الشراء لـ"${it.name}" (مثال: كرتونة، كيس):`, it.purchase_unit || "");
-        if (name === null) return;
-        const factor = name.trim() ? Number(prompt(`كم ${it.unit} بالـ${name.trim()} الواحدة؟ (مثال: 12)`, it.purchase_unit_factor || "")) : null;
-        if (name.trim() && !(factor > 0)) { olvShowError(document.getElementById("err"), new Error("المعامل لازم يكون رقم أكبر من صفر")); return; }
-        const table = it.kind === "ingredient" ? "ingredients" : "supplies";
-        const { error } = await window.supabaseClient.from(table)
-          .update({ purchase_unit: name.trim() || null, purchase_unit_factor: name.trim() ? factor : null }).eq("id", it.id);
-        if (error) { olvShowError(document.getElementById("err"), error); return; }
-        await loadItems(); renderLines();
-      }
     });
     document.getElementById("pi-lines").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && e.target.dataset.f === "price") {
@@ -364,6 +379,52 @@
         const next = document.querySelector(`#pi-lines tr[data-idx="${idx + 1}"] [data-f="item"]`); if (next) next.focus();
       }
     });
+    // نافذة تعريف وحدة الشراء لصنف: الاسم (أزرار سريعة) + كم وحدة مخزون بالواحدة
+    function openUnitDialog(it) {
+      return new Promise((resolve) => {
+        const QUICK = [["كرتونة", ""], ["كيس", ""], ["صندوق", ""], ["علبة", ""], ["ربطة", ""], ["دزينة", 12], ["كيلو", 1000], ["لتر", 1000]];
+        const back = document.createElement("div");
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        const hasPU = it.purchase_unit && it.purchase_unit_factor;
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">وحدة الشراء لـ"${olvEsc(it.name)}"</h3>
+          <div class="hint" style="margin-bottom:12px;">بتشتريه بوحدة (مثل كرتونة) والمخزون بيتحسب بـ<b>${olvEsc(it.unit)}</b>. حدد كم ${olvEsc(it.unit)} بالوحدة الواحدة، وبعدها بتدخل الفاتورة بالكرتونة وبينحسب المخزون تلقائيًا.</div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;" id="ud-chips">
+            ${QUICK.map((q) => `<button type="button" class="pi-mini" data-name="${olvEsc(q[0])}" data-f="${q[1]}">${olvEsc(q[0])}</button>`).join("")}
+          </div>
+          <div class="field"><label>اسم وحدة الشراء</label><input type="text" id="ud-name" maxlength="30" value="${olvEsc(it.purchase_unit || "")}" placeholder="مثال: كرتونة"></div>
+          <div class="field"><label>كم ${olvEsc(it.unit)} بالـ<span id="ud-name-l">${olvEsc(it.purchase_unit || "وحدة")}</span> الواحدة؟</label><input type="number" id="ud-factor" min="0.001" step="any" dir="ltr" value="${olvEsc(it.purchase_unit_factor || "")}" placeholder="مثال: 12"></div>
+          <div class="pi-warn bad" id="ud-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+            <button type="button" class="btn gold" id="ud-save" style="flex:1;">حفظ واستخدامها</button>
+            ${hasPU ? `<button type="button" class="btn danger" id="ud-clear">حذف وحدة الشراء</button>` : ""}
+            <button type="button" class="btn" id="ud-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { back.remove(); resolve(v); };
+        const nameEl = box.querySelector("#ud-name"), facEl = box.querySelector("#ud-factor");
+        const clearErr = () => { box.querySelector("#ud-err").textContent = ""; };
+        nameEl.addEventListener("input", () => { clearErr(); box.querySelector("#ud-name-l").textContent = nameEl.value.trim() || "وحدة"; });
+        facEl.addEventListener("input", clearErr);
+        box.querySelectorAll("#ud-chips button").forEach((b) => b.addEventListener("click", () => {
+          clearErr(); nameEl.value = b.dataset.name; box.querySelector("#ud-name-l").textContent = b.dataset.name;
+          if (b.dataset.f) facEl.value = b.dataset.f; facEl.focus();
+        }));
+        box.querySelector("#ud-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        const clr = box.querySelector("#ud-clear"); if (clr) clr.addEventListener("click", () => done({ name: null, factor: null }));
+        box.querySelector("#ud-save").addEventListener("click", () => {
+          const name = nameEl.value.trim(); const factor = Number(facEl.value);
+          if (!name) { box.querySelector("#ud-err").textContent = "اكتب اسم الوحدة (مثال: كرتونة)"; return; }
+          if (!(factor > 0)) { box.querySelector("#ud-err").textContent = "اكتب كم " + it.unit + " بالوحدة (رقم أكبر من صفر)"; return; }
+          done({ name, factor });
+        });
+        setTimeout(() => nameEl.focus(), 50);
+      });
+    }
+
     document.getElementById("pi-add-line").addEventListener("click", () => { lines.push(newLine()); renderLines(); });
 
     // ---------- الدفع ----------
