@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فواتير المشتريات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .pi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px;}
+  .pi-lines{width:100%; border-collapse:collapse; min-width:760px;}
+  .pi-lines th{font-size:12px; color:var(--muted); text-align:right; padding:6px 6px; font-weight:500;}
+  .pi-lines td{padding:5px 4px; vertical-align:top;}
+  .pi-lines input,.pi-lines select{width:100%; box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-2);
+    border:1px solid var(--hair); border-radius:8px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .pi-lines input.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
+  .pi-line-total{font-weight:700; white-space:nowrap; padding-top:12px; display:block;}
+  .pi-warn{font-size:11.5px; color:var(--gold-hi); margin-top:3px; line-height:1.4;}
+  .pi-warn.bad{color:var(--danger-hi);}
+  .pi-mini{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:8px; padding:8px 10px; font-size:13px;}
+  .pi-total-box{background:var(--ink-3); border:1px solid var(--hair); border-radius:12px; padding:14px 16px;}
+  .pi-total-box .row{display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:14px;}
+  .pi-total-box .big{font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:700; color:var(--gold-hi);}
+  .pi-pay{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;}
+  .pi-pay label{flex:1; min-width:110px; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
+  .pi-pay input{display:none;}
+  .pi-pay label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
+  .pi-badge{display:inline-block; font-size:11.5px; border-radius:999px; padding:2px 9px; font-weight:700;}
+  .pi-badge.cash{background:rgba(124,138,74,.25); color:var(--ok);}
+  .pi-badge.credit{background:rgba(193,88,63,.2); color:var(--danger-hi);}
+  .pi-badge.partial{background:rgba(201,162,75,.22); color:var(--gold-hi);}
+  .pi-void{opacity:.5; text-decoration:line-through;}
+  .pi-paste textarea{width:100%; box-sizing:border-box; min-height:110px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
+    border-radius:10px; padding:10px; font-family:'Tajawal',sans-serif; font-size:14px; direction:rtl;}
+</style>
+
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>فاتورة مشتريات جديدة</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        أدخل فاتورة المورّد كاملة مرة وحدة (ورقية، صورة، واتساب، PDF): بيزيد مخزون كل صنف وآخر سعر شراء له،
+        بينحسب مصروف واحد بإجمالي الفاتورة، وإذا كانت آجل أو جزئي بينكتب على حساب المورّد. للمالك والمدير فقط.
+      </p>
+
+      <div class="pi-grid">
+        <div class="field">
+          <label>المورّد</label>
+          <select id="pi-supplier"></select>
+        </div>
+        <div class="field">
+          <label>رقم الفاتورة (بيمنع التكرار)</label>
+          <input type="text" id="pi-no" placeholder="مثال: 1045" maxlength="60">
+        </div>
+        <div class="field">
+          <label>تاريخ الفاتورة</label>
+          <input type="date" id="pi-date">
+        </div>
+        <div class="field">
+          <label>صورة أو PDF للفاتورة (اختياري)</label>
+          <input type="file" id="pi-file" accept="image/*,application/pdf">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 12px;">
+        <select id="pi-template" class="pi-mini"><option value="">نسخ أصناف من فاتورة سابقة...</option></select>
+        <button type="button" class="pi-mini" id="pi-paste-toggle">لصق أصناف (Excel / واتساب)</button>
+      </div>
+
+      <div class="pi-paste" id="pi-paste-box" hidden style="margin-bottom:14px;">
+        <div class="hint" style="margin-bottom:6px;">
+          الصق سطر لكل صنف: <b>الاسم  الكمية  السعر</b> (مفصولة بمسافات أو Tab من Excel). مثال: <code>لحم 5 12.5</code>.
+          الأصناف اللي ما انتعرفت بتنعلّم بالأحمر لتختارها بنفسك.
+        </div>
+        <textarea id="pi-paste-text" placeholder="لحم بقري 10 12.5&#10;بصل 20 0.5&#10;أكياس 200 0.02"></textarea>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button type="button" class="btn small gold" id="pi-paste-go">حلّل وأضف</button>
+          <button type="button" class="btn small" id="pi-paste-cancel">إغلاق</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="pi-lines">
+          <thead><tr><th style="width:34%">الصنف</th><th style="width:15%">الوحدة</th><th style="width:12%">الكمية</th><th style="width:14%">السعر للوحدة</th><th style="width:13%">الإجمالي</th><th></th></tr></thead>
+          <tbody id="pi-lines"></tbody>
+        </table>
+      </div>
+      <datalist id="pi-items-list"></datalist>
+      <div style="margin-top:10px;"><button type="button" class="btn small" id="pi-add-line">+ إضافة صنف</button></div>
+
+      <div class="pi-grid" style="margin-top:18px; align-items:start;">
+        <div>
+          <label style="font-size:13px; color:var(--muted);">طريقة الدفع</label>
+          <div class="pi-pay" id="pi-pay">
+            <label class="on" data-pay="cash"><input type="radio" name="pi-pay" value="cash" checked>كاش (مدفوعة كاملة)</label>
+            <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">آجل (لسا ما اندفع)</label>
+            <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">دفعة جزئية</label>
+          </div>
+          <div class="field" id="pi-partial-wrap" hidden>
+            <label>المبلغ المدفوع الآن</label>
+            <input type="number" id="pi-partial" min="0" step="0.01" dir="ltr">
+          </div>
+          <div class="field">
+            <label>إجمالي الفاتورة الورقية (اختياري — للمطابقة)</label>
+            <input type="number" id="pi-paper-total" min="0" step="0.01" dir="ltr">
+          </div>
+          <div class="field">
+            <label>ملاحظات (اختياري)</label>
+            <input type="text" id="pi-notes" maxlength="300">
+          </div>
+        </div>
+        <div class="pi-total-box">
+          <div class="row"><span>عدد الأصناف</span><b id="pi-count">0</b></div>
+          <div class="row"><span>الإجمالي</span><span class="big" id="pi-total">0.00</span></div>
+          <div class="row"><span>المدفوع</span><b id="pi-paid">0.00</b></div>
+          <div class="row"><span>المتبقي على المورّد (آجل)</span><b id="pi-remaining">0.00</b></div>
+          <div class="pi-warn" id="pi-match-warn" hidden></div>
+          <button type="button" class="btn gold" id="pi-save" style="width:100%; margin-top:12px; min-height:50px;">حفظ الفاتورة</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>سجل الفواتير</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>المورّد</th><th>الإجمالي</th><th>الدفع</th><th></th></tr></thead>
+          <tbody id="pi-history"><tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr></tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin-top:10px;">
+        الفاتورة ما بتتعدّل. إذا في غلطة، صاحب المطعم بيلغيها بسبب (بيرجع المخزون وبيشيل المصروف وقيد المورّد) وبتدخلها من جديد.
+        دفعات المورّد اللاحقة بتنسجّل من صفحة <a href="suppliers.html" style="color:var(--gold-hi);">الموردين</a>.
+      </p>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("purchase-invoices");
+
+    let items = [];              // مواد خام + مستلزمات
+    let lines = [];              // سطور الفاتورة الحالية
+    let payMode = "cash";
+    let isOwner = false;
+    const HISTORY_LIMIT = 60;
+
+    // ---------- أدوات ----------
+    // توحيد الحروف العربية للمطابقة (تشكيل، ألف، تاء مربوطة، ياء)
+    const norm = (s) => String(s || "")
+      .replace(/[\u064B-\u0652\u0640]/g, "")
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+      .toLowerCase().replace(/\s+/g, " ").trim();
+    const itemLabel = (it) => `${it.name} — ${it.unit} · ${it.kind === "ingredient" ? "مادة خام" : "مستلزم"}`;
+    const labelToItem = () => new Map(items.map((it) => [itemLabel(it), it]));
+    const factorOf = (line, it) => (line.unitMode === "purchase" && it && it.purchase_unit_factor) ? Number(it.purchase_unit_factor) : 1;
+    const money = (n) => olvFormatMoney(n);
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    function newLine(over) {
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", unmatchedName: "" }, over || {});
+    }
+    const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
+    const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
+    const invoiceTotal = () => round2(lines.reduce((s, l) => s + (itemOf(l) ? lineTotal(l) : 0), 0));
+
+    // ---------- تحميل ----------
+    async function loadItems() {
+      const [{ data: ing, error: e1 }, { data: sup, error: e2 }] = await Promise.all([
+        window.supabaseClient.from("ingredients").select("id, name, unit, unit_price, purchase_unit, purchase_unit_factor").order("name"),
+        window.supabaseClient.from("supplies").select("id, name, unit, unit_price, purchase_unit, purchase_unit_factor").order("name"),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+      items = [
+        ...(ing || []).map((i) => ({ ...i, kind: "ingredient" })),
+        ...(sup || []).map((i) => ({ ...i, kind: "supply" })),
+      ];
+      document.getElementById("pi-items-list").innerHTML = items.map((it) => `<option value="${olvEsc(itemLabel(it))}"></option>`).join("");
+    }
+
+    async function loadSuppliers() {
+      const { data, error } = await window.supabaseClient.from("suppliers").select("id, name").order("name");
+      if (error) throw error;
+      document.getElementById("pi-supplier").innerHTML =
+        `<option value="">— بدون مورّد (كاش من السوق) —</option>` + (data || []).map((s) => `<option value="${s.id}">${olvEsc(s.name)}</option>`).join("");
+    }
+
+    // ---------- رسم السطور ----------
+    function priceWarning(line, it) {
+      if (!it || !it.unit_price || !(Number(line.price) > 0)) return "";
+      const stockPrice = Number(line.price) / factorOf(line, it);
+      const last = Number(it.unit_price);
+      const diff = (stockPrice - last) / last * 100;
+      if (Math.abs(diff) < 10) return "";
+      return `<div class="pi-warn ${diff > 0 ? "bad" : ""}">${diff > 0 ? "⚠ أغلى" : "أرخص"} ${Math.abs(Math.round(diff))}% من آخر سعر (${money(last)} / ${olvEsc(it.unit)})</div>`;
+    }
+
+    function renderLines() {
+      const body = document.getElementById("pi-lines");
+      body.innerHTML = lines.map((line, idx) => {
+        const it = itemOf(line);
+        const unitOpts = it
+          ? `<option value="stock"${line.unitMode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option>`
+            + (it.purchase_unit && it.purchase_unit_factor ? `<option value="purchase"${line.unitMode === "purchase" ? " selected" : ""}>${olvEsc(it.purchase_unit)} (= ${Number(it.purchase_unit_factor)} ${olvEsc(it.unit)})</option>` : "")
+          : `<option value="stock">—</option>`;
+        return `<tr data-idx="${idx}">
+          <td>
+            <input type="text" list="pi-items-list" data-f="item" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
+            ${line.unmatchedName && !it ? `<div class="pi-warn bad">ما انعرف "${olvEsc(line.unmatchedName)}" — اختر الصنف من القائمة</div>` : ""}
+            <div data-warn>${priceWarning(line, it)}</div>
+          </td>
+          <td><select data-f="unit">${unitOpts}</select>${it ? `<button type="button" class="pi-mini" data-act="punit" style="margin-top:4px; padding:4px 8px; font-size:11.5px;">ضبط وحدة الشراء</button>` : ""}</td>
+          <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}"></td>
+          <td><input type="number" data-f="price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.price)}"></td>
+          <td><span class="pi-line-total" data-total>${money(it ? lineTotal(line) : 0)}</span></td>
+          <td><button type="button" class="btn small danger" data-act="del" aria-label="حذف">✕</button></td>
+        </tr>`;
+      }).join("");
+      updateTotals();
+    }
+
+    function updateTotals() {
+      const total = invoiceTotal();
+      let paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
+      document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l)).length;
+      document.getElementById("pi-total").textContent = money(total);
+      document.getElementById("pi-paid").textContent = money(paid);
+      document.getElementById("pi-remaining").textContent = money(total - paid);
+      const paper = document.getElementById("pi-paper-total").value;
+      const warn = document.getElementById("pi-match-warn");
+      if (paper !== "" && Math.abs(Number(paper) - total) > 0.01) {
+        warn.hidden = false;
+        warn.className = "pi-warn bad";
+        warn.textContent = `⚠ فرق ${money(Math.abs(Number(paper) - total))} بين إجمالي الفاتورة الورقية (${money(Number(paper))}) والمدخل (${money(total)}) — راجع الكميات والأسعار`;
+      } else if (paper !== "") {
+        warn.hidden = false; warn.className = "pi-warn"; warn.textContent = "✓ الإجمالي مطابق للفاتورة الورقية";
+      } else {
+        warn.hidden = true;
+      }
+    }
+
+    document.getElementById("pi-lines").addEventListener("input", (e) => {
+      const tr = e.target.closest("tr"); if (!tr) return;
+      const line = lines[Number(tr.dataset.idx)]; const f = e.target.dataset.f;
+      if (f === "item") {
+        line.typed = e.target.value;
+        const hit = labelToItem().get(e.target.value);
+        if (hit) { line.itemKey = hit.kind + ":" + hit.id; line.unmatchedName = ""; line.unitMode = "stock"; if (!line.price && hit.unit_price) line.price = String(hit.unit_price); renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus(); return; }
+        line.itemKey = null;
+      } else if (f === "qty") line.qty = e.target.value;
+      else if (f === "price") line.price = e.target.value;
+      const it = itemOf(line);
+      tr.querySelector("[data-total]").textContent = money(it ? lineTotal(line) : 0);
+      tr.querySelector("[data-warn]").innerHTML = priceWarning(line, it);
+      updateTotals();
+    });
+    document.getElementById("pi-lines").addEventListener("change", (e) => {
+      const tr = e.target.closest("tr"); if (!tr) return;
+      if (e.target.dataset.f === "unit") {
+        const line = lines[Number(tr.dataset.idx)]; const it = itemOf(line);
+        const before = factorOf(line, it);
+        line.unitMode = e.target.value;
+        // نحوّل السعر المعروض للوحدة الجديدة (سعر الكرتونة = سعر الكيلو × المعامل)
+        if (line.price !== "" && it) line.price = String(round2(Number(line.price) / before * factorOf(line, it)));
+        renderLines();
+      }
+    });
+    document.getElementById("pi-lines").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-act]"); if (!btn) return;
+      const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
+      if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
+      if (btn.dataset.act === "punit") {
+        const it = itemOf(line); if (!it) return;
+        const name = prompt(`اسم وحدة الشراء لـ"${it.name}" (مثال: كرتونة، كيس):`, it.purchase_unit || "");
+        if (name === null) return;
+        const factor = name.trim() ? Number(prompt(`كم ${it.unit} بالـ${name.trim()} الواحدة؟ (مثال: 12)`, it.purchase_unit_factor || "")) : null;
+        if (name.trim() && !(factor > 0)) { olvShowError(document.getElementById("err"), new Error("المعامل لازم يكون رقم أكبر من صفر")); return; }
+        const table = it.kind === "ingredient" ? "ingredients" : "supplies";
+        const { error } = await window.supabaseClient.from(table)
+          .update({ purchase_unit: name.trim() || null, purchase_unit_factor: name.trim() ? factor : null }).eq("id", it.id);
+        if (error) { olvShowError(document.getElementById("err"), error); return; }
+        await loadItems(); renderLines();
+      }
+    });
+    document.getElementById("pi-lines").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.dataset.f === "price") {
+        e.preventDefault();
+        const idx = Number(e.target.closest("tr").dataset.idx);
+        if (idx === lines.length - 1) { lines.push(newLine()); renderLines(); }
+        const next = document.querySelector(`#pi-lines tr[data-idx="${idx + 1}"] [data-f="item"]`); if (next) next.focus();
+      }
+    });
+    document.getElementById("pi-add-line").addEventListener("click", () => { lines.push(newLine()); renderLines(); });
+
+    // ---------- الدفع ----------
+    document.getElementById("pi-pay").addEventListener("change", (e) => {
+      payMode = e.target.value;
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
+      document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      updateTotals();
+    });
+    document.getElementById("pi-partial").addEventListener("input", updateTotals);
+    document.getElementById("pi-paper-total").addEventListener("input", updateTotals);
+
+    // ---------- لصق أصناف ----------
+    document.getElementById("pi-paste-toggle").addEventListener("click", () => { const b = document.getElementById("pi-paste-box"); b.hidden = !b.hidden; });
+    document.getElementById("pi-paste-cancel").addEventListener("click", () => { document.getElementById("pi-paste-box").hidden = true; });
+
+    function findItem(name) {
+      const n = norm(name); if (!n) return null;
+      const exact = items.filter((i) => norm(i.name) === n);
+      if (exact.length === 1) return exact[0];
+      const part = items.filter((i) => norm(i.name).includes(n) || n.includes(norm(i.name)));
+      return part.length === 1 ? part[0] : null;
+    }
+    // سطر → { name, qty, price }: الاسم = النص قبل أول رقم، الكمية = أول رقم، السعر = آخر رقم
+    // (لو في 3 أرقام والأول×الثاني = الثالث فالثالث هو الإجمالي ونتجاهله)
+    function parsePasteLine(raw) {
+      const line = norm(raw).replace(/,/g, ".");
+      if (!line) return null;
+      const nums = [...line.matchAll(/\d+(?:\.\d+)?/g)];
+      if (!nums.length) return { name: raw.trim(), qty: "", price: "" };
+      const name = line.slice(0, nums[0].index).replace(/[:\-–|\t]+$/g, "").trim() || raw.trim();
+      const vals = nums.map((m) => Number(m[0]));
+      if (vals.length >= 3 && Math.abs(vals[0] * vals[1] - vals[2]) < 0.02 * Math.max(1, vals[2])) return { name, qty: vals[0], price: vals[1] };
+      if (vals.length === 1) return { name, qty: vals[0], price: "" };
+      return { name, qty: vals[0], price: vals[vals.length - 1] };
+    }
+    document.getElementById("pi-paste-go").addEventListener("click", () => {
+      const text = document.getElementById("pi-paste-text").value;
+      const parsed = text.split(/\r?\n/).map(parsePasteLine).filter(Boolean);
+      if (!parsed.length) return;
+      const existing = lines.filter((l) => itemOf(l) || l.qty || l.price);
+      lines = existing.concat(parsed.map((p) => {
+        const it = findItem(p.name);
+        return newLine({
+          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name,
+          qty: p.qty === "" ? "" : String(p.qty), price: p.price === "" ? (it && it.unit_price ? String(it.unit_price) : "") : String(p.price),
+        });
+      }));
+      document.getElementById("pi-paste-text").value = "";
+      document.getElementById("pi-paste-box").hidden = true;
+      renderLines();
+    });
+
+    // ---------- نسخ من فاتورة سابقة ----------
+    document.getElementById("pi-template").addEventListener("change", async (e) => {
+      const id = e.target.value; if (!id) return;
+      e.target.value = "";
+      const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      const copied = (data || []).map((p) => newLine({
+        itemKey: p.ingredient_id ? "ingredient:" + p.ingredient_id : p.supply_id ? "supply:" + p.supply_id : null,
+        qty: String(p.quantity), price: String(p.unit_price),
+      })).filter((l) => l.itemKey && itemOf(l));
+      if (!copied.length) { olvShowError(document.getElementById("err"), new Error("ما لقيت أصناف صالحة بهالفاتورة")); return; }
+      lines = lines.filter((l) => itemOf(l) || l.qty || l.price).concat(copied);
+      // الأسعار المنسوخة قديمة — نحدّثها لآخر سعر معروف عشان ما تنكتب أسعار قديمة بالغلط
+      lines.forEach((l) => { const it = itemOf(l); if (it && it.unit_price && copied.includes(l)) l.price = String(it.unit_price); });
+      renderLines();
+    });
+
+    // ---------- الحفظ ----------
+    async function uploadAttachment(file) {
+      if (!file) return null;
+      if (file.size > 8 * 1024 * 1024) throw new Error("حجم الملف أكبر من 8 ميغا — صغّر الصورة أو استخدم PDF أصغر");
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+      const d = new Date();
+      const path = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${(crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2))}.${ext}`;
+      const { error } = await window.supabaseClient.storage.from("purchase-invoices").upload(path, file, { contentType: file.type || undefined });
+      if (error) throw new Error("تعذّر رفع صورة الفاتورة: " + error.message);
+      return path;
+    }
+
+    document.getElementById("pi-save").addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      if (!navigator.onLine) { olvShowError(errBox, new Error("فواتير المشتريات بتحتاج اتصال بالإنترنت (بترفع الصورة وبتتحقق من التكرار) — حاول لما يرجع النت")); return; }
+      const active = lines.filter((l) => itemOf(l) || Number(l.qty) || Number(l.price));
+      if (!active.length) { olvShowError(errBox, new Error("أضف صنف واحد على الأقل")); return; }
+      const bad = active.find((l) => !itemOf(l) || !(Number(l.qty) > 0) || !(Number(l.price) >= 0) || l.price === "");
+      if (bad) { olvShowError(errBox, new Error("في سطر ناقص: لازم صنف من القائمة + كمية أكبر من صفر + سعر")); return; }
+      const supplierId = document.getElementById("pi-supplier").value || null;
+      const total = invoiceTotal();
+      const paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Number(document.getElementById("pi-partial").value) || 0;
+      if (payMode !== "cash" && !supplierId) { olvShowError(errBox, new Error("الدفع الآجل أو الجزئي لازم يكون معه مورّد")); return; }
+      if (payMode === "partial" && !(paid > 0 && paid < total)) { olvShowError(errBox, new Error("الدفعة الجزئية لازم تكون أكبر من صفر وأقل من الإجمالي")); return; }
+      const paper = document.getElementById("pi-paper-total").value;
+      if (paper !== "" && Math.abs(Number(paper) - total) > 0.01 && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
+
+      // تنبيه أسعار مرتفعة: تأكيد واحد بدل ما تنسى
+      const spikes = active.filter((l) => { const it = itemOf(l); if (!it || !it.unit_price) return false; return (Number(l.price) / factorOf(l, it)) > Number(it.unit_price) * 1.5; });
+      if (spikes.length && !confirm(`${spikes.length} صنف سعره أعلى من آخر سعر بأكتر من 50% (${spikes.map((l) => itemOf(l).name).slice(0, 3).join("، ")}). تكمّل؟`)) return;
+
+      const btn = document.getElementById("pi-save");
+      btn.disabled = true;
+      try {
+        const attachment = await uploadAttachment(document.getElementById("pi-file").files[0]);
+        const payloadLines = active.map((l) => {
+          const it = itemOf(l); const f = factorOf(l, it);
+          return { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1000) / 1000 };
+        });
+        const { error } = await window.supabaseClient.rpc("record_purchase_invoice", {
+          p_supplier_id: supplierId,
+          p_invoice_no: document.getElementById("pi-no").value.trim() || null,
+          p_invoice_date: document.getElementById("pi-date").value || olvToday(),
+          p_paid: paid,
+          p_notes: document.getElementById("pi-notes").value.trim() || null,
+          p_attachment: attachment,
+          p_lines: payloadLines,
+        });
+        if (error) throw error;
+        lines = [newLine()];
+        ["pi-no", "pi-notes", "pi-paper-total", "pi-partial"].forEach((id) => { document.getElementById(id).value = ""; });
+        document.getElementById("pi-file").value = "";
+        document.getElementById("pi-supplier").value = "";
+        document.querySelector('#pi-pay input[value="cash"]').checked = true;
+        payMode = "cash";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+        document.getElementById("pi-partial-wrap").hidden = true;
+        await Promise.all([loadItems(), loadHistory()]);
+        renderLines();
+        if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---------- السجل ----------
+    const PAY_LABELS = { cash: "كاش", credit: "آجل", partial: "جزئي" };
+    async function loadHistory() {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("pi-history");
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("purchase_invoices").select("*, suppliers(name)").order("created_at", { ascending: false }).limit(HISTORY_LIMIT);
+        if (error) throw error;
+        const tpl = document.getElementById("pi-template");
+        tpl.innerHTML = `<option value="">نسخ أصناف من فاتورة سابقة...</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
+          .map((i) => `<option value="${i.id}">${olvEsc(i.invoice_date)} — ${olvEsc(i.suppliers ? i.suppliers.name : "بدون مورّد")}${i.invoice_no ? " #" + olvEsc(i.invoice_no) : ""} (${money(i.total_amount)})</option>`).join("");
+        if (!data || !data.length) { body.innerHTML = `<tr class="empty-row"><td colspan="6">ما في فواتير مسجّلة بعد</td></tr>`; return; }
+        body.innerHTML = data.map((i) => {
+          const voided = i.status === "voided";
+          const remaining = Number(i.total_amount) - Number(i.paid_amount);
+          return `<tr class="${voided ? "pi-void" : ""}">
+            <td>${olvEsc(i.invoice_date)}</td>
+            <td>${olvEsc(i.invoice_no) || "—"}</td>
+            <td>${i.suppliers ? olvEsc(i.suppliers.name) : "—"}</td>
+            <td>${money(i.total_amount)}</td>
+            <td>${voided ? `<span class="pi-badge credit">ملغاة</span>` : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${remaining > 0 ? ` <small>(متبقي ${money(remaining)})</small>` : ""}`}</td>
+            <td><div class="row-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn small" data-detail="${i.id}">الأصناف</button>
+              ${i.attachment_path ? `<button class="btn small" data-file="${olvEsc(i.attachment_path)}">الصورة</button>` : ""}
+              ${!voided && isOwner ? `<button class="btn small danger" data-void="${i.id}">إلغاء</button>` : ""}
+            </div></td>
+          </tr>
+          <tr id="det-${i.id}" hidden><td colspan="6"><div class="hint" data-det-body>جاري التحميل...</div>${voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}</td></tr>`;
+        }).join("");
+      } catch (err) { olvShowError(errBox, err); }
+    }
+
+    document.getElementById("pi-history").addEventListener("click", async (e) => {
+      const errBox = document.getElementById("err");
+      const detail = e.target.closest("[data-detail]");
+      if (detail) {
+        const row = document.getElementById("det-" + detail.dataset.detail);
+        row.hidden = !row.hidden;
+        if (!row.hidden && !row.dataset.loaded) {
+          const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", detail.dataset.detail);
+          if (error) { olvShowError(errBox, error); return; }
+          row.querySelector("[data-det-body]").innerHTML = (data || []).map((p) =>
+            `• ${olvEsc(p.item_name)} — ${Number(p.quantity)} ${olvEsc(p.unit)} × ${money(p.unit_price)} = <b>${money(p.total_amount)}</b>`).join("<br>") || "لا أصناف";
+          row.dataset.loaded = "1";
+        }
+        return;
+      }
+      const file = e.target.closest("[data-file]");
+      if (file) {
+        const { data, error } = await window.supabaseClient.storage.from("purchase-invoices").createSignedUrl(file.dataset.file, 120);
+        if (error || !data) { olvShowError(errBox, error || new Error("تعذّر فتح الصورة")); return; }
+        window.open(data.signedUrl, "_blank", "noopener");
+        return;
+      }
+      const v = e.target.closest("[data-void]");
+      if (v) {
+        const reason = prompt("سبب إلغاء الفاتورة (إلزامي). بيرجع المخزون وبيشيل المصروف وقيد المورّد:");
+        if (reason === null) return;
+        if (reason.trim().length < 3) { olvShowError(errBox, new Error("اكتب سبب واضح (3 أحرف على الأقل)")); return; }
+        if (!confirm("متأكد من إلغاء هالفاتورة؟")) return;
+        const { error } = await window.supabaseClient.rpc("void_purchase_invoice", { p_invoice_id: v.dataset.void, p_reason: reason.trim() });
+        if (error) { olvShowError(errBox, error); return; }
+        await Promise.all([loadItems(), loadHistory()]);
+        renderLines();
+      }
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      isOwner = window.olvRole === "owner";
+      document.getElementById("pi-date").value = olvToday();
+      try {
+        await Promise.all([loadItems(), loadSuppliers()]);
+        lines = [newLine()];
+        renderLines();
+        await loadHistory();
+      } catch (err) { olvShowError(document.getElementById("err"), err); }
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
