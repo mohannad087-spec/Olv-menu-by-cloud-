@@ -150,7 +150,10 @@ async function processJob(job, settings, printers, saleCache) {
       } else if (job.job_type === "cancel") {
         canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems);
       } else {
-        canvas = buildReceiptTicket(sale, settings);
+        canvas = buildReceiptTicket(
+          sale, settings,
+          job.reprint_no ? { no: job.reprint_no, reason: job.reprint_reason || "—", by: job.reprint_by } : null
+        );
       }
     }
 

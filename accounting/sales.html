@@ -159,6 +159,7 @@
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/reprint.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
@@ -257,9 +258,20 @@
       }
     }
 
+    // سجل إعادات طباعة الفاتورة (مين، ليش، ومتى) — ما بيتعدّل ولا بيتمسح
+    function renderReprintHistory(sale) {
+      const list = sale.reprints || [];
+      if (!list.length) return "";
+      return `<div class="item-detail-row" style="flex-direction:column; align-items:stretch; gap:4px;">
+        <div><b>${olvIcon("printer")} إعادات الطباعة (${list.length})</b></div>
+        ${list.map((rp) => `<div class="meta">نسخة ${olvEsc(rp.reprint_no)} — ${olvEsc(new Date(rp.created_at).toLocaleString("ar-EG", { numberingSystem: "latn" }))}
+          — ${olvEsc(rp.printed_by_name || "—")} — السبب: ${olvEsc(rp.reason)}</div>`).join("")}
+      </div>`;
+    }
+
     function renderItemsDetail(sale) {
       const items = sale.sale_items || [];
-      if (!items.length) return `<div class="hint">لا توجد أصناف مسجّلة لهذا الطلب</div>`;
+      if (!items.length) return `<div class="hint">لا توجد أصناف مسجّلة لهذا الطلب</div>` + renderReprintHistory(sale);
       const saleVoided = sale.status === "voided";
       return items.map((it) => {
         const itemVoided = it.status === "voided";
@@ -280,7 +292,7 @@
             </div>
           </div>
         `;
-      }).join("");
+      }).join("") + renderReprintHistory(sale);
     }
 
     async function loadSales() {
@@ -294,6 +306,12 @@
           body.innerHTML = `<tr class="empty-row"><td colspan="8">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
           return;
         }
+        // إعادات الطباعة (لو schema-reprint.sql لسا ما انشغّل، بنكمّل بدونها)
+        const { data: reprints } = await window.supabaseClient
+          .from("receipt_reprints").select("*").in("sale_id", data.map((r) => r.id)).order("created_at");
+        const reprintsBySale = {};
+        (reprints || []).forEach((rp) => { (reprintsBySale[rp.sale_id] = reprintsBySale[rp.sale_id] || []).push(rp); });
+        data.forEach((r) => { r.reprints = reprintsBySale[r.id] || []; });
         body.innerHTML = data.map((r) => {
           const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
           const voided = r.status === "voided";
@@ -309,6 +327,7 @@
             <td>
               <div class="row-actions">
                 <button class="btn small" data-toggle="${r.id}">الأصناف (${itemCount})</button>
+                ${voided ? "" : `<button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(r.order_no ? "طلب " + r.order_no : r.entry_date)} — ${olvFormatMoney(total)}">${olvIcon("printer")} إعادة طباعة${r.reprints.length ? ` (${r.reprints.length})` : ""}</button>`}
                 ${voided ? "" : `<button class="btn small danger" data-void="${r.id}">إلغاء الطلب</button>`}
               </div>
             </td>
@@ -326,6 +345,12 @@
             const nowHidden = !row.hidden;
             row.hidden = nowHidden;
             expandedSaleId = nowHidden ? null : id;
+          });
+        });
+        body.querySelectorAll("button[data-reprint]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const done = await olvReprintSale(btn.dataset.reprint, btn.dataset.label);
+            if (done) { expandedSaleId = btn.dataset.reprint; await loadSales(); }
           });
         });
         body.querySelectorAll("button[data-void]").forEach((btn) => {
