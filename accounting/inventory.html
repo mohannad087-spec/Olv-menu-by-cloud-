@@ -110,6 +110,15 @@
       </div>
 
       <div class="group">
+        <h2>كتالوج المواد الجاهزة</h2>
+        <p class="hint" style="margin-bottom:14px;">
+          أكثر من 900 صنف شائع بالكافيهات والمطاعم (مياه، مشروبات، ألبان، معلبات، توابل، مجمدات، ورقيات...).
+          ابحث وحدد اللي بدك وأضفهم دفعة وحدة — ما بتحتاج تكتب كل صنف لحالك.
+        </p>
+        <button type="button" class="btn gold" id="open-catalog-btn"></button>
+      </div>
+
+      <div class="group">
         <h2>إضافة مادة خام</h2>
         <form id="ing-form">
           <div class="row3">
@@ -219,11 +228,16 @@
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/catalog.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("inventory");
     document.getElementById("urgent-title").innerHTML = olvIcon("warning") + "<span>مواد قاربت تنفد</span>";
     document.getElementById("suggest-recipe-btn").innerHTML = olvIcon("search") + "<span>اقتراح مواد مطابقة بالاسم</span>";
+    document.getElementById("open-catalog-btn").innerHTML = olvIcon("search") + "<span>تصفّح الكتالوج وإضافة أصناف</span>";
+    document.getElementById("open-catalog-btn").addEventListener("click", () => {
+      olvOpenCatalog({ kind: "i", onDone: async () => { await loadIngredients(); await populateSelects(); } });
+    });
     document.getElementById("extract-ing-btn").innerHTML = olvIcon("refresh") + "<span>استخراج أسماء من وصف الأصناف والإضافات</span>";
 
     let ingredients = [];

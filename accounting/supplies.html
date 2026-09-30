@@ -84,6 +84,14 @@
     <div class="err" id="err"></div>
 
     <div class="group">
+      <h2>كتالوج المستلزمات الجاهزة</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        أكواب، علب، أكياس، مناديل، منظفات، رولات كاشير وغيرها — ابحث وحدد وأضف دفعة وحدة بدل الإدخال اليدوي.
+      </p>
+      <button type="button" class="btn gold" id="open-catalog-btn"></button>
+    </div>
+
+    <div class="group">
       <h2>إضافة مستلزم جديد</h2>
       <form id="supply-form">
         <div class="row3">
@@ -165,9 +173,14 @@
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/catalog.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("supplies");
+    document.getElementById("open-catalog-btn").innerHTML = olvIcon("search") + "<span>تصفّح الكتالوج وإضافة أصناف</span>";
+    document.getElementById("open-catalog-btn").addEventListener("click", () => {
+      olvOpenCatalog({ kind: "s", onDone: () => loadSupplies() });
+    });
     document.getElementById("prepare-order-btn").innerHTML = olvIcon("clipboard") + "<span>تجهيز طلبية</span>";
     document.getElementById("copy-order-btn").innerHTML = olvIcon("clipboard") + "<span>نسخ النص</span>";
     document.getElementById("whatsapp-order-link").innerHTML = olvIcon("phone") + "<span>إرسال عبر واتساب</span>";

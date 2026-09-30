@@ -149,7 +149,7 @@
         </table>
       </div>
       <datalist id="pi-items-list"></datalist>
-      <div style="margin-top:10px;"><button type="button" class="btn small" id="pi-add-line">+ إضافة صنف</button></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;"><button type="button" class="btn small" id="pi-add-line">+ إضافة صنف</button><button type="button" class="btn small" id="pi-catalog">تصفّح الكتالوج الجاهز</button></div>
 
       <div class="pi-grid" style="margin-top:18px; align-items:start;">
         <div>
@@ -233,11 +233,13 @@
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/catalog.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("purchase-invoices");
 
     let items = [];              // مواد خام + مستلزمات
+    let catalogOnly = [];        // أصناف الكتالوج اللي لسا مش عندك (بتنضاف تلقائيًا أول ما تنختار)
     let lines = [];              // سطور الفاتورة الحالية
     let payMode = "cash";
     let isOwner = false;
@@ -293,7 +295,18 @@
         ...(ing || []).map((i) => ({ ...i, kind: "ingredient" })),
         ...(sup || []).map((i) => ({ ...i, kind: "supply" })),
       ];
-      document.getElementById("pi-items-list").innerHTML = items.map((it) => `<option value="${olvEsc(itemLabel(it))}"></option>`).join("");
+      await refreshCatalogHints();
+    }
+    const catLabel = (e) => `${e.name} — ${e.unit} · من الكتالوج`;
+    async function refreshCatalogHints() {
+      try {
+        const cat = await olvCatalogFind();
+        const have = new Set(items.map((it) => olvCatNorm(it.name)));
+        catalogOnly = cat.filter((e) => !have.has(e.key));
+      } catch (_) { catalogOnly = []; }
+      document.getElementById("pi-items-list").innerHTML =
+        items.map((it) => `<option value="${olvEsc(itemLabel(it))}"></option>`).join("")
+        + catalogOnly.map((e) => `<option value="${olvEsc(catLabel(e))}"></option>`).join("");
     }
 
     async function loadSuppliers() {
@@ -370,6 +383,18 @@
       const line = lines[Number(tr.dataset.idx)]; const f = e.target.dataset.f;
       if (f === "item") {
         line.typed = e.target.value;
+        const catHit = catalogOnly.find((c) => catLabel(c) === e.target.value);
+        if (catHit) {
+          e.target.disabled = true;
+          olvCatalogAddOne(catHit).then(async (res) => {
+            await loadItems();
+            const fresh = items.find((i) => i.kind === res.kind && i.id === res.row.id);
+            if (fresh) { line.itemKey = fresh.kind + ":" + fresh.id; line.unmatchedName = ""; line.unitMode = "stock"; }
+            renderLines();
+            const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus();
+          }).catch((err) => { olvShowError(document.getElementById("err"), err); renderLines(); });
+          return;
+        }
         const hit = labelToItem().get(e.target.value);
         if (hit) { line.itemKey = hit.kind + ":" + hit.id; line.unmatchedName = ""; line.unitMode = "stock"; if (!line.price && hit.unit_price) line.price = String(hit.unit_price); renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus(); return; }
         line.itemKey = null;
@@ -475,6 +500,9 @@
       });
     }
 
+    document.getElementById("pi-catalog").addEventListener("click", () => {
+      olvOpenCatalog({ onDone: async () => { await loadItems(); renderLines(); } });
+    });
     document.getElementById("pi-add-line").addEventListener("click", () => { lines.push(newLine()); renderLines(); });
 
     // ---------- الدفع ----------
