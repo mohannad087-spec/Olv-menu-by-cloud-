@@ -77,6 +77,26 @@
   .sub-tab.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .settings-panel{display:none;}
   .settings-panel.on{display:block;}
+
+  /* خطوط برنامج الطباعة نفسها لمعاينة التذاكر (مطابقة للمطبوع) */
+  @font-face{font-family:"Tajawal"; font-weight:400; src:url("../print-bridge/fonts/Tajawal-Regular.ttf") format("truetype");}
+  @font-face{font-family:"Tajawal-Bold"; font-weight:400; src:url("../print-bridge/fonts/Tajawal-Bold.ttf") format("truetype");}
+
+  /* محرر تخصيص الفاتورة + المعاينة الحية */
+  .le-grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,440px); gap:20px; align-items:start;}
+  @media (max-width:900px){ .le-grid{grid-template-columns:1fr;} }
+  .le-form fieldset{border:1px solid var(--hair); border-radius:12px; padding:12px 14px 6px; margin:0 0 14px; background:var(--ink-3);}
+  .le-form legend{font-weight:700; padding:0 8px; color:var(--gold-hi); font-size:14px;}
+  .le-check{display:flex; align-items:center; gap:10px; padding:7px 0; font-size:14px; cursor:pointer;}
+  .le-check input{width:20px; height:20px; flex:none;}
+  .le-form .field{margin-bottom:12px;}
+  .le-form .field label{font-size:12.5px;}
+  .le-preview-col{position:sticky; top:12px;}
+  .le-paper-wrap{background:#c9c4b8; border-radius:12px; padding:14px; max-height:78vh; overflow:auto; text-align:center;}
+  .le-paper-wrap canvas{background:#fff; max-width:100%; height:auto; box-shadow:0 4px 16px rgba(0,0,0,.35);}
+  .le-tools{display:flex; flex-direction:column; gap:2px; margin-bottom:10px;}
+  .le-status{font-size:13px; color:var(--muted);}
+  .layout-badge{display:inline-block; font-size:11px; background:var(--gold); color:var(--on-gold); border-radius:999px; padding:1px 8px; margin-inline-start:6px; font-weight:700;}
 </style>
 </head>
 <body>
@@ -257,6 +277,31 @@
       </div>
       <div style="margin-top:14px;">
         <button type="button" class="btn gold" id="add-printer-btn">إضافة طابعة</button>
+      </div>
+
+      <div id="layout-editor" hidden style="margin-top:18px; border:1px solid var(--gold); border-radius:14px; padding:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <h3 id="le-title" style="margin:0; font-size:17px;">تخصيص الفاتورة</h3>
+          <button type="button" class="btn small" id="le-close">إغلاق</button>
+        </div>
+        <p class="hint" style="margin:8px 0 14px;">
+          غيّر أي خيار وشوف المعاينة على اليسار بتتحدّث فورًا (نفس الخط ونفس القياسات اللي بتنطبع). ما بيتطبّق على
+          الطابعة إلا بعد <b>حفظ التصميم</b>. الأرقام والأسماء بالمعاينة أمثلة تجريبية.
+          تذكرة الإلغاء وشريط "نسخة مكررة" ثابتين عمدًا لأسباب أمان.
+        </p>
+        <div class="le-grid">
+          <div class="le-form" id="le-form"></div>
+          <div class="le-preview-col">
+            <div class="le-tools" id="le-tools"></div>
+            <div class="le-paper-wrap"><canvas id="le-canvas" width="576" height="200"></canvas></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:14px;">
+          <button type="button" class="btn gold" id="le-save">حفظ التصميم</button>
+          <button type="button" class="btn" id="le-reset">رجوع للشكل الافتراضي</button>
+          <button type="button" class="btn" id="le-test" hidden>طباعة تجريبية بهذا التصميم (المالك)</button>
+          <span class="le-status" id="le-status"></span>
+        </div>
       </div>
 
       <form id="printer-item-form" hidden style="margin-top:16px; background:var(--ink-3); border-radius:10px; padding:16px;">
@@ -441,6 +486,7 @@
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="../print-bridge/src/ticket-core.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
@@ -903,14 +949,15 @@
       } else {
         body.innerHTML = printersList.map((p) => `
           <tr${p.enabled ? "" : ' style="opacity:.55;"'}>
-            <td>${esc(p.name)}${p.enabled ? "" : " (معطّلة)"}</td>
+            <td>${esc(p.name)}${p.enabled ? "" : " (معطّلة)"}${p.ticket_layout && Object.keys(p.ticket_layout).length ? '<span class="layout-badge">تصميم مخصّص</span>' : ""}</td>
             <td>${p.kind === "receipt" ? "كاشير — فاتورة كاملة" : "محطة تحضير"}</td>
             <td dir="ltr" style="text-align:right;">${esc(p.ip || "—")}:${p.port}</td>
             <td>${p.kind === "receipt" ? "كل الأصناف" : (
               [...(p.categories || []).map(esc), ...(p.catch_unassigned ? ["أي صنف غير موزّع"] : [])].join("، ") || "—"
             )}</td>
             <td><div style="display:flex; gap:6px;">
-              <button class="btn small" data-test-printer="${p.id}">طباعة تجريبية</button>
+              <button class="btn small gold" data-layout-printer="${p.id}">تخصيص الفاتورة</button>
+              ${myRole === "owner" ? `<button class="btn small" data-test-printer="${p.id}">طباعة تجريبية</button>` : ""}
               <button class="btn small" data-edit-printer="${p.id}">تعديل</button>
               <button class="btn small danger" data-del-printer="${p.id}">حذف</button>
             </div></td>
@@ -918,11 +965,12 @@
         `).join("");
       }
       body.querySelectorAll("[data-test-printer]").forEach((b) => b.addEventListener("click", async () => {
-        const { error } = await window.supabaseClient.from("print_jobs").insert({ job_type: "test", printer_id: b.dataset.testPrinter });
+        const { error } = await window.supabaseClient.rpc("test_print", { p_printer_id: b.dataset.testPrinter });
         if (error) { olvShowError(document.getElementById("err"), error); return; }
         alert("أُرسلت طباعة تجريبية — لازم تطلع الورقة خلال ثواني. إذا ما طلعت، تحقق من الـIP والطابعة وتشغيل برنامج الطباعة");
         await loadPrintJobs();
       }));
+      body.querySelectorAll("[data-layout-printer]").forEach((b) => b.addEventListener("click", () => openLayoutEditor(b.dataset.layoutPrinter)));
       body.querySelectorAll("[data-edit-printer]").forEach((b) => b.addEventListener("click", () => openPrinterForm(b.dataset.editPrinter)));
       body.querySelectorAll("[data-del-printer]").forEach((b) => b.addEventListener("click", async () => {
         const p = printersList.find((x) => x.id === b.dataset.delPrinter);
@@ -945,6 +993,155 @@
         warn.hidden = true;
       }
     }
+
+    // ------------------------------------------------------------------
+    // محرر تخصيص الفاتورة/التذكرة + المعاينة الحية (ticket-core.js: نفس كود الطباعة)
+    // ------------------------------------------------------------------
+    let leState = null;        // القيم الحالية (كل المفاتيح)
+    let lePrinter = null;
+    let leKind = "receipt";
+    let leTimer = null;
+    let leOpts = { otherStation: true, reprint: false, noCustomer: false };
+
+    const leCanvasFactory = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
+
+    function leSettingsForPreview() {
+      return {
+        restaurant_name: document.getElementById("pr-restaurant-name").value.trim() || "OLV",
+        restaurant_address: document.getElementById("pr-restaurant-address").value.trim() || "عمّان، الأردن",
+        restaurant_phone: document.getElementById("pr-restaurant-phone").value.trim() || "0790000000",
+      };
+    }
+
+    async function leRender() {
+      if (!lePrinter || !window.OlvTicketCore) return;
+      const core = window.OlvTicketCore;
+      try {
+        await Promise.all([
+          document.fonts.load("bold 30px Tajawal-Bold", "طلب"),
+          document.fonts.load("22px Tajawal", "طلب"),
+        ]);
+      } catch (e) { /* نكمّل بأي خط متاح */ }
+      const sale = core.sampleSale(lePrinter);
+      if (leOpts.noCustomer) { sale.customer_name = null; sale.table_number = null; sale.customer_phone = null; sale.order_type = "سفري"; }
+      const canvas = leKind === "receipt"
+        ? core.buildReceipt(leCanvasFactory, sale, leSettingsForPreview(), leState,
+            leOpts.reprint ? { no: 2, reason: "مثال: الزبون طلب نسخة", by: "اسم الكاشير" } : null)
+        : core.buildStation(leCanvasFactory, sale, lePrinter.name, leOpts.otherStation, leState);
+      const target = document.getElementById("le-canvas");
+      target.width = canvas.width; target.height = canvas.height;
+      target.getContext("2d").drawImage(canvas, 0, 0);
+    }
+    function leScheduleRender() { clearTimeout(leTimer); leTimer = setTimeout(leRender, 60); }
+
+    function leBuildForm() {
+      const core = window.OlvTicketCore;
+      const form = document.getElementById("le-form");
+      form.innerHTML = core.SCHEMA[leKind].map((g) => `
+        <fieldset><legend>${esc(g.title)}</legend>
+          ${g.fields.map((f) => {
+            const v = leState[f.key];
+            if (f.type === "bool") return `<label class="le-check"><input type="checkbox" data-le="${f.key}"${v ? " checked" : ""}> ${esc(f.label)}</label>`;
+            if (f.type === "number") return `<div class="field"><label>${esc(f.label)}</label><input type="number" data-le="${f.key}" min="${f.min}" max="${f.max}" step="1" value="${esc(v)}" dir="ltr"></div>`;
+            if (f.type === "select") return `<div class="field"><label>${esc(f.label)}</label><select data-le="${f.key}">${f.options.map((o) => `<option value="${esc(o[0])}"${o[0] === v ? " selected" : ""}>${esc(o[1])}</option>`).join("")}</select></div>`;
+            if (f.type === "textarea") return `<div class="field"><label>${esc(f.label)}</label><textarea data-le="${f.key}" rows="3" maxlength="${f.max}">${esc(v)}</textarea></div>`;
+            return `<div class="field"><label>${esc(f.label)}</label><input type="text" data-le="${f.key}" maxlength="${f.max}" value="${esc(v)}"></div>`;
+          }).join("")}
+        </fieldset>`).join("");
+      const fieldByKey = Object.fromEntries(core.SCHEMA[leKind].flatMap((g) => g.fields).map((f) => [f.key, f]));
+      form.querySelectorAll("[data-le]").forEach((el) => {
+        const f = fieldByKey[el.dataset.le];
+        const handler = () => {
+          if (f.type === "bool") leState[f.key] = el.checked;
+          else if (f.type === "number") { if (el.value === "") return; leState[f.key] = Number(el.value); }
+          else leState[f.key] = el.value;
+          document.getElementById("le-status").textContent = "تعديلات غير محفوظة";
+          leScheduleRender();
+        };
+        el.addEventListener("input", handler);
+        el.addEventListener("change", () => {
+          // نضبط القيمة داخل الحدود المسموحة بعد ما ينتهي المستخدم من الكتابة
+          if (f.type === "number") {
+            const n = Math.min(f.max, Math.max(f.min, Math.round(Number(el.value) || f.def)));
+            el.value = n; leState[f.key] = n; leScheduleRender();
+          }
+        });
+      });
+
+      const tools = document.getElementById("le-tools");
+      const chk = (id, label, on) => `<label class="le-check"><input type="checkbox" id="${id}"${on ? " checked" : ""}> ${label}</label>`;
+      tools.innerHTML = `<div class="hint" style="margin-bottom:4px;">خيارات المعاينة فقط (ما بتنحفظ):</div>`
+        + (leKind === "station" ? chk("leo-other", "الطلب معه أصناف على قسم آخر", leOpts.otherStation) : chk("leo-reprint", "عرض شكل \"نسخة مكررة\" (إعادة طباعة)", leOpts.reprint))
+        + chk("leo-nocust", "طلب سفري بدون بيانات زبون", leOpts.noCustomer);
+      const bind = (id, key) => { const el = document.getElementById(id); if (el) el.addEventListener("change", () => { leOpts[key] = el.checked; leScheduleRender(); }); };
+      bind("leo-other", "otherStation"); bind("leo-reprint", "reprint"); bind("leo-nocust", "noCustomer");
+    }
+
+    function openLayoutEditor(id) {
+      const core = window.OlvTicketCore;
+      if (!core) { olvShowError(document.getElementById("err"), new Error("تعذّر تحميل ملف التصميم (print-bridge/src/ticket-core.js)")); return; }
+      const p = printersList.find((x) => x.id === id);
+      if (!p) return;
+      lePrinter = p;
+      leKind = p.kind === "receipt" ? "receipt" : "station";
+      leState = core.resolveLayout(leKind, p.ticket_layout);
+      leOpts = { otherStation: true, reprint: false, noCustomer: false };
+      document.getElementById("le-title").textContent = `تخصيص ${leKind === "receipt" ? "الفاتورة" : "تذكرة المحطة"}: ${p.name}`;
+      document.getElementById("le-status").textContent = "";
+      document.getElementById("le-test").hidden = myRole !== "owner";
+      leBuildForm();
+      const ed = document.getElementById("layout-editor");
+      ed.hidden = false;
+      ed.scrollIntoView({ behavior: "smooth", block: "start" });
+      leRender();
+    }
+
+    document.getElementById("le-close").addEventListener("click", () => {
+      if (document.getElementById("le-status").textContent && !confirm("في تعديلات غير محفوظة. تسكّر بدون حفظ؟")) return;
+      document.getElementById("layout-editor").hidden = true; lePrinter = null;
+    });
+
+    // نحفظ بس المفاتيح اللي اختلفت عن الافتراضي (بيسهّل أي تحديث لاحق للقيم الافتراضية)
+    function leDiffFromDefault() {
+      const def = window.OlvTicketCore.defaultLayout(leKind);
+      const out = {};
+      Object.keys(def).forEach((k) => { if (leState[k] !== def[k]) out[k] = leState[k]; });
+      return out;
+    }
+
+    document.getElementById("le-save").addEventListener("click", async () => {
+      if (!lePrinter) return;
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const diff = leDiffFromDefault();
+      const { data, error } = await window.supabaseClient.from("printers")
+        .update({ ticket_layout: Object.keys(diff).length ? diff : null }).eq("id", lePrinter.id).select("id");
+      if (error) { olvShowError(errBox, error); return; }
+      if (!data || !data.length) { olvShowError(errBox, new Error("ما انحفظ التصميم — تحتاج صلاحية مدير أو صاحب المطعم")); return; }
+      document.getElementById("le-status").textContent = "";
+      const id = lePrinter.id;
+      await loadPrinters();
+      lePrinter = printersList.find((x) => x.id === id) || lePrinter;
+      alert("تم حفظ التصميم. التذاكر الجاية على هالطابعة بتنطبع فيه.");
+    });
+
+    document.getElementById("le-reset").addEventListener("click", () => {
+      if (!lePrinter || !confirm("ترجع كل الخيارات للشكل الافتراضي؟ (ما بيتحفظ إلا لما تضغط حفظ)")) return;
+      leState = window.OlvTicketCore.defaultLayout(leKind);
+      leBuildForm();
+      document.getElementById("le-status").textContent = "تعديلات غير محفوظة";
+      leRender();
+    });
+
+    document.getElementById("le-test").addEventListener("click", async () => {
+      if (!lePrinter || myRole !== "owner") return;
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const { error } = await window.supabaseClient.rpc("test_print", { p_printer_id: lePrinter.id, p_layout: leDiffFromDefault() });
+      if (error) { olvShowError(errBox, error); return; }
+      alert("أُرسلت طباعة تجريبية بهذا التصميم (حتى لو ما حفظته). لازم تطلع الورقة خلال ثواني.");
+      await loadPrintJobs();
+    });
 
     function syncPrinterFormKind() {
       document.getElementById("pi-station-fields").hidden = document.getElementById("pi-kind").value !== "station";
