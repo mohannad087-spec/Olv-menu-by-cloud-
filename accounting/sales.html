@@ -86,7 +86,7 @@
   <div class="wrap">
     <div class="err" id="err"></div>
 
-    <div class="group">
+    <div class="group" id="manual-sale-group">
       <h2>إضافة أصناف مباعة</h2>
       <div class="row2">
         <div class="field">
@@ -384,6 +384,14 @@
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
+      // إضافة مبيعات يدويًا من هون للمالك والمدير بس؛ الكاشير يبيع من "بيع سريع"
+      // فقط (واجهة فقط — البيع كله بيمرّ بنفس الدالة المحروسة بالسيرفر)
+      if (window.olvRole === "staff") {
+        ["manual-sale-group", "cart-group"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.style.setProperty("display", "none", "important");
+        });
+      }
       document.getElementById("entry_date").value = olvToday();
       const errBox = document.getElementById("err");
       try {
