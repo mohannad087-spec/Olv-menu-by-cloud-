@@ -268,6 +268,10 @@
         لتصنيفاتها بس. مثال: طلب فيه وجبة + كوكتيل + أرجيلة ← فاتورة كاملة للكاشير، الوجبة
         للمطبخ، الكوكتيل للبار، الأرجيلة لمحطة الأراجيل.
       </p>
+      <p class="hint" style="margin-bottom:12px;">
+        <b>تخصيص الفاتورة:</b> بعد ما تضيف الطابعة بيظهر بجانبها زر <b>"تخصيص الفاتورة"</b> (تصميم + معاينة حية).
+        ما بتحتاج الطابعة تكون موصولة: أضفها بدون IP وخصّص تصميمها من الحين.
+      </p>
       <div id="printers-warning" class="hint" style="color:var(--gold-hi); margin-bottom:12px;" hidden></div>
       <div class="table-wrap">
         <table>
@@ -321,8 +325,8 @@
         </div>
         <div class="row2">
           <div class="field">
-            <label>عنوان IP</label>
-            <input type="text" id="pi-ip" placeholder="مثال: 192.168.1.50" dir="ltr" required>
+            <label>عنوان IP (اختياري الآن — بدونه بتنحفظ الطابعة معطّلة لحد ما تحطه)</label>
+            <input type="text" id="pi-ip" placeholder="مثال: 192.168.1.50" dir="ltr">
           </div>
           <div class="field">
             <label>المنفذ</label>
@@ -945,7 +949,7 @@
     function renderPrinters() {
       const body = document.getElementById("printers-body");
       if (!printersList.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="5">ما في طابعات معرّفة بعد — اضغط "إضافة طابعة"</td></tr>`;
+        body.innerHTML = `<tr class="empty-row"><td colspan="5">ما في طابعات معرّفة بعد — اضغط "إضافة طابعة". بتقدر تضيفها من الحين بدون IP (بتنحفظ معطّلة)، وبعدها يظهر زر "تخصيص الفاتورة" لتصمّم شكلها وتشوف المعاينة قبل ما توصل الأجهزة.</td></tr>`;
       } else {
         body.innerHTML = printersList.map((p) => `
           <tr${p.enabled ? "" : ' style="opacity:.55;"'}>
@@ -1182,7 +1186,9 @@
         kind,
         ip: document.getElementById("pi-ip").value.trim(),
         port: Number(document.getElementById("pi-port").value || 9100),
-        enabled: document.getElementById("pi-enabled").checked,
+        // بدون IP ما في وين نطبع: بتنحفظ معطّلة (بتقدر تخصّص تصميمها وتعمل معاينة
+        // من الحين، وبتفعّلها لما توصل الطابعة وتحط الـIP)
+        enabled: document.getElementById("pi-enabled").checked && !!document.getElementById("pi-ip").value.trim(),
         categories: kind === "station"
           ? [...document.querySelectorAll("#pi-categories input[data-pi-cat]:checked")].map((c) => c.dataset.piCat)
           : [],
