@@ -9,21 +9,10 @@
 -- اللي بينكتب مصروف وعلى حساب المورّد. والخصم بيتوزع على الأصناف بالتناسب، فتكلفة كل صنف
 -- (وآخر سعر شراء له) هي السعر الفعلي بعد الخصم — مش السعر بالورقة.
 --
--- كمان بيرفع دقة أسعار الوحدة من خانتين عشريتين لخمس: كان سعر مثل 0.012 (جبنة بالجرام)
--- بينحفظ 0.01 وبيغلّط تكلفة الوصفات.
+-- (رفع دقة أسعار الوحدة لخمس خانات عشرية بملف منفصل: schema-purchase-invoices-precision.sql)
 --
 -- شغّله بعد schema-purchase-invoices.sql
 
--- ---------- دقة الأسعار ----------
-alter table public.ingredients alter column unit_price type numeric(14,5);
-alter table public.supplies alter column unit_price type numeric(14,5);
-
--- purchases.total_amount عمود محسوب معتمد على unit_price، فنعيد بناءه
-alter table public.purchases drop column if exists total_amount;
-alter table public.purchases alter column unit_price type numeric(14,5);
-alter table public.purchases
-  add column total_amount numeric(14,2) generated always as (round(quantity * unit_price, 2)) stored;
--- سعر الصنف كما هو مكتوب بالفاتورة (قبل توزيع الخصم/الضريبة)
 alter table public.purchases add column if not exists list_price numeric(14,5);
 
 -- ---------- أعمدة الفاتورة ----------
