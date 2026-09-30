@@ -19,9 +19,18 @@ function paymentMethodOf(sale) {
 
 // يبني فاتورة الزبون/الكاشير: اسم المطعم، الأصناف مع الأسعار، الإجمالي،
 // طريقة الدفع، والباقي في حال الدفع نقدًا
-function buildReceiptTicket(sale, settings) {
+// reprint = { no, reason, by } لما تكون إعادة طباعة: شريط "نسخة مكررة" بأول
+// الفاتورة وآخرها + سبب الإعادة واسم اللي أعادها ووقتها، حتى ما تنعطى
+// للزبون نسخة تنقلب لفاتورة أصلية
+function buildReceiptTicket(sale, settings, reprint) {
   const t = new TicketBuilder();
   const restaurantName = (settings && settings.restaurant_name) || "OLV";
+
+  if (reprint) {
+    t.center(`*** نسخة مكررة رقم ${reprint.no} ***`, `bold 30px ${BOLD}`, 42);
+    t.divider();
+    t.spacer(34);
+  }
 
   t.center(restaurantName, `bold 38px ${BOLD}`, 50);
   if (settings && settings.restaurant_address) t.center(settings.restaurant_address, `20px ${REG}`, 28);
@@ -38,11 +47,16 @@ function buildReceiptTicket(sale, settings) {
   t.divider();
   t.spacer(14);
 
-  const items = sale.sale_items || [];
-  const total = items.reduce((s, it) => s + Number(it.unit_price) * Number(it.qty), 0);
+  // الأصناف الملغاة ما بتظهر بالفاتورة، والسعر يشمل الإضافات
+  const items = (sale.sale_items || []).filter((it) => it.status !== "voided");
+  const lineTotal = (it) => (Number(it.unit_price) + Number(it.addons_total || 0)) * Number(it.qty);
+  const subtotal = items.reduce((s, it) => s + lineTotal(it), 0);
+  const paid = Number(sale.cash_amount || 0) + Number(sale.card_amount || 0) + Number(sale.delivery_amount || 0);
+  const discount = Number(sale.discount_amount || 0);
+  const total = paid > 0 ? paid : Math.max(subtotal - discount, 0);
 
   items.forEach((item) => {
-    t.row(`${item.qty}× ${item.product_name}`, formatMoney(Number(item.unit_price) * Number(item.qty)), `26px ${REG}`, 36);
+    t.row(`${item.qty}× ${item.product_name}`, formatMoney(lineTotal(item)), `26px ${REG}`, 36);
     if (item.addons_summary) {
       t.right(`+ ${item.addons_summary}`, `20px ${REG}`, 28);
     }
@@ -51,6 +65,10 @@ function buildReceiptTicket(sale, settings) {
   t.spacer(10);
   t.divider();
   t.spacer(14);
+  if (discount > 0) {
+    t.row("المجموع", formatMoney(subtotal), `24px ${REG}`, 34);
+    t.row("الخصم", `- ${formatMoney(discount)}`, `24px ${REG}`, 34);
+  }
   t.row("الإجمالي", formatMoney(total), `bold 32px ${BOLD}`, 44);
 
   const method = paymentMethodOf(sale);
@@ -66,6 +84,16 @@ function buildReceiptTicket(sale, settings) {
   t.divider();
   t.spacer(14);
   t.center("شكرًا لزيارتكم", `bold 26px ${BOLD}`, 36);
+
+  if (reprint) {
+    t.spacer(10);
+    t.divider();
+    t.spacer(10);
+    t.center(`*** نسخة مكررة رقم ${reprint.no} — ليست أصلية ***`, `bold 24px ${BOLD}`, 34);
+    t.right(`سبب الإعادة: ${reprint.reason}`, `22px ${REG}`, 32);
+    if (reprint.by) t.row("أعادها", String(reprint.by), `22px ${REG}`, 32);
+    t.center(`وقت الإعادة: ${formatDateTime(new Date())}`, `20px ${REG}`, 30);
+  }
 
   return t.build();
 }

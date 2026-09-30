@@ -60,7 +60,9 @@
     opts = opts || {};
     const method = (opts.method || "GET").toUpperCase();
     const urlStr = String(url && url.url ? url.url : url);
-    const isSupabaseWrite = WRITE_METHODS.has(method) && /\/rest\/v1\//.test(urlStr);
+    // إعادة الطباعة ما بتنحفظ أوفلاين: لازم تفشل بوضوح، مش تنطبع فجأة بعد ساعات
+    const isSupabaseWrite = WRITE_METHODS.has(method) && /\/rest\/v1\//.test(urlStr)
+      && !/\/rpc\/reprint_receipt/.test(urlStr);
     try {
       return await fetch(url, opts);
     } catch (err) {

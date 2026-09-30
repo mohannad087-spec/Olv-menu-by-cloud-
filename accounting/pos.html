@@ -411,6 +411,7 @@
             <span class="search-icon" id="search-icon"></span>
             <input type="search" id="product-search" placeholder="ابحث عن صنف...">
           </div>
+          <button type="button" class="btn small" id="reprint-open-btn"></button>
         </div>
         <div class="grid" id="products-grid">
           <div class="hint">جاري التحميل...</div>
@@ -491,6 +492,7 @@
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/sale-cart.js"></script>
+  <script defer src="assets/reprint.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
@@ -501,6 +503,8 @@
     olvRenderNav("pos");
     document.getElementById("search-icon").innerHTML = olvIcon("search");
     document.getElementById("discount-toggle-btn").innerHTML = olvIcon("tag") + "<span>إضافة خصم</span>";
+    document.getElementById("reprint-open-btn").innerHTML = olvIcon("printer") + " إعادة طباعة";
+    document.getElementById("reprint-open-btn").addEventListener("click", () => olvOpenReprintList());
     document.getElementById("discount-remove-btn").innerHTML = olvIcon("x");
 
     // يحسب ارتفاع الشريط العلوي فعليًا (يتغيّر حسب حجم الشاشة) ويخزّنه
@@ -1305,6 +1309,17 @@
       });
       document.getElementById("discount-value-input").addEventListener("input", (e) => {
         discountValue = Math.max(0, Number(e.target.value) || 0);
+        // الكاشير: نرجّع القيمة المكتوبة للسقف المسموح فعلًا (بدل ما تبين 50% والمحسوب أقل)
+        if (staffMaxDiscountPct !== null && discountValue > 0) {
+          const cap = discountMode === "percent"
+            ? staffMaxDiscountPct
+            : Math.floor(OlvCart.total() * staffMaxDiscountPct) / 100;
+          if (discountValue > cap) {
+            discountValue = cap;
+            e.target.value = cap;
+            showToast(`أقصى خصم للكاشير ${staffMaxDiscountPct}% — أكثر من هيك بيحتاج مدير`, "var(--danger)", "warning");
+          }
+        }
         document.getElementById("discount-toggle-btn").classList.toggle("active", discountValue > 0);
         renderCart();
       });
