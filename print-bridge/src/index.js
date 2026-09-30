@@ -9,7 +9,7 @@ const { sendToPrinter } = require("./printer");
 const { buildTicketBuffer } = require("./escpos");
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { buildReceiptTicket } = require("./ticket-receipt");
-const { buildCancelTicket, buildTestTicket } = require("./ticket-extra");
+const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
 
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 4000);
 // مهمة تحضير/إلغاء أقدم من هالمدة (مثلاً بعد انقطاع طويل) ما بتنطبع تلقائيًا —
@@ -128,8 +128,13 @@ async function processJob(job, settings, printers, saleCache) {
 
   try {
     let canvas;
+    // تصميم الطابعة (ticket_layout) — null = الشكل الافتراضي (والمسار القديم بلا طابعات)
+    const layout = printer ? printer.ticket_layout : null;
     if (isTest) {
-      canvas = buildTestTicket(printer, target);
+      // مهمة تجريبية بتصميم = مثال كامل بنفس بيانات المعاينة، وإلا اختبار اتصال بسيط
+      canvas = job.test_layout
+        ? buildLayoutSampleTicket(printer, settings, job.test_layout)
+        : buildTestTicket(printer, target);
     } else {
       if (!saleCache.has(job.sale_id)) {
         saleCache.set(job.sale_id, await loadSaleWithItems(job.sale_id));
@@ -146,13 +151,14 @@ async function processJob(job, settings, printers, saleCache) {
           await markJob(job.id, { status: "skipped", error_message: "كل أصناف هذه التذكرة انلغت قبل الطباعة" });
           return;
         }
-        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems }, printer ? printer.name : null, await hasOtherStations(job));
+        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems }, printer ? printer.name : null, await hasOtherStations(job), layout);
       } else if (job.job_type === "cancel") {
-        canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems);
+        canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems, layout);
       } else {
         canvas = buildReceiptTicket(
           sale, settings,
-          job.reprint_no ? { no: job.reprint_no, reason: job.reprint_reason || "—", by: job.reprint_by } : null
+          job.reprint_no ? { no: job.reprint_no, reason: job.reprint_reason || "—", by: job.reprint_by } : null,
+          layout
         );
       }
     }

@@ -1,58 +1,11 @@
-const { TicketBuilder } = require("./ticket-builder");
-const { formatTime } = require("./format");
+const core = require("./ticket-core");
+const { nodeCreateCanvas } = require("./ticket-builder");
 
-const BOLD = "Tajawal-Bold";
-const REG = "Tajawal";
-
-// يبني تذكرة مطبخ: تركّز على الأصناف والكميات والملاحظات فقط، بلا أسعار،
-// وبخط كبير يسهل قراءته من بعيد في بيئة مطبخ مزدحمة
-// stationName: اسم المحطة (مطبخ/بار/أراجيل...) بيظهر كعنوان التذكرة حتى
-// يعرف كل قسم إنها إلو — الافتراضي "طلب مطبخ" للمسار القديم بدون توزيع
-// hasOtherStations: الطلب معه أصناف بأقسام تانية — بننبّه بدون ما نذكر شو هي،
-// حتى ينتبه الموظف إنه الطلب مش كامل عنده (خصوصًا بطلبات الصالة)
-function buildKitchenTicket(sale, stationName, hasOtherStations) {
-  const t = new TicketBuilder();
-  t.center(stationName ? `طلب ${stationName}` : "طلب مطبخ", `bold 40px ${BOLD}`, 54);
-  if (sale.order_no) t.center(`#${sale.order_no}`, `bold 56px ${BOLD}`, 72);
-  t.spacer(6);
-  const meta = [sale.order_type, formatTime(sale.created_at)].filter(Boolean).join(" · ");
-  t.center(meta, `26px ${REG}`, 36);
-  if (sale.customer_name) {
-    t.center(sale.customer_name, `bold 30px ${BOLD}`, 40);
-  }
-  if (sale.table_number) {
-    t.center(`طاولة رقم ${sale.table_number}`, `bold 30px ${BOLD}`, 40);
-  }
-  if (sale.customer_phone) {
-    t.centerLtr(sale.customer_phone, `bold 26px ${BOLD}`, 36);
-  }
-  if (hasOtherStations) {
-    t.spacer(8);
-    t.center("+++ معه طلب على قسم آخر +++", `bold 28px ${BOLD}`, 40);
-  }
-  t.spacer(10);
-  t.divider();
-  t.spacer(14);
-
-  const items = sale.sale_items || [];
-  items.forEach((item, idx) => {
-    t.right(`${item.qty}× ${item.product_name}`, `bold 32px ${BOLD}`, 42);
-    if (item.addons_summary) {
-      t.right(`+ ${item.addons_summary}`, `24px ${REG}`, 32);
-    }
-    if (item.note) {
-      t.right(`» ملاحظة: ${item.note}`, `bold 26px ${BOLD}`, 36);
-    }
-    if (idx < items.length - 1) t.spacer(10);
-  });
-
-  t.spacer(16);
-  t.divider();
-  t.spacer(10);
-  if (hasOtherStations) t.center("+++ معه طلب على قسم آخر +++", `bold 24px ${BOLD}`, 34);
-  t.center("-- انتهى الطلب --", `22px ${REG}`, 30);
-
-  return t.build();
+// تذكرة محطة تحضير (مطبخ/بار/أراجيل...): بلا أسعار وبخط كبير.
+// stationName: اسم المحطة، hasOtherStations: الطلب معه أصناف بأقسام تانية،
+// layout = ticket_layout المحفوظ للمحطة (null = الشكل الافتراضي)
+function buildKitchenTicket(sale, stationName, hasOtherStations, layout) {
+  return core.buildStation(nodeCreateCanvas, sale, stationName, hasOtherStations, layout);
 }
 
 module.exports = { buildKitchenTicket };

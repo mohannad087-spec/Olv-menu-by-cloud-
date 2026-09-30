@@ -5,7 +5,8 @@
 //   node test-print.js 192.168.1.50
 //   node test-print.js 192.168.1.50 9100
 
-const { TicketBuilder } = require("./src/ticket-builder");
+const { TicketBuilder } = require("./src/ticket-core");
+const { nodeCreateCanvas } = require("./src/ticket-builder");
 const { buildTicketBuffer } = require("./src/escpos");
 const { sendToPrinter } = require("./src/printer");
 
@@ -17,7 +18,7 @@ if (!ip) {
   process.exit(1);
 }
 
-const t = new TicketBuilder();
+const t = new TicketBuilder(nodeCreateCanvas);
 t.center("اختبار طباعة", "bold 36px Tajawal-Bold", 50);
 t.spacer(10);
 t.divider();
