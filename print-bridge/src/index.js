@@ -35,15 +35,36 @@ async function loadSaleWithItems(saleId) {
   return data;
 }
 
+async function loadPrinters() {
+  const { data, error } = await supabase.from("printers").select("*");
+  // الجدول ممكن لسا مو موجود (تحديث البرنامج قبل تشغيل schema-printers-routing.sql)
+  // — بهالحالة ما في مهام موزّعة أصلًا والمسار القديم كافي
+  if (error && (error.code === "42P01" || error.code === "PGRST205")) return new Map();
+  if (error) throw error;
+  return new Map((data || []).map((p) => [p.id, p]));
+}
+
 async function markJob(jobId, fields) {
   const { error } = await supabase.from("print_jobs").update(fields).eq("id", jobId);
   if (error) log("تعذّر تحديث حالة مهمة الطباعة:", error.message);
 }
 
-async function processJob(job, settings, saleCache) {
-  const target = job.job_type === "kitchen"
-    ? { enabled: settings.kitchen_enabled, ip: settings.kitchen_ip, port: settings.kitchen_port }
-    : { enabled: settings.receipt_enabled, ip: settings.receipt_ip, port: settings.receipt_port };
+// مهمة مرتبطة بطابعة محددة (printer_id) = مسار التوزيع الجديد: الوجهة من
+// جدول printers، وأصناف التذكرة محددة مسبقًا بـitem_ids لحظة تسجيل البيع.
+// مهمة بدون printer_id = المسار القديم (طابعة مطبخ + طابعة فاتورة من
+// printer_settings) لما ما في أي طابعة معرّفة بجدول printers أصلًا
+async function processJob(job, settings, printers, saleCache) {
+  const printer = job.printer_id ? printers.get(job.printer_id) : null;
+  if (job.printer_id && !printer) {
+    await markJob(job.id, { status: "error", error_message: "الطابعة المرتبطة بهذه المهمة انحذفت" });
+    return;
+  }
+  const target = printer
+    ? { enabled: printer.enabled, ip: printer.ip, port: printer.port }
+    : job.job_type === "kitchen"
+      ? { enabled: settings.kitchen_enabled, ip: settings.kitchen_ip, port: settings.kitchen_port }
+      : { enabled: settings.receipt_enabled, ip: settings.receipt_ip, port: settings.receipt_port };
+  const label = printer ? printer.name : (job.job_type === "kitchen" ? "تذكرة المطبخ" : "الفاتورة");
 
   if (!target.enabled || !target.ip) {
     await markJob(job.id, { status: "skipped" });
@@ -57,31 +78,39 @@ async function processJob(job, settings, saleCache) {
     const sale = saleCache.get(job.sale_id);
     if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
 
-    const canvas = job.job_type === "kitchen"
-      ? buildKitchenTicket(sale)
-      : buildReceiptTicket(sale, settings);
+    let canvas;
+    if (job.job_type === "kitchen") {
+      const itemIds = job.item_ids ? new Set(job.item_ids) : null;
+      const stationSale = itemIds
+        ? { ...sale, sale_items: (sale.sale_items || []).filter((it) => itemIds.has(it.id)) }
+        : sale;
+      canvas = buildKitchenTicket(stationSale, printer ? printer.name : null);
+    } else {
+      canvas = buildReceiptTicket(sale, settings);
+    }
 
     const buffer = buildTicketBuffer(canvas);
     await sendToPrinter(target.ip, target.port || 9100, buffer);
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
-    log(`✓ تمت طباعة ${job.job_type === "kitchen" ? "تذكرة المطبخ" : "الفاتورة"} لعملية بيع ${job.sale_id}`);
+    log(`✓ تمت الطباعة على "${label}" لعملية بيع ${job.sale_id}`);
   } catch (err) {
     await markJob(job.id, { status: "error", error_message: err.message });
-    log(`✗ فشلت طباعة ${job.job_type === "kitchen" ? "تذكرة المطبخ" : "الفاتورة"}:`, err.message);
+    log(`✗ فشلت الطباعة على "${label}":`, err.message);
   }
 }
 
 async function tick() {
   try {
     const settings = await loadPrinterSettings();
+    const printers = await loadPrinters();
     const { data: jobs, error } = await supabase
       .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(20);
     if (error) throw error;
     if (jobs && jobs.length) {
       const saleCache = new Map();
       for (const job of jobs) {
-        await processJob(job, settings, saleCache);
+        await processJob(job, settings, printers, saleCache);
       }
     }
   } catch (err) {

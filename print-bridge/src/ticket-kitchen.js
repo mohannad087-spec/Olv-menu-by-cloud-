@@ -6,9 +6,11 @@ const REG = "Tajawal";
 
 // يبني تذكرة مطبخ: تركّز على الأصناف والكميات والملاحظات فقط، بلا أسعار،
 // وبخط كبير يسهل قراءته من بعيد في بيئة مطبخ مزدحمة
-function buildKitchenTicket(sale) {
+// stationName: اسم المحطة (مطبخ/بار/أراجيل...) بيظهر كعنوان التذكرة حتى
+// يعرف كل قسم إنها إلو — الافتراضي "طلب مطبخ" للمسار القديم بدون توزيع
+function buildKitchenTicket(sale, stationName) {
   const t = new TicketBuilder();
-  t.center("طلب مطبخ", `bold 40px ${BOLD}`, 54);
+  t.center(stationName ? `طلب ${stationName}` : "طلب مطبخ", `bold 40px ${BOLD}`, 54);
   t.spacer(6);
   const meta = [sale.order_type, formatTime(sale.created_at)].filter(Boolean).join(" · ");
   t.center(meta, `26px ${REG}`, 36);
