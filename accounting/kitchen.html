@@ -133,6 +133,7 @@
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/print-health.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("kitchen");
@@ -201,7 +202,7 @@
             <div class="order-card${overdue ? " overdue" : ""}">
               <div class="order-head">
                 <div class="order-time-wrap">
-                  <span class="order-time">${formatTime(o.created_at)}</span>
+                  <span class="order-time">${o.order_no ? `#${o.order_no} · ` : ""}${formatTime(o.created_at)}</span>
                   ${activeTab === "pending" ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
                 </div>
                 ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${o.order_type}</span>` : ""}

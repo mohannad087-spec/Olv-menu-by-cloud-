@@ -9,6 +9,7 @@ const { sendToPrinter } = require("./printer");
 const { buildTicketBuffer } = require("./escpos");
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { buildReceiptTicket } = require("./ticket-receipt");
+const { buildCancelTicket, buildTestTicket } = require("./ticket-extra");
 
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 4000);
 
@@ -65,6 +66,7 @@ async function processJob(job, settings, printers, saleCache) {
       ? { enabled: settings.kitchen_enabled, ip: settings.kitchen_ip, port: settings.kitchen_port }
       : { enabled: settings.receipt_enabled, ip: settings.receipt_ip, port: settings.receipt_port };
   const label = printer ? printer.name : (job.job_type === "kitchen" ? "تذكرة المطبخ" : "الفاتورة");
+  const isTest = job.job_type === "test";
 
   if (!target.enabled || !target.ip) {
     await markJob(job.id, { status: "skipped" });
@@ -72,36 +74,55 @@ async function processJob(job, settings, printers, saleCache) {
   }
 
   try {
-    if (!saleCache.has(job.sale_id)) {
-      saleCache.set(job.sale_id, await loadSaleWithItems(job.sale_id));
-    }
-    const sale = saleCache.get(job.sale_id);
-    if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
-
     let canvas;
-    if (job.job_type === "kitchen") {
-      const itemIds = job.item_ids ? new Set(job.item_ids) : null;
-      const stationSale = itemIds
-        ? { ...sale, sale_items: (sale.sale_items || []).filter((it) => itemIds.has(it.id)) }
-        : sale;
-      canvas = buildKitchenTicket(stationSale, printer ? printer.name : null);
+    if (isTest) {
+      canvas = buildTestTicket(printer, target);
     } else {
-      canvas = buildReceiptTicket(sale, settings);
+      if (!saleCache.has(job.sale_id)) {
+        saleCache.set(job.sale_id, await loadSaleWithItems(job.sale_id));
+      }
+      const sale = saleCache.get(job.sale_id);
+      if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
+
+      const itemIds = job.item_ids ? new Set(job.item_ids) : null;
+      const jobItems = (sale.sale_items || []).filter((it) => !itemIds || itemIds.has(it.id));
+      if (job.job_type === "kitchen") {
+        // أي صنف انلغى بين تسجيل الطلب وطباعة التذكرة ما لازم ينطبع للمطبخ
+        const liveItems = jobItems.filter((it) => it.status !== "voided");
+        if (!liveItems.length) {
+          await markJob(job.id, { status: "skipped", error_message: "كل أصناف هذه التذكرة انلغت قبل الطباعة" });
+          return;
+        }
+        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems }, printer ? printer.name : null);
+      } else if (job.job_type === "cancel") {
+        canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems);
+      } else {
+        canvas = buildReceiptTicket(sale, settings);
+      }
     }
 
     const buffer = buildTicketBuffer(canvas);
     await sendToPrinter(target.ip, target.port || 9100, buffer);
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
-    log(`✓ تمت الطباعة على "${label}" لعملية بيع ${job.sale_id}`);
+    log(`✓ تمت الطباعة (${job.job_type}) على "${label}"${job.sale_id ? ` لعملية بيع ${job.sale_id}` : ""}`);
   } catch (err) {
     await markJob(job.id, { status: "error", error_message: err.message });
     log(`✗ فشلت الطباعة على "${label}":`, err.message);
   }
 }
 
+// نبضة حياة: بتسمح لواجهة النظام تكتشف لو هالبرنامج توقف (الكمبيوتر انطفى
+// أو انقطع نت) وتحذّر الكاشير بدل ما تتراكم الطلبات بصمت
+async function sendHeartbeat() {
+  const { error } = await supabase
+    .from("app_settings").upsert({ key: "print_bridge_heartbeat", value: new Date().toISOString() });
+  if (error) log("تعذّر إرسال نبضة الحياة:", error.message);
+}
+
 async function tick() {
   try {
+    await sendHeartbeat();
     const settings = await loadPrinterSettings();
     const printers = await loadPrinters();
     const { data: jobs, error } = await supabase
