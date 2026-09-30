@@ -495,6 +495,7 @@
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/print-health.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("pos");
@@ -1175,6 +1176,7 @@
             changeDue = Math.max(cashReceived - exact, 0);
             extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
           }
+          const queuedBefore = window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0;
           await OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
@@ -1185,10 +1187,21 @@
           resetDiscount();
           renderCart();
           refreshPopularityAndGrid();
+          // لو النت مقطوع، الطلب انحفظ محليًا بس (offline-queue.js) وما وصل لقاعدة
+          // البيانات — فما رح ينطبع للمطبخ/البار قبل رجوع النت. لازم الكاشير يعرف
+          // بوضوح ويبلّغ المطبخ شفهيًا، مو يفكر إن كل شي تمام
+          const queued = window.olvGetOfflineQueueCount && window.olvGetOfflineQueueCount() > queuedBefore;
+          if (queued) {
+            const msgEl = modal.querySelector("#checkout-success .msg");
+            msgEl.innerHTML = "الطلب محفوظ محليًا <b>ولم يُرسل للمطبخ/البار بعد</b><br>بلّغهم شفهيًا — بينطبع لما يرجع النت";
+            msgEl.style.color = "var(--danger-hi)";
+            msgEl.style.textAlign = "center";
+            msgEl.style.lineHeight = "1.7";
+          }
           modal.querySelector("#checkout-success").classList.add("show");
-          if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+          if (typeof OlvSound !== "undefined") queued ? OlvSound.playError() : OlvSound.playSuccess();
           isSubmitting = false;
-          setTimeout(close, 900);
+          setTimeout(close, queued ? 6000 : 900);
         } catch (err) {
           olvShowError(errBox, err);
           confirmBtn.disabled = false;

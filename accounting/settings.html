@@ -159,7 +159,8 @@
         <div class="row2">
           <div class="field">
             <label>التصنيف</label>
-            <input type="text" id="p-category" placeholder="مثال: سندويشات" value="عام">
+            <input type="text" id="p-category" list="category-options" placeholder="مثال: سندويشات" value="عام" autocomplete="off">
+            <datalist id="category-options"></datalist>
           </div>
           <div class="field">
             <label>رابط صورة المنتج (اختياري)</label>
@@ -387,6 +388,7 @@
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/print-health.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("settings");
@@ -756,6 +758,13 @@
         };
         const { error } = await window.supabaseClient.from("products").insert(payload);
         if (error) throw error;
+        // تنبيه فوري لو تصنيف الصنف الجديد ما إله أي محطة تحضير تستقبله (ولا
+        // في محطة "شبكة أمان") — وإلا الصنف بينطبع بالفاتورة بس وما بيوصل للمطبخ
+        const stations = printersList.filter((p) => p.enabled && p.kind === "station");
+        if (stations.length && !stations.some((p) => p.catch_unassigned || (p.categories || []).includes(payload.category))) {
+          alert(`تنبيه: التصنيف "${payload.category}" ما إله أي محطة تحضير — الصنف رح ينطبع بالفاتورة بس وما رح يوصل للمطبخ/البار.\nوزّع هالتصنيف على محطة من: الإعدادات ← الطباعة.`);
+        }
+        await loadPrinters();
         document.getElementById("product-form").reset();
         document.getElementById("p-category").value = "عام";
         document.getElementById("p-priority").value = "0";
@@ -801,6 +810,8 @@
     const PRINT_JOB_LABELS = {
       kitchen: "المطبخ",
       receipt: "الفاتورة",
+      cancel: "إلغاء",
+      test: "تجريبية",
     };
     let printersList = [];
     let productCategories = [];
@@ -819,6 +830,9 @@
         if (e2) throw e2;
         printersList = pr || [];
         productCategories = [...new Set((prods || []).map((p) => p.category).filter(Boolean))].sort();
+        // اقتراحات التصنيف بنموذج إضافة منتج — بتمنع الأخطاء الإملائية اللي
+        // بتخلي الصنف "يفلت" من محطة التحضير المخصصة لتصنيفه
+        document.getElementById("category-options").innerHTML = productCategories.map((c) => `<option value="${esc(c)}"></option>`).join("");
         renderPrinters();
       } catch (err) {
         olvShowError(errBox, err);
@@ -839,12 +853,19 @@
               [...(p.categories || []).map(esc), ...(p.catch_unassigned ? ["أي صنف غير موزّع"] : [])].join("، ") || "—"
             )}</td>
             <td><div style="display:flex; gap:6px;">
+              <button class="btn small" data-test-printer="${p.id}">طباعة تجريبية</button>
               <button class="btn small" data-edit-printer="${p.id}">تعديل</button>
               <button class="btn small danger" data-del-printer="${p.id}">حذف</button>
             </div></td>
           </tr>
         `).join("");
       }
+      body.querySelectorAll("[data-test-printer]").forEach((b) => b.addEventListener("click", async () => {
+        const { error } = await window.supabaseClient.from("print_jobs").insert({ job_type: "test", printer_id: b.dataset.testPrinter });
+        if (error) { olvShowError(document.getElementById("err"), error); return; }
+        alert("أُرسلت طباعة تجريبية — لازم تطلع الورقة خلال ثواني. إذا ما طلعت، تحقق من الـIP والطابعة وتشغيل برنامج الطباعة");
+        await loadPrintJobs();
+      }));
       body.querySelectorAll("[data-edit-printer]").forEach((b) => b.addEventListener("click", () => openPrinterForm(b.dataset.editPrinter)));
       body.querySelectorAll("[data-del-printer]").forEach((b) => b.addEventListener("click", async () => {
         const p = printersList.find((x) => x.id === b.dataset.delPrinter);
@@ -949,7 +970,7 @@
           return `
             <tr>
               <td>${time}</td>
-              <td>${esc((printersList.find((p) => p.id === j.printer_id) || {}).name || PRINT_JOB_LABELS[j.job_type] || j.job_type)}</td>
+              <td>${esc((printersList.find((p) => p.id === j.printer_id) || {}).name || PRINT_JOB_LABELS[j.job_type] || j.job_type)}${j.job_type === "cancel" || j.job_type === "test" ? ` — ${PRINT_JOB_LABELS[j.job_type]}` : ""}</td>
               <td style="color:${color};">${PRINT_STATUS_LABELS[j.status] || j.status}</td>
               <td>${j.error_message || "—"}</td>
               <td>${j.status === "error" ? `<button class="btn small" data-retry="${j.id}">إعادة المحاولة</button>` : ""}</td>

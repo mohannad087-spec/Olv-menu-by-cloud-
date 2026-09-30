@@ -11,6 +11,7 @@ const REG = "Tajawal";
 function buildKitchenTicket(sale, stationName) {
   const t = new TicketBuilder();
   t.center(stationName ? `طلب ${stationName}` : "طلب مطبخ", `bold 40px ${BOLD}`, 54);
+  if (sale.order_no) t.center(`#${sale.order_no}`, `bold 56px ${BOLD}`, 72);
   t.spacer(6);
   const meta = [sale.order_type, formatTime(sale.created_at)].filter(Boolean).join(" · ");
   t.center(meta, `26px ${REG}`, 36);
