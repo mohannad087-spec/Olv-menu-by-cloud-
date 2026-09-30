@@ -45,6 +45,15 @@ async function loadPrinters() {
   return new Map((data || []).map((p) => [p.id, p]));
 }
 
+// هل للطلب مهام تحضير على أقسام تانية (غير هالطابعة)؟
+async function hasOtherStations(job) {
+  if (!job.printer_id || !job.sale_id) return false;
+  const { data, error } = await supabase
+    .from("print_jobs").select("printer_id, status").eq("sale_id", job.sale_id).eq("job_type", "kitchen");
+  if (error) return false;
+  return (data || []).some((j) => j.printer_id && j.printer_id !== job.printer_id && j.status !== "skipped");
+}
+
 async function markJob(jobId, fields) {
   const { error } = await supabase.from("print_jobs").update(fields).eq("id", jobId);
   if (error) log("تعذّر تحديث حالة مهمة الطباعة:", error.message);
@@ -93,7 +102,7 @@ async function processJob(job, settings, printers, saleCache) {
           await markJob(job.id, { status: "skipped", error_message: "كل أصناف هذه التذكرة انلغت قبل الطباعة" });
           return;
         }
-        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems }, printer ? printer.name : null);
+        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems }, printer ? printer.name : null, await hasOtherStations(job));
       } else if (job.job_type === "cancel") {
         canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems);
       } else {
