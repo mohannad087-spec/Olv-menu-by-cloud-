@@ -42,7 +42,9 @@ class TicketBuilder {
     this.margin = 24;
     this.contentWidth = width - this.margin * 2;
     this.ops = [];
-    this.y = 24;
+    // النص بينرسم على خط الأساس (baseline) عند y، فأول سطر (عنوان بخط 38-40px)
+    // كان يتقص من فوق لما y يبدأ بـ24 — 50 بيتّسع لأكبر خط مستخدم
+    this.y = 50;
     // كانفس مؤقت فقط لقياس عرض النص قبل معرفة الارتفاع النهائي للتذكرة
     this._measure = createCanvas(width, 10).getContext("2d");
   }

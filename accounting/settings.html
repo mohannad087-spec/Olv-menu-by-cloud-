@@ -212,10 +212,9 @@
     <div class="settings-panel" data-panel="printing">
 
     <div class="group">
-      <h2>الطباعة التلقائية</h2>
+      <h2>معلومات الفاتورة</h2>
       <p class="hint" style="margin-bottom:14px;">
-        عند تأكيد أي عملية بيع، يُرسَل تلقائيًا إشعار طباعة إلى طابعة المطبخ وطابعة الفاتورة.
-        الإرسال الفعلي إلى الطابعات الحرارية الشبكية (Epson / Star) يتم عبر برنامج صغير
+        الاسم والعنوان والهاتف بيظهروا أعلى فاتورة الزبون. الإرسال الفعلي إلى الطابعات الحرارية الشبكية (Epson / Star) يتم عبر برنامج صغير
         اسمه "print-bridge" يجب تشغيله مرة واحدة على أي جهاز كمبيوتر متصل بنفس شبكة
         المطعم اللاسلكية التي تتصل بها الطابعات. راجع ملف
         <code>print-bridge/README.md</code> في المشروع لخطوات التركيب والتشغيل.
@@ -235,33 +234,70 @@
             <input type="tel" id="pr-restaurant-phone" placeholder="07xxxxxxxx" dir="ltr">
           </div>
         </div>
+        <button type="submit" class="btn gold" id="printer-save-btn">حفظ معلومات الفاتورة</button>
+      </form>
+    </div>
+
+    <div class="group">
+      <h2>الطابعات وتوزيع الطلبات</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        عرّف كل طابعة وحدد وين بتكون وشو بتطبع: <b>طابعة كاشير</b> بتطبع الفاتورة كاملة بكل
+        الأصناف، و<b>محطة تحضير</b> (مطبخ، بار، أراجيل...) بتستقبل الأصناف اللي بتنتمي
+        لتصنيفاتها بس. مثال: طلب فيه وجبة + كوكتيل + أرجيلة ← فاتورة كاملة للكاشير، الوجبة
+        للمطبخ، الكوكتيل للبار، الأرجيلة لمحطة الأراجيل.
+      </p>
+      <div id="printers-warning" class="hint" style="color:var(--gold-hi); margin-bottom:12px;" hidden></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الطابعة</th><th>النوع</th><th>العنوان</th><th>الأصناف اللي بتطبعها</th><th></th></tr></thead>
+          <tbody id="printers-body"><tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;">
+        <button type="button" class="btn gold" id="add-printer-btn">إضافة طابعة</button>
+      </div>
+
+      <form id="printer-item-form" hidden style="margin-top:16px; background:var(--ink-3); border-radius:10px; padding:16px;">
+        <h3 id="printer-item-title" style="margin:0 0 12px; font-size:15px;">طابعة جديدة</h3>
         <div class="row2">
           <div class="field">
-            <label>
-              <input type="checkbox" id="pr-kitchen-enabled">
-              تفعيل طابعة المطبخ
-            </label>
-            <input type="text" id="pr-kitchen-ip" placeholder="عنوان IP، مثال: 192.168.1.50" style="margin-top:8px;">
+            <label>اسم الطابعة / مكانها</label>
+            <input type="text" id="pi-name" placeholder="مثال: البار" required>
           </div>
           <div class="field">
-            <label>منفذ طابعة المطبخ</label>
-            <input type="number" id="pr-kitchen-port" value="9100">
+            <label>النوع</label>
+            <select id="pi-kind">
+              <option value="station">محطة تحضير (مطبخ / بار / أراجيل...)</option>
+              <option value="receipt">طابعة كاشير (فاتورة كاملة)</option>
+            </select>
           </div>
         </div>
         <div class="row2">
           <div class="field">
-            <label>
-              <input type="checkbox" id="pr-receipt-enabled">
-              تفعيل طابعة الفاتورة / الكاش
-            </label>
-            <input type="text" id="pr-receipt-ip" placeholder="عنوان IP، مثال: 192.168.1.51" style="margin-top:8px;">
+            <label>عنوان IP</label>
+            <input type="text" id="pi-ip" placeholder="مثال: 192.168.1.50" dir="ltr" required>
           </div>
           <div class="field">
-            <label>منفذ طابعة الفاتورة</label>
-            <input type="number" id="pr-receipt-port" value="9100">
+            <label>المنفذ</label>
+            <input type="number" id="pi-port" value="9100" min="1">
           </div>
         </div>
-        <button type="submit" class="btn gold" id="printer-save-btn">حفظ إعدادات الطابعات</button>
+        <div class="field">
+          <label><input type="checkbox" id="pi-enabled" checked> مفعّلة</label>
+        </div>
+        <div id="pi-station-fields">
+          <div class="field">
+            <label>التصنيفات اللي بتطبعها هالمحطة</label>
+            <div id="pi-categories" style="display:flex; flex-wrap:wrap; gap:14px; margin-top:6px;"></div>
+          </div>
+          <div class="field">
+            <label><input type="checkbox" id="pi-catch"> استقبل كمان أي صنف تصنيفه مو موزّع على محطة تانية (شبكة أمان حتى ما يضيع صنف)</label>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="submit" class="btn gold">حفظ الطابعة</button>
+          <button type="button" class="btn" id="pi-cancel">إلغاء</button>
+        </div>
       </form>
 
       <div style="height:20px;"></div>
@@ -271,7 +307,7 @@
       </div>
       <div class="table-wrap" style="margin-top:10px;">
         <table>
-          <thead><tr><th>الوقت</th><th>النوع</th><th>الحالة</th><th>ملاحظة</th><th></th></tr></thead>
+          <thead><tr><th>الوقت</th><th>الطابعة</th><th>الحالة</th><th>ملاحظة</th><th></th></tr></thead>
           <tbody id="print-jobs-body">
             <tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr>
           </tbody>
@@ -757,12 +793,6 @@
         document.getElementById("pr-restaurant-name").value = s.restaurant_name || "";
         document.getElementById("pr-restaurant-address").value = s.restaurant_address || "";
         document.getElementById("pr-restaurant-phone").value = s.restaurant_phone || "";
-        document.getElementById("pr-kitchen-enabled").checked = !!s.kitchen_enabled;
-        document.getElementById("pr-kitchen-ip").value = s.kitchen_ip || "";
-        document.getElementById("pr-kitchen-port").value = s.kitchen_port || 9100;
-        document.getElementById("pr-receipt-enabled").checked = !!s.receipt_enabled;
-        document.getElementById("pr-receipt-ip").value = s.receipt_ip || "";
-        document.getElementById("pr-receipt-port").value = s.receipt_port || 9100;
       } catch (err) {
         olvShowError(errBox, err);
       }
@@ -772,6 +802,129 @@
       kitchen: "المطبخ",
       receipt: "الفاتورة",
     };
+    let printersList = [];
+    let productCategories = [];
+    let editingPrinterId = null;
+
+    const esc = (t) => String(t == null ? "" : t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    async function loadPrinters() {
+      const errBox = document.getElementById("err");
+      try {
+        const [{ data: pr, error: e1 }, { data: prods, error: e2 }] = await Promise.all([
+          window.supabaseClient.from("printers").select("*").order("sort_order").order("created_at"),
+          window.supabaseClient.from("products").select("category"),
+        ]);
+        if (e1) throw e1;
+        if (e2) throw e2;
+        printersList = pr || [];
+        productCategories = [...new Set((prods || []).map((p) => p.category).filter(Boolean))].sort();
+        renderPrinters();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    function renderPrinters() {
+      const body = document.getElementById("printers-body");
+      if (!printersList.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="5">ما في طابعات معرّفة بعد — اضغط "إضافة طابعة"</td></tr>`;
+      } else {
+        body.innerHTML = printersList.map((p) => `
+          <tr${p.enabled ? "" : ' style="opacity:.55;"'}>
+            <td>${esc(p.name)}${p.enabled ? "" : " (معطّلة)"}</td>
+            <td>${p.kind === "receipt" ? "كاشير — فاتورة كاملة" : "محطة تحضير"}</td>
+            <td dir="ltr" style="text-align:right;">${esc(p.ip || "—")}:${p.port}</td>
+            <td>${p.kind === "receipt" ? "كل الأصناف" : (
+              [...(p.categories || []).map(esc), ...(p.catch_unassigned ? ["أي صنف غير موزّع"] : [])].join("، ") || "—"
+            )}</td>
+            <td><div style="display:flex; gap:6px;">
+              <button class="btn small" data-edit-printer="${p.id}">تعديل</button>
+              <button class="btn small danger" data-del-printer="${p.id}">حذف</button>
+            </div></td>
+          </tr>
+        `).join("");
+      }
+      body.querySelectorAll("[data-edit-printer]").forEach((b) => b.addEventListener("click", () => openPrinterForm(b.dataset.editPrinter)));
+      body.querySelectorAll("[data-del-printer]").forEach((b) => b.addEventListener("click", async () => {
+        const p = printersList.find((x) => x.id === b.dataset.delPrinter);
+        if (!confirm(`حذف الطابعة "${p ? p.name : ""}"؟`)) return;
+        const { error } = await window.supabaseClient.from("printers").delete().eq("id", b.dataset.delPrinter);
+        if (error) { olvShowError(document.getElementById("err"), error); return; }
+        await loadPrinters();
+      }));
+
+      // تحذير: تصنيفات منتجات ما إلها أي محطة تستقبلها (ولا في محطة "شبكة أمان")
+      const activeStations = printersList.filter((p) => p.enabled && p.kind === "station");
+      const warn = document.getElementById("printers-warning");
+      const hasCatchAll = activeStations.some((p) => p.catch_unassigned);
+      const claimed = new Set(activeStations.flatMap((p) => p.categories || []));
+      const orphan = productCategories.filter((c) => !claimed.has(c));
+      if (activeStations.length && !hasCatchAll && orphan.length) {
+        warn.innerHTML = `${olvIcon("warning")} تصنيفات ما بتنطبع بأي محطة تحضير (بتظهر بالفاتورة بس): <b>${orphan.map(esc).join("، ")}</b>`;
+        warn.hidden = false;
+      } else {
+        warn.hidden = true;
+      }
+    }
+
+    function syncPrinterFormKind() {
+      document.getElementById("pi-station-fields").hidden = document.getElementById("pi-kind").value !== "station";
+    }
+
+    function openPrinterForm(id) {
+      const p = id ? printersList.find((x) => x.id === id) : null;
+      editingPrinterId = p ? p.id : null;
+      document.getElementById("printer-item-title").textContent = p ? `تعديل: ${p.name}` : "طابعة جديدة";
+      document.getElementById("pi-name").value = p ? p.name : "";
+      document.getElementById("pi-kind").value = p ? p.kind : "station";
+      document.getElementById("pi-ip").value = p ? (p.ip || "") : "";
+      document.getElementById("pi-port").value = p ? p.port : 9100;
+      document.getElementById("pi-enabled").checked = p ? p.enabled : true;
+      document.getElementById("pi-catch").checked = p ? p.catch_unassigned : false;
+      const selected = new Set(p ? (p.categories || []) : []);
+      const allCats = [...new Set([...productCategories, ...selected])];
+      document.getElementById("pi-categories").innerHTML = allCats.length
+        ? allCats.map((c) => `<label><input type="checkbox" data-pi-cat="${esc(c)}" ${selected.has(c) ? "checked" : ""}> ${esc(c)}</label>`).join("")
+        : `<span class="hint">ما في تصنيفات منتجات بعد</span>`;
+      syncPrinterFormKind();
+      const form = document.getElementById("printer-item-form");
+      form.hidden = false;
+      form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    document.getElementById("add-printer-btn").addEventListener("click", () => openPrinterForm(null));
+    document.getElementById("pi-cancel").addEventListener("click", () => { document.getElementById("printer-item-form").hidden = true; });
+    document.getElementById("pi-kind").addEventListener("change", syncPrinterFormKind);
+
+    document.getElementById("printer-item-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const kind = document.getElementById("pi-kind").value;
+      const payload = {
+        name: document.getElementById("pi-name").value.trim(),
+        kind,
+        ip: document.getElementById("pi-ip").value.trim(),
+        port: Number(document.getElementById("pi-port").value || 9100),
+        enabled: document.getElementById("pi-enabled").checked,
+        categories: kind === "station"
+          ? [...document.querySelectorAll("#pi-categories input[data-pi-cat]:checked")].map((c) => c.dataset.piCat)
+          : [],
+        catch_unassigned: kind === "station" && document.getElementById("pi-catch").checked,
+      };
+      try {
+        const q = editingPrinterId
+          ? window.supabaseClient.from("printers").update(payload).eq("id", editingPrinterId)
+          : window.supabaseClient.from("printers").insert({ ...payload, sort_order: printersList.length });
+        const { error } = await q;
+        if (error) throw error;
+        document.getElementById("printer-item-form").hidden = true;
+        await loadPrinters();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    });
     const PRINT_STATUS_LABELS = {
       pending: "قيد الإرسال",
       printed: `تمت الطباعة ${olvIcon("check")}`,
@@ -796,7 +949,7 @@
           return `
             <tr>
               <td>${time}</td>
-              <td>${PRINT_JOB_LABELS[j.job_type] || j.job_type}</td>
+              <td>${esc((printersList.find((p) => p.id === j.printer_id) || {}).name || PRINT_JOB_LABELS[j.job_type] || j.job_type)}</td>
               <td style="color:${color};">${PRINT_STATUS_LABELS[j.status] || j.status}</td>
               <td>${j.error_message || "—"}</td>
               <td>${j.status === "error" ? `<button class="btn small" data-retry="${j.id}">إعادة المحاولة</button>` : ""}</td>
@@ -828,17 +981,11 @@
           restaurant_name: document.getElementById("pr-restaurant-name").value.trim() || "OLV",
           restaurant_address: document.getElementById("pr-restaurant-address").value.trim() || null,
           restaurant_phone: document.getElementById("pr-restaurant-phone").value.trim() || null,
-          kitchen_enabled: document.getElementById("pr-kitchen-enabled").checked,
-          kitchen_ip: document.getElementById("pr-kitchen-ip").value.trim() || null,
-          kitchen_port: Number(document.getElementById("pr-kitchen-port").value || 9100),
-          receipt_enabled: document.getElementById("pr-receipt-enabled").checked,
-          receipt_ip: document.getElementById("pr-receipt-ip").value.trim() || null,
-          receipt_port: Number(document.getElementById("pr-receipt-port").value || 9100),
           updated_at: new Date().toISOString(),
         };
         const { error } = await window.supabaseClient.from("printer_settings").upsert(payload);
         if (error) throw error;
-        alert("تم حفظ إعدادات الطابعات");
+        alert("تم حفظ معلومات الفاتورة");
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
@@ -903,7 +1050,7 @@
         loadProducts(),
         loadAddons(),
         loadPrinterSettings(),
-        loadPrintJobs(),
+        loadPrinters().then(loadPrintJobs),
       ]);
     })();
 
