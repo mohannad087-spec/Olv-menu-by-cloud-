@@ -232,3 +232,6 @@ $$;
 
 revoke execute on function public.record_purchase_invoice(uuid, text, date, numeric, text, text, jsonb, numeric, numeric, numeric, boolean, boolean) from public, anon;
 grant execute on function public.record_purchase_invoice(uuid, text, date, numeric, text, text, jsonb, numeric, numeric, numeric, boolean, boolean) to authenticated;
+
+-- تحديث ذاكرة PostgREST حتى تظهر الدوال والأعمدة الجديدة فورًا بدون انتظار
+notify pgrst, 'reload schema';
