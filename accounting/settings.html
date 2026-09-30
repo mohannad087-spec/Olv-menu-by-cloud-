@@ -948,8 +948,10 @@
     });
     const PRINT_STATUS_LABELS = {
       pending: "قيد الإرسال",
+      printing: "قيد الطباعة",
       printed: `تمت الطباعة ${olvIcon("check")}`,
       error: "خطأ",
+      stale: "متأخرة — بانتظار قرارك",
       skipped: "الطابعة غير مفعّلة",
     };
 
@@ -973,14 +975,29 @@
               <td>${esc((printersList.find((p) => p.id === j.printer_id) || {}).name || PRINT_JOB_LABELS[j.job_type] || j.job_type)}${j.job_type === "cancel" || j.job_type === "test" ? ` — ${PRINT_JOB_LABELS[j.job_type]}` : ""}</td>
               <td style="color:${color};">${PRINT_STATUS_LABELS[j.status] || j.status}</td>
               <td>${j.error_message || "—"}</td>
-              <td>${j.status === "error" ? `<button class="btn small" data-retry="${j.id}">إعادة المحاولة</button>` : ""}</td>
+              <td>${j.status === "error" ? `<button class="btn small" data-retry="${j.id}" data-kind="error">إعادة المحاولة</button>` : (j.status === "stale" ? `<button class="btn small gold" data-retry="${j.id}" data-kind="stale">اطبع الآن</button> <button class="btn small" data-dismiss="${j.id}">تجاهل</button>` : "")}</td>
             </tr>
           `;
         }).join("");
         body.querySelectorAll("button[data-retry]").forEach((btn) => {
           btn.addEventListener("click", async () => {
+            // الخطأ ممكن يكون بعد ما الطابعة فعلًا طبعت (انقطاع اتصال) — تأكيد
+            // يمنع تذكرة مكررة. المتأخرة: نجدّد created_at حتى ما تنعلّم متأخرة تاني
+            const msg = btn.dataset.kind === "stale"
+              ? "طباعة هالتذكرة الآن؟ (الطلب قديم — تأكد إنه لسا مطلوب من القسم)"
+              : "تأكد إن التذكرة ما طلعت من الطابعة فعلًا قبل إعادة المحاولة (وإلا رح تنطبع مرتين). إعادة المحاولة؟";
+            if (!confirm(msg)) return;
             const { error } = await window.supabaseClient
-              .from("print_jobs").update({ status: "pending", error_message: null }).eq("id", btn.dataset.retry);
+              .from("print_jobs").update({ status: "pending", error_message: null, created_at: new Date().toISOString() }).eq("id", btn.dataset.retry);
+            if (error) { olvShowError(errBox, error); return; }
+            await loadPrintJobs();
+          });
+        });
+        body.querySelectorAll("button[data-dismiss]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("تجاهل هالتذكرة (ما رح تنطبع)؟")) return;
+            const { error } = await window.supabaseClient
+              .from("print_jobs").update({ status: "skipped", error_message: "تم تجاهلها يدويًا" }).eq("id", btn.dataset.dismiss);
             if (error) { olvShowError(errBox, error); return; }
             await loadPrintJobs();
           });
@@ -1064,6 +1081,14 @@
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
+      // الإعدادات (طابعات، منتجات، منطقة الخطر) للمالك والمدير بس — الحماية
+      // الفعلية بـRLS لجدولي الطابعات وإعداداتها (schema-print-guards.sql)،
+      // وهاد الحجب بس عشان ما يشوف الكاشير شاشة ما بيقدر يستخدمها
+      const { data: me } = await window.supabaseClient.from("profiles").select("role").eq("id", session.user.id).single();
+      if (!me || !["owner", "manager"].includes(me.role)) {
+        document.querySelector(".wrap").innerHTML = `<div class="group"><div style="padding:40px 20px; text-align:center; color:var(--muted);">صفحة الإعدادات لصاحب المطعم والمدير فقط.</div></div>`;
+        return;
+      }
       document.getElementById("me-info").textContent = `مسجّل دخول بحساب: ${session.user.email}`;
       await Promise.all([
         loadCategories(),

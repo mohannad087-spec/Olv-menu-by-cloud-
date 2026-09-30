@@ -38,14 +38,15 @@ const OlvPrintHealth = (function () {
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return;
-      const [printersRes, settingsRes, pendingRes, errorRes, hbRes] = await Promise.all([
+      const [printersRes, settingsRes, pendingRes, errorRes, staleRes, hbRes] = await Promise.all([
         sb.from("printers").select("enabled"),
         sb.from("printer_settings").select("kitchen_enabled, receipt_enabled").eq("id", 1).maybeSingle(),
         sb.from("print_jobs").select("id, created_at").eq("status", "pending"),
         sb.from("print_jobs").select("id, created_at").eq("status", "error"),
+        sb.from("print_jobs").select("id, created_at").eq("status", "stale"),
         sb.from("app_settings").select("value").eq("key", "print_bridge_heartbeat").maybeSingle(),
       ]);
-      if (pendingRes.error || errorRes.error) return;
+      if (pendingRes.error || errorRes.error || staleRes.error) return;
 
       const s = settingsRes.data || {};
       const enabled = ((printersRes.data || []).some((p) => p.enabled)) || s.kitchen_enabled || s.receipt_enabled;
@@ -53,6 +54,7 @@ const OlvPrintHealth = (function () {
 
       const now = Date.now();
       const stuck = (pendingRes.data || []).filter((j) => now - new Date(j.created_at).getTime() > STUCK_PENDING_SEC * 1000);
+      const staleJobs = (staleRes.data || []).filter((j) => now - new Date(j.created_at).getTime() < RECENT_ERROR_HOURS * 3600000 * 4);
       const recentErrors = (errorRes.data || []).filter((j) => now - new Date(j.created_at).getTime() < RECENT_ERROR_HOURS * 3600000);
       const hb = hbRes.data && hbRes.data.value ? new Date(hbRes.data.value).getTime() : 0;
       const bridgeDown = !hb || now - hb > HEARTBEAT_STALE_SEC * 1000;
@@ -61,6 +63,8 @@ const OlvPrintHealth = (function () {
         show(`${olvIcon("warning")} برنامج الطباعة متوقف — الطلبات الجديدة ما رح تنطبع للمطبخ/البار (تأكد إن كمبيوتر الطباعة شغّال)`);
       } else if (stuck.length) {
         show(`${olvIcon("warning")} ${stuck.length} مهمة طباعة عالقة من أكتر من دقيقة — تأكد من الطابعات (ورق/شبكة/تشغيل)`);
+      } else if (staleJobs.length) {
+        show(`${olvIcon("warning")} ${staleJobs.length} تذكرة تحضير تأخرت وما انطبعت تلقائيًا (بعد انقطاع) — قرر إذا لسا مطلوبة`);
       } else if (recentErrors.length) {
         show(`${olvIcon("warning")} فشلت طباعة ${recentErrors.length} مهمة مؤخرًا — الطلب ممكن ما وصل لقسم التحضير`);
       } else {
