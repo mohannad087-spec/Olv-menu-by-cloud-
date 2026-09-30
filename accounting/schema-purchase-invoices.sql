@@ -268,3 +268,6 @@ begin
       for insert with check (bucket_id = 'purchase-invoices' and public.is_admin());
   end if;
 end $$;
+
+-- تحديث ذاكرة PostgREST حتى تظهر الدوال والأعمدة الجديدة فورًا بدون انتظار
+notify pgrst, 'reload schema';
