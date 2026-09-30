@@ -1,3 +1,21 @@
+// تحويل نص لـHTML آمن قبل ما ينحط جوّا innerHTML — أي نص كاتبه إنسان
+// (اسم زبون، ملاحظة، رقم طاولة، وصف مصروف، طلب جاي من موقع المنيو...) لازم
+// يمرّ من هون، وإلا كاشير أو زبون خبيث يقدر يزرع كود بصفحة المالك
+function olvEsc(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+// الصفحات المسموحة للكاشير (role = staff) — الباقي (تقارير، إعدادات، رواتب،
+// موظفين، مخزون، مشتريات، موردين...) للمالك والمدير بس. هاد لراحة الاستخدام؛
+// الحماية الفعلية بـRLS والدوال بقاعدة البيانات (schema-cashier-hardening.sql)
+const OLV_STAFF_PAGES = [
+  "pos.html", "sales.html", "tables.html", "incoming-orders.html", "kitchen.html",
+  "expenses.html", "cash-register.html", "customers.html", "attendance.html", "login.html",
+];
+window.OLV_STAFF_PAGES = OLV_STAFF_PAGES;
+
 // يتحقق من وجود جلسة دخول؛ وفي حال عدم وجودها يُعاد توجيه المستخدم إلى صفحة تسجيل الدخول
 async function olvRequireAuth() {
   if (!window.supabaseClient) return null;
@@ -10,11 +28,19 @@ async function olvRequireAuth() {
   // جلسة جديد فورًا من عند Supabase، بس ما بيلغي جلسة مفتوحة أصلًا من
   // تلقاء نفسه — هاد الفحص هون بيسكّرها فعليًا من أول صفحة يفتحها بعدها
   const { data: profile } = await window.supabaseClient
-    .from("profiles").select("is_active").eq("id", session.user.id).single();
+    .from("profiles").select("is_active, role").eq("id", session.user.id).single();
   if (profile && profile.is_active === false) {
     await window.supabaseClient.auth.signOut();
     window.location.href = "login.html?deactivated=1";
     return null;
+  }
+  if (profile && profile.role) {
+    window.olvRole = profile.role;
+    const page = (window.location.pathname.split("/").pop() || "index.html");
+    if (profile.role === "staff" && !OLV_STAFF_PAGES.includes(page)) {
+      window.location.replace("pos.html");
+      return null;
+    }
   }
   return session;
 }

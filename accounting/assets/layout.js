@@ -168,6 +168,20 @@ function olvRenderNav(active) {
 // olvRenderNav نفسها (اللي بترسم فورًا قبل ما نعرف الجلسة أصلًا) — الشارة
 // تضل مخفية لحد ما يوصل رد الاسم فعليًا
 const OLV_ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "كاشير" };
+// الكاشير ما بيشوف روابط صفحات الإدارة أصلًا (والصفحة نفسها بتحوّله لو فتحها)
+function olvHideAdminLinks() {
+  const allowed = window.OLV_STAFF_PAGES || [];
+  document.querySelectorAll("#olv-nav a.tab-link").forEach((a) => {
+    const file = (a.getAttribute("href") || "").split("/").pop();
+    if (file && !allowed.includes(file)) a.remove();
+  });
+  document.querySelectorAll("#olv-nav .tab-more-group").forEach((g) => {
+    if (!g.querySelector("a")) g.remove();
+  });
+  const more = document.getElementById("olv-nav-more");
+  if (more && !more.querySelector(".tab-more-group")) more.remove();
+}
+
 async function olvLoadCurrentUserBadge() {
   const badge = document.getElementById("olv-user-badge");
   const nameEl = document.getElementById("olv-user-name");
@@ -178,6 +192,7 @@ async function olvLoadCurrentUserBadge() {
     const { data: profile } = await window.supabaseClient
       .from("profiles").select("full_name, role").eq("id", session.user.id).single();
     if (!profile) return;
+    if (profile.role === "staff") olvHideAdminLinks();
     const roleLabel = OLV_ROLE_LABELS[profile.role] || profile.role;
     nameEl.textContent = `${profile.full_name || "—"} (${roleLabel})`;
     badge.hidden = false;

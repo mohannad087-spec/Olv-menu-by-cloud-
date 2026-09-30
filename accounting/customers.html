@@ -178,9 +178,9 @@
         return;
       }
       body.innerHTML = list.map((c) => `
-        <tr class="customer-row${selectedPhone === c.phone ? " on" : ""}" data-select="${c.phone}">
-          <td>${c.name || "—"}</td>
-          <td dir="ltr" style="text-align:right;">${c.phone}</td>
+        <tr class="customer-row${selectedPhone === c.phone ? " on" : ""}" data-select="${olvEsc(c.phone)}">
+          <td>${olvEsc(c.name) || "—"}</td>
+          <td dir="ltr" style="text-align:right;">${olvEsc(c.phone)}</td>
           <td>${c.visit_count}</td>
           <td>${olvFormatMoney(c.total_spent)}</td>
           <td><span class="points-badge">${olvIcon("star")}${c.points_balance}</span></td>
@@ -237,7 +237,7 @@
           ? orders.map((o) => `
               <tr>
                 <td>${o.entry_date}</td>
-                <td>${ORDER_TYPE_LABELS[o.order_type] || o.order_type || "—"}</td>
+                <td>${olvEsc(ORDER_TYPE_LABELS[o.order_type] || o.order_type) || "—"}</td>
                 <td>${olvFormatMoney(Number(o.cash_amount) + Number(o.card_amount) + Number(o.delivery_amount))}</td>
               </tr>
             `).join("")

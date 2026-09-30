@@ -180,18 +180,18 @@
         <div class="io-item">
           <div class="io-item-main">
             <div class="io-item-left">
-              <span class="io-qty-badge">${it.qty}×</span>
-              <span class="io-item-name">${it.label}</span>
+              <span class="io-qty-badge">${Number(it.qty) || 0}×</span>
+              <span class="io-item-name">${olvEsc(it.label)}</span>
             </div>
             <span class="io-item-price">${olvFormatMoney(it.price * it.qty)}</span>
           </div>
-          ${noteText ? `<div class="io-item-note">${olvIcon("note")} ${noteText}</div>` : ""}
+          ${noteText ? `<div class="io-item-note">${olvIcon("note")} ${olvEsc(noteText)}</div>` : ""}
           ${matched
-            ? `<div class="io-matched">${olvIcon("link")} مربوط بـ: ${matched.name}</div>`
+            ? `<div class="io-matched">${olvIcon("link")} مربوط بـ: ${olvEsc(matched.name)}</div>`
             : `<div class="io-unmatched">
-                <select data-map-item="${it.id}">
+                <select data-map-item="${olvEsc(it.id)}">
                   <option value="">— اختر المنتج المقابل —</option>
-                  ${products.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}
+                  ${products.map((p) => `<option value="${p.id}">${olvEsc(p.name)}</option>`).join("")}
                 </select>
               </div>`
           }
@@ -213,26 +213,26 @@
         return `
           <div class="io-card${isNew ? " io-new" : ""}">
             <div class="io-head">
-              <b>#${o.number}</b>
+              <b>#${olvEsc(o.number)}</b>
               <div class="io-total">${olvFormatMoney(o.total)}</div>
             </div>
             <div class="io-badges">
-              <span class="io-mode-badge">${o.mode === "delivery" ? olvIcon("mapPin") : olvIcon("dineIn")} ${MODE_LABELS[o.mode] || o.mode}</span>
-              <span class="io-status-badge ${statusClass}">${STATUS_LABELS[o.status] || o.status}</span>
+              <span class="io-mode-badge">${o.mode === "delivery" ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(MODE_LABELS[o.mode] || o.mode)}</span>
+              <span class="io-status-badge ${statusClass}">${olvEsc(STATUS_LABELS[o.status] || o.status)}</span>
             </div>
-            ${o.table ? `<div class="hint">${olvIcon("grid")} طاولة رقم ${o.table}</div>` : ""}
-            ${o.phone ? `<div class="hint" dir="ltr">${olvIcon("phone")} ${o.phone}</div>` : ""}
-            ${o.address ? `<div class="hint">${olvIcon("mapPin")} ${o.address}</div>` : ""}
-            ${o.notes ? `<div class="hint">${olvIcon("note")} ${o.notes}</div>` : ""}
+            ${o.table ? `<div class="hint">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table)}</div>` : ""}
+            ${o.phone ? `<div class="hint" dir="ltr">${olvIcon("phone")} ${olvEsc(o.phone)}</div>` : ""}
+            ${o.address ? `<div class="hint">${olvIcon("mapPin")} ${olvEsc(o.address)}</div>` : ""}
+            ${o.notes ? `<div class="hint">${olvIcon("note")} ${olvEsc(o.notes)}</div>` : ""}
             <div class="io-items">${(o.items || []).map((it) => renderItemRow(o, it)).join("")}</div>
             ${isNew ? `
               <div class="io-actions">
-                <button class="btn gold small" data-approve="${o.id}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
-                <button class="btn gold small" data-approve="${o.id}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
-                <button class="btn danger small" data-reject="${o.id}">رفض</button>
+                <button class="btn gold small" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
+                <button class="btn gold small" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
+                <button class="btn danger small" data-reject="${olvEsc(o.id)}">رفض</button>
               </div>
               ${!mapped ? `<div class="hint">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
-            ` : `<div class="io-waiting">بانتظار… (${STATUS_LABELS[o.status] || o.status})</div>`}
+            ` : `<div class="io-waiting">بانتظار… (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>`}
           </div>
         `;
       }).join("");
@@ -241,9 +241,13 @@
         sel.addEventListener("change", async () => {
           if (!sel.value) return;
           sel.disabled = true;
-          const { error } = await window.supabaseClient
-            .from("products").update({ external_id: sel.dataset.mapItem }).eq("id", sel.value);
+          const { data: updated, error } = await window.supabaseClient
+            .from("products").update({ external_id: sel.dataset.mapItem }).eq("id", sel.value).select("id");
           if (error) { olvShowError(document.getElementById("err"), error); sel.disabled = false; return; }
+          if (!updated || !updated.length) {
+            olvShowError(document.getElementById("err"), new Error("ربط أصناف المنيو بمنتجات المحاسبة للمدير أو صاحب المطعم فقط"));
+            sel.disabled = false; sel.value = ""; return;
+          }
           await loadProducts();
           renderOrders();
         });

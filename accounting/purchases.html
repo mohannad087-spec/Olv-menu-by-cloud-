@@ -183,7 +183,7 @@
       const sel = document.getElementById("p-item");
       const items = currentItems();
       sel.innerHTML = items.length
-        ? items.map((i) => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("")
+        ? items.map((i) => `<option value="${i.id}">${olvEsc(i.name)} (${i.unit})</option>`).join("")
         : `<option value="">لا يوجد أصناف — أضفها أولًا</option>`;
       updateUnitLabels();
     }
@@ -222,7 +222,7 @@
       if (error) { olvShowError(document.getElementById("err"), error); return; }
       suppliers = data || [];
       const sel = document.getElementById("p-supplier");
-      sel.innerHTML = `<option value="">— بدون —</option>` + suppliers.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+      sel.innerHTML = `<option value="">— بدون —</option>` + suppliers.map((s) => `<option value="${s.id}">${olvEsc(s.name)}</option>`).join("");
     }
 
     async function loadPurchases() {
@@ -243,7 +243,7 @@
             <td>${p.quantity} ${p.unit}</td>
             <td>${olvFormatMoney(p.unit_price)}</td>
             <td>${olvFormatMoney(p.total_amount)}</td>
-            <td>${p.suppliers ? p.suppliers.name : "—"}</td>
+            <td>${p.suppliers ? olvEsc(p.suppliers.name) : "—"}</td>
           </tr>
         `).join("");
       } catch (err) {

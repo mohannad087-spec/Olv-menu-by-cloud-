@@ -170,7 +170,7 @@
       if (error) throw error;
       profilesById = new Map((data || []).map((p) => [p.id, p.full_name]));
       const empSelects = [document.getElementById("p-employee"), document.getElementById("f-employee")];
-      const optionsHtml = (data || []).map((p) => `<option value="${p.id}">${p.full_name}</option>`).join("");
+      const optionsHtml = (data || []).map((p) => `<option value="${p.id}">${olvEsc(p.full_name)}</option>`).join("");
       document.getElementById("p-employee").innerHTML = optionsHtml;
       document.getElementById("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
     }

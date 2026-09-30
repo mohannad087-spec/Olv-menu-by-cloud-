@@ -198,7 +198,7 @@
           }).join("")
         : `<tr><td colspan="5">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
       document.getElementById("print-expenses-body").innerHTML = s.recentExpenses.length
-        ? s.recentExpenses.map((r) => `<tr><td>${r.expense_date}</td><td>${r.expense_categories ? r.expense_categories.name : "—"}</td><td>${r.description || "—"}</td><td>${olvFormatMoney(r.amount)}</td></tr>`).join("")
+        ? s.recentExpenses.map((r) => `<tr><td>${r.expense_date}</td><td>${r.expense_categories ? olvEsc(r.expense_categories.name) : "—"}</td><td>${olvEsc(r.description) || "—"}</td><td>${olvFormatMoney(r.amount)}</td></tr>`).join("")
         : `<tr><td colspan="4">لا يوجد مصروفات مسجّلة بعد</td></tr>`;
       window.print();
     }
@@ -263,8 +263,8 @@
           expBody.innerHTML = recentExpenses.map((r) => `
             <tr>
               <td>${r.expense_date}</td>
-              <td>${r.expense_categories ? r.expense_categories.name : "—"}</td>
-              <td>${r.description || "—"}</td>
+              <td>${r.expense_categories ? olvEsc(r.expense_categories.name) : "—"}</td>
+              <td>${olvEsc(r.description) || "—"}</td>
               <td>${olvFormatMoney(r.amount)}</td>
             </tr>
           `).join("");
