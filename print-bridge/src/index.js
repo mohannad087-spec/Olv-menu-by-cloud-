@@ -12,6 +12,11 @@ const { buildReceiptTicket } = require("./ticket-receipt");
 const { buildCancelTicket, buildTestTicket } = require("./ticket-extra");
 
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 4000);
+// مهمة تحضير/إلغاء أقدم من هالمدة (مثلاً بعد انقطاع طويل) ما بتنطبع تلقائيًا —
+// بتنتظر قرار الكاشير من صفحة الإعدادات، بدل ما تنطبع طلبات قديمة دفعة وحدة
+const STALE_MINUTES = Number(process.env.STALE_MINUTES || 15);
+// مهمة عالقة بحالة "printing" أكتر من هالمدة = البرنامج انقطع أثناء الطباعة
+const PRINTING_TIMEOUT_MINUTES = 2;
 
 function log(...args) {
   console.log(`[${new Date().toLocaleTimeString("ar-EG", { numberingSystem: "latn" })}]`, ...args);
@@ -54,6 +59,36 @@ async function hasOtherStations(job) {
   return (data || []).some((j) => j.printer_id && j.printer_id !== job.printer_id && j.status !== "skipped");
 }
 
+// حجز ذرّي: update شرطي (status=pending) — لو نسختين من البرنامج اشتغلوا بنفس
+// الوقت، وحدة بس بتنجح بالحجز والتانية بترجع صفر صفوف، فما بتنطبع تذكرة مرتين
+let claimWarned = false;
+async function claimJob(jobId) {
+  const { data, error } = await supabase
+    .from("print_jobs")
+    .update({ status: "printing", claimed_at: new Date().toISOString() })
+    .eq("id", jobId).eq("status", "pending").select("id");
+  // 23514/42703 = ملف schema-print-guards.sql لسا ما انشغّل (حالة printing أو
+  // عمود claimed_at مو موجودين) — نكمّل بدون حجز بدل ما تتوقف الطباعة كلها
+  if (error && (error.code === "23514" || error.code === "42703")) {
+    if (!claimWarned) { log("تحذير: شغّل schema-print-guards.sql لتفعيل الحجز ومنع الطباعة المكررة"); claimWarned = true; }
+    return true;
+  }
+  if (error) { log("تعذّر حجز مهمة الطباعة:", error.message); return false; }
+  return !!(data && data.length);
+}
+
+// مهمة بقيت "printing" = البرنامج (أو الكهرباء) انقطع بين إرسال التذكرة
+// وتسجيل نجاحها. ما منعرف إذا انطبعت، فما منعيد الطباعة تلقائيًا (بتتكرر
+// تذكرة) ولا منتجاهلها (بتضيع) — بنحوّلها لـ"error" وبيقرر الكاشير
+async function recoverStuckJobs() {
+  const cutoff = new Date(Date.now() - PRINTING_TIMEOUT_MINUTES * 60000).toISOString();
+  const { error } = await supabase
+    .from("print_jobs")
+    .update({ status: "error", error_message: "انقطع البرنامج أثناء الطباعة — تأكد إذا طلعت التذكرة قبل إعادة المحاولة" })
+    .eq("status", "printing").lt("claimed_at", cutoff);
+  if (error) log("تعذّر فحص المهام العالقة:", error.message);
+}
+
 async function markJob(jobId, fields) {
   const { error } = await supabase.from("print_jobs").update(fields).eq("id", jobId);
   if (error) log("تعذّر تحديث حالة مهمة الطباعة:", error.message);
@@ -79,6 +114,15 @@ async function processJob(job, settings, printers, saleCache) {
 
   if (!target.enabled || !target.ip) {
     await markJob(job.id, { status: "skipped" });
+    return;
+  }
+
+  if (!(await claimJob(job.id))) return; // نسخة تانية أخدتها
+
+  const ageMinutes = (Date.now() - new Date(job.created_at).getTime()) / 60000;
+  if (job.job_type !== "receipt" && ageMinutes > STALE_MINUTES) {
+    await markJob(job.id, { status: "stale", error_message: `تأخرت ${Math.round(ageMinutes)} دقيقة — بانتظار قرار الكاشير` });
+    log(`⚠ مهمة متأخرة (${Math.round(ageMinutes)} د) على "${label}" — ما انطبعت تلقائيًا`);
     return;
   }
 
@@ -132,6 +176,7 @@ async function sendHeartbeat() {
 async function tick() {
   try {
     await sendHeartbeat();
+    await recoverStuckJobs();
     const settings = await loadPrinterSettings();
     const printers = await loadPrinters();
     const { data: jobs, error } = await supabase

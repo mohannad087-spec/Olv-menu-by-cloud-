@@ -136,6 +136,7 @@
      24. [`schema-printers-routing.sql`](./schema-printers-routing.sql) — جدول الطابعات وتوزيع الطلب على المحطات حسب تصنيف الصنف (بينقل تلقائيًا إعدادات طابعتي المطبخ والفاتورة القديمتين إلو، إن وُجدت)
    - إذا ظهرت رسالة خطأ من نوع "column ... does not exist" عند إتمام دفع من
      25. [`schema-print-safety.sql`](./schema-print-safety.sql) — ضمانات تحضير الطلبات: رقم طلب يومي متسلسل، تذكرة إلغاء تلقائية للأقسام، وطباعة تجريبية لكل طابعة (شغّله بعد `schema-printers-routing.sql`)
+     26. [`schema-print-guards.sql`](./schema-print-guards.sql) — تعديل الطابعات وإعدادات الطباعة للمالك/المدير بس، وحماية من الطباعة المكررة (حجز المهمة)، وتأجيل الطلبات القديمة بعد انقطاع طويل
      شاشة البيع السريع (عادةً لأن أحد الملفات فوق انفاتك بالترتيب)، شغّل
      [`schema-fix-checkout-error.sql`](./schema-fix-checkout-error.sql) — ملف
      شامل وآمن يعيد كل أعمدة/دوال البيع والإلغاء لحالتها الصحيحة النهائية
@@ -293,6 +294,7 @@ accounting/
   schema-employees.sql           بيانات الموظفين (هاتف، أجر، تفعيل) وتصحيح ثغرة صلاحيات الأدوار
   schema-attendance.sql          بصمات الحضور الخام + view الورديات + عمود device_user_id
   schema-payroll.sql             سلف الموظفين وسجل الرواتب المدفوعة
+  schema-print-guards.sql        صلاحيات الطابعات + حجز المهام + المهام المتأخرة
   schema-print-safety.sql        رقم طلب يومي + تذاكر إلغاء + طباعة تجريبية
   schema-printers-routing.sql    جدول الطابعات وتوزيع الطلب على المحطات حسب التصنيف (print_jobs لكل طابعة)
   schema-receipt-customization.sql  عنوان ورقم هاتف المطعم على الفاتورة المطبوعة (اسم الكاشير يُطبع تلقائيًا من sales_entries.created_by بدون عمود جديد)
