@@ -6,6 +6,11 @@
 // كسر بجانب السيرفر فقط عبر Deno.env، وما بينكشف أبدًا لكود المتصفح —
 // هذا هو سبب وجود هذا الوسيط بدل ما تتواصل صفحة المحاسبة مباشرة مع موقع
 // المنيو (يلي كمان ما فيه إعدادات CORS تسمح بذلك أصلًا).
+//
+// verify_jwt لحالها بتقبل أي حساب مسجّل، حتى لو موقوف — فبنتأكد كمان إن
+// المستدعي إله ملف (profile) مفعّل قبل ما نكشف أرقام وعناوين الزباين.
+
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
 
@@ -29,6 +34,23 @@ Deno.serve(async (req) => {
   const adminKey = Deno.env.get("OLV_ADMIN_KEY");
   if (!adminKey) {
     return json({ ok: false, error: "OLV_ADMIN_KEY غير مضبوط بأسرار Supabase (Edge Functions → Secrets)" }, 500);
+  }
+
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    return json({ ok: false, error: "إعدادات Supabase ناقصة بالسيرفر" }, 500);
+  }
+  const authHeader = req.headers.get("authorization") || "";
+  const callerClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error: userErr } = await callerClient.auth.getUser();
+  if (userErr || !user) return json({ ok: false, error: "جلسة غير صالحة" }, 401);
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const { data: profile } = await admin.from("profiles").select("role, is_active").eq("id", user.id).single();
+  if (!profile || profile.is_active === false || !profile.role) {
+    return json({ ok: false, error: "غير مصرّح — سجّل دخول بحساب فعّال" }, 403);
   }
 
   let body: Record<string, unknown>;
