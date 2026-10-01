@@ -570,6 +570,7 @@
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
+      if (window.olvRole !== "staff") { try { await window.supabaseClient.rpc("generate_recurring_expenses"); } catch (_) {} } // تنزيل المصروفات المتكررة المستحقة
       const today = new Date();
       const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       document.getElementById("from_date").value = firstOfMonth.toISOString().slice(0, 10);

@@ -206,6 +206,7 @@
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
+      if (window.olvRole !== "staff") { try { await window.supabaseClient.rpc("generate_recurring_expenses"); } catch (_) {} } // تنزيل المصروفات المتكررة المستحقة
       const errBox = document.getElementById("err");
       const today = olvToday();
       document.getElementById("today-label").textContent = today;
