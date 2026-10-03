@@ -385,6 +385,8 @@
         line.typed = e.target.value;
         const catHit = catalogOnly.find((c) => catLabel(c) === e.target.value);
         if (catHit) {
+          if (line._adding) return; // نداء مزدوج لنفس الاختيار — نتجاهل الثاني
+          line._adding = true;
           e.target.disabled = true;
           olvCatalogAddOne(catHit).then(async (res) => {
             await loadItems();
@@ -392,7 +394,8 @@
             if (fresh) { line.itemKey = fresh.kind + ":" + fresh.id; line.unmatchedName = ""; line.unitMode = "stock"; }
             renderLines();
             const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus();
-          }).catch((err) => { olvShowError(document.getElementById("err"), err); renderLines(); });
+          }).catch((err) => { olvShowError(document.getElementById("err"), err); renderLines(); })
+            .finally(() => { line._adding = false; });
           return;
         }
         const hit = labelToItem().get(e.target.value);

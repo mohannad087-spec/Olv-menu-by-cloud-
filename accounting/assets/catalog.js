@@ -54,14 +54,39 @@
     return base;
   }
 
+  // آمنة للتكرار: لو الصنف موجود أصلًا (بنفس الاسم بعد توحيد الحروف، أو انضاف للتو بنداء مزدوج)
+  // بترجّع الصنف الموجود بدل ما تضيفه مرتين أو تفشل بـ duplicate key
   async function olvCatalogAddMany(entries) {
     const out = [];
     for (const kind of ["i", "s"]) {
-      const rows = entries.filter((e) => e.kind === kind).map(rowFor);
-      if (!rows.length) continue;
-      const { data, error } = await window.supabaseClient.from(kind === "i" ? "ingredients" : "supplies").insert(rows).select();
-      if (error) throw error;
-      (data || []).forEach((r) => out.push({ kind: kind === "i" ? "ingredient" : "supply", row: r }));
+      const list = entries.filter((e) => e.kind === kind);
+      if (!list.length) continue;
+      const table = kind === "i" ? "ingredients" : "supplies";
+      const label = kind === "i" ? "ingredient" : "supply";
+      const fetchExisting = async () => {
+        const { data, error } = await window.supabaseClient.from(table).select("*");
+        if (error) throw error;
+        return new Map((data || []).map((r) => [olvCatNorm(r.name), r]));
+      };
+      let have = await fetchExisting();
+      const seen = new Set();
+      const fresh = [];
+      for (const e of list) {
+        if (seen.has(e.key)) continue;
+        seen.add(e.key);
+        if (have.has(e.key)) out.push({ kind: label, row: have.get(e.key), existed: true });
+        else fresh.push(e);
+      }
+      if (!fresh.length) continue;
+      const { data, error } = await window.supabaseClient.from(table).insert(fresh.map(rowFor)).select();
+      if (error) {
+        if (error.code !== "23505") throw error;
+        // سباق: نداء ثاني أضاف نفس الصنف بنفس اللحظة — نرجّع الموجود
+        have = await fetchExisting();
+        fresh.forEach((e) => { if (have.has(e.key)) out.push({ kind: label, row: have.get(e.key), existed: true }); });
+        continue;
+      }
+      (data || []).forEach((r) => out.push({ kind: label, row: r }));
     }
     return out;
   }
@@ -201,7 +226,7 @@
       addBtn.disabled = true;
       try {
         const sel = items.filter((e) => picked.has(e.id) && !isHave(e));
-        const added = await olvCatalogAddMany(sel);
+        const added = (await olvCatalogAddMany(sel)).filter((a) => !a.existed);
         close();
         if (opts.onDone) await opts.onDone(added);
       } catch (err) {
