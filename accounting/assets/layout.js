@@ -89,6 +89,7 @@ function olvRenderNav(active) {
       links: [
         { id: "recipes", href: "recipes.html", label: "وصفات المشروبات", icon: "coffee" },
         { id: "inventory", href: "inventory.html", label: "المخزون", icon: "box" },
+        { id: "stock-count", href: "stock-count.html", label: "الجرد", icon: "clipboard" },
         { id: "supplies", href: "supplies.html", label: "المستلزمات", icon: "archive" },
         { id: "menu-stock", href: "menu-stock.html", label: "المنيو من المخزون", icon: "grid" },
         { id: "purchase-invoices", href: "purchase-invoices.html", label: "فواتير المشتريات", icon: "receipt" },

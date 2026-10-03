@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الجرد — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .sc-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
+  .sc-bar input[type=search], .sc-bar select{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:10px; font-size:15px; font-family:'Tajawal',sans-serif;}
+  .sc-bar input[type=search]{flex:1; min-width:180px;}
+  .sc-count{width:100px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:9px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .sc-diff.neg{color:var(--danger-hi); font-weight:700;}
+  .sc-diff.pos{color:var(--ok); font-weight:700;}
+  .sc-cat td{background:var(--ink-3); color:var(--gold-hi); font-weight:700; font-size:13px;}
+  @media(max-width:640px){ #sc-body td:nth-child(5), .sc-table th:nth-child(5){display:none;} .sc-count{width:70px;} .sc-table{width:100%;} .sc-table td, .sc-table th{padding-left:6px; padding-right:6px;} }
+  .sc-summary{position:sticky; bottom:0; background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; padding:12px 14px; margin-top:14px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; justify-content:space-between; z-index:5;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>الجرد الفعلي</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        عِدّ الموجود فعليًا على الرف واكتبه بخانة "العدد الفعلي". الصنف اللي بتتركه فاضي ما بيتغيّر.
+        بالحفظ بتصير الكمية بالنظام = العدد الفعلي، وبينسجّل الفرق (عجز أو زيادة) وقيمته بسجل الحركات.
+        بتقدر تجرد قسم واحد (مثلًا الثلاجة) أو كل شي مرة وحدة.
+      </p>
+      <div class="sc-bar">
+        <input type="search" id="sc-q" placeholder="ابحث باسم الصنف...">
+        <select id="sc-kind">
+          <option value="all">المواد الخام والمستلزمات</option>
+          <option value="ingredient">المواد الخام بس</option>
+          <option value="supply">المستلزمات بس</option>
+        </select>
+        <button type="button" class="btn small" id="sc-clear">تفريغ الخانات</button>
+      </div>
+      <div class="table-wrap">
+        <table class="sc-table">
+          <thead><tr><th>الصنف</th><th>بالنظام</th><th>العدد الفعلي</th><th>الفرق</th><th>قيمة الفرق</th></tr></thead>
+          <tbody id="sc-body"><tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="sc-summary">
+        <div>
+          <div class="hint" style="margin:0;">أصناف معدودة: <b id="sc-n">0</b> — فيها فرق: <b id="sc-nd">0</b></div>
+          <div>قيمة الفرق التقديرية: <b id="sc-val">0.00</b></div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <input type="text" id="sc-note" maxlength="200" placeholder="ملاحظة (مثال: جرد آخر الشهر)" class="sc-count" style="width:220px;">
+          <button type="button" class="btn gold" id="sc-save">حفظ الجرد</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>آخر حركات المخزون اليدوية</h2>
+      <p class="hint" style="margin-bottom:12px;">الجرد، والتعديل والهدر من صفحتي المخزون والمستلزمات. (البيع وفواتير الشراء مسجّلين بصفحاتهم.)</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الوقت</th><th>الصنف</th><th>النوع</th><th>الفرق</th><th>بعدها</th><th>مين</th><th>ملاحظة</th></tr></thead>
+          <tbody id="mv-body"><tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("stock-count");
+    const DRAFT_KEY = "olv_stock_count_draft_v1";
+    const REASONS = { count: "جرد", adjust: "تعديل", waste: "هدر/تالف" };
+    let items = [];           // { key, kind, id, name, unit, cat, stock, cost }
+    let counts = {};          // key -> النص المكتوب بالخانة
+
+    const fmtQty = (n) => String(Math.round(Number(n) * 1000) / 1000);
+    const parsedCount = (key) => {
+      const v = counts[key];
+      if (v === undefined || v === null || String(v).trim() === "") return null;
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? n : NaN;
+    };
+
+    // مسودة الجرد بتنحفظ على هالجهاز، حتى لو انقطع النت أو سكّرت الصفحة بنص العدّ ما بتضيع
+    function saveDraft() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(counts)); } catch (_) {} }
+    function loadDraft() { try { counts = JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}") || {}; } catch (_) { counts = {}; } }
+
+    async function loadItems() {
+      const [ing, sup] = await Promise.all([
+        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, unit_price").order("name"),
+        window.supabaseClient.from("supplies").select("id, name, unit, category, current_stock, unit_price").order("category").order("name"),
+      ]);
+      if (ing.error) throw ing.error;
+      if (sup.error) throw sup.error;
+      items = [
+        ...(ing.data || []).map((r) => ({ key: "ingredient:" + r.id, kind: "ingredient", id: r.id, name: r.name, unit: r.unit, cat: "مواد خام", stock: Number(r.current_stock) || 0, cost: Number(r.unit_price) || 0 })),
+        ...(sup.data || []).map((r) => ({ key: "supply:" + r.id, kind: "supply", id: r.id, name: r.name, unit: r.unit, cat: "مستلزمات — " + (r.category || "عام"), stock: Number(r.current_stock) || 0, cost: Number(r.unit_price) || 0 })),
+      ];
+      // نشيل من المسودة أي صنف انحذف
+      const keys = new Set(items.map((i) => i.key));
+      Object.keys(counts).forEach((k) => { if (!keys.has(k)) delete counts[k]; });
+    }
+
+    function diffCells(it) {
+      const c = parsedCount(it.key);
+      if (c === null) return { diff: "", val: "" };
+      if (Number.isNaN(c)) return { diff: `<span class="sc-diff neg">رقم غير صالح</span>`, val: "" };
+      const d = Math.round((c - it.stock) * 1000) / 1000;
+      if (d === 0) return { diff: `<span class="hint" style="margin:0;">مطابق</span>`, val: "" };
+      const cls = d < 0 ? "neg" : "pos";
+      return {
+        diff: `<span class="sc-diff ${cls}">${d > 0 ? "+" : ""}${fmtQty(d)}</span>`,
+        val: it.cost ? `<span class="sc-diff ${cls}">${olvFormatMoney(d * it.cost)}</span>` : `<span class="hint" style="margin:0;">بدون تكلفة</span>`,
+      };
+    }
+
+    function visibleItems() {
+      const q = document.getElementById("sc-q").value.trim().toLowerCase();
+      const k = document.getElementById("sc-kind").value;
+      return items.filter((i) => (k === "all" || i.kind === k) && (!q || i.name.toLowerCase().includes(q)));
+    }
+
+    function render() {
+      const body = document.getElementById("sc-body");
+      const rows = visibleItems();
+      if (!rows.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="5">${items.length ? "ما في نتائج" : "ما في أصناف بالمخزون بعد"}</td></tr>`;
+      } else {
+        let lastCat = null;
+        body.innerHTML = rows.map((it) => {
+          const head = it.cat !== lastCat ? `<tr class="sc-cat"><td colspan="5">${olvEsc(it.cat)}</td></tr>` : "";
+          lastCat = it.cat;
+          const dc = diffCells(it);
+          return `${head}<tr data-key="${olvEsc(it.key)}">
+            <td>${olvEsc(it.name)}</td>
+            <td>${olvEsc(fmtQty(it.stock))} ${olvEsc(it.unit)}</td>
+            <td><input type="number" class="sc-count" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(counts[it.key] ?? "")}" placeholder="—"></td>
+            <td data-diff>${dc.diff}</td>
+            <td data-val>${dc.val}</td>
+          </tr>`;
+        }).join("");
+      }
+      updateSummary();
+    }
+
+    function updateSummary() {
+      let n = 0, nd = 0, val = 0;
+      items.forEach((it) => {
+        const c = parsedCount(it.key);
+        if (c === null || Number.isNaN(c)) return;
+        n++;
+        const d = c - it.stock;
+        if (Math.abs(d) > 0.0005) { nd++; val += d * it.cost; }
+      });
+      document.getElementById("sc-n").textContent = n;
+      document.getElementById("sc-nd").textContent = nd;
+      const v = document.getElementById("sc-val");
+      v.textContent = olvFormatMoney(val);
+      v.className = val < -0.004 ? "sc-diff neg" : val > 0.004 ? "sc-diff pos" : "";
+    }
+
+    document.getElementById("sc-body").addEventListener("input", (e) => {
+      if (!e.target.classList.contains("sc-count")) return;
+      const tr = e.target.closest("tr");
+      const it = items.find((i) => i.key === tr.dataset.key);
+      if (!it) return;
+      counts[it.key] = e.target.value;
+      if (String(e.target.value).trim() === "") delete counts[it.key];
+      saveDraft();
+      const dc = diffCells(it);
+      tr.querySelector("[data-diff]").innerHTML = dc.diff;
+      tr.querySelector("[data-val]").innerHTML = dc.val;
+      updateSummary();
+    });
+    // Enter = انزل للخانة اللي بعدها (أسرع وإنت بتعدّ)
+    document.getElementById("sc-body").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || !e.target.classList.contains("sc-count")) return;
+      e.preventDefault();
+      const all = [...document.querySelectorAll("#sc-body .sc-count")];
+      const next = all[all.indexOf(e.target) + 1];
+      if (next) { next.focus(); next.select(); }
+    });
+    document.getElementById("sc-q").addEventListener("input", render);
+    document.getElementById("sc-kind").addEventListener("change", render);
+    document.getElementById("sc-clear").addEventListener("click", () => {
+      if (Object.keys(counts).length && !confirm("تفريغ كل الأعداد المكتوبة؟")) return;
+      counts = {}; saveDraft(); render();
+    });
+
+    document.getElementById("sc-save").addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const bad = items.find((it) => Number.isNaN(parsedCount(it.key)));
+      if (bad) { olvShowError(errBox, new Error(`رقم غير صالح عند "${bad.name}"`)); return; }
+      const payload = items
+        .filter((it) => parsedCount(it.key) !== null)
+        .map((it) => ({ kind: it.kind, id: it.id, counted: parsedCount(it.key) }));
+      if (!payload.length) { olvShowError(errBox, new Error("ما كتبت ولا عدد")); return; }
+      const nd = payload.filter((p) => { const it = items.find((i) => i.id === p.id && i.kind === p.kind); return Math.abs(p.counted - it.stock) > 0.0005; }).length;
+      if (!confirm(`حفظ جرد ${payload.length} صنف؟ (${nd} منهم فيهم فرق، كمياتهم رح تتعدّل للعدد الفعلي)`)) return;
+      if (!navigator.onLine) { olvShowError(errBox, new Error("حفظ الجرد بيحتاج نت — الأعداد محفوظة على الجهاز، احفظ لما يرجع")); return; }
+      const btn = document.getElementById("sc-save");
+      btn.disabled = true;
+      try {
+        const { data, error } = await window.supabaseClient.rpc("record_stock_count", {
+          p_counts: payload, p_note: document.getElementById("sc-note").value.trim() || null,
+        });
+        if (error) throw error;
+        counts = {}; saveDraft();
+        document.getElementById("sc-note").value = "";
+        await Promise.all([loadItems(), loadMovements()]);
+        render();
+        const vd = Number(data && data.value_diff) || 0;
+        alert(`تم حفظ الجرد: ${(data && data.changed) || 0} صنف تعدّلت كميته.` + (vd ? `\nقيمة الفرق: ${olvFormatMoney(vd)}${vd < 0 ? " (عجز)" : " (زيادة)"}` : ""));
+        if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    async function loadMovements() {
+      const body = document.getElementById("mv-body");
+      const { data, error } = await window.supabaseClient
+        .from("stock_movements").select("*").order("created_at", { ascending: false }).limit(50);
+      if (error) { body.innerHTML = `<tr class="empty-row"><td colspan="7">تعذّر تحميل السجل: ${olvEsc(error.message)}</td></tr>`; return; }
+      if (!data || !data.length) { body.innerHTML = `<tr class="empty-row"><td colspan="7">ما في حركات بعد</td></tr>`; return; }
+      const ids = [...new Set(data.map((m) => m.created_by).filter(Boolean))];
+      const names = {};
+      if (ids.length) {
+        const { data: profs } = await window.supabaseClient.from("profiles").select("id, full_name").in("id", ids);
+        (profs || []).forEach((p) => { names[p.id] = p.full_name; });
+      }
+      body.innerHTML = data.map((m) => {
+        const d = Number(m.delta);
+        return `<tr>
+          <td>${olvEsc(new Date(m.created_at).toLocaleString("ar-JO", { dateStyle: "short", timeStyle: "short" }))}</td>
+          <td>${olvEsc(m.item_name || "—")}</td>
+          <td>${olvEsc(REASONS[m.reason] || m.reason)}</td>
+          <td><span class="sc-diff ${d < 0 ? "neg" : "pos"}">${d > 0 ? "+" : ""}${olvEsc(fmtQty(d))}</span></td>
+          <td>${m.stock_after == null ? "—" : olvEsc(fmtQty(m.stock_after))}</td>
+          <td>${olvEsc(names[m.created_by] || "—")}</td>
+          <td>${olvEsc(m.note || "")}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      loadDraft();
+      try {
+        await loadItems();
+        render();
+      } catch (err) {
+        olvShowError(document.getElementById("err"), err);
+      }
+      loadMovements();
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
