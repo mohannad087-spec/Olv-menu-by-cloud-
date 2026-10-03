@@ -219,9 +219,9 @@
           const open = openCategories.has(cat);
           return `
           <div class="cat-accordion" style="margin-bottom:10px;">
-            <button type="button" class="cat-accordion-head" data-cat-toggle="${cat}">
+            <button type="button" class="cat-accordion-head" data-cat-toggle="${olvEsc(cat)}">
               <span class="caret${open ? " open" : ""}">▸</span>
-              <span>${cat}</span>
+              <span>${olvEsc(cat)}</span>
               <span class="badge">${byCategory[cat].length}</span>
             </button>
             ${open ? `
@@ -234,7 +234,7 @@
                     return `
                     <tr>
                       <td>${olvEsc(s.name)}</td>
-                      <td>${s.unit}</td>
+                      <td>${olvEsc(s.unit)}</td>
                       <td class="${low ? "low-stock" : ""}">${s.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
                       <td>
                         <div style="display:flex; gap:6px;">
@@ -316,7 +316,7 @@
         return `
           <div class="order-row">
             <div class="o-name">${olvEsc(s.name)}</div>
-            <div class="o-stock">الحالي: ${s.current_stock} ${s.unit}</div>
+            <div class="o-stock">الحالي: ${olvEsc(s.current_stock)} ${olvEsc(s.unit)}</div>
             <input type="number" step="0.001" min="0" class="order-qty-input" value="${suggested || ""}" placeholder="0" data-order-qty="${s.id}">
           </div>
         `;
@@ -334,28 +334,34 @@
     });
 
     document.getElementById("build-order-text-btn").addEventListener("click", () => {
-      const lines = [];
-      let supplierForLink = null;
+      // نجمع الأصناف حسب المورّد: كل مورّد بقسم لحاله بالنص، ورابط الواتساب بيطلع بس لما
+      // تكون كل الأصناف لنفس المورّد (قبل كانت الطلبية كلها تروح لأول مورّد بالغلط)
+      const bySupplier = new Map();
       document.querySelectorAll("input[data-order-qty]").forEach((input) => {
         const qty = Number(input.value || 0);
         if (!qty) return;
         const s = supplies.find((x) => x.id === input.dataset.orderQty);
         if (!s) return;
-        lines.push(`• ${s.name} × ${qty} ${s.unit}`);
-        if (!supplierForLink && s.supplier_id) supplierForLink = s.supplier_id;
+        const key = s.supplier_id || "";
+        if (!bySupplier.has(key)) bySupplier.set(key, []);
+        bySupplier.get(key).push(`• ${s.name} × ${qty} ${s.unit}`);
       });
       const output = document.getElementById("order-output");
-      if (!lines.length) {
+      if (!bySupplier.size) {
         alert("ما حددت أي كمية للطلب");
         output.hidden = true;
         return;
       }
-      const text = `طلبية مستلزمات — OLV\nالتاريخ: ${olvToday()}\n\n${lines.join("\n")}`;
+      const supplierName = (id) => (suppliers.find((s) => s.id === id) || {}).name || "بدون مورّد محدد";
+      const body = bySupplier.size === 1
+        ? [...bySupplier.values()][0].join("\n")
+        : [...bySupplier.entries()].map(([id, lines]) => `— ${supplierName(id)} —\n${lines.join("\n")}`).join("\n\n");
+      const text = `طلبية مستلزمات — OLV\nالتاريخ: ${olvToday()}\n\n${body}`;
       document.getElementById("order-text").value = text;
       output.hidden = false;
-
       const waLink = document.getElementById("whatsapp-order-link");
-      const supplier = suppliers.find((s) => s.id === supplierForLink);
+      const onlyId = bySupplier.size === 1 ? [...bySupplier.keys()][0] : null;
+      const supplier = onlyId ? suppliers.find((s) => s.id === onlyId) : null;
       if (supplier && supplier.phone) {
         let n = supplier.phone.replace(/\D/g, "");
         if (n.startsWith("0")) n = "962" + n.slice(1);

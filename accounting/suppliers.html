@@ -276,7 +276,14 @@
         body.querySelectorAll("button[data-del]").forEach((btn) => {
           btn.addEventListener("click", async (e) => {
             e.stopPropagation();
-            if (!confirm("حذف هذا المورد؟ سيُحذف معه كل سجل الفواتير والدفعات الخاص فيه نهائيًا.")) return;
+            const sup = suppliers.find((x) => x.id === btn.dataset.del);
+            const bal = balances[btn.dataset.del] ? Number(balances[btn.dataset.del].balance) : 0;
+            // حذف المورّد بيمسح كل سجل فواتيره ودفعاته (CASCADE) — لو عليه رصيد، نطلب كتابة اسمه للتأكيد
+            if (Math.abs(bal) >= 0.01) {
+              const typed = prompt(`على "${sup ? sup.name : ""}" رصيد ${olvFormatMoney(bal)}.\nالحذف بيمسح كل فواتيره ودفعاته وبيضيع الدين نهائيًا.\n\nإذا متأكد، اكتب اسم المورّد بالضبط:`);
+              if (typed === null) return;
+              if (!sup || typed.trim() !== String(sup.name).trim()) { olvShowError(errBox, new Error("الاسم ما تطابق — ما انحذف المورّد")); return; }
+            } else if (!confirm("حذف هذا المورد؟ سيُحذف معه كل سجل الفواتير والدفعات الخاص فيه نهائيًا.")) return;
             const { error } = await window.supabaseClient.from("suppliers").delete().eq("id", btn.dataset.del);
             if (error) { olvShowError(errBox, error); return; }
             if (selectedSupplier === btn.dataset.del) closeDetail();
@@ -337,11 +344,13 @@
         } else {
           body.innerHTML = lastTransactions.map((t) => `
             <tr>
-              <td>${t.transaction_date}</td>
+              <td>${olvEsc(t.transaction_date)}</td>
               <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type]}</td>
               <td>${olvEsc(t.description) || "—"}</td>
               <td>${olvFormatMoney(t.amount)}</td>
-              <td><button class="btn small danger" data-del-tx="${t.id}">حذف</button></td>
+              <td>${t.invoice_id
+                ? `<a class="hint" href="purchase-invoices.html" title="هالقيد جاي من فاتورة مشتريات — لتصحيحه، ألغِ الفاتورة نفسها">من فاتورة</a>`
+                : `<button class="btn small danger" data-del-tx="${t.id}">حذف</button>`}</td>
             </tr>
           `).join("");
           body.querySelectorAll("button[data-del-tx]").forEach((btn) => {

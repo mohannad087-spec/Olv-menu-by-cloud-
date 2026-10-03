@@ -188,7 +188,7 @@
       const sel = document.getElementById("p-item");
       const items = currentItems();
       sel.innerHTML = items.length
-        ? items.map((i) => `<option value="${i.id}">${olvEsc(i.name)} (${i.unit})</option>`).join("")
+        ? items.map((i) => `<option value="${i.id}">${olvEsc(i.name)} (${olvEsc(i.unit)})</option>`).join("")
         : `<option value="">لا يوجد أصناف — أضفها أولًا</option>`;
       updateUnitLabels();
     }
@@ -243,9 +243,9 @@
         }
         body.innerHTML = data.map((p) => `
           <tr>
-            <td>${p.purchase_date}</td>
-            <td>${p.item_name}</td>
-            <td>${p.quantity} ${p.unit}</td>
+            <td>${olvEsc(p.purchase_date)}</td>
+            <td>${olvEsc(p.item_name)}</td>
+            <td>${olvEsc(p.quantity)} ${olvEsc(p.unit)}</td>
             <td>${olvFormatMoney(p.unit_price)}</td>
             <td>${olvFormatMoney(p.total_amount)}</td>
             <td>${p.suppliers ? olvEsc(p.suppliers.name) : "—"}</td>

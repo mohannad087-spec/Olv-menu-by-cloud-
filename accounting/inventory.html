@@ -318,7 +318,7 @@
             return `
               <tr>
                 <td>${olvEsc(ing.name)}</td>
-                <td>${ing.unit}</td>
+                <td>${olvEsc(ing.unit)}</td>
                 <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
                 <td>${daysCell}</td>
                 <td>
@@ -345,7 +345,18 @@
           });
           body.querySelectorAll("button[data-del]").forEach((btn) => {
             btn.addEventListener("click", async () => {
-              if (!confirm("حذف هذه المادة؟ (لازم متبقاش مربوطة بأي وصفة)")) return;
+              // الحذف بيمسح سطور الوصفات المربوطة فيها تلقائيًا (ON DELETE CASCADE)، فالأصناف
+              // اللي كانت تنقص منها بتوقف تنقص من المخزون بدون أي تنبيه — نعدّها ونحذّر قبل
+              const [{ count: pCount }, { count: aCount }] = await Promise.all([
+                window.supabaseClient.from("product_ingredients").select("id", { count: "exact", head: true }).eq("ingredient_id", btn.dataset.del),
+                window.supabaseClient.from("addon_ingredients").select("id", { count: "exact", head: true }).eq("ingredient_id", btn.dataset.del),
+              ]);
+              const linked = (pCount || 0) + (aCount || 0);
+              const ing = ingredients.find((i) => i.id === btn.dataset.del);
+              const msg = linked
+                ? `"${ing ? ing.name : ""}" مربوطة بـ ${linked} وصفة. الحذف بيشيلها من هالوصفات، والأصناف دي ما رح تنقص من المخزون بعدها.${ing && ing.menu_enabled ? "\nوهي كمان معروضة على المنيو." : ""}\n\nمتأكد بدك تحذف؟`
+                : "حذف هذه المادة؟";
+              if (!confirm(msg)) return;
               const { error } = await window.supabaseClient.from("ingredients").delete().eq("id", btn.dataset.del);
               if (error) { olvShowError(errBox, error); return; }
               await loadIngredients();
@@ -398,7 +409,7 @@
               ${candidates.map((name, idx) => `
                 <tr>
                   <td><input type="checkbox" checked data-extract-check="${idx}"></td>
-                  <td><input type="text" value="${name}" data-extract-name="${idx}" style="min-width:160px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:8px; font-family:'Tajawal',sans-serif;"></td>
+                  <td><input type="text" value="${olvEsc(name)}" data-extract-name="${idx}" style="min-width:160px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:8px; font-family:'Tajawal',sans-serif;"></td>
                   <td>
                     <select data-extract-unit="${idx}" style="background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:8px; font-family:'Tajawal',sans-serif;">
                       ${unitOptions.map((u) => `<option value="${u}"${u === "قطعة" ? " selected" : ""}>${u}</option>`).join("")}
@@ -466,7 +477,7 @@
       const ingSel2 = document.getElementById("addon-recipe-ing-select");
       prodSel.innerHTML = products.map((p) => `<option value="${p.id}">${olvEsc(p.name)}</option>`).join("");
       addonSel.innerHTML = addons.map((a) => `<option value="${a.id}">${olvEsc(a.name)}</option>`).join("");
-      const ingOptions = ingredients.map((i) => `<option value="${i.id}">${olvEsc(i.name)} (${i.unit})</option>`).join("");
+      const ingOptions = ingredients.map((i) => `<option value="${i.id}">${olvEsc(i.name)} (${olvEsc(i.unit)})</option>`).join("");
       ingSel1.innerHTML = ingOptions;
       ingSel2.innerHTML = ingOptions;
     }
@@ -483,14 +494,15 @@
       el.innerHTML = (data || []).length
         ? data.map((r) => `
           <div class="recipe-row">
-            <div class="r-name">${olvEsc(r.ingredients.name)}: ${r.quantity} ${r.ingredients.unit}</div>
+            <div class="r-name">${olvEsc(r.ingredients.name)}: ${olvEsc(r.quantity)} ${olvEsc(r.ingredients.unit)}</div>
             <button class="btn small danger" data-del-recipe="${r.id}">حذف</button>
           </div>
         `).join("")
         : `<div class="hint">لا توجد مواد خام مرتبطة بهذا الصنف بعد</div>`;
       el.querySelectorAll("button[data-del-recipe]").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          await window.supabaseClient.from("product_ingredients").delete().eq("id", btn.dataset.delRecipe);
+          const { error } = await window.supabaseClient.from("product_ingredients").delete().eq("id", btn.dataset.delRecipe);
+          if (error) { olvShowError(document.getElementById("err"), error); return; }
           loadProductRecipe();
         });
       });
@@ -521,7 +533,7 @@
           <div class="hint">اضغط على مادة لتعبئتها بالأسفل، حدد الكمية، واضغط "إضافة للوصفة"</div>
           <div class="recipe-suggest-chips">
             ${matches.map((ing) => `
-              <button type="button" class="recipe-suggest-chip" data-suggest-ing="${ing.id}">${olvEsc(ing.name)} (${ing.unit})</button>
+              <button type="button" class="recipe-suggest-chip" data-suggest-ing="${ing.id}">${olvEsc(ing.name)} (${olvEsc(ing.unit)})</button>
             `).join("")}
           </div>
         `
@@ -546,14 +558,15 @@
       el.innerHTML = (data || []).length
         ? data.map((r) => `
           <div class="recipe-row">
-            <div class="r-name">${olvEsc(r.ingredients.name)}: ${r.quantity} ${r.ingredients.unit}</div>
+            <div class="r-name">${olvEsc(r.ingredients.name)}: ${olvEsc(r.quantity)} ${olvEsc(r.ingredients.unit)}</div>
             <button class="btn small danger" data-del-arecipe="${r.id}">حذف</button>
           </div>
         `).join("")
         : `<div class="hint">لا توجد مواد خام مرتبطة بهذه الإضافة بعد</div>`;
       el.querySelectorAll("button[data-del-arecipe]").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          await window.supabaseClient.from("addon_ingredients").delete().eq("id", btn.dataset.delArecipe);
+          const { error } = await window.supabaseClient.from("addon_ingredients").delete().eq("id", btn.dataset.delArecipe);
+          if (error) { olvShowError(document.getElementById("err"), error); return; }
           loadAddonRecipe();
         });
       });
