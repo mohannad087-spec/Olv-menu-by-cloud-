@@ -6,8 +6,14 @@
 // كسر بجانب السيرفر فقط عبر Deno.env، وما بينكشف أبدًا لكود المتصفح —
 // هذا هو سبب وجود هذا الوسيط بدل ما تتواصل صفحة المحاسبة مباشرة مع موقع
 // المنيو (يلي كمان ما فيه إعدادات CORS تسمح بذلك أصلًا).
+//
+// verify_jwt لحالها بتقبل أي حساب مسجّل، حتى لو موقوف — فبنتأكد كمان إن
+// المستدعي إله ملف (profile) مفعّل قبل ما نكشف أرقام وعناوين الزباين.
+
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
+const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +35,23 @@ Deno.serve(async (req) => {
   const adminKey = Deno.env.get("OLV_ADMIN_KEY");
   if (!adminKey) {
     return json({ ok: false, error: "OLV_ADMIN_KEY غير مضبوط بأسرار Supabase (Edge Functions → Secrets)" }, 500);
+  }
+
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    return json({ ok: false, error: "إعدادات Supabase ناقصة بالسيرفر" }, 500);
+  }
+  const authHeader = req.headers.get("authorization") || "";
+  const callerClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error: userErr } = await callerClient.auth.getUser();
+  if (userErr || !user) return json({ ok: false, error: "جلسة غير صالحة" }, 401);
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const { data: profile } = await admin.from("profiles").select("role, is_active").eq("id", user.id).single();
+  if (!profile || profile.is_active === false || !profile.role) {
+    return json({ ok: false, error: "غير مصرّح — سجّل دخول بحساب فعّال" }, 403);
   }
 
   let body: Record<string, unknown>;
@@ -56,7 +79,38 @@ Deno.serve(async (req) => {
       return json(out, r.status);
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update)" }, 400);
+    // مزامنة أصناف المخزون (مشروبات وبضاعة جاهزة) مع المنيو العام: كل مادة معلّمة menu_enabled
+    // بتظهر بالمنيو، ومتاحة بس لو مخزونها > 0 — لما تخلص بتختفي، ولما ينزل مخزون جديد بترجع.
+    // أي حساب فعّال بيقدر يستدعيها (الكاشير مثلًا بعد البيع): ما بتكشف شي ولا بتغيّر غير أصناف المخزون
+    if (body.action === "sync_stock") {
+      const { data: rows, error } = await admin.from("ingredients")
+        .select("menu_item_id, name, menu_name_en, menu_price, menu_cat, current_stock")
+        .eq("menu_enabled", true);
+      if (error) return json({ ok: false, error: error.message }, 500);
+      const items = (rows || [])
+        .filter((r) => r.menu_item_id && r.menu_cat && Number(r.menu_price) >= 0)
+        .map((r) => ({
+          id: r.menu_item_id,
+          ar: r.name,
+          en: r.menu_name_en || undefined,
+          cat: r.menu_cat,
+          price: Number(r.menu_price),
+          available: Number(r.current_stock) > 0,
+        }));
+      const r = await fetch(OLV_STOCK_SYNC_API, {
+        method: "POST",
+        headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const text = await r.text();
+      let out: Record<string, unknown>;
+      try { out = JSON.parse(text); } catch {
+        return json({ ok: false, error: "موقع المنيو ما رد بالشكل المتوقع — تأكد إن تحديث الموقع (stock-sync) منشور" }, 502);
+      }
+      return json({ ...out, count: items.length, in_stock: items.filter((i) => i.available).length }, r.status);
+    }
+
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }

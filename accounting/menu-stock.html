@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المنيو من المخزون — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .ms-bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
+  .ms-bar input[type=search],.ms-bar select{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:11px 12px; border-radius:10px; font-size:15px; font-family:'Tajawal',sans-serif;}
+  .ms-bar input[type=search]{flex:1; min-width:180px;}
+  .ms-status{font-size:13px; color:var(--muted); line-height:1.7;}
+  .ms-status.ok{color:var(--ok);} .ms-status.bad{color:var(--danger-hi);}
+  .ms-row{display:grid; grid-template-columns:1.6fr .8fr 1fr; gap:10px; align-items:center; padding:12px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .ms-name{font-weight:700; font-size:14.5px;}
+  .ms-meta{color:var(--muted); font-size:12.5px; margin-top:2px;}
+  .ms-badge{display:inline-block; font-size:11.5px; border-radius:999px; padding:2px 9px; margin-inline-start:6px; font-weight:700;}
+  .ms-badge.on{background:var(--ok); color:#fff;} .ms-badge.out{background:var(--danger); color:#fff;} .ms-badge.sug{background:var(--gold); color:var(--on-gold);}
+  .ms-edit{display:flex; gap:6px; flex-wrap:wrap; align-items:center; grid-column:1/-1;}
+  .ms-edit input,.ms-edit select{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:9px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
+  .ms-edit input.price{width:90px;} .ms-edit input.en{width:140px;}
+  .ms-warn{color:var(--danger-hi); font-size:12px; width:100%;}
+  @media (max-width:640px){ .ms-row{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>المنيو من المخزون</h2>
+      <p class="hint" style="margin-bottom:12px;">
+        اختر المشروبات والبضاعة الجاهزة اللي بدك تظهر بالمنيو العام (كولا، مي، عصير...). الصنف بيظهر طالما مخزونه أكتر من صفر،
+        ولما يخلص بينشال لحاله وبيرجع لما تضيف كمية جديدة (فاتورة شراء أو تعديل مخزون). كل بيعة (من المنيو أو من الكاشير) بتنقص المخزون.
+        التغيير بيوصل للموقع خلال دقيقة أو دقيقتين.
+      </p>
+      <div class="ms-bar">
+        <button type="button" class="btn gold" id="ms-sync"></button>
+        <span class="ms-status" id="ms-status"></span>
+      </div>
+      <div class="ms-bar">
+        <input type="search" id="ms-q" placeholder="ابحث باسم المادة...">
+        <select id="ms-filter">
+          <option value="all">كل المواد</option>
+          <option value="on">المعروضة على المنيو</option>
+          <option value="off">غير المعروضة</option>
+          <option value="sug">مقترحة (مشروبات)</option>
+        </select>
+        <button type="button" class="btn" id="ms-catalog"></button>
+      </div>
+      <div id="ms-list"><div class="hint">جاري التحميل...</div></div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/catalog.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("menu-stock");
+    document.getElementById("ms-sync").innerHTML = olvIcon("refresh") + "<span>مزامنة المنيو الآن</span>";
+    document.getElementById("ms-catalog").innerHTML = olvIcon("search") + "<span>إضافة مشروبات من الكتالوج</span>";
+
+    const SITE_MENU = "https://olv-menu.pages.dev/data/menu.json";
+    // نفس تصنيفات الموقع (بتنقرأ منه مباشرة، وهاي احتياط لو تعذّر)
+    let menuCats = [
+      { id: "cold", ar: "مشروبات باردة" }, { id: "juices", ar: "عصائر وموكتيلات" }, { id: "hot", ar: "مشروبات ساخنة" },
+      { id: "snacks", ar: "سناكات" }, { id: "icecream", ar: "بوظة" }, { id: "desserts", ar: "حلويات" },
+    ];
+    // تصنيفات الكتالوج اللي نقترحها (مشروبات وبضاعة جاهزة غير الأكل) ← تصنيف المنيو الافتراضي
+    const SUGGEST = { "مياه": "cold", "مشروبات غازية": "cold", "مشروبات طاقة": "cold", "عصائر معلبة": "juices" };
+
+    let ingredients = [];
+    let products = [];
+    let catalogByKey = new Map();
+    let lastSync = null;
+
+    const norm = (s) => (window.olvCatNorm ? olvCatNorm(s) : String(s || "").trim().toLowerCase());
+    const catAr = (id) => (menuCats.find((c) => c.id === id) || {}).ar || id;
+    const suggestionFor = (ing) => {
+      const c = catalogByKey.get(norm(ing.name));
+      return c && SUGGEST[c.cat] ? SUGGEST[c.cat] : null;
+    };
+    const twin = (ing) => products.find((p) => p.external_id !== ing.menu_item_id && norm(p.name) === norm(ing.name));
+
+    async function loadMenuCats() {
+      try {
+        const res = await fetch(SITE_MENU, { cache: "no-store" });
+        const m = await res.json();
+        const cats = (m.categories || []).filter((c) => c.id !== "popular" && c.id !== "shisha").map((c) => ({ id: c.id, ar: c.ar }));
+        if (cats.length) menuCats = cats;
+      } catch (_) { /* نستخدم الاحتياط */ }
+    }
+
+    async function loadAll() {
+      const [ing, prod] = await Promise.all([
+        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, menu_enabled, menu_price, menu_cat, menu_name_en, menu_item_id").order("name"),
+        window.supabaseClient.from("products").select("id, name, external_id"),
+      ]);
+      if (ing.error) throw ing.error;
+      ingredients = ing.data || [];
+      products = prod.data || [];
+      try { (await olvCatalogFind()).forEach((c) => { if (c.kind === "i") catalogByKey.set(c.key, c); }); } catch (_) {}
+      render();
+    }
+
+    function statusBadge(ing) {
+      if (!ing.menu_enabled) return "";
+      return Number(ing.current_stock) > 0
+        ? `<span class="ms-badge on">ظاهر بالمنيو</span>`
+        : `<span class="ms-badge out">نفد — مخفي</span>`;
+    }
+
+    function rowHtml(ing) {
+      const sug = !ing.menu_enabled ? suggestionFor(ing) : null;
+      const cat = ing.menu_cat || sug || "cold";
+      const t = !ing.menu_enabled ? twin(ing) : null;
+      return `<div class="ms-row" data-id="${olvEsc(ing.id)}">
+        <div>
+          <div class="ms-name">${olvEsc(ing.name)}${statusBadge(ing)}${sug ? `<span class="ms-badge sug">مقترح</span>` : ""}</div>
+          <div class="ms-meta">المخزون: ${olvEsc(ing.current_stock)} ${olvEsc(ing.unit)}${ing.menu_enabled ? ` — ${olvFormatMoney(ing.menu_price)} — ${olvEsc(catAr(ing.menu_cat))}` : ""}</div>
+        </div>
+        <div></div>
+        <div style="text-align:left;">
+          <button type="button" class="btn small ${ing.menu_enabled ? "" : "gold"}" data-act="toggle">${ing.menu_enabled ? "تعديل / إزالة" : "عرض على المنيو"}</button>
+        </div>
+        <div class="ms-edit" hidden>
+          <input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر البيع" value="${ing.menu_price != null ? olvEsc(ing.menu_price) : ""}">
+          <select class="cat">${menuCats.map((c) => `<option value="${olvEsc(c.id)}"${c.id === cat ? " selected" : ""}>${olvEsc(c.ar)}</option>`).join("")}</select>
+          <input type="text" class="en" placeholder="الاسم بالإنجليزي (اختياري)" value="${olvEsc(ing.menu_name_en || "")}">
+          <button type="button" class="btn small gold" data-act="save">${ing.menu_enabled ? "حفظ" : "عرض"}</button>
+          ${ing.menu_enabled ? `<button type="button" class="btn small danger" data-act="remove">إزالة من المنيو</button>` : ""}
+          ${t ? `<div class="ms-warn">⚠ في منتج بنفس الاسم ("${olvEsc(t.name)}") بنقطة البيع — لو هو نفس الصنف، ممكن يتكرر عندك.</div>` : ""}
+        </div>
+      </div>`;
+    }
+
+    function render() {
+      const q = norm(document.getElementById("ms-q").value);
+      const f = document.getElementById("ms-filter").value;
+      let rows = ingredients.filter((i) => !q || norm(i.name).includes(q));
+      if (f === "on") rows = rows.filter((i) => i.menu_enabled);
+      else if (f === "off") rows = rows.filter((i) => !i.menu_enabled);
+      else if (f === "sug") rows = rows.filter((i) => !i.menu_enabled && suggestionFor(i));
+      const shown = rows.slice(0, 120);
+      const el = document.getElementById("ms-list");
+      if (!ingredients.length) { el.innerHTML = `<div class="hint">ما في مواد بالمخزون بعد — أضفها من المخزون أو من الكتالوج الجاهز.</div>`; return; }
+      el.innerHTML = shown.map(rowHtml).join("") + (rows.length > shown.length ? `<div class="hint" style="margin-top:10px;">يوجد ${rows.length - shown.length} نتيجة إضافية — ضيّق البحث</div>` : "")
+        || `<div class="hint">ما في نتائج</div>`;
+      if (!rows.length) el.innerHTML = `<div class="hint">ما في نتائج</div>`;
+      const on = ingredients.filter((i) => i.menu_enabled);
+      setStatus(`${on.length} صنف معروض على المنيو — ${on.filter((i) => Number(i.current_stock) > 0).length} منهم متوفر الآن.` + (lastSync ? " " + lastSync : ""), "");
+    }
+
+    function setStatus(msg, kind) {
+      const el = document.getElementById("ms-status");
+      el.textContent = msg; el.className = "ms-status" + (kind ? " " + kind : "");
+    }
+
+    async function doSync() {
+      setStatus("جاري مزامنة المنيو...", "");
+      try {
+        const out = await OlvMenuSync.syncNow();
+        lastSync = out.changed
+          ? `تمت المزامنة: ${out.added || 0} مضاف، ${out.updated || 0} محدّث، ${out.removed || 0} محذوف — بيظهر على الموقع خلال دقيقة أو اثنتين.`
+          : "المنيو محدّث (ما في تغييرات).";
+        try { localStorage.removeItem("olv_menu_stock_sig"); } catch (_) {}
+        render();
+        setStatus(document.getElementById("ms-status").textContent, "ok");
+      } catch (err) {
+        setStatus("تعذّرت المزامنة: " + ((err && err.message) || err), "bad");
+      }
+    }
+
+    document.getElementById("ms-list").addEventListener("click", async (e) => {
+      const b = e.target.closest("button[data-act]"); if (!b) return;
+      const row = b.closest(".ms-row"); const ing = ingredients.find((i) => i.id === row.dataset.id); if (!ing) return;
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      if (b.dataset.act === "toggle") { const ed = row.querySelector(".ms-edit"); ed.hidden = !ed.hidden; return; }
+      const enable = b.dataset.act === "save";
+      const price = Number(row.querySelector(".price").value);
+      const cat = row.querySelector(".cat").value;
+      if (enable && !(price > 0)) { olvShowError(errBox, new Error("حدد سعر البيع للمنيو")); return; }
+      if (!enable && !confirm("إزالة هذا الصنف من المنيو؟ (بيضل بالمخزون وبنقطة البيع كمنتج غير فعّال)")) return;
+      b.disabled = true;
+      try {
+        const { error } = await window.supabaseClient.rpc("set_menu_stock_item", {
+          p_ingredient_id: ing.id, p_enabled: enable, p_price: enable ? price : null, p_cat: enable ? cat : null,
+          p_cat_ar: enable ? catAr(cat) : null, p_name_en: enable ? (row.querySelector(".en").value.trim() || null) : null,
+        });
+        if (error) throw error;
+        await loadAll();
+        await doSync();
+      } catch (err) {
+        olvShowError(errBox, err);
+        b.disabled = false;
+      }
+    });
+    document.getElementById("ms-q").addEventListener("input", render);
+    document.getElementById("ms-filter").addEventListener("change", render);
+    document.getElementById("ms-sync").addEventListener("click", doSync);
+    document.getElementById("ms-catalog").addEventListener("click", () => {
+      olvOpenCatalog({ kind: "i", onDone: () => loadAll() });
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      try {
+        await loadMenuCats();
+        await loadAll();
+      } catch (err) {
+        olvShowError(document.getElementById("err"), err);
+        document.getElementById("ms-list").innerHTML = `<div class="hint">تعذّر التحميل — تأكد من تشغيل schema-menu-stock.sql</div>`;
+      }
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
