@@ -87,16 +87,25 @@ Deno.serve(async (req) => {
         .select("menu_item_id, name, menu_name_en, menu_price, menu_cat, current_stock")
         .eq("menu_enabled", true);
       if (error) return json({ ok: false, error: error.message }, 500);
+      // نكهات المعسل (menu_cat = shisha-flavor) بتروح كخيار نكهة جوا الأرجيلة، والباقي كأصناف بسعر
       const items = (rows || [])
-        .filter((r) => r.menu_item_id && r.menu_cat && Number(r.menu_price) >= 0)
-        .map((r) => ({
-          id: r.menu_item_id,
-          ar: r.name,
-          en: r.menu_name_en || undefined,
-          cat: r.menu_cat,
-          price: Number(r.menu_price),
-          available: Number(r.current_stock) > 0,
-        }));
+        .filter((r) => r.menu_item_id && r.menu_cat && (r.menu_cat === "shisha-flavor" || Number(r.menu_price) >= 0))
+        .map((r) => r.menu_cat === "shisha-flavor"
+          ? {
+            kind: "shisha_flavor",
+            id: r.menu_item_id,
+            ar: String(r.name).replace(/^معسل\s*/, ""),
+            en: r.menu_name_en || undefined,
+            available: Number(r.current_stock) > 0,
+          }
+          : {
+            id: r.menu_item_id,
+            ar: r.name,
+            en: r.menu_name_en || undefined,
+            cat: r.menu_cat,
+            price: Number(r.menu_price),
+            available: Number(r.current_stock) > 0,
+          });
       const r = await fetch(OLV_STOCK_SYNC_API, {
         method: "POST",
         headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
