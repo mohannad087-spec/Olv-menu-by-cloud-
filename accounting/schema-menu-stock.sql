@@ -30,6 +30,8 @@ declare
   v_ing record;
   v_product uuid;
   v_cat_ar text := coalesce(nullif(trim(p_cat_ar), ''), 'عام');
+  -- نكهة أرجيلة (معسل): بتظهر كخيار نكهة جوا الأرجيلة بالمنيو، مش كصنف بسعر إلها — فما بنحتاج سعر ولا منتج
+  v_flavor boolean := p_enabled and trim(coalesce(p_cat, '')) = 'shisha-flavor';
 begin
   if not public.is_admin() then
     raise exception 'هذه العملية للمالك والمدير فقط';
@@ -38,7 +40,7 @@ begin
   if v_ing.id is null then
     raise exception 'المادة غير موجودة';
   end if;
-  if p_enabled then
+  if p_enabled and not v_flavor then
     if p_price is null or p_price <= 0 then
       raise exception 'حدد سعر البيع للمنيو';
     end if;
@@ -49,13 +51,17 @@ begin
 
   update public.ingredients
      set menu_enabled = p_enabled,
-         menu_price = case when p_enabled then round(p_price, 2) else menu_price end,
+         menu_price = case when v_flavor then 0 when p_enabled then round(p_price, 2) else menu_price end,
          menu_cat = case when p_enabled then trim(p_cat) else menu_cat end,
          menu_name_en = case when p_enabled then nullif(trim(coalesce(p_name_en, '')), '') else menu_name_en end
    where id = p_ingredient_id
   returning * into v_ing;
 
   select id into v_product from public.products where external_id = v_ing.menu_item_id;
+  if v_flavor then
+    if v_product is not null then update public.products set is_active = false where id = v_product; end if;
+    return null;
+  end if;
   if v_product is null then
     if not p_enabled then return null; end if;
     insert into public.products (name, price, category, external_id, is_active)
@@ -81,5 +87,31 @@ $$;
 
 revoke execute on function public.set_menu_stock_item(uuid, boolean, numeric, text, text, text) from public, anon;
 grant execute on function public.set_menu_stock_item(uuid, boolean, numeric, text, text, text) to authenticated;
+
+-- تفعيل/إلغاء نكهات المعسل دفعة وحدة (لتفادي استدعاء الدالة فوق لكل نكهة لحالها)
+create or replace function public.set_menu_shisha_flavors(p_ids uuid[], p_enabled boolean)
+returns int
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  if not public.is_admin() then
+    raise exception 'هذه العملية للمالك والمدير فقط';
+  end if;
+  update public.ingredients
+     set menu_enabled = p_enabled,
+         menu_cat = case when p_enabled then 'shisha-flavor' else menu_cat end,
+         menu_price = case when p_enabled then 0 else menu_price end
+   where id = any(p_ids)
+     and (not p_enabled or menu_cat is null or menu_cat = 'shisha-flavor' or not menu_enabled);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke execute on function public.set_menu_shisha_flavors(uuid[], boolean) from public, anon;
+grant execute on function public.set_menu_shisha_flavors(uuid[], boolean) to authenticated;
 
 notify pgrst, 'reload schema';

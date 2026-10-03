@@ -84,9 +84,11 @@
     <div class="group">
       <h2>المنيو من المخزون</h2>
       <p class="hint" style="margin-bottom:12px;">
-        اختر المشروبات والبضاعة الجاهزة اللي بدك تظهر بالمنيو العام (كولا، مي، عصير...). الصنف بيظهر طالما مخزونه أكتر من صفر،
-        ولما يخلص بينشال لحاله وبيرجع لما تضيف كمية جديدة (فاتورة شراء أو تعديل مخزون). كل بيعة (من المنيو أو من الكاشير) بتنقص المخزون.
-        التغيير بيوصل للموقع خلال دقيقة أو دقيقتين.
+        هالشاشة محصورة بـ: <b>علب المياه</b> (كل الأحجام)، <b>المشروبات الغازية</b> (كوكاكولا، بيبسي، سفن أب...)، <b>ماتركس</b>،
+        <b>مشروب الشعير</b>، <b>مشروبات الطاقة</b>، و<b>نكهات المعسل</b> (للأرجيلة). المشروب بيظهر بالمنيو العام طالما مخزونه أكتر من صفر
+        (بتحدد له سعر البيع)، ولما يخلص بينشال لحاله وبيرجع لما تضيف كمية جديدة. نكهة المعسل بتظهر كخيار نكهة جوا الأرجيلة (مثلًا: معسل عنب) —
+        لو ما في معسل عنب بالمخزون، نكهة العنب ما بتظهر، ولو خلصت كل النكهات بتختفي الأرجيلة. الأسعار والمخزون بتنزل مع كل بيعة وفاتورة شراء،
+        والتغيير بيوصل للموقع خلال دقيقة أو دقيقتين. <small>(نكهات المعسل ما بتنقص من المخزون تلقائيًا مع كل أرجيلة — بتتحدث كميتها من فواتير الشراء والجرد.)</small>
       </p>
       <div class="ms-bar">
         <button type="button" class="btn gold" id="ms-sync"></button>
@@ -95,13 +97,16 @@
       <div class="ms-bar">
         <input type="search" id="ms-q" placeholder="ابحث باسم المادة...">
         <select id="ms-filter">
-          <option value="all">كل المواد</option>
+          <option value="eligible">المؤهلة للمنيو</option>
           <option value="on">المعروضة على المنيو</option>
           <option value="off">غير المعروضة</option>
-          <option value="sug">مقترحة (مشروبات)</option>
-          <option value="hidden">المشطوبة (غير مناسبة للمنيو)</option>
+          <option value="drink">المشروبات فقط</option>
+          <option value="shisha">نكهات المعسل فقط</option>
+          <option value="hidden">المشطوبة</option>
+          <option value="all">كل مواد المخزون (حتى غير المؤهلة)</option>
         </select>
-        <button type="button" class="btn" id="ms-hide-rest">شطب كل غير المشروبات</button>
+        <button type="button" class="btn" id="ms-flavors-all"></button>
+        <button type="button" class="btn" id="ms-hide-rest">شطب كل غير المؤهل</button>
         <button type="button" class="btn" id="ms-catalog"></button>
       </div>
       <div id="ms-list"><div class="hint">جاري التحميل...</div></div>
@@ -133,8 +138,11 @@
       { id: "cold", ar: "مشروبات باردة" }, { id: "juices", ar: "عصائر وموكتيلات" }, { id: "hot", ar: "مشروبات ساخنة" },
       { id: "snacks", ar: "سناكات" }, { id: "icecream", ar: "بوظة" }, { id: "desserts", ar: "حلويات" },
     ];
-    // تصنيفات الكتالوج اللي نقترحها (مشروبات وبضاعة جاهزة غير الأكل) ← تصنيف المنيو الافتراضي
-    const SUGGEST = { "مياه": "cold", "مشروبات غازية": "cold", "مشروبات طاقة": "cold", "عصائر معلبة": "juices" };
+    // المؤهل للمنيو: تصنيفات الكتالوج دي (مشروبات)، وكلمات بالاسم للمواد اللي ضفتها بإيدك، ونكهات المعسل
+    const DRINK_CATS = new Set(["مياه", "مشروبات غازية", "مشروبات طاقة", "مشروب الشعير", "ماتركس"]);
+    const DRINK_RE = /ماتركس|ماتريكس|matrix|كولا|cola|كوكا|بيبسي|pepsi|سفن اب|ميرندا|سبرايت|فانتا|مياه|ماء|water|غازي|صودا|شعير|مالت|malt|طاقة|energy|ريد بول|مونستر/i;
+    const SHISHA_RE = /معسل/;
+    const SHISHA_FLAVOR = "shisha-flavor";
 
     let ingredients = [];
     let products = [];
@@ -143,10 +151,18 @@
 
     const norm = (s) => (window.olvCatNorm ? olvCatNorm(s) : String(s || "").trim().toLowerCase());
     const catAr = (id) => (menuCats.find((c) => c.id === id) || {}).ar || id;
-    const suggestionFor = (ing) => {
+    // "drink" | "shisha" | null — null = غير مناسب للمنيو (خام، توابل، لحوم...)
+    const kindOf = (ing) => {
       const c = catalogByKey.get(norm(ing.name));
-      return c && SUGGEST[c.cat] ? SUGGEST[c.cat] : null;
+      if (c) {
+        if (DRINK_CATS.has(c.cat)) return "drink";
+        if (c.cat === "أراجيل") return SHISHA_RE.test(ing.name) ? "shisha" : null;
+      }
+      if (ing.menu_enabled) return ing.menu_cat === SHISHA_FLAVOR ? "shisha" : "drink";
+      if (SHISHA_RE.test(ing.name)) return "shisha";
+      return DRINK_RE.test(ing.name) ? "drink" : null;
     };
+    const suggestionFor = (ing) => { const k = kindOf(ing); return k === "drink" ? "cold" : k === "shisha" ? SHISHA_FLAVOR : null; };
     const twin = (ing) => products.find((p) => p.external_id !== ing.menu_item_id && norm(p.name) === norm(ing.name));
 
     async function loadMenuCats() {
@@ -172,32 +188,37 @@
 
     function statusBadge(ing) {
       if (!ing.menu_enabled) return "";
+      const flavor = ing.menu_cat === SHISHA_FLAVOR;
       return Number(ing.current_stock) > 0
-        ? `<span class="ms-badge on">ظاهر بالمنيو</span>`
-        : `<span class="ms-badge out">نفد — مخفي</span>`;
+        ? `<span class="ms-badge on">${flavor ? "نكهة ظاهرة" : "ظاهر بالمنيو"}</span>`
+        : `<span class="ms-badge out">${flavor ? "نفدت — مخفية" : "نفد — مخفي"}</span>`;
     }
 
     function rowHtml(ing) {
-      const sug = !ing.menu_enabled ? suggestionFor(ing) : null;
-      const cat = ing.menu_cat || sug || "cold";
+      const kind = kindOf(ing);
+      const flavor = ing.menu_enabled ? ing.menu_cat === SHISHA_FLAVOR : kind === "shisha";
+      const sug = null;
+      const cat = (ing.menu_cat && ing.menu_cat !== SHISHA_FLAVOR) ? ing.menu_cat : "cold";
       const t = !ing.menu_enabled ? twin(ing) : null;
       return `<div class="ms-row" data-id="${olvEsc(ing.id)}">
         <div>
-          <div class="ms-name">${olvEsc(ing.name)}${statusBadge(ing)}${sug ? `<span class="ms-badge sug">مقترح</span>` : ""}</div>
-          <div class="ms-meta">المخزون: ${olvEsc(ing.current_stock)} ${olvEsc(ing.unit)}${ing.menu_enabled ? ` — ${olvFormatMoney(ing.menu_price)} — ${olvEsc(catAr(ing.menu_cat))}` : ""}</div>
+          <div class="ms-name">${olvEsc(ing.name)}${statusBadge(ing)}${!ing.menu_enabled && kind ? `<span class="ms-badge sug">${kind === "shisha" ? "نكهة أرجيلة" : "مشروب"}</span>` : ""}</div>
+          <div class="ms-meta">المخزون: ${olvEsc(ing.current_stock)} ${olvEsc(ing.unit)}${ing.menu_enabled ? (flavor ? " — نكهة أرجيلة" : ` — ${olvFormatMoney(ing.menu_price)} — ${olvEsc(catAr(ing.menu_cat))}`) : ""}</div>
         </div>
         <div></div>
         <div style="text-align:left; display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;">
           ${ing.menu_hidden
             ? `<button type="button" class="btn small" data-act="unhide">استرجاع للقائمة</button>`
-            : `<button type="button" class="btn small ${ing.menu_enabled ? "" : "gold"}" data-act="toggle">${ing.menu_enabled ? "تعديل / إزالة" : "عرض على المنيو"}</button>`}
+            : `<button type="button" class="btn small ${ing.menu_enabled ? "" : "gold"}" data-act="toggle">${ing.menu_enabled ? "تعديل / إزالة" : (flavor ? "تفعيل كنكهة" : "عرض على المنيو")}</button>`}
           ${!ing.menu_enabled && !ing.menu_hidden ? `<button type="button" class="btn small danger" data-act="hide" title="شطب من هذه القائمة (ما بينحذف من المخزون)">شطب</button>` : ""}
         </div>
         <div class="ms-edit" hidden>
-          <input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر البيع" value="${ing.menu_price != null ? olvEsc(ing.menu_price) : ""}">
-          <select class="cat">${menuCats.map((c) => `<option value="${olvEsc(c.id)}"${c.id === cat ? " selected" : ""}>${olvEsc(c.ar)}</option>`).join("")}</select>
+          ${flavor
+            ? `<span class="ms-meta">بتظهر كخيار نكهة جوا الأرجيلة (السعر حسب نوع الأرجيلة)</span>`
+            : `<input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر البيع" value="${ing.menu_price != null ? olvEsc(ing.menu_price) : ""}">
+          <select class="cat">${menuCats.map((c) => `<option value="${olvEsc(c.id)}"${c.id === cat ? " selected" : ""}>${olvEsc(c.ar)}</option>`).join("")}</select>`}
           <input type="text" class="en" placeholder="الاسم بالإنجليزي (اختياري)" value="${olvEsc(ing.menu_name_en || "")}">
-          <button type="button" class="btn small gold" data-act="save">${ing.menu_enabled ? "حفظ" : "عرض"}</button>
+          <button type="button" class="btn small gold" data-act="save" data-flavor="${flavor ? "1" : ""}">${ing.menu_enabled ? "حفظ" : (flavor ? "تفعيل" : "عرض")}</button>
           ${ing.menu_enabled ? `<button type="button" class="btn small danger" data-act="remove">إزالة من المنيو</button>` : ""}
           ${t ? `<div class="ms-warn">⚠ في منتج بنفس الاسم ("${olvEsc(t.name)}") بنقطة البيع — لو هو نفس الصنف، ممكن يتكرر عندك.</div>` : ""}
         </div>
@@ -211,14 +232,17 @@
       // المشطوبة ما بتظهر إلا بفلترها الخاص
       rows = f === "hidden" ? rows.filter((i) => i.menu_hidden) : rows.filter((i) => !i.menu_hidden || i.menu_enabled);
       if (f === "on") rows = rows.filter((i) => i.menu_enabled);
-      else if (f === "off") rows = rows.filter((i) => !i.menu_enabled);
-      else if (f === "sug") rows = rows.filter((i) => !i.menu_enabled && suggestionFor(i));
+      else if (f === "off") rows = rows.filter((i) => !i.menu_enabled && kindOf(i));
+      else if (f === "drink") rows = rows.filter((i) => kindOf(i) === "drink");
+      else if (f === "shisha") rows = rows.filter((i) => kindOf(i) === "shisha");
+      else if (f === "eligible") rows = rows.filter((i) => kindOf(i) || i.menu_enabled);
       const shown = rows.slice(0, 120);
       const el = document.getElementById("ms-list");
       if (!ingredients.length) { el.innerHTML = `<div class="hint">ما في مواد بالمخزون بعد — أضفها من المخزون أو من الكتالوج الجاهز.</div>`; return; }
       el.innerHTML = shown.map(rowHtml).join("") + (rows.length > shown.length ? `<div class="hint" style="margin-top:10px;">يوجد ${rows.length - shown.length} نتيجة إضافية — ضيّق البحث</div>` : "")
         || `<div class="hint">ما في نتائج</div>`;
       if (!rows.length) el.innerHTML = `<div class="hint">ما في نتائج</div>`;
+      updateFlavorBtn();
       const on = ingredients.filter((i) => i.menu_enabled);
       const hid = ingredients.filter((i) => i.menu_hidden && !i.menu_enabled).length;
       setStatus(`${on.length} صنف معروض على المنيو — ${on.filter((i) => Number(i.current_stock) > 0).length} منهم متوفر الآن.` + (hid ? ` (${hid} مشطوب)` : "") + (lastSync ? " " + lastSync : ""), "");
@@ -260,15 +284,17 @@
         return;
       }
       const enable = b.dataset.act === "save";
-      const price = Number(row.querySelector(".price").value);
-      const cat = row.querySelector(".cat").value;
-      if (enable && !(price > 0)) { olvShowError(errBox, new Error("حدد سعر البيع للمنيو")); return; }
+      const isFlavor = b.dataset.flavor === "1" || (!enable && ing.menu_cat === SHISHA_FLAVOR);
+      const priceEl = row.querySelector(".price"), catEl = row.querySelector(".cat");
+      const price = priceEl ? Number(priceEl.value) : 0;
+      const cat = isFlavor ? SHISHA_FLAVOR : (catEl ? catEl.value : "cold");
+      if (enable && !isFlavor && !(price > 0)) { olvShowError(errBox, new Error("حدد سعر البيع للمنيو")); return; }
       if (!enable && !confirm("إزالة هذا الصنف من المنيو؟ (بيضل بالمخزون وبنقطة البيع كمنتج غير فعّال)")) return;
       b.disabled = true;
       try {
         const { error } = await window.supabaseClient.rpc("set_menu_stock_item", {
-          p_ingredient_id: ing.id, p_enabled: enable, p_price: enable ? price : null, p_cat: enable ? cat : null,
-          p_cat_ar: enable ? catAr(cat) : null, p_name_en: enable ? (row.querySelector(".en").value.trim() || null) : null,
+          p_ingredient_id: ing.id, p_enabled: enable, p_price: enable && !isFlavor ? price : null, p_cat: enable ? cat : null,
+          p_cat_ar: enable && !isFlavor ? catAr(cat) : null, p_name_en: enable ? (row.querySelector(".en").value.trim() || null) : null,
         });
         if (error) throw error;
         await loadAll();
@@ -279,9 +305,9 @@
       }
     });
     document.getElementById("ms-hide-rest").addEventListener("click", async () => {
-      const ids = ingredients.filter((i) => !i.menu_enabled && !i.menu_hidden && !suggestionFor(i)).map((i) => i.id);
-      if (!ids.length) { setStatus("ما في مواد غير مشروبات لتنشطب.", ""); return; }
-      if (!confirm(`شطب ${ids.length} مادة (غير المشروبات المقترحة) من هالقائمة؟ بتضل بالمخزون ويمكنك استرجاع أي وحدة منها من فلتر "المشطوبة".`)) return;
+      const ids = ingredients.filter((i) => !i.menu_enabled && !i.menu_hidden && !kindOf(i)).map((i) => i.id);
+      if (!ids.length) { setStatus("ما في مواد غير مؤهلة لتنشطب.", ""); return; }
+      if (!confirm(`شطب ${ids.length} مادة غير مؤهلة للمنيو (مش مياه/مشروبات/شعير/طاقة/ماتركس/معسل) من هالقائمة؟ بتضل بالمخزون ويمكنك استرجاع أي وحدة منها من فلتر "المشطوبة".`)) return;
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
       for (let i = 0; i < ids.length; i += 100) {
@@ -290,6 +316,30 @@
       }
       ingredients.forEach((i) => { if (ids.includes(i.id)) i.menu_hidden = true; });
       render();
+    });
+    function pendingFlavorIds() {
+      return ingredients.filter((i) => !i.menu_enabled && !i.menu_hidden && kindOf(i) === "shisha").map((i) => i.id);
+    }
+    function updateFlavorBtn() {
+      const n = pendingFlavorIds().length;
+      const b = document.getElementById("ms-flavors-all");
+      b.innerHTML = olvIcon("check") + `<span>تفعيل كل نكهات المعسل${n ? ` (${n})` : ""}</span>`;
+      b.disabled = !n;
+    }
+    document.getElementById("ms-flavors-all").addEventListener("click", async () => {
+      const ids = pendingFlavorIds();
+      if (!ids.length) return;
+      if (!confirm(`تفعيل ${ids.length} نكهة معسل دفعة وحدة؟ بتظهر كخيارات نكهة جوا الأرجيلة طالما مخزونها أكتر من صفر، وبتختفي لحالها لما تخلص.`)) return;
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      try {
+        for (let i = 0; i < ids.length; i += 200) {
+          const { error } = await window.supabaseClient.rpc("set_menu_shisha_flavors", { p_ids: ids.slice(i, i + 200), p_enabled: true });
+          if (error) throw error;
+        }
+        await loadAll();
+        await doSync();
+      } catch (err) { olvShowError(errBox, err); }
     });
     document.getElementById("ms-q").addEventListener("input", render);
     document.getElementById("ms-filter").addEventListener("change", render);
