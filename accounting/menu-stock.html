@@ -99,7 +99,9 @@
           <option value="on">المعروضة على المنيو</option>
           <option value="off">غير المعروضة</option>
           <option value="sug">مقترحة (مشروبات)</option>
+          <option value="hidden">المشطوبة (غير مناسبة للمنيو)</option>
         </select>
+        <button type="button" class="btn" id="ms-hide-rest">شطب كل غير المشروبات</button>
         <button type="button" class="btn" id="ms-catalog"></button>
       </div>
       <div id="ms-list"><div class="hint">جاري التحميل...</div></div>
@@ -158,7 +160,7 @@
 
     async function loadAll() {
       const [ing, prod] = await Promise.all([
-        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, menu_enabled, menu_price, menu_cat, menu_name_en, menu_item_id").order("name"),
+        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, menu_enabled, menu_price, menu_cat, menu_name_en, menu_item_id, menu_hidden").order("name"),
         window.supabaseClient.from("products").select("id, name, external_id"),
       ]);
       if (ing.error) throw ing.error;
@@ -185,8 +187,11 @@
           <div class="ms-meta">المخزون: ${olvEsc(ing.current_stock)} ${olvEsc(ing.unit)}${ing.menu_enabled ? ` — ${olvFormatMoney(ing.menu_price)} — ${olvEsc(catAr(ing.menu_cat))}` : ""}</div>
         </div>
         <div></div>
-        <div style="text-align:left;">
-          <button type="button" class="btn small ${ing.menu_enabled ? "" : "gold"}" data-act="toggle">${ing.menu_enabled ? "تعديل / إزالة" : "عرض على المنيو"}</button>
+        <div style="text-align:left; display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;">
+          ${ing.menu_hidden
+            ? `<button type="button" class="btn small" data-act="unhide">استرجاع للقائمة</button>`
+            : `<button type="button" class="btn small ${ing.menu_enabled ? "" : "gold"}" data-act="toggle">${ing.menu_enabled ? "تعديل / إزالة" : "عرض على المنيو"}</button>`}
+          ${!ing.menu_enabled && !ing.menu_hidden ? `<button type="button" class="btn small danger" data-act="hide" title="شطب من هذه القائمة (ما بينحذف من المخزون)">شطب</button>` : ""}
         </div>
         <div class="ms-edit" hidden>
           <input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر البيع" value="${ing.menu_price != null ? olvEsc(ing.menu_price) : ""}">
@@ -203,6 +208,8 @@
       const q = norm(document.getElementById("ms-q").value);
       const f = document.getElementById("ms-filter").value;
       let rows = ingredients.filter((i) => !q || norm(i.name).includes(q));
+      // المشطوبة ما بتظهر إلا بفلترها الخاص
+      rows = f === "hidden" ? rows.filter((i) => i.menu_hidden) : rows.filter((i) => !i.menu_hidden || i.menu_enabled);
       if (f === "on") rows = rows.filter((i) => i.menu_enabled);
       else if (f === "off") rows = rows.filter((i) => !i.menu_enabled);
       else if (f === "sug") rows = rows.filter((i) => !i.menu_enabled && suggestionFor(i));
@@ -213,7 +220,8 @@
         || `<div class="hint">ما في نتائج</div>`;
       if (!rows.length) el.innerHTML = `<div class="hint">ما في نتائج</div>`;
       const on = ingredients.filter((i) => i.menu_enabled);
-      setStatus(`${on.length} صنف معروض على المنيو — ${on.filter((i) => Number(i.current_stock) > 0).length} منهم متوفر الآن.` + (lastSync ? " " + lastSync : ""), "");
+      const hid = ingredients.filter((i) => i.menu_hidden && !i.menu_enabled).length;
+      setStatus(`${on.length} صنف معروض على المنيو — ${on.filter((i) => Number(i.current_stock) > 0).length} منهم متوفر الآن.` + (hid ? ` (${hid} مشطوب)` : "") + (lastSync ? " " + lastSync : ""), "");
     }
 
     function setStatus(msg, kind) {
@@ -242,6 +250,15 @@
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
       if (b.dataset.act === "toggle") { const ed = row.querySelector(".ms-edit"); ed.hidden = !ed.hidden; return; }
+      if (b.dataset.act === "hide" || b.dataset.act === "unhide") {
+        // شطب = إخفاء من هالقائمة بس (المادة بتضل بالمخزون والوصفات)، وبتقدر ترجّعها من فلتر "المشطوبة"
+        b.disabled = true;
+        const { error } = await window.supabaseClient.from("ingredients").update({ menu_hidden: b.dataset.act === "hide" }).eq("id", ing.id);
+        if (error) { olvShowError(errBox, error); b.disabled = false; return; }
+        ing.menu_hidden = b.dataset.act === "hide";
+        render();
+        return;
+      }
       const enable = b.dataset.act === "save";
       const price = Number(row.querySelector(".price").value);
       const cat = row.querySelector(".cat").value;
@@ -260,6 +277,19 @@
         olvShowError(errBox, err);
         b.disabled = false;
       }
+    });
+    document.getElementById("ms-hide-rest").addEventListener("click", async () => {
+      const ids = ingredients.filter((i) => !i.menu_enabled && !i.menu_hidden && !suggestionFor(i)).map((i) => i.id);
+      if (!ids.length) { setStatus("ما في مواد غير مشروبات لتنشطب.", ""); return; }
+      if (!confirm(`شطب ${ids.length} مادة (غير المشروبات المقترحة) من هالقائمة؟ بتضل بالمخزون ويمكنك استرجاع أي وحدة منها من فلتر "المشطوبة".`)) return;
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      for (let i = 0; i < ids.length; i += 100) {
+        const { error } = await window.supabaseClient.from("ingredients").update({ menu_hidden: true }).in("id", ids.slice(i, i + 100));
+        if (error) { olvShowError(errBox, error); return; }
+      }
+      ingredients.forEach((i) => { if (ids.includes(i.id)) i.menu_hidden = true; });
+      render();
     });
     document.getElementById("ms-q").addEventListener("input", render);
     document.getElementById("ms-filter").addEventListener("change", render);

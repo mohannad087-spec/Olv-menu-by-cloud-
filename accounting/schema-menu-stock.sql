@@ -11,6 +11,7 @@ alter table public.ingredients add column if not exists menu_enabled boolean not
 alter table public.ingredients add column if not exists menu_price numeric(10,2) check (menu_price is null or menu_price >= 0);
 alter table public.ingredients add column if not exists menu_cat text;
 alter table public.ingredients add column if not exists menu_name_en text;
+alter table public.ingredients add column if not exists menu_hidden boolean not null default false;
 alter table public.ingredients add column if not exists menu_item_id text
   generated always as ('stk-' || substr(replace(id::text, '-', ''), 1, 12)) stored;
 
