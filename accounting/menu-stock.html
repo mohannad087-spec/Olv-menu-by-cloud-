@@ -95,6 +95,13 @@
         <span class="ms-status" id="ms-status"></span>
       </div>
       <div class="ms-bar">
+        <label class="ms-status" for="ms-markup">نسبة الربح للتسعير الذكي %</label>
+        <input type="number" id="ms-markup" min="0" max="1000" step="1" style="width:90px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:10px; font-size:15px;">
+        <button type="button" class="btn small" id="ms-markup-save">حفظ النسبة</button>
+        <button type="button" class="btn" id="ms-smart-all"></button>
+        <button type="button" class="btn" id="ms-cards"></button>
+      </div>
+      <div class="ms-bar">
         <input type="search" id="ms-q" placeholder="ابحث باسم المادة...">
         <select id="ms-filter">
           <option value="eligible">المؤهلة للمنيو</option>
@@ -149,6 +156,30 @@
     let catalogByKey = new Map();
     let lastSync = null;
 
+    let markup = 50;
+    // نفس صيغة السيرفر (_smart_price): تكلفة × (1 + ربح%) مقرّبة لأعلى لأقرب 0.05
+    const smartPrice = (cost) => (Number(cost) > 0 ? Math.round(Math.ceil((Number(cost) * (1 + markup / 100)) / 0.05 - 1e-9) * 0.05 * 100) / 100 : null);
+    const FAMILY = { "مياه": "مياه", "مشروبات غازية": "مشروب غازي", "ماتركس": "ماتركس", "مشروب الشعير": "مشروب شعير", "مشروبات طاقة": "مشروب طاقة" };
+    // بطاقة المادة المقترحة: عائلة + عبوة + حجم (كل العلب 330 مل المشابهة بتجمع ببطاقة وحدة)، واسم الخيار = الاسم بدون الحجم والعبوة
+    function deriveCard(ing) {
+      const name = String(ing.name || "").replace(/\s+/g, " ").trim();
+      const c = catalogByKey.get(norm(name));
+      let family = c && FAMILY[c.cat];
+      if (!family) {
+        family = /ماتركس|ماتريكس|matrix/i.test(name) ? "ماتركس" : /شعير|مالت|malt/i.test(name) ? "مشروب شعير"
+          : /طاقة|energy|ريد بول|مونستر/i.test(name) ? "مشروب طاقة" : /مياه|ماء|water/i.test(name) ? "مياه" : "مشروب غازي";
+      }
+      const sm = name.match(/(\d+(?:[.,]\d+)?)\s*(مل|لتر)/);
+      let size = sm ? `${sm[1].replace(",", ".")} ${sm[2]}` : "";
+      const pack = /علبة/.test(name) ? "علبة" : /زجاجة|بلاستيك/.test(name) ? "زجاجة" : "";
+      if (!size && pack === "علبة" && family === "مشروب غازي") size = "330 مل";
+      const group = [family, pack, size].filter(Boolean).join(" ");
+      let variant = name.replace(/(\d+(?:[.,]\d+)?)\s*(مل|لتر)/g, " ").replace(/علبة|زجاجة|بلاستيك|\(.*?\)/g, " ");
+      if (family === "ماتركس") variant = variant.replace(/^ماتركس\s*/, "");
+      if (family === "مشروب شعير") variant = variant.replace(/^مالت\s*/, "");
+      variant = variant.replace(/\s+/g, " ").trim() || name;
+      return { group, variant };
+    }
     const norm = (s) => (window.olvCatNorm ? olvCatNorm(s) : String(s || "").trim().toLowerCase());
     const catAr = (id) => (menuCats.find((c) => c.id === id) || {}).ar || id;
     // "drink" | "shisha" | null — null = غير مناسب للمنيو (خام، توابل، لحوم...)
@@ -176,7 +207,7 @@
 
     async function loadAll() {
       const [ing, prod] = await Promise.all([
-        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, menu_enabled, menu_price, menu_cat, menu_name_en, menu_item_id, menu_hidden").order("name"),
+        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, unit_price, menu_enabled, menu_price, menu_cat, menu_name_en, menu_item_id, menu_hidden, menu_group, menu_variant, menu_price_auto").order("name"),
         window.supabaseClient.from("products").select("id, name, external_id"),
       ]);
       if (ing.error) throw ing.error;
@@ -197,13 +228,25 @@
     function rowHtml(ing) {
       const kind = kindOf(ing);
       const flavor = ing.menu_enabled ? ing.menu_cat === SHISHA_FLAVOR : kind === "shisha";
-      const sug = null;
       const cat = (ing.menu_cat && ing.menu_cat !== SHISHA_FLAVOR) ? ing.menu_cat : "cold";
       const t = !ing.menu_enabled ? twin(ing) : null;
+      const cost = Number(ing.unit_price) > 0 ? Number(ing.unit_price) : null;
+      const sug = smartPrice(cost);
+      const card = deriveCard(ing);
+      const group = ing.menu_enabled ? (ing.menu_group || "") : card.group;
+      const variant = ing.menu_enabled ? (ing.menu_variant || "") : card.variant;
+      const auto = ing.menu_enabled ? !!ing.menu_price_auto : !!sug;
+      const price = ing.menu_enabled ? ing.menu_price : sug;
+      const margin = (cost && Number(price) > 0) ? Math.round((Number(price) - cost) / cost * 100) : null;
+      const costLine = cost
+        ? ` — تكلفتك ${olvFormatMoney(cost)}${sug ? ` ← السعر الذكي ${olvFormatMoney(sug)}` : ""}${ing.menu_enabled && margin != null ? ` (ربح ${margin}%)` : ""}`
+        : "";
+      const below = ing.menu_enabled && cost && Number(ing.menu_price) < cost;
       return `<div class="ms-row" data-id="${olvEsc(ing.id)}">
         <div>
-          <div class="ms-name">${olvEsc(ing.name)}${statusBadge(ing)}${!ing.menu_enabled && kind ? `<span class="ms-badge sug">${kind === "shisha" ? "نكهة أرجيلة" : "مشروب"}</span>` : ""}</div>
-          <div class="ms-meta">المخزون: ${olvEsc(ing.current_stock)} ${olvEsc(ing.unit)}${ing.menu_enabled ? (flavor ? " — نكهة أرجيلة" : ` — ${olvFormatMoney(ing.menu_price)} — ${olvEsc(catAr(ing.menu_cat))}`) : ""}</div>
+          <div class="ms-name">${olvEsc(ing.name)}${statusBadge(ing)}${!ing.menu_enabled && kind ? `<span class="ms-badge sug">${kind === "shisha" ? "نكهة أرجيلة" : "مشروب"}</span>` : ""}${ing.menu_enabled && ing.menu_group ? `<span class="ms-badge sug">بطاقة: ${olvEsc(ing.menu_group)}</span>` : ""}</div>
+          <div class="ms-meta">المخزون: ${olvEsc(ing.current_stock)} ${olvEsc(ing.unit)}${ing.menu_enabled ? (flavor ? " — نكهة أرجيلة" : ` — ${olvFormatMoney(ing.menu_price)}${ing.menu_price_auto ? " (ذكي)" : ""} — ${olvEsc(catAr(ing.menu_cat))}`) : ""}${flavor ? "" : costLine}</div>
+          ${below ? `<div class="ms-warn">⚠ سعر البيع أقل من تكلفتك!</div>` : ""}
         </div>
         <div></div>
         <div style="text-align:left; display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;">
@@ -215,12 +258,16 @@
         <div class="ms-edit" hidden>
           ${flavor
             ? `<span class="ms-meta">بتظهر كخيار نكهة جوا الأرجيلة (السعر حسب نوع الأرجيلة)</span>`
-            : `<input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر البيع" value="${ing.menu_price != null ? olvEsc(ing.menu_price) : ""}">
-          <select class="cat">${menuCats.map((c) => `<option value="${olvEsc(c.id)}"${c.id === cat ? " selected" : ""}>${olvEsc(c.ar)}</option>`).join("")}</select>`}
+            : `<input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر البيع" value="${price != null ? olvEsc(price) : ""}"${auto && sug ? " readonly" : ""}>
+          <label class="ms-meta" style="display:flex; gap:4px; align-items:center;"><input type="checkbox" class="auto"${auto ? " checked" : ""}${cost ? "" : " disabled"}> تسعير ذكي (يتبع التكلفة)</label>
+          <select class="cat">${menuCats.map((c) => `<option value="${olvEsc(c.id)}"${c.id === cat ? " selected" : ""}>${olvEsc(c.ar)}</option>`).join("")}</select>
+          <input type="text" class="grp" placeholder="اسم البطاقة (مثلاً: مشروب غازي علبة 330 مل)" value="${olvEsc(group)}" style="min-width:210px;">
+          <input type="text" class="var" placeholder="اسم الخيار داخل البطاقة" value="${olvEsc(variant)}" style="width:150px;">`}
           <input type="text" class="en" placeholder="الاسم بالإنجليزي (اختياري)" value="${olvEsc(ing.menu_name_en || "")}">
           <button type="button" class="btn small gold" data-act="save" data-flavor="${flavor ? "1" : ""}">${ing.menu_enabled ? "حفظ" : (flavor ? "تفعيل" : "عرض")}</button>
           ${ing.menu_enabled ? `<button type="button" class="btn small danger" data-act="remove">إزالة من المنيو</button>` : ""}
           ${t ? `<div class="ms-warn">⚠ في منتج بنفس الاسم ("${olvEsc(t.name)}") بنقطة البيع — لو هو نفس الصنف، ممكن يتكرر عندك.</div>` : ""}
+          ${flavor ? "" : `<div class="ms-meta" style="width:100%;">إذا حددت اسم بطاقة، كل المواد اللي إلها نفس الاسم بتظهر ببطاقة وحدة فيها "اختر النوع" (مثلاً كولا، سبرايت، فانتا زيرو).</div>`}
         </div>
       </div>`;
     }
@@ -284,17 +331,22 @@
         return;
       }
       const enable = b.dataset.act === "save";
+      const autoEl = row.querySelector(".auto");
+      const useAuto = !!(autoEl && autoEl.checked && !autoEl.disabled);
       const isFlavor = b.dataset.flavor === "1" || (!enable && ing.menu_cat === SHISHA_FLAVOR);
       const priceEl = row.querySelector(".price"), catEl = row.querySelector(".cat");
       const price = priceEl ? Number(priceEl.value) : 0;
       const cat = isFlavor ? SHISHA_FLAVOR : (catEl ? catEl.value : "cold");
-      if (enable && !isFlavor && !(price > 0)) { olvShowError(errBox, new Error("حدد سعر البيع للمنيو")); return; }
+      if (enable && !isFlavor && !useAuto && !(price > 0)) { olvShowError(errBox, new Error("حدد سعر البيع للمنيو")); return; }
       if (!enable && !confirm("إزالة هذا الصنف من المنيو؟ (بيضل بالمخزون وبنقطة البيع كمنتج غير فعّال)")) return;
       b.disabled = true;
       try {
-        const { error } = await window.supabaseClient.rpc("set_menu_stock_item", {
-          p_ingredient_id: ing.id, p_enabled: enable, p_price: enable && !isFlavor ? price : null, p_cat: enable ? cat : null,
+        const { error } = await window.supabaseClient.rpc("save_menu_stock_item", {
+          p_ingredient_id: ing.id, p_enabled: enable, p_price: enable && !isFlavor && !useAuto ? price : null, p_cat: enable ? cat : null,
           p_cat_ar: enable && !isFlavor ? catAr(cat) : null, p_name_en: enable ? (row.querySelector(".en").value.trim() || null) : null,
+          p_group: enable && !isFlavor ? (row.querySelector(".grp").value.trim() || null) : null,
+          p_variant: enable && !isFlavor ? (row.querySelector(".var").value.trim() || null) : null,
+          p_auto: enable && !isFlavor && useAuto,
         });
         if (error) throw error;
         await loadAll();
@@ -341,6 +393,65 @@
         await doSync();
       } catch (err) { olvShowError(errBox, err); }
     });
+    document.getElementById("ms-list").addEventListener("change", (e) => {
+      if (!e.target.classList.contains("auto")) return;
+      const row = e.target.closest(".ms-row"); const ing = ingredients.find((i) => i.id === row.dataset.id); if (!ing) return;
+      const priceEl = row.querySelector(".price"); const sug = smartPrice(ing.unit_price);
+      priceEl.readOnly = e.target.checked && !!sug;
+      if (e.target.checked && sug) priceEl.value = sug;
+    });
+    // ---- نسبة الربح والتسعير الذكي والبطاقات ----
+    async function loadMarkup() {
+      const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "menu_markup_pct").maybeSingle();
+      const v = data && Number(data.value);
+      if (Number.isFinite(v)) markup = v;
+      document.getElementById("ms-markup").value = markup;
+    }
+    document.getElementById("ms-smart-all").innerHTML = olvIcon("star") + "<span>تسعير ذكي للمعروض</span>";
+    document.getElementById("ms-cards").innerHTML = olvIcon("grid") + "<span>تجميع المتشابه ببطاقات</span>";
+    document.getElementById("ms-markup-save").addEventListener("click", async () => {
+      const errBox = document.getElementById("err"); errBox.style.display = "none";
+      const v = Number(document.getElementById("ms-markup").value);
+      try {
+        const { data, error } = await window.supabaseClient.rpc("set_menu_markup", { p_pct: v });
+        if (error) throw error;
+        markup = v;
+        await loadAll();
+        setStatus(`تم حفظ نسبة الربح ${v}% — أُعيد تسعير ${data || 0} صنف بتسعير ذكي.`, "ok");
+        if (data) await doSync();
+      } catch (err) { olvShowError(errBox, err); }
+    });
+    document.getElementById("ms-smart-all").addEventListener("click", async () => {
+      const errBox = document.getElementById("err"); errBox.style.display = "none";
+      const targets = ingredients.filter((i) => i.menu_enabled && i.menu_cat !== SHISHA_FLAVOR && Number(i.unit_price) > 0);
+      if (!targets.length) { setStatus("ما في أصناف معروضة إلها تكلفة (سجّل فواتير شراء أول).", ""); return; }
+      const overwrite = confirm(`تسعير ذكي لـ ${targets.length} صنف معروض (تكلفة + ${markup}%، تقريب لأقرب 0.05).\n\nOK = أعد تسعير الكل (حتى المسعّر يدويًا)\nCancel = بس الأصناف اللي ما إلها سعر`);
+      try {
+        const { data, error } = await window.supabaseClient.rpc("smart_price_menu_items", { p_ids: targets.map((i) => i.id), p_overwrite: overwrite });
+        if (error) throw error;
+        await loadAll();
+        setStatus(`تم تفعيل التسعير الذكي لـ ${data || 0} صنف — الأسعار بتتبع تكلفة آخر فاتورة شراء تلقائيًا.`, "ok");
+        await doSync();
+      } catch (err) { olvShowError(errBox, err); }
+    });
+    document.getElementById("ms-cards").addEventListener("click", async () => {
+      const errBox = document.getElementById("err"); errBox.style.display = "none";
+      const drinks = ingredients.filter((i) => kindOf(i) === "drink" && !i.menu_hidden && i.menu_cat !== SHISHA_FLAVOR);
+      const byGroup = new Map();
+      drinks.forEach((i) => { const d = deriveCard(i); if (!byGroup.has(d.group)) byGroup.set(d.group, []); byGroup.get(d.group).push({ id: i.id, variant: d.variant }); });
+      const multi = [...byGroup.entries()].filter(([, l]) => l.length >= 2);
+      if (!multi.length) { setStatus("ما في مواد متشابهة كفاية لتنجمع (لازم نوعين أو أكتر بنفس العبوة والحجم).", ""); return; }
+      const summary = multi.slice(0, 8).map(([g, l]) => `• ${g}: ${l.slice(0, 4).map((x) => x.variant).join("، ")}${l.length > 4 ? ` و${l.length - 4} غيرها` : ""} (${l.length})`).join("\n");
+      if (!confirm(`رح تنعمل ${multi.length} بطاقة:\n${summary}${multi.length > 8 ? "\n..." : ""}\n\nكل نوع بيضل مادة مستقلة بمخزونه وسعره. متابعة؟`)) return;
+      try {
+        const assign = multi.flatMap(([g, l]) => l.map((x) => ({ id: x.id, group: g, variant: x.variant })));
+        const { error } = await window.supabaseClient.rpc("set_menu_stock_cards", { p_assign: assign });
+        if (error) throw error;
+        await loadAll();
+        await doSync();
+        setStatus(`تم تجميع ${assign.length} مادة في ${multi.length} بطاقة. المعروضة منها بتظهر ببطاقة وحدة بالمنيو.`, "ok");
+      } catch (err) { olvShowError(errBox, err); }
+    });
     document.getElementById("ms-q").addEventListener("input", render);
     document.getElementById("ms-filter").addEventListener("change", render);
     document.getElementById("ms-sync").addEventListener("click", doSync);
@@ -353,6 +464,7 @@
       if (!session) return;
       try {
         await loadMenuCats();
+        await loadMarkup();
         await loadAll();
       } catch (err) {
         olvShowError(document.getElementById("err"), err);

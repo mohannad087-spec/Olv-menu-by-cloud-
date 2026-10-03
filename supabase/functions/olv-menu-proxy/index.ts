@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     // أي حساب فعّال بيقدر يستدعيها (الكاشير مثلًا بعد البيع): ما بتكشف شي ولا بتغيّر غير أصناف المخزون
     if (body.action === "sync_stock") {
       const { data: rows, error } = await admin.from("ingredients")
-        .select("menu_item_id, name, menu_name_en, menu_price, menu_cat, current_stock")
+        .select("menu_item_id, name, menu_name_en, menu_price, menu_cat, current_stock, menu_group, menu_variant")
         .eq("menu_enabled", true);
       if (error) return json({ ok: false, error: error.message }, 500);
       // نكهات المعسل (menu_cat = shisha-flavor) بتروح كخيار نكهة جوا الأرجيلة، والباقي كأصناف بسعر
@@ -105,6 +105,9 @@ Deno.serve(async (req) => {
             cat: r.menu_cat,
             price: Number(r.menu_price),
             available: Number(r.current_stock) > 0,
+            // بطاقة المادة: الأنواع اللي إلها نفس menu_group بتظهر ببطاقة وحدة، واسم الخيار menu_variant
+            group: r.menu_group || undefined,
+            variant: r.menu_variant || undefined,
           });
       const r = await fetch(OLV_STOCK_SYNC_API, {
         method: "POST",
