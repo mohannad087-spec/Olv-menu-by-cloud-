@@ -341,7 +341,7 @@
       if (!enable && !confirm("إزالة هذا الصنف من المنيو؟ (بيضل بالمخزون وبنقطة البيع كمنتج غير فعّال)")) return;
       b.disabled = true;
       try {
-        const { error } = await window.supabaseClient.rpc("set_menu_stock_item", {
+        const { error } = await window.supabaseClient.rpc("save_menu_stock_item", {
           p_ingredient_id: ing.id, p_enabled: enable, p_price: enable && !isFlavor && !useAuto ? price : null, p_cat: enable ? cat : null,
           p_cat_ar: enable && !isFlavor ? catAr(cat) : null, p_name_en: enable ? (row.querySelector(".en").value.trim() || null) : null,
           p_group: enable && !isFlavor ? (row.querySelector(".grp").value.trim() || null) : null,

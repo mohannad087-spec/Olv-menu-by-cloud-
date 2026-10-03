@@ -76,14 +76,13 @@ begin
 end;
 $$;
 
-drop trigger if exists ingredients_reprice on public.ingredients;
-create trigger ingredients_reprice
+create or replace trigger ingredients_reprice
   after update of unit_price, menu_price_auto, menu_enabled, menu_group on public.ingredients
   for each statement execute function public._tg_reprice_menu_stock();
 
--- نفس دالة schema-menu-stock.sql بس بإضافة البطاقة (group/variant) والتسعير الذكي (p_auto)
-drop function if exists public.set_menu_stock_item(uuid, boolean, numeric, text, text, text);
-create or replace function public.set_menu_stock_item(
+-- نسخة موسّعة من set_menu_stock_item (schema-menu-stock.sql) بإضافة البطاقة (group/variant) والتسعير الذكي (p_auto)؛
+-- الشاشة صارت تستعمل هالدالة، والقديمة بتضل موجودة بدون استعمال
+create or replace function public.save_menu_stock_item(
   p_ingredient_id uuid,
   p_enabled boolean,
   p_price numeric,
@@ -165,8 +164,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.set_menu_stock_item(uuid, boolean, numeric, text, text, text, text, text, boolean) from public, anon;
-grant execute on function public.set_menu_stock_item(uuid, boolean, numeric, text, text, text, text, text, boolean) to authenticated;
+revoke execute on function public.save_menu_stock_item(uuid, boolean, numeric, text, text, text, text, text, boolean) from public, anon;
+grant execute on function public.save_menu_stock_item(uuid, boolean, numeric, text, text, text, text, text, boolean) to authenticated;
 
 -- تجميع المواد المتشابهة ببطاقات دفعة وحدة: [{"id":"…","group":"مشروب غازي علبة 330 مل","variant":"سبرايت"}, …]
 create or replace function public.set_menu_stock_cards(p_assign jsonb)
