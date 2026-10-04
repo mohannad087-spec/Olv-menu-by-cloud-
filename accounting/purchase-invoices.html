@@ -287,8 +287,9 @@
     // ---------- تحميل ----------
     async function loadItems() {
       const [{ data: ing, error: e1 }, { data: sup, error: e2 }] = await Promise.all([
-        window.supabaseClient.from("ingredients").select("id, name, unit, unit_price, purchase_unit, purchase_unit_factor").order("name"),
+        window.supabaseClient.from("ingredients").select("id, name, unit, unit_price, purchase_unit, purchase_unit_factor, menu_enabled, menu_price, menu_price_auto, menu_cat").order("name"),
         window.supabaseClient.from("supplies").select("id, name, unit, unit_price, purchase_unit, purchase_unit_factor").order("name"),
+        window.supabaseClient.from("app_settings").select("value").eq("key", "menu_markup_pct").maybeSingle().then((r) => { const v = r.data && Number(r.data.value); if (Number.isFinite(v)) menuMarkup = v; }, () => {}),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
@@ -318,13 +319,25 @@
     }
 
     // ---------- رسم السطور ----------
+    // التسعير الذكي بالمنيو بيلحق تكلفة آخر فاتورة لحاله، فغلطة بالسعر هون بتغيّر سعر البيع
+    let menuMarkup = 50;
+    const smartPrice = (cost) => (Number(cost) > 0 ? Math.round(Math.ceil((Number(cost) * (1 + menuMarkup / 100)) / 0.05 - 1e-9) * 0.05 * 100) / 100 : null);
+    const followsMenu = (it) => it && it.kind === "ingredient" && it.menu_enabled && it.menu_price_auto && it.menu_cat !== "shisha-flavor";
+    const stockPriceOf = (line, it) => Number(line.price) / factorOf(line, it);
+    // تغيّر كبير: أغلى من مرة ونص أو أرخص من النص (غالبًا غلطة بالفاصلة أو بالوحدة)
+    const isJump = (line, it) => {
+      if (!it || !(Number(it.unit_price) > 0) || !(Number(line.price) > 0)) return false;
+      const r = stockPriceOf(line, it) / Number(it.unit_price);
+      return r > 1.5 || r < 0.5;
+    };
     function priceWarning(line, it) {
       if (!it || !it.unit_price || !(Number(line.price) > 0)) return "";
-      const stockPrice = Number(line.price) / factorOf(line, it);
+      const stockPrice = stockPriceOf(line, it);
       const last = Number(it.unit_price);
       const diff = (stockPrice - last) / last * 100;
       if (Math.abs(diff) < 10) return "";
-      return `<div class="pi-warn ${diff > 0 ? "bad" : ""}">${diff > 0 ? "⚠ أغلى" : "أرخص"} ${Math.abs(Math.round(diff))}% من آخر سعر (${money(last)} / ${olvEsc(it.unit)})</div>`;
+      const menu = followsMenu(it) ? ` — سعر المنيو رح يصير تقريبًا ${money(smartPrice(stockPrice))} بدل ${money(it.menu_price)}` : "";
+      return `<div class="pi-warn ${diff > 0 || isJump(line, it) ? "bad" : ""}">${diff > 0 ? "⚠ أغلى" : (isJump(line, it) ? "⚠ أرخص" : "أرخص")} ${Math.abs(Math.round(diff))}% من آخر سعر (${money(last)} / ${olvEsc(it.unit)})${menu}</div>`;
     }
 
     function renderLines() {
@@ -727,9 +740,17 @@
       const paper = document.getElementById("pi-paper-total").value;
       if (paper !== "" && Math.abs(Number(paper) - total) > 0.01 && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
 
-      // تنبيه أسعار مرتفعة: تأكيد واحد بدل ما تنسى
-      const spikes = active.filter((l) => { const it = itemOf(l); if (!it || !it.unit_price) return false; return (Number(l.price) / factorOf(l, it)) > Number(it.unit_price) * 1.5; });
-      if (spikes.length && !confirm(`${spikes.length} صنف سعره أعلى من آخر سعر بأكتر من 50% (${spikes.map((l) => itemOf(l).name).slice(0, 3).join("، ")}). تكمّل؟`)) return;
+      // تنبيه تغيّر كبير بالسعر (للأعلى أو للأسفل): تأكيد واحد بدل ما تنسى، مع أثره على سعر المنيو
+      const jumps = active.filter((l) => isJump(l, itemOf(l)));
+      if (jumps.length) {
+        const rows = jumps.slice(0, 6).map((l) => {
+          const it = itemOf(l); const np = stockPriceOf(l, it);
+          const menu = followsMenu(it) ? ` ← سعر المنيو ${money(it.menu_price)} رح يصير ${money(smartPrice(np))}` : "";
+          return `• ${it.name}: ${money(it.unit_price)} ← ${money(np)} / ${it.unit}${menu}`;
+        }).join("\n");
+        const onMenu = jumps.some((l) => followsMenu(itemOf(l)));
+        if (!confirm(`في ${jumps.length} صنف سعره تغيّر كتير عن آخر فاتورة (أغلى من مرة ونص أو أرخص من النص):\n${rows}${jumps.length > 6 ? "\n..." : ""}\n\n${onMenu ? "الأصناف المعروضة بالمنيو بتسعير ذكي سعرها رح يتغير تلقائيًا. " : ""}تأكد إنه ما في غلطة بالفاصلة أو بالوحدة. تكمّل الحفظ؟`)) return;
+      }
 
       const btn = document.getElementById("pi-save");
       btn.disabled = true;
