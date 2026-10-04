@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>وصفات الأصناف — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .recipe-row{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .recipe-row .r-name{flex:1; font-size:13.5px;}
+  .recipe-suggest-chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .recipe-suggest-chip{
+    background:var(--ink-3); border:1px dashed var(--gold); color:var(--gold-hi);
+    padding:7px 13px; border-radius:999px; font-size:12.5px; font-weight:600;
+  }
+  .recipe-suggest-chip:hover{background:rgba(var(--gold-rgb),.14);}
+  .cov-bar{height:10px; background:var(--ink-3); border-radius:999px; overflow:hidden; margin:8px 0 12px;}
+  .cov-bar > div{height:100%; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); border-radius:999px;}
+  .cov-chip{background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); padding:7px 12px; border-radius:999px; font-size:12.5px;}
+  .cov-chip:hover, .cov-chip.on{border-color:var(--gold); color:var(--gold-hi);}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>تغطية الوصفات</h2>
+      <p class="hint" style="margin-bottom:6px;">
+        الصنف اللي إله وصفة بينقص مواده من المخزون تلقائيًا مع كل بيعة، وبيدخل بتوقّع "يكفي لـ كم يوم".
+        الأصناف بدون وصفة ما بتأثر على المخزون أبدًا.
+      </p>
+      <div id="cov-text" class="hint" style="color:var(--paper); font-size:14px;">جاري التحميل...</div>
+      <div class="cov-bar"><div id="cov-fill" style="width:0%"></div></div>
+      <div class="hint" style="margin-bottom:8px;">أصناف فعّالة بدون وصفة (اضغط على صنف لتبلّش وصفته):</div>
+      <div class="recipe-suggest-chips" id="cov-missing"></div>
+    </div>
+
+    <div class="group" id="product-recipe-group">
+      <h2>وصفة صنف من المنيو</h2>
+      <div class="field">
+        <label>اختر الصنف</label>
+        <select id="recipe-product"></select>
+      </div>
+      <div id="product-recipe-rows"></div>
+      <button type="button" class="btn small" id="suggest-recipe-btn" style="margin:10px 0;"></button>
+      <div id="recipe-suggestions" hidden></div>
+      <div class="row2">
+        <div class="field">
+          <label>مادة خام</label>
+          <select id="recipe-ing-select"></select>
+        </div>
+        <div class="field">
+          <label>الكمية المستخدمة لكل وحدة بيع</label>
+          <input type="number" id="recipe-qty" step="0.001" min="0">
+        </div>
+      </div>
+      <button class="btn gold" id="add-recipe-line">إضافة للوصفة</button>
+    </div>
+
+    <div class="group">
+      <h2>وصفة إضافة (Extra)</h2>
+      <div class="field">
+        <label>اختر الإضافة</label>
+        <select id="recipe-addon"></select>
+      </div>
+      <div id="addon-recipe-rows"></div>
+      <div class="row2">
+        <div class="field">
+          <label>مادة خام</label>
+          <select id="addon-recipe-ing-select"></select>
+        </div>
+        <div class="field">
+          <label>الكمية لكل وحدة</label>
+          <input type="number" id="addon-recipe-qty" step="0.001" min="0">
+        </div>
+      </div>
+      <button class="btn gold" id="add-addon-recipe-line">إضافة للوصفة</button>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("product-recipes");
+    document.getElementById("suggest-recipe-btn").innerHTML = olvIcon("search") + "<span>اقتراح مواد مطابقة بالاسم</span>";
+
+    let ingredients = [];
+    let products = [];
+    let addons = [];
+    let withRecipe = new Set();                // product_id اللي إلها سطر وصفة واحد على الأقل
+    let currentRecipeIngredientIds = new Set(); // مواد الصنف المختار (لاستثنائها من الاقتراحات)
+    const errBox = () => document.getElementById("err");
+
+    async function loadCoverage() {
+      const { data, error } = await window.supabaseClient.from("product_ingredients").select("product_id");
+      if (error) { olvShowError(errBox(), error); return; }
+      withRecipe = new Set((data || []).map((r) => r.product_id));
+      renderCoverage();
+    }
+
+    function renderCoverage() {
+      const active = products.filter((p) => p.is_active !== false);
+      const covered = active.filter((p) => withRecipe.has(p.id)).length;
+      const pct = active.length ? Math.round(covered / active.length * 100) : 0;
+      document.getElementById("cov-text").textContent = `${covered} من ${active.length} صنف فعّال إلها وصفة (${pct}%)`;
+      document.getElementById("cov-fill").style.width = pct + "%";
+      const missing = active.filter((p) => !withRecipe.has(p.id));
+      const sel = document.getElementById("recipe-product").value;
+      document.getElementById("cov-missing").innerHTML = missing.length
+        ? missing.map((p) => `<button type="button" class="cov-chip${p.id === sel ? " on" : ""}" data-pick="${olvEsc(p.id)}">${olvEsc(p.name)}</button>`).join("")
+        : `<span class="hint">كل الأصناف الفعّالة إلها وصفة 👌</span>`;
+    }
+
+    document.getElementById("cov-missing").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-pick]"); if (!b) return;
+      document.getElementById("recipe-product").value = b.dataset.pick;
+      loadProductRecipe();
+      renderCoverage();
+      document.getElementById("product-recipe-group").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    function populateSelects() {
+      const prodSel = document.getElementById("recipe-product");
+      const prev = prodSel.value;
+      prodSel.innerHTML = products.map((p) =>
+        `<option value="${olvEsc(p.id)}">${olvEsc(p.name)}${p.is_active === false ? " (غير فعّال)" : ""}${withRecipe.has(p.id) ? "" : " — بدون وصفة"}</option>`).join("");
+      if (prev && products.some((p) => p.id === prev)) prodSel.value = prev;
+      document.getElementById("recipe-addon").innerHTML = addons.map((a) => `<option value="${olvEsc(a.id)}">${olvEsc(a.name)}</option>`).join("")
+        || `<option value="">ما في إضافات مسجّلة</option>`;
+      const ingOptions = ingredients.map((i) => `<option value="${olvEsc(i.id)}">${olvEsc(i.name)} (${olvEsc(i.unit)})</option>`).join("");
+      document.getElementById("recipe-ing-select").innerHTML = ingOptions;
+      document.getElementById("addon-recipe-ing-select").innerHTML = ingOptions;
+    }
+
+    async function loadProductRecipe() {
+      const productId = document.getElementById("recipe-product").value;
+      const el = document.getElementById("product-recipe-rows");
+      document.getElementById("recipe-suggestions").hidden = true;
+      if (!productId) { el.innerHTML = ""; currentRecipeIngredientIds = new Set(); return; }
+      const { data, error } = await window.supabaseClient
+        .from("product_ingredients").select("*, ingredients(name, unit)").eq("product_id", productId);
+      if (error) { olvShowError(errBox(), error); return; }
+      currentRecipeIngredientIds = new Set((data || []).map((r) => r.ingredient_id));
+      el.innerHTML = (data || []).length
+        ? data.map((r) => `
+          <div class="recipe-row">
+            <div class="r-name">${olvEsc(r.ingredients.name)}: ${olvEsc(r.quantity)} ${olvEsc(r.ingredients.unit)}</div>
+            <button class="btn small danger" data-del-recipe="${olvEsc(r.id)}">حذف</button>
+          </div>`).join("")
+        : `<div class="hint">لا توجد مواد خام مرتبطة بهذا الصنف بعد</div>`;
+    }
+
+    document.getElementById("product-recipe-rows").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-del-recipe]"); if (!btn) return;
+      const { error } = await window.supabaseClient.from("product_ingredients").delete().eq("id", btn.dataset.delRecipe);
+      if (error) { olvShowError(errBox(), error); return; }
+      await loadProductRecipe();
+      await loadCoverage();
+      populateSelects();
+    });
+
+    // اقتراح مطابقة بالاسم بس — الكمية الفعلية بيدخلها صاحب المطعم دايمًا
+    function findRecipeSuggestions(productName) {
+      const words = (productName || "").split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 2);
+      if (!words.length) return [];
+      return ingredients.filter((ing) => !currentRecipeIngredientIds.has(ing.id)
+        && words.some((w) => ing.name.includes(w) || w.includes(ing.name)));
+    }
+
+    document.getElementById("suggest-recipe-btn").addEventListener("click", () => {
+      const product = products.find((p) => p.id === document.getElementById("recipe-product").value);
+      const box = document.getElementById("recipe-suggestions");
+      if (!product) { box.hidden = true; return; }
+      const matches = findRecipeSuggestions(product.name);
+      box.hidden = false;
+      box.innerHTML = matches.length
+        ? `<div class="hint">اضغط على مادة لتعبئتها بالأسفل، حدد الكمية، واضغط "إضافة للوصفة"</div>
+           <div class="recipe-suggest-chips">${matches.map((ing) =>
+             `<button type="button" class="recipe-suggest-chip" data-suggest-ing="${olvEsc(ing.id)}">${olvEsc(ing.name)} (${olvEsc(ing.unit)})</button>`).join("")}</div>`
+        : `<div class="hint">ما لقينا مواد مطابقة بالاسم — اختار المادة يدويًا من القائمة تحت</div>`;
+    });
+    document.getElementById("recipe-suggestions").addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-suggest-ing]"); if (!chip) return;
+      document.getElementById("recipe-ing-select").value = chip.dataset.suggestIng;
+      const q = document.getElementById("recipe-qty"); q.focus(); q.select();
+    });
+
+    async function loadAddonRecipe() {
+      const addonId = document.getElementById("recipe-addon").value;
+      const el = document.getElementById("addon-recipe-rows");
+      if (!addonId) { el.innerHTML = ""; return; }
+      const { data, error } = await window.supabaseClient
+        .from("addon_ingredients").select("*, ingredients(name, unit)").eq("addon_id", addonId);
+      if (error) { olvShowError(errBox(), error); return; }
+      el.innerHTML = (data || []).length
+        ? data.map((r) => `
+          <div class="recipe-row">
+            <div class="r-name">${olvEsc(r.ingredients.name)}: ${olvEsc(r.quantity)} ${olvEsc(r.ingredients.unit)}</div>
+            <button class="btn small danger" data-del-arecipe="${olvEsc(r.id)}">حذف</button>
+          </div>`).join("")
+        : `<div class="hint">لا توجد مواد خام مرتبطة بهذه الإضافة بعد</div>`;
+    }
+    document.getElementById("addon-recipe-rows").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-del-arecipe]"); if (!btn) return;
+      const { error } = await window.supabaseClient.from("addon_ingredients").delete().eq("id", btn.dataset.delArecipe);
+      if (error) { olvShowError(errBox(), error); return; }
+      loadAddonRecipe();
+    });
+
+    document.getElementById("recipe-product").addEventListener("change", () => { loadProductRecipe(); renderCoverage(); });
+    document.getElementById("recipe-addon").addEventListener("change", loadAddonRecipe);
+
+    document.getElementById("add-recipe-line").addEventListener("click", async () => {
+      const payload = {
+        product_id: document.getElementById("recipe-product").value,
+        ingredient_id: document.getElementById("recipe-ing-select").value,
+        quantity: Number(document.getElementById("recipe-qty").value || 0),
+      };
+      if (!payload.product_id || !payload.ingredient_id) return;
+      if (!(payload.quantity > 0)) { olvShowError(errBox(), new Error("حدد الكمية المستخدمة (أكبر من صفر)")); return; }
+      const { error } = await window.supabaseClient.from("product_ingredients").upsert(payload, { onConflict: "product_id,ingredient_id" });
+      if (error) { olvShowError(errBox(), error); return; }
+      document.getElementById("recipe-qty").value = "";
+      await loadProductRecipe();
+      await loadCoverage();
+      populateSelects();
+    });
+
+    document.getElementById("add-addon-recipe-line").addEventListener("click", async () => {
+      const payload = {
+        addon_id: document.getElementById("recipe-addon").value,
+        ingredient_id: document.getElementById("addon-recipe-ing-select").value,
+        quantity: Number(document.getElementById("addon-recipe-qty").value || 0),
+      };
+      if (!payload.addon_id || !payload.ingredient_id) return;
+      if (!(payload.quantity > 0)) { olvShowError(errBox(), new Error("حدد الكمية المستخدمة (أكبر من صفر)")); return; }
+      const { error } = await window.supabaseClient.from("addon_ingredients").upsert(payload, { onConflict: "addon_id,ingredient_id" });
+      if (error) { olvShowError(errBox(), error); return; }
+      document.getElementById("addon-recipe-qty").value = "";
+      loadAddonRecipe();
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      try {
+        const [p, a, i] = await Promise.all([
+          window.supabaseClient.from("products").select("id, name, is_active").order("name"),
+          window.supabaseClient.from("addons").select("id, name").order("name"),
+          window.supabaseClient.from("ingredients").select("id, name, unit").order("name"),
+        ]);
+        if (p.error) throw p.error;
+        if (a.error) throw a.error;
+        if (i.error) throw i.error;
+        products = p.data || [];
+        addons = a.data || [];
+        ingredients = i.data || [];
+        await loadCoverage();
+        // نبلّش بأول صنف فعّال بدون وصفة، لأنه غالبًا هو الشغل الجاي
+        populateSelects();
+        const firstMissing = products.find((x) => x.is_active !== false && !withRecipe.has(x.id));
+        if (firstMissing) document.getElementById("recipe-product").value = firstMissing.id;
+        renderCoverage();
+        await loadProductRecipe();
+        await loadAddonRecipe();
+      } catch (err) {
+        olvShowError(errBox(), err);
+      }
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>

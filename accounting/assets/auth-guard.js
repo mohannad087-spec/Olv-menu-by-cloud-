@@ -13,6 +13,7 @@ function olvEsc(v) {
 const OLV_STAFF_PAGES = [
   "pos.html", "sales.html", "tables.html", "incoming-orders.html", "kitchen.html",
   "expenses.html", "cash-register.html", "customers.html", "attendance.html", "login.html",
+  "recipes.html", // دليل تحضير المشروبات — مرجع ثابت للباريستا، ما فيه بيانات حساسة
 ];
 window.OLV_STAFF_PAGES = OLV_STAFF_PAGES;
 

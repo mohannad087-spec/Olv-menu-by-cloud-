@@ -12,8 +12,11 @@ const OlvLowStockPoll = (function () {
   let started = false;
 
   function updateBadge(href, count) {
-    const tab = document.querySelector(`.tab-link[href="${href}"]`);
-    if (!tab) return;
+    // رابط القائمة + تبويب القسم (لو الصفحة ضمن قسم المخزون)
+    document.querySelectorAll(`.tab-link[href="${href}"], .olv-hub-tab[href="${href}"]`).forEach((tab) => setBadge(tab, count));
+  }
+
+  function setBadge(tab, count) {
     let badge = tab.querySelector(".tab-badge");
     if (count > 0) {
       if (!badge) {
@@ -74,7 +77,9 @@ const OlvLowStockPoll = (function () {
       const items = data || [];
       const ingredientCount = items.filter((i) => i.item_type === "ingredient").length;
       const supplyCount = items.filter((i) => i.item_type === "supply").length;
-      updateBadge("inventory.html", ingredientCount);
+      // رابط "المخزون والجرد" بالقائمة بيجمع الاثنين، وتبويبات القسم كل وحدة لحالها
+      document.querySelectorAll('.tab-link[href="inventory.html"]').forEach((t) => setBadge(t, ingredientCount + supplyCount));
+      document.querySelectorAll('.olv-hub-tab[href="inventory.html"]').forEach((t) => setBadge(t, ingredientCount));
       updateBadge("supplies.html", supplyCount);
       checkForNew(items);
       subscribers.forEach((fn) => fn(items));

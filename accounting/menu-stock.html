@@ -72,7 +72,14 @@
   .ms-edit{display:flex; gap:6px; flex-wrap:wrap; align-items:center; grid-column:1/-1;}
   .ms-edit input,.ms-edit select{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:9px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
   .ms-edit input.price{width:90px;} .ms-edit input.en{width:140px;}
+  .ms-edit[hidden]{display:none;}
   .ms-warn{color:var(--danger-hi); font-size:12px; width:100%;}
+  .ms-card{border:1px solid var(--hair); border-radius:12px; padding:12px 14px; margin-bottom:12px; background:var(--ink-2);}
+  .ms-card-head{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px;}
+  .ms-card-title{font-weight:800; font-size:15.5px; flex:1; min-width:160px;}
+  .ms-var{display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:7px 0; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .ms-var .ms-name{flex:1; min-width:140px; font-size:14px;}
+  .ms-var select{background:var(--ink); border:1px solid var(--hair); color:var(--paper); padding:7px 8px; border-radius:8px; font-size:13.5px; font-family:'Tajawal',sans-serif; max-width:210px;}
   @media (max-width:640px){ .ms-row{grid-template-columns:1fr;} }
 </style>
 </head>
@@ -83,24 +90,34 @@
 
     <div class="group">
       <h2>المنيو من المخزون</h2>
-      <p class="hint" style="margin-bottom:12px;">
+      <p class="hint" style="margin-bottom:8px;">المشروبات الجاهزة (مياه، غازيات، ماتركس، شعير، طاقة) ونكهات المعسل بتظهر على المنيو طالما إلها مخزون، وبتختفي لحالها لما تخلص.</p>
+      <details style="margin-bottom:12px;">
+        <summary class="hint" style="cursor:pointer;">كيف بتشتغل بالتفصيل؟</summary>
+      <p class="hint" style="margin:10px 0 0;">
         هالشاشة محصورة بـ: <b>علب المياه</b> (كل الأحجام)، <b>المشروبات الغازية</b> (كوكاكولا، بيبسي، سفن أب...)، <b>ماتركس</b>،
         <b>مشروب الشعير</b>، <b>مشروبات الطاقة</b>، و<b>نكهات المعسل</b> (للأرجيلة). المشروب بيظهر بالمنيو العام طالما مخزونه أكتر من صفر
         (بتحدد له سعر البيع)، ولما يخلص بينشال لحاله وبيرجع لما تضيف كمية جديدة. نكهة المعسل بتظهر كخيار نكهة جوا الأرجيلة (مثلًا: معسل عنب) —
         لو ما في معسل عنب بالمخزون، نكهة العنب ما بتظهر، ولو خلصت كل النكهات بتختفي الأرجيلة. الأسعار والمخزون بتنزل مع كل بيعة وفاتورة شراء،
         والتغيير بيوصل للموقع خلال دقيقة أو دقيقتين. <small>(نكهات المعسل ما بتنقص من المخزون تلقائيًا مع كل أرجيلة — بتتحدث كميتها من فواتير الشراء والجرد.)</small>
       </p>
+      </details>
       <div class="ms-bar">
         <button type="button" class="btn gold" id="ms-sync"></button>
         <span class="ms-status" id="ms-status"></span>
       </div>
-      <div class="ms-bar">
-        <label class="ms-status" for="ms-markup">نسبة الربح للتسعير الذكي %</label>
-        <input type="number" id="ms-markup" min="0" max="1000" step="1" style="width:90px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:10px; font-size:15px;">
-        <button type="button" class="btn small" id="ms-markup-save">حفظ النسبة</button>
-        <button type="button" class="btn" id="ms-smart-all"></button>
-        <button type="button" class="btn" id="ms-cards"></button>
-      </div>
+    </div>
+
+    <div class="group">
+      <h2>البطاقات</h2>
+      <p class="hint" style="margin-bottom:12px;">
+        البطاقة الرئيسية بتظهر بالمنيو كصنف واحد، وجواها "اختر النوع" (الأنواع الفرعية). كل نوع بيضل إله مخزونه.
+        انقل أي نوع لبطاقة ثانية أو فكّه من البطاقة من القائمة اللي جنبه.
+      </p>
+      <div id="ms-cards-box"><div class="hint">جاري التحميل...</div></div>
+    </div>
+
+    <div class="group">
+      <h2>كل المواد</h2>
       <div class="ms-bar">
         <input type="search" id="ms-q" placeholder="ابحث باسم المادة...">
         <select id="ms-filter">
@@ -112,12 +129,25 @@
           <option value="hidden">المشطوبة</option>
           <option value="all">كل مواد المخزون (حتى غير المؤهلة)</option>
         </select>
+      </div>
+      <div id="ms-list"><div class="hint">جاري التحميل...</div></div>
+    </div>
+
+    <details class="group">
+      <summary style="cursor:pointer;"><h2 style="display:inline; margin:0;">إجراءات جماعية وتسعير</h2></summary>
+      <div class="ms-bar" style="margin-top:14px;">
+        <label class="ms-status" for="ms-markup">نسبة الربح للتسعير الذكي %</label>
+        <input type="number" id="ms-markup" min="0" max="1000" step="1" style="width:90px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:10px; font-size:15px;">
+        <button type="button" class="btn small" id="ms-markup-save">حفظ النسبة</button>
+        <button type="button" class="btn" id="ms-smart-all"></button>
+      </div>
+      <div class="ms-bar">
+        <button type="button" class="btn" id="ms-cards"></button>
         <button type="button" class="btn" id="ms-flavors-all"></button>
         <button type="button" class="btn" id="ms-hide-rest">شطب كل غير المؤهل</button>
         <button type="button" class="btn" id="ms-catalog"></button>
       </div>
-      <div id="ms-list"><div class="hint">جاري التحميل...</div></div>
-    </div>
+    </details>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -285,6 +315,7 @@
       else if (f === "eligible") rows = rows.filter((i) => kindOf(i) || i.menu_enabled);
       const shown = rows.slice(0, 120);
       const el = document.getElementById("ms-list");
+      renderCards();
       if (!ingredients.length) { el.innerHTML = `<div class="hint">ما في مواد بالمخزون بعد — أضفها من المخزون أو من الكتالوج الجاهز.</div>`; return; }
       el.innerHTML = shown.map(rowHtml).join("") + (rows.length > shown.length ? `<div class="hint" style="margin-top:10px;">يوجد ${rows.length - shown.length} نتيجة إضافية — ضيّق البحث</div>` : "")
         || `<div class="hint">ما في نتائج</div>`;
@@ -315,6 +346,105 @@
       }
     }
 
+    // ---- إدارة البطاقات الرئيسية والفرعية ----
+    const NEW_CARD = "__new__", NO_CARD = "__none__";
+    const cardDrinks = () => ingredients.filter((i) => i.menu_cat !== SHISHA_FLAVOR && (i.menu_group || (i.menu_enabled && kindOf(i) === "drink")));
+    function cardGroups() {
+      const m = new Map();
+      cardDrinks().filter((i) => i.menu_group).forEach((i) => { if (!m.has(i.menu_group)) m.set(i.menu_group, []); m.get(i.menu_group).push(i); });
+      return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "ar"));
+    }
+    function moveSelect(ing, groups) {
+      const opts = groups.filter(([g]) => g !== ing.menu_group).map(([g]) => `<option value="${olvEsc(g)}">نقل إلى: ${olvEsc(g)}</option>`).join("");
+      return `<select class="ms-move" data-id="${olvEsc(ing.id)}" aria-label="نقل ${olvEsc(ing.name)}">
+        <option value="">${ing.menu_group ? "نقل / فك..." : "ضمّ لبطاقة..."}</option>${opts}
+        <option value="${NEW_CARD}">بطاقة جديدة...</option>
+        ${ing.menu_group ? `<option value="${NO_CARD}">فك من البطاقة</option>` : ""}
+      </select>`;
+    }
+    function varHtml(ing, groups) {
+      const stock = Number(ing.current_stock) > 0;
+      const state = !ing.menu_enabled ? `<span class="ms-badge">غير معروض</span>` : stock ? `<span class="ms-badge on">متوفر</span>` : `<span class="ms-badge out">نفد</span>`;
+      return `<div class="ms-var">
+        <div class="ms-name">${olvEsc(ing.menu_variant || ing.name)}${state}
+          <div class="ms-meta">${olvEsc(ing.name)} — المخزون ${olvEsc(ing.current_stock)} ${olvEsc(ing.unit)}${ing.menu_enabled && ing.menu_price != null ? ` — ${olvFormatMoney(ing.menu_price)}` : ""}</div></div>
+        ${ing.menu_group ? `<button type="button" class="btn small" data-card-act="variant" data-id="${olvEsc(ing.id)}">اسم النوع</button>` : ""}
+        ${moveSelect(ing, groups)}
+      </div>`;
+    }
+    function renderCards() {
+      const box = document.getElementById("ms-cards-box");
+      const groups = cardGroups();
+      const loose = cardDrinks().filter((i) => !i.menu_group && i.menu_enabled);
+      if (!groups.length && !loose.length) {
+        box.innerHTML = `<div class="hint">ما في بطاقات بعد. اعرض المشروبات على المنيو من "كل المواد"، أو استعمل "تجميع المتشابه ببطاقات" من الإجراءات الجماعية.</div>`;
+        return;
+      }
+      box.innerHTML = groups.map(([g, list]) => {
+        const on = list.filter((i) => i.menu_enabled);
+        const prices = on.map((i) => Number(i.menu_price)).filter((n) => n > 0);
+        const avail = on.filter((i) => Number(i.current_stock) > 0).length;
+        const priceTxt = prices.length ? (Math.min(...prices) === Math.max(...prices) ? olvFormatMoney(prices[0]) : `${olvFormatMoney(Math.min(...prices))} – ${olvFormatMoney(Math.max(...prices))}`) : "بدون سعر";
+        return `<div class="ms-card" data-group="${olvEsc(g)}">
+          <div class="ms-card-head">
+            <div class="ms-card-title">${olvEsc(g)}
+              <div class="ms-meta">${list.length} نوع — ${on.length} معروض، ${avail} متوفر — ${priceTxt}${!avail && on.length ? " — البطاقة مخفية لأنه كل أنواعها خلصت" : ""}</div></div>
+            <button type="button" class="btn small" data-card-act="rename">تغيير الاسم</button>
+          </div>
+          ${list.map((i) => varHtml(i, groups)).join("")}
+        </div>`;
+      }).join("") + (loose.length ? `<div class="ms-card">
+          <div class="ms-card-head"><div class="ms-card-title">بدون بطاقة<div class="ms-meta">كل واحد من هدول بيظهر بالمنيو كصنف لحاله.</div></div></div>
+          ${loose.map((i) => varHtml(i, groups)).join("")}
+        </div>` : "");
+    }
+    async function saveCards(assign, okMsg) {
+      const errBox = document.getElementById("err"); errBox.style.display = "none";
+      const box = document.getElementById("ms-cards-box");
+      box.querySelectorAll("button, select").forEach((x) => { x.disabled = true; });
+      try {
+        const { error } = await window.supabaseClient.rpc("set_menu_stock_cards", { p_assign: assign });
+        if (error) throw error;
+        await loadAll();
+        await doSync();
+        if (okMsg) setStatus(okMsg, "ok");
+      } catch (err) {
+        olvShowError(errBox, err);
+        renderCards();
+      }
+    }
+    const cleanName = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    document.getElementById("ms-cards-box").addEventListener("click", async (e) => {
+      const b = e.target.closest("button[data-card-act]"); if (!b) return;
+      if (b.dataset.cardAct === "rename") {
+        const old = b.closest(".ms-card").dataset.group;
+        const name = cleanName(prompt("الاسم الجديد للبطاقة (بيظهر هيك بالمنيو):", old));
+        if (!name || name === old) return;
+        const members = ingredients.filter((i) => i.menu_group === old);
+        const clash = ingredients.some((i) => i.menu_group === name);
+        if (clash && !confirm(`في بطاقة اسمها "${name}" — رح تندمج البطاقتين ببطاقة وحدة. متابعة؟`)) return;
+        await saveCards(members.map((i) => ({ id: i.id, group: name, variant: i.menu_variant || deriveCard(i).variant })), `تم تغيير اسم البطاقة إلى "${name}".`);
+      } else if (b.dataset.cardAct === "variant") {
+        const ing = ingredients.find((i) => i.id === b.dataset.id); if (!ing) return;
+        const v = cleanName(prompt("اسم النوع داخل البطاقة (مثلاً: كوكاكولا زيرو):", ing.menu_variant || deriveCard(ing).variant));
+        if (!v || v === ing.menu_variant) return;
+        await saveCards([{ id: ing.id, group: ing.menu_group, variant: v }], "تم تعديل اسم النوع.");
+      }
+    });
+    document.getElementById("ms-cards-box").addEventListener("change", async (e) => {
+      const sel = e.target.closest("select.ms-move"); if (!sel || !sel.value) return;
+      const ing = ingredients.find((i) => i.id === sel.dataset.id); if (!ing) return;
+      let group = sel.value;
+      if (group === NEW_CARD) {
+        group = cleanName(prompt("اسم البطاقة الجديدة (مثلاً: مشروب غازي علبة 330 مل):", deriveCard(ing).group));
+        if (!group) { sel.value = ""; return; }
+      }
+      if (group === NO_CARD) {
+        await saveCards([{ id: ing.id, group: null, variant: null }], `"${ing.name}" صار صنف لحاله بالمنيو.`);
+        return;
+      }
+      await saveCards([{ id: ing.id, group, variant: ing.menu_variant || deriveCard(ing).variant }], `"${ing.name}" صار ضمن بطاقة "${group}".`);
+    });
     document.getElementById("ms-list").addEventListener("click", async (e) => {
       const b = e.target.closest("button[data-act]"); if (!b) return;
       const row = b.closest(".ms-row"); const ing = ingredients.find((i) => i.id === row.dataset.id); if (!ing) return;

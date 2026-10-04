@@ -77,6 +77,10 @@
   .order-row .o-name{flex:1; font-size:13.5px;}
   .order-row .o-stock{color:var(--muted); font-size:12px; min-width:90px;}
   #order-text{width:100%; min-height:200px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:13.5px; line-height:1.9; white-space:pre-wrap;}
+  .olv-add-box summary{cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .olv-add-box summary::-webkit-details-marker{display:none;}
+  .olv-add-box summary::before{content:"＋"; color:var(--gold-hi); font-weight:700;}
+  .olv-add-box[open] summary::before{content:"－";}
 </style>
 </head>
 <body>
@@ -85,6 +89,19 @@
     <div class="err" id="err"></div>
 
     <div class="group">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <h2 style="margin:0;">المستلزمات الحالية</h2>
+        <button type="button" class="btn gold" id="prepare-order-btn"></button>
+      </div>
+      <div id="supplies-by-category">
+        <div class="hint">جاري التحميل...</div>
+      </div>
+    </div>
+
+    <details class="group olv-add-box">
+      <summary><h2 style="display:inline; margin:0;">إضافة مستلزمات جديدة</h2> <span class="hint">(يدوي أو من الكتالوج)</span></summary>
+      <div style="margin-top:14px;">
+    <div class="group" style="margin-bottom:12px;">
       <h2>كتالوج المستلزمات الجاهزة</h2>
       <p class="hint" style="margin-bottom:14px;">
         أكواب، علب، أكياس، مناديل، منظفات، رولات كاشير وغيرها — ابحث وحدد وأضف دفعة وحدة بدل الإدخال اليدوي.
@@ -92,7 +109,7 @@
       <button type="button" class="btn gold" id="open-catalog-btn"></button>
     </div>
 
-    <div class="group">
+    <div class="group" style="margin-bottom:12px;">
       <h2>إضافة مستلزم جديد</h2>
       <form id="supply-form">
         <div class="row3">
@@ -134,15 +151,8 @@
       </form>
     </div>
 
-    <div class="group">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-        <h2 style="margin:0;">المستلزمات الحالية</h2>
-        <button type="button" class="btn gold" id="prepare-order-btn"></button>
       </div>
-      <div id="supplies-by-category">
-        <div class="hint">جاري التحميل...</div>
-      </div>
-    </div>
+    </details>
 
     <div class="group" id="order-group" hidden>
       <h2>تجهيز طلبية</h2>

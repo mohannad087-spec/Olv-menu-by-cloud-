@@ -71,6 +71,33 @@ function olvIcon(name, cls) {
   return `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24">${inner}</svg>`;
 }
 
+// أقسام بتجمع أكتر من صفحة تحت رابط واحد بالقائمة، وبتطلع كتبويبات بأعلى كل صفحة منها
+const OLV_HUBS = [
+  {
+    navId: "inventory",
+    tabs: [
+      { id: "inventory", href: "inventory.html", label: "المواد الخام", icon: "box" },
+      { id: "supplies", href: "supplies.html", label: "المستلزمات", icon: "archive" },
+      { id: "stock-count", href: "stock-count.html", label: "الجرد", icon: "clipboard" },
+    ],
+  },
+  {
+    navId: "product-recipes",
+    tabs: [
+      { id: "product-recipes", href: "product-recipes.html", label: "وصفات الأصناف", icon: "coffee" },
+      { id: "menu-stock", href: "menu-stock.html", label: "المنيو من المخزون", icon: "grid" },
+      { id: "recipes", href: "recipes.html", label: "دليل التحضير", icon: "clipboard" },
+    ],
+  },
+  {
+    navId: "purchase-invoices",
+    tabs: [
+      { id: "purchase-invoices", href: "purchase-invoices.html", label: "فواتير المشتريات", icon: "receipt" },
+      { id: "purchases", href: "purchases.html", label: "مشتريات مفردة (قديمة)", icon: "cart" },
+    ],
+  },
+];
+
 // يرسم شريط التنقل العلوي المشترك بين كل صفحات المحاسبة — التبويبات
 // اليومية عالية التكرار تضل ظاهرة مباشرة، والباقي مجمّع تحت "المزيد"
 // بمجموعات منطقية، حتى ما يصير الشريط جدار عريض من 16 تبويب متراصين
@@ -87,14 +114,10 @@ function olvRenderNav(active) {
     {
       label: "الجرد والمشتريات",
       links: [
-        { id: "recipes", href: "recipes.html", label: "وصفات المشروبات", icon: "coffee" },
-        { id: "inventory", href: "inventory.html", label: "المخزون", icon: "box" },
-        { id: "stock-count", href: "stock-count.html", label: "الجرد", icon: "clipboard" },
-        { id: "supplies", href: "supplies.html", label: "المستلزمات", icon: "archive" },
-        { id: "menu-stock", href: "menu-stock.html", label: "المنيو من المخزون", icon: "grid" },
-        { id: "purchase-invoices", href: "purchase-invoices.html", label: "فواتير المشتريات", icon: "receipt" },
-        { id: "purchases", href: "purchases.html", label: "تسجيل شراء", icon: "cart" },
+        { id: "inventory", href: "inventory.html", label: "المخزون والجرد", icon: "box" },
+        { id: "purchase-invoices", href: "purchase-invoices.html", label: "المشتريات", icon: "receipt" },
         { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
+        { id: "product-recipes", href: "product-recipes.html", label: "الأصناف والوصفات", icon: "coffee", staffHref: "recipes.html", staffLabel: "دليل تحضير المشروبات" },
       ],
     },
     {
@@ -116,12 +139,20 @@ function olvRenderNav(active) {
       ],
     },
   ];
-  const moreActive = moreGroups.some((g) => g.links.some((l) => l.id === active));
+  // الصفحات اللي صارت تبويبات جوا قسم واحد بتضوّي رابط القسم بالقائمة
+  const hub = OLV_HUBS.find((h) => h.tabs.some((t) => t.id === active));
+  const navActive = hub ? hub.navId : active;
+  const moreActive = moreGroups.some((g) => g.links.some((l) => l.id === navActive));
 
   const tabLinkHtml = (l) =>
     `<a class="tab-link${l.id === active ? " on" : ""}" href="${l.href}">${olvIcon(l.icon)}<span>${l.label}</span></a>`;
   const moreLinkHtml = (l) =>
-    `<a class="tab-link tab-more-link${l.id === active ? " on" : ""}" href="${l.href}">${olvIcon(l.icon)}<span>${l.label}</span></a>`;
+    `<a class="tab-link tab-more-link${l.id === navActive ? " on" : ""}" href="${l.href}"${l.staffHref ? ` data-staff-href="${l.staffHref}" data-staff-label="${l.staffLabel}"` : ""}>${olvIcon(l.icon)}<span>${l.label}</span></a>`;
+  // شريط تبويبات القسم (مثلًا: المواد الخام | المستلزمات | الجرد) تحت القائمة
+  const hubHtml = hub
+    ? `<div class="olv-hub-tabs" role="tablist">${hub.tabs.map((t) =>
+        `<a class="olv-hub-tab${t.id === active ? " on" : ""}" href="${t.href}">${olvIcon(t.icon)}<span>${t.label}</span></a>`).join("")}</div>`
+    : "";
 
   const nav = document.getElementById("olv-nav");
   if (!nav) return;
@@ -157,6 +188,7 @@ function olvRenderNav(active) {
         </div>
       </div>
     </div>
+    ${hubHtml}
   `;
   const logoutBtn = document.getElementById("olv-logout-btn");
   if (logoutBtn) logoutBtn.addEventListener("click", olvLogout);
@@ -174,6 +206,18 @@ const OLV_ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", s
 // الكاشير ما بيشوف روابط صفحات الإدارة أصلًا (والصفحة نفسها بتحوّله لو فتحها)
 function olvHideAdminLinks() {
   const allowed = window.OLV_STAFF_PAGES || [];
+  // رابط قسم الأصناف بيصير للكاشير "دليل تحضير المشروبات" (الصفحة الوحيدة المسموحة إله بالقسم)
+  document.querySelectorAll("#olv-nav a[data-staff-href]").forEach((a) => {
+    a.setAttribute("href", a.dataset.staffHref);
+    const span = a.querySelector("span");
+    if (span && a.dataset.staffLabel) span.textContent = a.dataset.staffLabel;
+  });
+  document.querySelectorAll("#olv-nav a.olv-hub-tab").forEach((a) => {
+    const file = (a.getAttribute("href") || "").split("/").pop();
+    if (file && !allowed.includes(file)) a.remove();
+  });
+  const hubBar = document.querySelector("#olv-nav .olv-hub-tabs");
+  if (hubBar && hubBar.querySelectorAll("a").length < 2) hubBar.remove();
   document.querySelectorAll("#olv-nav a.tab-link").forEach((a) => {
     const file = (a.getAttribute("href") || "").split("/").pop();
     if (file && !allowed.includes(file)) a.remove();
