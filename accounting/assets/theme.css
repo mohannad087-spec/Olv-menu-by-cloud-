@@ -8,6 +8,12 @@
   --card-shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px -8px rgba(0,0,0,.6);
   --card-shadow-hover:0 2px 4px rgba(0,0,0,.55), 0 16px 36px -10px rgba(0,0,0,.7), 0 0 0 1px rgba(var(--gold-rgb),.18);
   --ease:cubic-bezier(.2,.7,.3,1);
+  /* منحنيات حركة "نابضية" على طريقة Apple: --spring تقريب لنابض مخمّد
+     بالكامل (بدون ارتداد) للحركة العادية، و--spring-bounce بارتداد خفيف
+     بس للحركات اللي بتبدأ بزخم من إصبع المستخدم (سحب/رمي) */
+  --spring:cubic-bezier(.22,1,.36,1);
+  --spring-bounce:cubic-bezier(.34,1.25,.64,1);
+  --material:rgba(19,18,9,.86);
   color-scheme:dark;
 }
 :root[data-theme="light"]{
@@ -18,6 +24,7 @@
   --paper:#201b10; --muted:#55493d; --hair:rgba(80,60,25,.35); --hair-soft:rgba(80,60,25,.18);
   --danger:#a8402a; --danger-hi:#8f3220; --ok:#3f4b20;
   --overlay-bg:rgba(250,247,240,.94);
+  --material:rgba(255,255,255,.86);
   --card-shadow:0 1px 3px rgba(40,30,10,.08), 0 1px 2px rgba(40,30,10,.06);
   --card-shadow-hover:0 4px 8px rgba(40,30,10,.1), 0 12px 28px -8px rgba(40,30,10,.14), 0 0 0 1px rgba(var(--gold-rgb),.2);
 }
@@ -31,9 +38,16 @@ body{
     var(--ink);
   background-attachment:fixed;
 }
-h1,h2,h3{font-family:'Cormorant Garamond',serif; margin:0; color:var(--gold-hi); font-weight:600;}
+h1,h2,h3{font-family:'Cormorant Garamond',serif; margin:0; color:var(--gold-hi); font-weight:600; line-height:1.2;}
 a{color:var(--gold-hi);}
 button{font-family:'Tajawal',sans-serif; cursor:pointer;}
+/* الاستجابة لحظة اللمس: نلغي تأخير النقر المزدوج (~300ms) على كل عناصر
+   الضغط، ونلغي الوميض الرمادي الافتراضي لأن كل زر عنده حالة :active خاصة */
+a, button, label, select, summary, [role="button"]{touch-action:manipulation; -webkit-tap-highlight-color:transparent;}
+/* الأرقام بنفس العرض حتى ما ترقص المبالغ لما تتغيّر */
+table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
+/* حلقة تركيز واضحة للكيبورد بس (مش للمس) */
+:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
 .icon{width:18px; height:18px; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-4px;}
 
 .wrap{max-width:960px; margin:0 auto; padding:22px 20px;}
@@ -54,7 +68,7 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 }
 .brand-mark-sm .icon{width:19px; height:19px; color:var(--on-gold); stroke-width:1.8;}
 .brand-text{font-size:20px; letter-spacing:2px;}
-.brand-text span{color:var(--muted); font-size:12px; letter-spacing:1px; font-family:'Tajawal',sans-serif; font-weight:400; display:block; margin-top:2px;}
+.brand-text span{color:var(--muted); font-size:12px; letter-spacing:0; font-family:'Tajawal',sans-serif; font-weight:400; display:block; margin-top:2px;}
 .top .actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
 .olv-user-badge{
   display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:999px;
@@ -74,10 +88,10 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
   display:inline-flex; align-items:center; gap:7px; min-height:44px;
   transition:background .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
 }
-.tab-link:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
+.tab-link:active{transform:scale(.96); transition-duration:.08s;}
 .tab-link .icon{width:15px; height:15px; opacity:.85;}
 .tab-link.on{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold); border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px -4px rgba(var(--gold-rgb),.45);}
-.tab-link.on:hover{transform:none;}
+
 .tab-link.on .icon{opacity:1;}
 /* تبويبات القسم (المخزون: المواد الخام | المستلزمات | الجرد ...) */
 .olv-hub-tabs{display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; margin-top:6px; border-top:1px solid var(--hair-soft, var(--hair)); scrollbar-width:none;}
@@ -88,7 +102,8 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
   color:var(--muted); background:transparent; border:1px solid transparent;
 }
 .olv-hub-tab .icon{width:14px; height:14px; opacity:.8;}
-.olv-hub-tab:hover{color:var(--gold-hi); border-color:var(--hair);}
+.olv-hub-tab{transition:background .18s var(--spring), color .18s var(--spring), transform .18s var(--spring);}
+.olv-hub-tab:active{transform:scale(.96); transition-duration:.08s;}
 .olv-hub-tab.on{color:var(--gold-hi); background:rgba(var(--gold-rgb),.12); border-color:rgba(var(--gold-rgb),.45); font-weight:700;}
 .tab-badge{
   position:absolute; top:-6px; inset-inline-end:-6px;
@@ -107,21 +122,28 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
   box-shadow:0 0 0 2px var(--ink-2);
 }
 .tab-more-panel{
-  display:none; position:fixed; z-index:60; width:260px; max-width:calc(100vw - 24px);
+  display:block; visibility:hidden; opacity:0; transform:scale(.94) translateY(-6px); transform-origin:top right;
+  pointer-events:none;
+  transition:opacity .16s var(--spring), transform .22s var(--spring), visibility 0s linear .22s;
+  position:fixed; z-index:60; width:260px; max-width:calc(100vw - 24px);
   max-height:calc(100vh - 100px); overflow-y:auto;
-  background:var(--ink-2); border:1px solid var(--hair); border-radius:14px;
-  padding:10px; box-shadow:var(--card-shadow-hover);
+  background:var(--material); -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid var(--hair); border-radius:16px;
+  padding:10px; box-shadow:var(--card-shadow-hover), 0 24px 48px -12px rgba(0,0,0,.45);
 }
-.tab-more.open .tab-more-panel{display:block;}
+.tab-more.open .tab-more-panel{
+  visibility:visible; opacity:1; transform:none; pointer-events:auto;
+  transition:opacity .16s var(--spring), transform .26s var(--spring), visibility 0s;
+}
 .tab-more-group + .tab-more-group{margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft, rgba(var(--gold-rgb),.1));}
-.tab-more-group-label{font-size:11px; color:var(--muted); letter-spacing:.5px; padding:2px 10px 6px;}
+.tab-more-group-label{font-size:11px; color:var(--muted); letter-spacing:0; padding:2px 10px 6px;}
 .tab-more-link{
   position:relative; background:transparent; border:none; min-height:40px;
   display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:9px;
   color:var(--paper); text-decoration:none; font-size:13.5px; white-space:normal;
   transition:background .14s var(--ease), color .14s var(--ease);
 }
-.tab-more-link:hover{background:var(--ink-3); color:var(--gold-hi); transform:none;}
+.tab-more-link:active{background:var(--ink-3); color:var(--gold-hi); transform:none;}
 .tab-more-link.on{background:rgba(var(--gold-rgb),.14); color:var(--gold-hi); font-weight:700; box-shadow:none;}
 .tab-more-link .icon{opacity:.85;}
 .tab-more-link.on .icon{opacity:1;}
@@ -140,18 +162,17 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 .btn{
   border:1px solid var(--hair); background:transparent; color:var(--paper);
   padding:11px 16px; border-radius:8px; font-size:13px;
-  transition:border-color .16s var(--ease), color .16s var(--ease), transform .12s var(--ease), box-shadow .16s var(--ease), filter .16s var(--ease), background .16s var(--ease);
+  transition:border-color .16s var(--ease), color .16s var(--ease), transform .2s var(--spring), box-shadow .16s var(--ease), filter .16s var(--ease), background .16s var(--ease);
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
   min-height:44px; -webkit-tap-highlight-color:transparent;
 }
-.btn:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
-.btn:active{transform:translateY(0); filter:brightness(.96);}
+.btn:active{transform:scale(.97); filter:brightness(.94); transition-duration:.08s;}
 .btn.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold); font-weight:700; border:none; box-shadow:0 4px 14px -4px rgba(var(--gold-rgb),.5);}
-.btn.gold:hover{filter:brightness(1.06); box-shadow:0 6px 18px -4px rgba(var(--gold-rgb),.6);}
+
 .btn.danger{border-color:rgba(193,88,63,.4); color:var(--danger-hi);}
-.btn.danger:hover{border-color:var(--danger); color:#f0b7a8;}
+
 .btn.small{padding:8px 13px; font-size:12.5px; min-height:38px;}
-.btn:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+.btn:disabled{opacity:.5; cursor:not-allowed; transform:none; filter:none;}
 
 /* ---- forms ---- */
 .field{margin-bottom:16px;}
@@ -162,7 +183,8 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 }
 /* حجم الخط 16px على كل الحقول أعلاه مقصود: أي حجم أصغر يخلي متصفح
    سفاري على الآيفون/الآيباد "يزوم" تلقائيًا على الحقل بمجرد الضغط عليه */
-.field input:focus,.field select:focus,.field textarea:focus{outline:none; border-color:var(--gold);}
+.field input,.field select,.field textarea{transition:border-color .16s var(--ease), box-shadow .16s var(--ease);}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(var(--gold-rgb),.18);}
 
 /* صناديق الاختيار وأزرار الراديو بحجم مريح للمس بدل الحجم الافتراضي
    الصغير جدًا في المتصفحات (يأتي بعد قواعد .field input عمدًا ليكسبها) */
@@ -195,7 +217,7 @@ input[type="checkbox"], input[type="radio"]{
   box-shadow:var(--card-shadow);
   transition:transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
-.stat:hover{transform:translateY(-3px); box-shadow:var(--card-shadow-hover); border-color:var(--hair);}
+
 /* .stat-row مضافة اختياريًا داخل .stat لعرض أيقونة جنب الرقم — الأقسام
    القديمة اللي بتحط label/value مباشرة جوا .stat (بدون .stat-row)
    بتضل شغالة زي ما هي، بترتيبها العمودي الافتراضي */
@@ -222,7 +244,7 @@ table{width:max-content; min-width:100%; border-collapse:collapse; font-size:13.
 th,td{padding:10px 8px; text-align:right; border-bottom:1px solid var(--hair);}
 th{color:var(--muted); font-weight:500; font-size:12px;}
 tbody tr{transition:background .15s var(--ease);}
-tr:hover td{background:rgba(var(--gold-rgb),.06);}
+
 .table-wrap{overflow-x:auto;}
 .empty-row td{text-align:center; color:var(--muted); padding:24px 8px;}
 
@@ -270,4 +292,57 @@ tr:hover td{background:rgba(var(--gold-rgb),.06);}
 .olv-footer{
   text-align:center; color:var(--muted); font-size:12px;
   padding:22px 16px calc(22px + env(safe-area-inset-bottom));
+}
+
+/* ---- مؤثرات المرور (hover) للأجهزة اللي فيها ماوس فعلًا ----
+   على اللمس، :hover بيعلق على آخر عنصر انضغط ("رفعة" ما بتنزل) — فنحصرها
+   بالأجهزة اللي بتدعم المرور الحقيقي، واللمس بياخد ردّة فعل :active فورية */
+@media (hover:hover) and (pointer:fine){
+  .tab-link:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
+  .tab-link.on:hover{transform:none;}
+  .olv-hub-tab:hover{color:var(--gold-hi); border-color:var(--hair);}
+  .tab-more-link:hover{background:var(--ink-3); color:var(--gold-hi); transform:none;}
+  .btn:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
+  .btn:active{transform:scale(.97);}
+  .btn.gold:hover{filter:brightness(1.06); box-shadow:0 6px 18px -4px rgba(var(--gold-rgb),.6);}
+  .btn.danger:hover{border-color:var(--danger); color:#f0b7a8;}
+  .btn:disabled:hover{transform:none;}
+  .stat:hover{transform:translateY(-3px); box-shadow:var(--card-shadow-hover); border-color:var(--hair);}
+  tr:hover td{background:rgba(var(--gold-rgb),.06);}
+}
+
+/* ---- الشريط العلوي على الموبايل: سطر واحد بدل ثلاثة ----
+   الشعار + اسم المستخدم + أزرار أيقونات (الثيم/الموقع/الخروج). النص
+   المخفي للأزرار موجود بـaria-label/title فقارئ الشاشة بيضل يقراه */
+@media (max-width:640px){
+  .top{padding:10px 14px; flex-wrap:nowrap; gap:8px;}
+  .olv-brand{min-width:0; flex:none;}
+  .brand-text{display:none;}
+  .top .actions{flex-wrap:nowrap; gap:6px; min-width:0; flex:1; justify-content:flex-end;}
+  .top .actions .btn.small{width:44px; min-height:44px; padding:0; flex:none;}
+  .top .actions .btn .btn-label{display:none;}
+  .top .actions .btn .icon{width:19px; height:19px;}
+  .olv-user-badge{min-width:0; flex:0 1 auto; padding:7px 12px; font-size:12.5px;}
+  .olv-user-badge > span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  .tabs{padding:10px 14px 4px; gap:6px; scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab-link{padding:10px 15px;}
+  .wrap{padding:18px 14px;}
+}
+
+/* ---- إمكانية الوصول: حركة مخفّفة، شفافية مخفّفة، تباين أعلى ---- */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    animation-duration:.01ms !important; animation-iteration-count:1 !important;
+    transition-duration:.12s !important; scroll-behavior:auto !important;
+  }
+  .btn:active, .tab-link:active, .olv-hub-tab:active{transform:none !important;}
+  .tab-more-panel{transform:none !important;}
+}
+@media (prefers-reduced-transparency: reduce){
+  .tab-more-panel{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
+}
+@media (prefers-contrast: more){
+  :root{--hair:rgba(var(--gold-rgb),.6); --muted:var(--paper);}
+  .tab-more-panel{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
 }

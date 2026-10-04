@@ -164,9 +164,9 @@ function olvRenderNav(active) {
       </h1>
       <div class="actions">
         <span class="olv-user-badge" id="olv-user-badge" hidden>${olvIcon("person")}<span id="olv-user-name"></span></span>
-        <button class="btn small" id="theme-toggle-btn"></button>
-        <a class="btn small" href="https://olv-menu.pages.dev" target="_blank" rel="noopener">${olvIcon("externalLink")} الموقع</a>
-        <button class="btn small danger" id="olv-logout-btn">${olvIcon("logOut")} خروج</button>
+        <button class="btn small" id="theme-toggle-btn" aria-label="تبديل الإضاءة" title="تبديل الإضاءة"></button>
+        <a class="btn small" href="https://olv-menu.pages.dev" target="_blank" rel="noopener" aria-label="الموقع" title="الموقع">${olvIcon("externalLink")}<span class="btn-label">الموقع</span></a>
+        <button class="btn small danger" id="olv-logout-btn" aria-label="خروج" title="خروج">${olvIcon("logOut")}<span class="btn-label">خروج</span></button>
       </div>
     </div>
     <div class="tabs">
@@ -263,6 +263,9 @@ function olvInitMoreMenu() {
     right = Math.min(right, window.innerWidth - panelWidth - 12);
     right = Math.max(right, 12);
     panel.style.right = Math.round(right) + "px";
+    // القائمة بتكبر من زر "المزيد" نفسه (مش من زاويتها) حتى يبين مصدرها
+    const panelLeft = window.innerWidth - right - panelWidth;
+    panel.style.transformOrigin = `${Math.round(r.left + r.width / 2 - panelLeft)}px top`;
   }
 
   // ما في تسكير على scroll عمدًا: #olv-nav بره sticky بأعلى الشاشة دايمًا
@@ -272,20 +275,27 @@ function olvInitMoreMenu() {
   // وهاد كان يقفل القائمة فور ما تنفتح
   function close() {
     wrap.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
     document.removeEventListener("click", onOutsideClick);
+    document.removeEventListener("keydown", onEsc);
     window.removeEventListener("resize", close);
   }
 
   function onOutsideClick(e) {
     if (!wrap.contains(e.target)) close();
   }
+  function onEsc(e) {
+    if (e.key === "Escape") close();
+  }
 
   btn.onclick = (e) => {
     e.stopPropagation();
     if (wrap.classList.contains("open")) { close(); return; }
-    wrap.classList.add("open");
     position();
+    wrap.classList.add("open");
+    btn.setAttribute("aria-expanded", "true");
     document.addEventListener("click", onOutsideClick);
+    document.addEventListener("keydown", onEsc);
     window.addEventListener("resize", close);
   };
 
