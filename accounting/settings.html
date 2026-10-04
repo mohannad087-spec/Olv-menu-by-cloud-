@@ -1381,39 +1381,24 @@
       alert("تم حفظ حدود الكاشير");
     });
 
-    async function checkResetPin() {
-      const entered = prompt("أدخل الرقم السري لتأكيد هذا الإجراء:");
-      if (entered === null) return false;
-      const { data: pinOk, error } = await window.supabaseClient.rpc("verify_reset_pin", { p_pin: entered });
-      if (error) { olvShowError(document.getElementById("err"), error); return false; }
-      if (pinOk !== true) {
-        alert("الرقم السري غير صحيح");
-        return false;
-      }
-      return true;
+    // الرقم السري بينفحص جوا الدالة نفسها على السيرفر (مش بالمتصفح)، مع حد لمحاولات التخمين
+    async function runDangerAction(action, confirmMsg, doneMsg) {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const pin = prompt("أدخل الرقم السري لتأكيد هذا الإجراء:");
+      if (pin === null) return;
+      if (!confirm(confirmMsg)) return;
+      const { data, error } = await window.supabaseClient.rpc("danger_zone_action", { p_action: action, p_pin: pin });
+      if (error) { olvShowError(errBox, error); return; }
+      if (data === null) { alert("الرقم السري غير صحيح"); return; }
+      alert(doneMsg);
     }
 
-    document.getElementById("reset-stock-btn").addEventListener("click", async () => {
-      if (!(await checkResetPin())) return;
-      if (!confirm("سيتم تصفير كميات كل المواد الخام إلى صفر. هل أنت متأكد؟")) return;
-      const errBox = document.getElementById("err");
-      const { data: rows, error: readErr } = await window.supabaseClient.from("ingredients").select("id");
-      if (readErr) { olvShowError(errBox, readErr); return; }
-      for (const row of rows || []) {
-        const { error } = await window.supabaseClient.from("ingredients").update({ current_stock: 0 }).eq("id", row.id);
-        if (error) { olvShowError(errBox, error); return; }
-      }
-      alert("تم تصفير كميات كل المواد الخام");
-    });
+    document.getElementById("reset-stock-btn").addEventListener("click", () =>
+      runDangerAction("reset_stock", "سيتم تصفير كميات كل المواد الخام إلى صفر. هل أنت متأكد؟", "تم تصفير كميات كل المواد الخام"));
 
-    document.getElementById("delete-ingredients-btn").addEventListener("click", async () => {
-      if (!(await checkResetPin())) return;
-      if (!confirm("سيتم حذف كل المواد الخام ووصفاتها نهائيًا ولا يمكن التراجع. هل أنت متأكد؟")) return;
-      const errBox = document.getElementById("err");
-      const { error } = await window.supabaseClient.from("ingredients").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      if (error) { olvShowError(errBox, error); return; }
-      alert("تم حذف كل المواد الخام ووصفاتها");
-    });
+    document.getElementById("delete-ingredients-btn").addEventListener("click", () =>
+      runDangerAction("delete_ingredients", "سيتم حذف كل المواد الخام ووصفاتها نهائيًا ولا يمكن التراجع. هل أنت متأكد؟", "تم حذف كل المواد الخام ووصفاتها"));
 
     document.getElementById("change-pin-btn").addEventListener("click", async () => {
       const errBox = document.getElementById("err");
@@ -1429,12 +1414,7 @@
 
     document.getElementById("delete-sales-btn").addEventListener("click", async () => {
       if (myRole !== "owner") { alert("حذف سجل المبيعات لصاحب المطعم فقط"); return; }
-      if (!(await checkResetPin())) return;
-      if (!confirm("سيتم حذف سجل المبيعات بالكامل (بما في ذلك بيانات الأكثر مبيعًا) نهائيًا ولا يمكن التراجع. هل أنت متأكد؟")) return;
-      const errBox = document.getElementById("err");
-      const { error } = await window.supabaseClient.from("sales_entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      if (error) { olvShowError(errBox, error); return; }
-      alert("تم حذف سجل المبيعات بالكامل");
+      await runDangerAction("delete_sales", "سيتم حذف سجل المبيعات بالكامل (بما في ذلك بيانات الأكثر مبيعًا) نهائيًا ولا يمكن التراجع. هل أنت متأكد؟", "تم حذف سجل المبيعات بالكامل");
       loadSecurity();
     });
 
