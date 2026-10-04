@@ -330,6 +330,34 @@ tbody tr{transition:background .15s var(--ease);}
   .wrap{padding:18px 14px;}
 }
 
+
+/* ---- حركة الواجهة (animate): كل شي هون إله هدف وبيحترم reduced-motion ----
+   • مودال/نافذة مولّدة بالجافاسكربت (إعادة طباعة، كتالوج، وحدة شراء...): ظهور 200ms وخروج 140ms (حدث متكرر نسبيًا = سريع)
+   • دخول بطاقات الصفحة (.wrap > .group): ارتفاع 6px + ظهور 240ms بتأخير 35ms بين البطاقات — بس لصفحات الإدارة؛
+     شاشة البيع والمطبخ ما بتستعمل .group فما بتتأثر (حدث يتكرر مئات المرات باليوم = بدون حركة)
+   • كل الحركات transform/opacity فقط، ومنحنى --spring (ease-out قوي)، وما في ease-in */
+@keyframes olv-bd-in{from{opacity:0;} to{opacity:1;}}
+@keyframes olv-bd-out{from{opacity:1;} to{opacity:0;}}
+@keyframes olv-modal-in{from{opacity:0; transform:scale(.96) translateY(6px);} to{opacity:1; transform:none;}}
+@keyframes olv-modal-out{from{opacity:1; transform:none;} to{opacity:0; transform:scale(.98);}}
+@keyframes olv-rise{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+.olv-modal-backdrop{animation:olv-bd-in .15s var(--spring) both;}
+.olv-modal-backdrop > *{animation:olv-modal-in .2s var(--spring) both;}
+.olv-modal-backdrop.closing{animation:olv-bd-out .14s var(--spring) both; pointer-events:none;}
+.olv-modal-backdrop.closing > *{animation:olv-modal-out .14s var(--spring) both;}
+.wrap > .group{animation:olv-rise .24s var(--spring) backwards;}
+/* أول عنصر بالـwrap غالبًا شريط الخطأ (.err) فأول بطاقة هي الثانية — التأخير يبدأ من الثالثة */
+.wrap > .group:nth-child(3){animation-delay:.035s;}
+.wrap > .group:nth-child(4){animation-delay:.07s;}
+.wrap > .group:nth-child(5){animation-delay:.105s;}
+.wrap > .group:nth-child(6){animation-delay:.14s;}
+.wrap > .group:nth-child(n+7){animation-delay:.17s;}
+@media (prefers-reduced-motion: reduce){
+  .olv-modal-backdrop > *{animation:olv-bd-in .15s ease both;}
+  .olv-modal-backdrop.closing > *{animation:olv-bd-out .12s ease both;}
+  .wrap > .group{animation:olv-bd-in .15s ease backwards;}
+}
+
 /* ---- إمكانية الوصول: حركة مخفّفة، شفافية مخفّفة، تباين أعلى ---- */
 @media (prefers-reduced-motion: reduce){
   *, *::before, *::after{

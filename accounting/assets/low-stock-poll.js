@@ -40,7 +40,7 @@ const OlvLowStockPoll = (function () {
       "max-width:90vw", "text-align:center", "display:flex", "align-items:center", "gap:8px",
     ].join(";");
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3200);
+    if (window.olvToastLife) olvToastLife(toast, 3200); else setTimeout(() => toast.remove(), 3200);
   }
 
   // بيبني جملة "اسم١، اسم٢، اسم٣ و٢ غيرها" لمجموعة أصناف من نفس السبب

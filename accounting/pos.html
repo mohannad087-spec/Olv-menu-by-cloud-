@@ -182,9 +182,9 @@
     border-radius:20px 20px 0 0; padding:8px 20px calc(18px + env(safe-area-inset-bottom));
     z-index:50; box-shadow:0 -10px 30px rgba(0,0,0,.4); max-height:80vh; overflow-y:auto;
     overscroll-behavior:contain; max-width:640px; margin:0 auto;
-    animation:olv-sheet-in .38s var(--spring) both;
+    animation:olv-sheet-in .28s var(--spring) both;
   }
-  .sheet.closing{animation:olv-sheet-out .24s cubic-bezier(.4,0,1,1) both; pointer-events:none;}
+  .sheet.closing{animation:olv-sheet-out .2s var(--spring) both; pointer-events:none;}
   .sheet.dragging{animation:none; transition:none;}
   .sheet.settling{animation:none; transition:transform .34s var(--spring-bounce);}
   .sheet-grabber{
@@ -194,9 +194,9 @@
   .sheet-grabber::before{content:""; width:38px; height:5px; border-radius:999px; background:var(--hair);}
   .sheet-backdrop{
     position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:40;
-    animation:olv-fade-in .28s var(--ease) both;
+    animation:olv-fade-in .2s var(--ease) both;
   }
-  .sheet-backdrop.closing{animation:olv-fade-out .24s var(--ease) both; pointer-events:none;}
+  .sheet-backdrop.closing{animation:olv-fade-out .2s var(--ease) both; pointer-events:none;}
   @keyframes olv-sheet-in{from{transform:translateY(100%);} to{transform:translateY(0);}}
   @keyframes olv-sheet-out{from{transform:translateY(var(--sheet-y, 0px));} to{transform:translateY(100%);}}
   @keyframes olv-fade-in{from{opacity:0;} to{opacity:1;}}
@@ -210,14 +210,14 @@
   .checkout-backdrop{
     position:fixed; inset:0; background:rgba(8,7,4,.6); backdrop-filter:blur(6px);
     z-index:60; display:flex; align-items:center; justify-content:center; padding:20px;
-    opacity:0; transition:opacity .2s var(--ease);
+    opacity:0; transition:opacity .15s var(--spring);
   }
   .checkout-backdrop.in{opacity:1;}
   .checkout-modal{
     position:relative; width:100%; max-width:420px; max-height:92vh; overflow-y:auto;
     background:var(--ink-2); border:1px solid var(--hair); border-radius:22px;
     box-shadow:0 24px 60px rgba(0,0,0,.5); padding:26px 24px calc(24px + env(safe-area-inset-bottom));
-    transform:scale(.94) translateY(12px); opacity:0; transition:transform .34s var(--spring), opacity .2s var(--ease);
+    transform:scale(.94) translateY(12px); opacity:0; transition:transform .24s var(--spring), opacity .16s var(--spring);
   }
   .checkout-backdrop.in .checkout-modal{transform:scale(1) translateY(0); opacity:1;}
   .checkout-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
@@ -296,7 +296,7 @@
   .checkout-success .check{
     width:76px; height:76px; border-radius:50%; background:var(--ok); color:#fff;
     display:flex; align-items:center; justify-content:center; font-size:38px;
-    transform:scale(.5); transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+    transform:scale(.8); transition:transform .22s var(--spring);
   }
   .checkout-success .check .icon{width:38px; height:38px; stroke-width:3;}
   .checkout-success.show .check{transform:scale(1);}
@@ -404,8 +404,8 @@
     padding:0 6px; transition:transform .3s var(--spring-bounce);
   }
   /* نبضة صغيرة على عدّاد التذكرة لما ينضاف صنف — تأكيد إنو الضغطة وصلت */
-  .ticket-badge.bump{animation:olv-bump .36s var(--spring-bounce);}
-  @keyframes olv-bump{0%{transform:scale(1);} 35%{transform:scale(1.35);} 100%{transform:scale(1);}}
+  .ticket-badge.bump{animation:olv-bump .16s var(--spring);}
+  @keyframes olv-bump{0%{transform:scale(1);} 40%{transform:scale(1.12);} 100%{transform:scale(1);}}
   .pos-pagination{display:flex; align-items:center; justify-content:center; gap:14px; padding-top:6px;}
   .pos-pagination button{
     width:44px; height:44px; border-radius:10px; border:1px solid var(--hair); background:var(--ink-2);
@@ -693,7 +693,7 @@
         "display:flex", "align-items:center", "gap:8px",
       ].join(";");
       document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2200);
+      if (window.olvToastLife) olvToastLife(toast, 2200); else setTimeout(() => toast.remove(), 2200);
     }
 
     // يراقب الطلبات اليوم اللي صارت "جاهز" (المطبخ صار خلص فيها) ويطلع
@@ -1306,9 +1306,11 @@
             msgEl.style.lineHeight = "1.7";
           }
           modal.querySelector("#checkout-success").classList.add("show");
+          // الكاشير ما لازم يستنى: لمسة على شاشة النجاح بتسكّرها فورًا (ومؤقت 650ms للحالة العادية)
+          modal.querySelector("#checkout-success").addEventListener("click", close);
           if (typeof OlvSound !== "undefined") queued ? OlvSound.playError() : OlvSound.playSuccess();
           isSubmitting = false;
-          setTimeout(close, queued ? 6000 : 900);
+          setTimeout(close, queued ? 6000 : 650);
         } catch (err) {
           olvShowError(errBox, err);
           confirmBtn.disabled = false;
@@ -1319,9 +1321,12 @@
 
       // يمنع إغلاق النافذة (بالضغط بره أو زر ✕) أثناء إرسال عملية البيع
       // فعليًا، حتى ما تختفي الشاشة قبل ما يتأكد الكاشير إنها نجحت
+      let closingModal = false;
       function close() {
-        if (isSubmitting) return;
-        backdrop.remove();
+        if (isSubmitting || closingModal) return;
+        closingModal = true;
+        backdrop.classList.remove("in"); // خروج: بيتلاشى 150ms بنفس مسار الدخول ثم بينشال
+        setTimeout(() => backdrop.remove(), 170);
       }
       backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
       render();
