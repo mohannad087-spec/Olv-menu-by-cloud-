@@ -122,8 +122,10 @@
     flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px;
     background:var(--ink-3); border:1px solid var(--hair); color:var(--muted);
     padding:14px 6px; border-radius:14px; font-size:11.5px; white-space:normal; text-align:center;
-    min-height:78px; line-height:1.25; transition:.15s; width:100%;
+    min-height:78px; line-height:1.25; width:100%;
+    transition:background .18s var(--spring), color .18s var(--spring), border-color .18s var(--spring), transform .22s var(--spring);
   }
+  .cat-tab:active{transform:scale(.95); transition-duration:.08s;}
   .cat-tab .cat-tab-icon{font-size:26px; line-height:1;}
   .cat-tab .cat-tab-icon .icon{width:24px; height:24px;}
   .cat-tab .cat-tab-label{font-weight:600;}
@@ -135,10 +137,14 @@
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; margin-bottom:20px;}
   .card{
     background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; overflow:hidden; cursor:pointer;
-    transition:.15s; text-align:center; position:relative; box-shadow:var(--card-shadow);
+    transition:transform .24s var(--spring), border-color .16s var(--ease), box-shadow .2s var(--ease);
+    text-align:center; position:relative; box-shadow:var(--card-shadow);
   }
-  .card:hover{border-color:var(--gold); transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.12);}
-  .card:active{transform:scale(.97);}
+  @media (hover:hover) and (pointer:fine){
+    .card:hover{border-color:var(--gold); transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.12);}
+  }
+  /* ردّة الفعل على اللمس نفسه (مش بعد ما يرفع الإصبع) */
+  .card:active{transform:scale(.96); transition-duration:.08s;}
   .card .best-badge{
     position:absolute; top:8px; inset-inline-start:8px; z-index:1;
     background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold);
@@ -169,25 +175,49 @@
   }
   .card .add-btn:active{filter:brightness(.92);}
 
+  /* ورقة تعديل سطر التذكرة: بتطلع من تحت وبترجع لتحت (نفس المسار)،
+     وبتنسحب لتحت بالإصبع لتتسكّر — مع الزخم: رمية سريعة قصيرة بتكفي */
   .sheet{
     position:fixed; inset:auto 0 0 0; background:var(--ink-2); border-top:1px solid var(--hair);
-    border-radius:18px 18px 0 0; padding:18px 20px calc(18px + env(safe-area-inset-bottom));
+    border-radius:20px 20px 0 0; padding:8px 20px calc(18px + env(safe-area-inset-bottom));
     z-index:50; box-shadow:0 -10px 30px rgba(0,0,0,.4); max-height:80vh; overflow-y:auto;
+    overscroll-behavior:contain; max-width:640px; margin:0 auto;
+    animation:olv-sheet-in .38s var(--spring) both;
   }
-  .sheet-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:40;}
+  .sheet.closing{animation:olv-sheet-out .24s cubic-bezier(.4,0,1,1) both; pointer-events:none;}
+  .sheet.dragging{animation:none; transition:none;}
+  .sheet.settling{animation:none; transition:transform .34s var(--spring-bounce);}
+  .sheet-grabber{
+    display:flex; justify-content:center; padding:6px 0 12px; cursor:grab; touch-action:none;
+  }
+  .sheet h2, .sheet-grabber{-webkit-user-select:none; user-select:none;}
+  .sheet-grabber::before{content:""; width:38px; height:5px; border-radius:999px; background:var(--hair);}
+  .sheet-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:40;
+    animation:olv-fade-in .28s var(--ease) both;
+  }
+  .sheet-backdrop.closing{animation:olv-fade-out .24s var(--ease) both; pointer-events:none;}
+  @keyframes olv-sheet-in{from{transform:translateY(100%);} to{transform:translateY(0);}}
+  @keyframes olv-sheet-out{from{transform:translateY(var(--sheet-y, 0px));} to{transform:translateY(100%);}}
+  @keyframes olv-fade-in{from{opacity:0;} to{opacity:1;}}
+  @keyframes olv-fade-out{from{opacity:var(--backdrop-o, 1);} to{opacity:0;}}
+  @media (prefers-reduced-motion: reduce){
+    .sheet{animation:olv-fade-in .2s ease both;}
+    .sheet.closing{animation:olv-fade-out .2s ease both;}
+  }
 
   /* ---- شاشة إتمام الدفع الاحترافية ---- */
   .checkout-backdrop{
     position:fixed; inset:0; background:rgba(8,7,4,.6); backdrop-filter:blur(6px);
     z-index:60; display:flex; align-items:center; justify-content:center; padding:20px;
-    opacity:0; transition:opacity .18s ease;
+    opacity:0; transition:opacity .2s var(--ease);
   }
   .checkout-backdrop.in{opacity:1;}
   .checkout-modal{
     position:relative; width:100%; max-width:420px; max-height:92vh; overflow-y:auto;
     background:var(--ink-2); border:1px solid var(--hair); border-radius:22px;
     box-shadow:0 24px 60px rgba(0,0,0,.5); padding:26px 24px calc(24px + env(safe-area-inset-bottom));
-    transform:scale(.94) translateY(10px); opacity:0; transition:transform .2s ease, opacity .2s ease;
+    transform:scale(.94) translateY(12px); opacity:0; transition:transform .34s var(--spring), opacity .2s var(--ease);
   }
   .checkout-backdrop.in .checkout-modal{transform:scale(1) translateY(0); opacity:1;}
   .checkout-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
@@ -217,6 +247,13 @@
     min-height:72px;
   }
   .pm-tile .icon{width:24px; height:24px;}
+  .pm-tile{transition:transform .2s var(--spring), background .16s var(--ease), border-color .16s var(--ease), color .16s var(--ease);}
+  .pm-tile:active, .quick-amounts button:active, .keypad button:active, .qty-row button:active,
+  .qty-stepper button:active, .pos-pagination button:active, .discount-mode-tab:active{transform:scale(.94);}
+  .quick-amounts button, .keypad button, .qty-row button, .qty-stepper button, .pos-pagination button{
+    transition:transform .2s var(--spring), background .12s var(--ease), border-color .12s var(--ease);
+  }
+  .quick-amounts button:active, .keypad button:active, .qty-stepper button:active, .pos-pagination button:active{transition-duration:.06s;}
   .pm-tile.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.12); color:var(--gold-hi); font-weight:700;}
 
   .cash-panel{margin-bottom:8px;}
@@ -364,8 +401,11 @@
   .ticket-badge{
     background:var(--gold); color:var(--on-gold); font-size:12px; font-weight:700;
     border-radius:999px; min-width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center;
-    padding:0 6px;
+    padding:0 6px; transition:transform .3s var(--spring-bounce);
   }
+  /* نبضة صغيرة على عدّاد التذكرة لما ينضاف صنف — تأكيد إنو الضغطة وصلت */
+  .ticket-badge.bump{animation:olv-bump .36s var(--spring-bounce);}
+  @keyframes olv-bump{0%{transform:scale(1);} 35%{transform:scale(1.35);} 100%{transform:scale(1);}}
   .pos-pagination{display:flex; align-items:center; justify-content:center; gap:14px; padding-top:6px;}
   .pos-pagination button{
     width:44px; height:44px; border-radius:10px; border:1px solid var(--hair); background:var(--ink-2);
@@ -388,6 +428,47 @@
   .pos-status-bar .psb-brand{display:flex; align-items:center; gap:6px;}
   @media (max-width:900px){
     .pos-status-bar{display:none;}
+  }
+
+  /* ---- التذكرة على الموبايل: ورقة سفلية بحالتين ----
+     مطوية: بتبيّن العنوان والعدد والإجمالي وزرّي حفظ/الدفع بس، فالأصناف
+     بتاخد معظم الشاشة. مفتوحة: كل شي متل قبل. بتنفتح وبتتسكّر بالضغط على
+     المقبض/العنوان أو بسحبه لفوق/لتحت (مع الزخم) */
+  .cart-grabber{display:none;}
+  @media (max-width:900px){
+    .pos-cart-panel{
+      border-radius:20px 20px 0 0; border:1px solid var(--hair); border-bottom:none;
+      background:var(--material); -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%);
+      box-shadow:0 -12px 32px -10px rgba(0,0,0,.45);
+      max-height:78vh; overscroll-behavior:contain;
+    }
+    .pos-cart-panel.dragging{transition:none;}
+    .pos-cart-panel.settling{transition:transform .34s var(--spring-bounce);}
+    .cart-grabber{
+      display:flex; justify-content:center; padding:8px 0 4px; margin:-8px 0 0; cursor:grab;
+      touch-action:none; width:100%; background:none; border:0;
+    }
+    .cart-grabber::before{content:""; width:38px; height:5px; border-radius:999px; background:var(--hair);}
+    .cart-panel-inner{padding:12px 16px calc(12px + env(safe-area-inset-bottom));}
+    .ticket-header{cursor:pointer; touch-action:none; -webkit-user-select:none; user-select:none;}
+    .ticket-header .cart-chevron{display:inline-flex; color:var(--muted); transition:transform .3s var(--spring);}
+    .ticket-header .cart-chevron .icon{width:18px; height:18px;}
+    .pos-cart-panel.collapsed .ticket-header .cart-chevron{transform:rotate(180deg);}
+    .pos-cart-panel.collapsed .cart-panel-inner > :not(.ticket-header):not(.cart-bar):not(.cart-grabber){display:none;}
+    .pos-cart-panel.collapsed .discount-toggle-btn,
+    .pos-cart-panel.collapsed .discount-form,
+    .pos-cart-panel.collapsed .cart-total-row:not(.grand){display:none !important;}
+    .pos-cart-panel.collapsed .ticket-header{margin-bottom:6px;}
+    .pos-cart-panel.collapsed .cart-bar{margin-top:0; padding-top:6px; border-top:none; background:none;}
+    .pos-cart-panel.collapsed .cart-total-row.grand{border-top:none; padding-top:0;}
+    .pos-cart-panel:not(.collapsed) .cart-panel-inner > *{animation:olv-fade-in .24s var(--ease) both;}
+    .cart-bar{background:none;}
+  }
+  @media (min-width:901px){
+    .ticket-header .cart-chevron{display:none;}
+  }
+  @media (prefers-reduced-transparency: reduce){
+    .pos-cart-panel{background:var(--ink-2) !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;}
   }
 </style>
 </head>
@@ -423,11 +504,15 @@
         </div>
       </div>
 
-      <aside class="pos-cart-panel">
+      <aside class="pos-cart-panel collapsed" id="pos-cart-panel">
         <div class="cart-panel-inner">
-          <div class="ticket-header">
+          <button type="button" class="cart-grabber" id="cart-grabber" aria-label="فتح/طي التذكرة" aria-expanded="false"></button>
+          <div class="ticket-header" id="ticket-header">
             <h2>التذكرة</h2>
-            <span class="ticket-badge" id="ticket-badge">0</span>
+            <span style="display:inline-flex; align-items:center; gap:10px;">
+              <span class="cart-chevron" id="cart-chevron"></span>
+              <span class="ticket-badge" id="ticket-badge">0</span>
+            </span>
           </div>
           <div class="field" style="margin-bottom:12px;">
             <label>نوع الطلب</label>
@@ -850,6 +935,7 @@
 
       function render() {
         sheet.innerHTML = `
+          <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
           ${addons.length ? `
@@ -898,11 +984,23 @@
           close();
         });
       }
+      // التسكير بيرجع الورقة لتحت (نفس المسار اللي طلعت منه) قبل ما تنشال
+      let closed = false;
       function close() {
-        backdrop.remove();
-        sheet.remove();
+        if (closed) return;
+        closed = true;
+        document.removeEventListener("keydown", onEsc);
+        sheet.classList.remove("dragging", "settling");
+        sheet.classList.add("closing");
+        backdrop.classList.add("closing");
+        const remove = () => { backdrop.remove(); sheet.remove(); };
+        sheet.addEventListener("animationend", remove, { once: true });
+        setTimeout(remove, 400);
       }
+      function onEsc(e) { if (e.key === "Escape") close(); }
+      document.addEventListener("keydown", onEsc);
       backdrop.addEventListener("click", close);
+      olvAttachSwipeDismiss(sheet, backdrop, close);
       render();
       document.body.appendChild(backdrop);
       document.body.appendChild(sheet);
@@ -1344,5 +1442,193 @@
     });
   </script>
   <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+
+  <script>
+    // ================= حركة الإصبع على طريقة Apple =================
+    // الإسقاط بالزخم: وين رح توقف الحركة لو كمّلت بنفس سرعة الإصبع وتباطأت
+    // تدريجيًا (نفس معادلة التمرير بـiOS) — منقرر الحالة النهائية حسب هاد
+    // المكان المتوقَّع، مش حسب وين رفع المستخدم إصبعه، فرمية قصيرة سريعة بتكفي
+    function olvProject(velocity, decel) {
+      const d = decel || 0.998;
+      return (velocity / 1000) * d / (1 - d);
+    }
+    // مقاومة مطّاطية: كل ما سحبت أبعد من الحد، كل ما لحقك العنصر أقل
+    function olvRubberband(overshoot, dimension) {
+      const c = 0.55;
+      return (overshoot * dimension * c) / (dimension + c * Math.abs(overshoot));
+    }
+    // سرعة الإصبع (px/s) من آخر ~100ms من الحركة
+    function olvVelocity(samples) {
+      if (samples.length < 2) return 0;
+      const last = samples[samples.length - 1];
+      let first = samples[0];
+      for (const p of samples) { if (last.t - p.t <= 100) { first = p; break; } }
+      const dt = last.t - first.t;
+      return dt > 0 ? ((last.y - first.y) / dt) * 1000 : 0;
+    }
+    function olvCurrentY(el) {
+      const t = getComputedStyle(el).transform;
+      return t && t !== "none" ? new DOMMatrixReadOnly(t).m42 : 0;
+    }
+
+    // ورقة سفلية بتنسحب لتحت لتتسكّر: بتلحق الإصبع 1:1 من مكان المسكة،
+    // بتقاوم لفوق، وبتقرر تتسكّر أو ترجع حسب الزخم
+    function olvAttachSwipeDismiss(sheet, backdrop, onDismiss) {
+      let pid = null, startY = 0, y = 0, samples = [];
+      sheet.addEventListener("pointerdown", (e) => {
+        if (!e.target.closest(".sheet-grabber, h2") || sheet.classList.contains("closing")) return;
+        pid = e.pointerId;
+        sheet.setPointerCapture(pid);
+        y = olvCurrentY(sheet); // نبدأ من المكان الظاهر حاليًا (ولو كانت لسا عم تتحرك)
+        startY = e.clientY - y;
+        sheet.classList.remove("settling");
+        sheet.classList.add("dragging");
+        sheet.style.transform = `translateY(${y}px)`;
+        samples = [{ t: e.timeStamp, y: e.clientY }];
+      });
+      sheet.addEventListener("pointermove", (e) => {
+        if (e.pointerId !== pid) return;
+        let d = e.clientY - startY;
+        if (d < 0) d = -olvRubberband(-d, sheet.offsetHeight);
+        y = d;
+        sheet.style.transform = `translateY(${y}px)`;
+        backdrop.style.opacity = String(1 - Math.min(Math.max(y, 0) / sheet.offsetHeight, 1));
+        samples.push({ t: e.timeStamp, y: e.clientY });
+        if (samples.length > 20) samples.shift();
+      });
+      const end = (e) => {
+        if (e.pointerId !== pid) return;
+        pid = null;
+        const v = olvVelocity(samples);
+        const projected = y + olvProject(v);
+        sheet.classList.remove("dragging");
+        if (projected > sheet.offsetHeight * 0.45 && y > 4) {
+          sheet.style.setProperty("--sheet-y", y + "px");
+          backdrop.style.setProperty("--backdrop-o", backdrop.style.opacity || "1");
+          backdrop.style.opacity = "";
+          onDismiss();
+        } else {
+          sheet.classList.add("settling");
+          sheet.style.transform = "translateY(0)";
+          backdrop.style.opacity = "";
+        }
+      };
+      sheet.addEventListener("pointerup", end);
+      sheet.addEventListener("pointercancel", end);
+    }
+
+    // التذكرة على الموبايل: مطوية/مفتوحة، بالضغط أو بالسحب مع الزخم.
+    // الانتقال بين الحالتين بتقنية FLIP: منقيس مكان الورقة قبل وبعد تغيّر
+    // الحجم، ومنحرّكها من مكانها الظاهر للمكان الجديد بدون قفزة
+    document.addEventListener("DOMContentLoaded", () => {
+      const panel = document.getElementById("pos-cart-panel");
+      const grabber = document.getElementById("cart-grabber");
+      const header = document.getElementById("ticket-header");
+      const badge = document.getElementById("ticket-badge");
+      const chevron = document.getElementById("cart-chevron");
+      if (!panel || !grabber || !header) return;
+      if (chevron && window.olvIcon) chevron.innerHTML = olvIcon("chevronDown");
+      const mq = window.matchMedia("(max-width:900px)");
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      function setCollapsed(collapsed, bouncy) {
+        if (panel.classList.contains("collapsed") === collapsed && !panel.style.transform) return;
+        const before = panel.getBoundingClientRect().top;
+        panel.classList.remove("settling");
+        panel.classList.add("dragging");
+        panel.style.transform = "";
+        panel.classList.toggle("collapsed", collapsed);
+        grabber.setAttribute("aria-expanded", String(!collapsed));
+        if (!collapsed) panel.scrollTop = 0;
+        if (reduce.matches) { panel.classList.remove("dragging"); return; }
+        const delta = before - panel.getBoundingClientRect().top;
+        panel.style.transform = `translateY(${delta}px)`;
+        void panel.offsetHeight;
+        panel.classList.remove("dragging");
+        panel.classList.add("settling");
+        panel.style.transition = bouncy ? "" : "transform .32s var(--spring)";
+        panel.style.transform = "translateY(0)";
+        const done = () => {
+          panel.classList.remove("settling");
+          panel.style.transition = "";
+          panel.style.transform = "";
+        };
+        panel.addEventListener("transitionend", done, { once: true });
+        setTimeout(done, 500);
+      }
+
+      let pid = null, startY = 0, d = 0, moved = false, samples = [];
+      function down(e) {
+        if (!mq.matches) return;
+        pid = e.pointerId;
+        e.currentTarget.setPointerCapture(pid);
+        startY = e.clientY;
+        d = 0; moved = false;
+        samples = [{ t: e.timeStamp, y: e.clientY }];
+        panel.classList.remove("settling");
+      }
+      function move(e) {
+        if (e.pointerId !== pid) return;
+        const raw = e.clientY - startY;
+        if (!moved && Math.abs(raw) < 8) return; // عتبة صغيرة قبل ما نعتبرها سحبة
+        if (!moved) { moved = true; panel.classList.add("dragging"); }
+        const collapsed = panel.classList.contains("collapsed");
+        const h = window.innerHeight;
+        // مفتوحة: لتحت 1:1، لفوق مقاومة. مطوية: بالاتجاهين مقاومة (تلميح للحركة)
+        d = !collapsed && raw > 0 ? raw : (raw < 0 ? -olvRubberband(-raw, h) : olvRubberband(raw, h));
+        panel.style.transform = `translateY(${d}px)`;
+        samples.push({ t: e.timeStamp, y: e.clientY });
+        if (samples.length > 20) samples.shift();
+      }
+      function up(e) {
+        if (e.pointerId !== pid) return;
+        pid = null;
+        panel.classList.remove("dragging");
+        const collapsed = panel.classList.contains("collapsed");
+        if (!moved) { setCollapsed(!collapsed, false); return; }
+        const projected = d + olvProject(olvVelocity(samples));
+        if (collapsed && projected < -40) setCollapsed(false, true);
+        else if (!collapsed && projected > 120) setCollapsed(true, true);
+        else {
+          panel.classList.add("settling");
+          panel.style.transform = "translateY(0)";
+          panel.addEventListener("transitionend", () => {
+            panel.classList.remove("settling");
+            panel.style.transform = "";
+          }, { once: true });
+        }
+      }
+      [grabber, header].forEach((el) => {
+        el.addEventListener("pointerdown", down);
+        el.addEventListener("pointermove", move);
+        el.addEventListener("pointerup", up);
+        el.addEventListener("pointercancel", up);
+      });
+      grabber.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCollapsed(!panel.classList.contains("collapsed"), false); }
+      });
+
+      // الدفع/الحفظ وهي مطوية: منفتحها أول (قبل معالج الزر نفسه) حتى لو
+      // ناقص رقم طاولة أو اسم، الحقل يكون ظاهر لما يتركّز عليه
+      panel.addEventListener("click", (e) => {
+        if (mq.matches && panel.classList.contains("collapsed") && e.target.closest("#checkout-btn, #save-draft-btn")) {
+          setCollapsed(false, false);
+        }
+      }, true);
+
+      // نبضة على العدّاد لما يزيد، وطي التذكرة لما تفضى (بعد بيعة مثلًا)
+      let lastCount = Number(badge.textContent) || 0;
+      new MutationObserver(() => {
+        const n = Number(badge.textContent) || 0;
+        if (n > lastCount) {
+          badge.classList.remove("bump");
+          void badge.offsetWidth;
+          badge.classList.add("bump");
+        }
+        if (n === 0 && lastCount > 0 && mq.matches) setCollapsed(true, false);
+        lastCount = n;
+      }).observe(badge, { childList: true, characterData: true, subtree: true });
+    });
+  </script>
 </body>
 </html>
