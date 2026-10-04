@@ -246,7 +246,7 @@
       toast.textContent = msg;
       toast.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:700;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.3);";
       document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2200);
+      if (window.olvToastLife) olvToastLife(toast, 2200); else setTimeout(() => toast.remove(), 2200);
     }
 
     function renderEmployees() {

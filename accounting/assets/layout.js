@@ -66,6 +66,29 @@ const OLV_ICON_PATHS = {
   dish: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.3"/>',
 };
 
+
+// ---- مساعدات الحركة (انظر "حركة الواجهة" بـtheme.css) ----
+// إغلاق نافذة بحركة خروج قصيرة (140ms) بدل ما تختفي فجأة؛ آمن لو انندهت مرتين
+function olvDismiss(el, ms) {
+  if (!el || el.__olvClosing) return;
+  el.__olvClosing = true;
+  el.classList.add("closing");
+  setTimeout(() => el.remove(), ms || 140);
+}
+// حياة التوست: ظهور (شفافية + ارتفاع 8px) ثم خروج بعد ms. الـtoast لازم يكون مضاف للـbody ومعه position:fixed و transform:translateX(-50%)
+function olvToastLife(el, ms) {
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.style.opacity = "0";
+  if (!reduce) el.style.transform = "translate(-50%, 8px)";
+  el.style.transition = "opacity .18s var(--spring), transform .22s var(--spring)";
+  requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = "1"; el.style.transform = "translateX(-50%)"; }));
+  setTimeout(() => {
+    el.style.opacity = "0";
+    if (!reduce) el.style.transform = "translate(-50%, 6px)";
+    setTimeout(() => el.remove(), 200);
+  }, ms);
+}
+
 function olvIcon(name, cls) {
   const inner = OLV_ICON_PATHS[name] || "";
   return `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24">${inner}</svg>`;

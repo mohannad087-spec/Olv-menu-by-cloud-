@@ -132,12 +132,12 @@
     opts = opts || {};
     injectStyles();
     const backdrop = document.createElement("div");
-    backdrop.className = "olv-cat-backdrop";
+    backdrop.className = "olv-cat-backdrop olv-modal-backdrop";
     const modal = document.createElement("div");
     modal.className = "olv-cat-modal";
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
-    const close = () => backdrop.remove();
+    const close = () => (window.olvDismiss ? olvDismiss(backdrop) : backdrop.remove());
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
     modal.innerHTML = `<h2>كتالوج المواد الجاهزة</h2><div class="olv-cat-sub">جاري التحميل...</div>`;
 

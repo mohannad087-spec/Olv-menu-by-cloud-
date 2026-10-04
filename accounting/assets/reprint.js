@@ -50,12 +50,12 @@
   function makeModal() {
     injectStyles();
     const backdrop = document.createElement("div");
-    backdrop.className = "olv-rp-backdrop";
+    backdrop.className = "olv-rp-backdrop olv-modal-backdrop";
     const modal = document.createElement("div");
     modal.className = "olv-rp-modal";
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
-    const close = () => backdrop.remove();
+    const close = () => (window.olvDismiss ? olvDismiss(backdrop) : backdrop.remove());
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
     return { modal, close };
   }
