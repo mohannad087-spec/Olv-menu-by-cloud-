@@ -68,19 +68,12 @@
   .urgent-banner h3{color:var(--danger-hi); font-size:15px; margin-bottom:10px; display:flex; align-items:center; gap:7px;}
   .urgent-item{display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px;}
   .urgent-item .days{color:var(--danger-hi); font-weight:700;}
-  .sub-tabs{display:flex; gap:8px; margin-bottom:16px;}
-  .sub-tab{background:var(--ink-2); border:1px solid var(--hair); color:var(--muted); padding:11px 18px; border-radius:999px; font-size:13px; min-height:44px;}
   .stock-adjust-input{width:80px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
   .stock-adjust-reason{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
-  .sub-tab.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
-  .recipe-row{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
-  .recipe-row .r-name{flex:1; font-size:13.5px;}
-  .recipe-suggest-chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
-  .recipe-suggest-chip{
-    background:var(--ink-3); border:1px dashed var(--gold); color:var(--gold-hi);
-    padding:7px 13px; border-radius:999px; font-size:12.5px; font-weight:600;
-  }
-  .recipe-suggest-chip:hover{background:rgba(var(--gold-rgb),.14);}
+  .olv-add-box summary{cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .olv-add-box summary::-webkit-details-marker{display:none;}
+  .olv-add-box summary::before{content:"＋"; color:var(--gold-hi); font-weight:700;}
+  .olv-add-box[open] summary::before{content:"－";}
 </style>
 </head>
 <body>
@@ -88,10 +81,7 @@
   <div class="wrap">
     <div class="err" id="err"></div>
 
-    <div class="sub-tabs">
-      <button class="sub-tab on" data-tab="stock">المواد الخام</button>
-      <button class="sub-tab" data-tab="recipes">وصفات الأصناف</button>
-    </div>
+    <p class="hint" style="margin-bottom:14px;">وصفات الأصناف صارت بقسم <a href="product-recipes.html" style="color:var(--gold-hi); font-weight:700;">الأصناف والوصفات</a>.</p>
 
     <div id="tab-stock">
       <div class="urgent-banner" id="urgent-banner" hidden>
@@ -100,6 +90,26 @@
       </div>
 
       <div class="group">
+        <h2>المخزون الحالي</h2>
+        <p class="hint" style="margin-bottom:12px;">
+          عمود "يكفي لـ" تقدير آلي بناءً على متوسط مبيعات آخر 14 يومًا من
+          الأصناف الأساسية (لا يشمل استهلاك الإضافات حاليًا)، ويحتاج بضعة
+          أيام من المبيعات الفعلية حتى يصبح دقيقًا.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>يكفي لـ</th><th>تعديل</th><th></th></tr></thead>
+            <tbody id="ing-body">
+              <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <details class="group olv-add-box">
+        <summary><h2 style="display:inline; margin:0;">إضافة مواد جديدة</h2> <span class="hint">(يدوي، من الكتالوج، أو من وصف الأصناف)</span></summary>
+        <div style="margin-top:14px;">
+      <div class="group" style="margin-bottom:12px;">
         <h2>استخراج مواد خام من قائمة الأصناف</h2>
         <p class="hint" style="margin-bottom:14px;">
           بيقرأ وصف كل منتج والإضافات المسجّلة عندك، ويطلعلك أسماء مواد محتملة لسا مش موجودة
@@ -110,7 +120,7 @@
         <div id="extract-ing-results" hidden style="margin-top:14px;"></div>
       </div>
 
-      <div class="group">
+      <div class="group" style="margin-bottom:12px;">
         <h2>كتالوج المواد الجاهزة</h2>
         <p class="hint" style="margin-bottom:14px;">
           أكثر من 1100 صنف شائع بالكافيهات والمطاعم (مياه، مشروبات، ألبان، معلبات، توابل، مجمدات، ورقيات...).
@@ -119,7 +129,7 @@
         <button type="button" class="btn gold" id="open-catalog-btn"></button>
       </div>
 
-      <div class="group">
+      <div class="group" style="margin-bottom:12px;">
         <h2>إضافة مادة خام</h2>
         <form id="ing-form">
           <div class="row3">
@@ -155,66 +165,8 @@
         </form>
       </div>
 
-      <div class="group">
-        <h2>المخزون الحالي</h2>
-        <p class="hint" style="margin-bottom:12px;">
-          عمود "يكفي لـ" تقدير آلي بناءً على متوسط مبيعات آخر 14 يومًا من
-          الأصناف الأساسية (لا يشمل استهلاك الإضافات حاليًا)، ويحتاج بضعة
-          أيام من المبيعات الفعلية حتى يصبح دقيقًا.
-        </p>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>يكفي لـ</th><th>تعديل</th><th></th></tr></thead>
-            <tbody id="ing-body">
-              <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
-            </tbody>
-          </table>
         </div>
-      </div>
-    </div>
-
-    <div id="tab-recipes" hidden>
-      <div class="group">
-        <h2>وصفة صنف من المنيو</h2>
-        <div class="field">
-          <label>اختر الصنف</label>
-          <select id="recipe-product"></select>
-        </div>
-        <div id="product-recipe-rows" class="recipe-row" style="display:block;"></div>
-        <button type="button" class="btn small" id="suggest-recipe-btn" style="margin:10px 0;"></button>
-        <div id="recipe-suggestions" hidden></div>
-        <div class="row2">
-          <div class="field">
-            <label>مادة خام</label>
-            <select id="recipe-ing-select"></select>
-          </div>
-          <div class="field">
-            <label>الكمية المستخدمة لكل وحدة بيع</label>
-            <input type="number" id="recipe-qty" step="0.001" min="0">
-          </div>
-        </div>
-        <button class="btn gold" id="add-recipe-line">إضافة للوصفة</button>
-      </div>
-
-      <div class="group">
-        <h2>وصفة إضافة (Extra)</h2>
-        <div class="field">
-          <label>اختر الإضافة</label>
-          <select id="recipe-addon"></select>
-        </div>
-        <div id="addon-recipe-rows" class="recipe-row" style="display:block;"></div>
-        <div class="row2">
-          <div class="field">
-            <label>مادة خام</label>
-            <select id="addon-recipe-ing-select"></select>
-          </div>
-          <div class="field">
-            <label>الكمية لكل وحدة</label>
-            <input type="number" id="addon-recipe-qty" step="0.001" min="0">
-          </div>
-        </div>
-        <button class="btn gold" id="add-addon-recipe-line">إضافة للوصفة</button>
-      </div>
+      </details>
     </div>
   </div>
 
@@ -235,10 +187,9 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("inventory");
     document.getElementById("urgent-title").innerHTML = olvIcon("warning") + "<span>مواد قاربت تنفد</span>";
-    document.getElementById("suggest-recipe-btn").innerHTML = olvIcon("search") + "<span>اقتراح مواد مطابقة بالاسم</span>";
     document.getElementById("open-catalog-btn").innerHTML = olvIcon("search") + "<span>تصفّح الكتالوج وإضافة أصناف</span>";
     document.getElementById("open-catalog-btn").addEventListener("click", () => {
-      olvOpenCatalog({ kind: "i", onDone: async () => { await loadIngredients(); await populateSelects(); } });
+      olvOpenCatalog({ kind: "i", onDone: async () => { await loadIngredients(); } });
     });
     document.getElementById("extract-ing-btn").innerHTML = olvIcon("refresh") + "<span>استخراج أسماء من وصف الأصناف والإضافات</span>";
 
@@ -246,7 +197,6 @@
     let products = [];
     let addons = [];
     let daysLeftById = {}; // ingredient_id -> أيام متبقية تقديريًا (من view ingredient_consumption)
-    let currentRecipeIngredientIds = new Set(); // مواد الصنف المختار المرتبطة أصلًا (لاستثنائها من الاقتراحات)
 
     // نفس حد "٣ أيام" المستخدم بـ schema-low-stock-view.sql (view
     // low_stock_items) — لازم يضلوا متطابقين حتى البانر هون والتنبيه
@@ -283,15 +233,6 @@
         </div>
       `).join("");
     }
-
-    document.querySelectorAll(".sub-tab").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".sub-tab").forEach((b) => b.classList.remove("on"));
-        btn.classList.add("on");
-        document.getElementById("tab-stock").hidden = btn.dataset.tab !== "stock";
-        document.getElementById("tab-recipes").hidden = btn.dataset.tab !== "recipes";
-      });
-    });
 
     async function loadIngredients() {
       const errBox = document.getElementById("err");
@@ -367,7 +308,6 @@
               const { error } = await window.supabaseClient.from("ingredients").delete().eq("id", btn.dataset.del);
               if (error) { olvShowError(errBox, error); return; }
               await loadIngredients();
-              await populateSelects();
             });
           });
         }
@@ -449,7 +389,6 @@
           box.hidden = true;
           box.innerHTML = "";
           await loadIngredients();
-          await populateSelects();
         } catch (err) {
           olvShowError(errBox, err);
         }
@@ -471,148 +410,6 @@
         document.getElementById("ing-form").reset();
         document.getElementById("i-unit").value = "قطعة";
         await loadIngredients();
-        await populateSelects();
-      } catch (err) {
-        olvShowError(errBox, err);
-      }
-    });
-
-    async function populateSelects() {
-      const prodSel = document.getElementById("recipe-product");
-      const addonSel = document.getElementById("recipe-addon");
-      const ingSel1 = document.getElementById("recipe-ing-select");
-      const ingSel2 = document.getElementById("addon-recipe-ing-select");
-      prodSel.innerHTML = products.map((p) => `<option value="${p.id}">${olvEsc(p.name)}</option>`).join("");
-      addonSel.innerHTML = addons.map((a) => `<option value="${a.id}">${olvEsc(a.name)}</option>`).join("");
-      const ingOptions = ingredients.map((i) => `<option value="${i.id}">${olvEsc(i.name)} (${olvEsc(i.unit)})</option>`).join("");
-      ingSel1.innerHTML = ingOptions;
-      ingSel2.innerHTML = ingOptions;
-    }
-
-    async function loadProductRecipe() {
-      const productId = document.getElementById("recipe-product").value;
-      const el = document.getElementById("product-recipe-rows");
-      document.getElementById("recipe-suggestions").hidden = true;
-      if (!productId) { el.innerHTML = ""; currentRecipeIngredientIds = new Set(); return; }
-      const { data, error } = await window.supabaseClient
-        .from("product_ingredients").select("*, ingredients(name, unit)").eq("product_id", productId);
-      if (error) { olvShowError(document.getElementById("err"), error); return; }
-      currentRecipeIngredientIds = new Set((data || []).map((r) => r.ingredient_id));
-      el.innerHTML = (data || []).length
-        ? data.map((r) => `
-          <div class="recipe-row">
-            <div class="r-name">${olvEsc(r.ingredients.name)}: ${olvEsc(r.quantity)} ${olvEsc(r.ingredients.unit)}</div>
-            <button class="btn small danger" data-del-recipe="${r.id}">حذف</button>
-          </div>
-        `).join("")
-        : `<div class="hint">لا توجد مواد خام مرتبطة بهذا الصنف بعد</div>`;
-      el.querySelectorAll("button[data-del-recipe]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const { error } = await window.supabaseClient.from("product_ingredients").delete().eq("id", btn.dataset.delRecipe);
-          if (error) { olvShowError(document.getElementById("err"), error); return; }
-          loadProductRecipe();
-        });
-      });
-    }
-
-    // يقترح مواد خام ممكن تنتمي لوصفة الصنف المختار، بالاعتماد على تطابق
-    // بالاسم بس (لو كلمة من اسم الصنف موجودة جوا اسم المادة أو العكس) —
-    // اقتراح مطابقة فقط، الكمية الفعلية لازم يدخلها المستخدم يدويًا دايمًا
-    // (ما في طريقة نعرف "كم غرام لحمة بالبرغر" غير من صاحب المطعم نفسه)
-    function findRecipeSuggestions(productName) {
-      const words = (productName || "").split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 2);
-      if (!words.length) return [];
-      return ingredients.filter((ing) => {
-        if (currentRecipeIngredientIds.has(ing.id)) return false;
-        return words.some((w) => ing.name.includes(w) || w.includes(ing.name));
-      });
-    }
-
-    document.getElementById("suggest-recipe-btn").addEventListener("click", () => {
-      const productId = document.getElementById("recipe-product").value;
-      const product = products.find((p) => p.id === productId);
-      const box = document.getElementById("recipe-suggestions");
-      if (!product) { box.hidden = true; return; }
-      const matches = findRecipeSuggestions(product.name);
-      box.hidden = false;
-      box.innerHTML = matches.length
-        ? `
-          <div class="hint">اضغط على مادة لتعبئتها بالأسفل، حدد الكمية، واضغط "إضافة للوصفة"</div>
-          <div class="recipe-suggest-chips">
-            ${matches.map((ing) => `
-              <button type="button" class="recipe-suggest-chip" data-suggest-ing="${ing.id}">${olvEsc(ing.name)} (${olvEsc(ing.unit)})</button>
-            `).join("")}
-          </div>
-        `
-        : `<div class="hint">ما لقينا مواد مطابقة بالاسم — اختار المادة يدويًا من القائمة تحت</div>`;
-      box.querySelectorAll("[data-suggest-ing]").forEach((chip) => {
-        chip.addEventListener("click", () => {
-          document.getElementById("recipe-ing-select").value = chip.dataset.suggestIng;
-          const qtyInput = document.getElementById("recipe-qty");
-          qtyInput.focus();
-          qtyInput.select();
-        });
-      });
-    });
-
-    async function loadAddonRecipe() {
-      const addonId = document.getElementById("recipe-addon").value;
-      const el = document.getElementById("addon-recipe-rows");
-      if (!addonId) { el.innerHTML = ""; return; }
-      const { data, error } = await window.supabaseClient
-        .from("addon_ingredients").select("*, ingredients(name, unit)").eq("addon_id", addonId);
-      if (error) { olvShowError(document.getElementById("err"), error); return; }
-      el.innerHTML = (data || []).length
-        ? data.map((r) => `
-          <div class="recipe-row">
-            <div class="r-name">${olvEsc(r.ingredients.name)}: ${olvEsc(r.quantity)} ${olvEsc(r.ingredients.unit)}</div>
-            <button class="btn small danger" data-del-arecipe="${r.id}">حذف</button>
-          </div>
-        `).join("")
-        : `<div class="hint">لا توجد مواد خام مرتبطة بهذه الإضافة بعد</div>`;
-      el.querySelectorAll("button[data-del-arecipe]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const { error } = await window.supabaseClient.from("addon_ingredients").delete().eq("id", btn.dataset.delArecipe);
-          if (error) { olvShowError(document.getElementById("err"), error); return; }
-          loadAddonRecipe();
-        });
-      });
-    }
-
-    document.getElementById("recipe-product").addEventListener("change", loadProductRecipe);
-    document.getElementById("recipe-addon").addEventListener("change", loadAddonRecipe);
-
-    document.getElementById("add-recipe-line").addEventListener("click", async () => {
-      const errBox = document.getElementById("err");
-      try {
-        const payload = {
-          product_id: document.getElementById("recipe-product").value,
-          ingredient_id: document.getElementById("recipe-ing-select").value,
-          quantity: Number(document.getElementById("recipe-qty").value || 0),
-        };
-        if (!payload.product_id || !payload.ingredient_id) return;
-        const { error } = await window.supabaseClient.from("product_ingredients").upsert(payload, { onConflict: "product_id,ingredient_id" });
-        if (error) throw error;
-        document.getElementById("recipe-qty").value = "";
-        loadProductRecipe();
-      } catch (err) {
-        olvShowError(errBox, err);
-      }
-    });
-
-    document.getElementById("add-addon-recipe-line").addEventListener("click", async () => {
-      const errBox = document.getElementById("err");
-      try {
-        const payload = {
-          addon_id: document.getElementById("recipe-addon").value,
-          ingredient_id: document.getElementById("addon-recipe-ing-select").value,
-          quantity: Number(document.getElementById("addon-recipe-qty").value || 0),
-        };
-        if (!payload.addon_id || !payload.ingredient_id) return;
-        const { error } = await window.supabaseClient.from("addon_ingredients").upsert(payload, { onConflict: "addon_id,ingredient_id" });
-        if (error) throw error;
-        document.getElementById("addon-recipe-qty").value = "";
-        loadAddonRecipe();
       } catch (err) {
         olvShowError(errBox, err);
       }
@@ -632,9 +429,6 @@
         products = prodData || [];
         addons = addonData || [];
         await loadIngredients();
-        await populateSelects();
-        await loadProductRecipe();
-        await loadAddonRecipe();
       } catch (err) {
         olvShowError(errBox, err);
       }
