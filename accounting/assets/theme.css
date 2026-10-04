@@ -79,6 +79,17 @@ button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 .tab-link.on{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold); border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px -4px rgba(var(--gold-rgb),.45);}
 .tab-link.on:hover{transform:none;}
 .tab-link.on .icon{opacity:1;}
+/* تبويبات القسم (المخزون: المواد الخام | المستلزمات | الجرد ...) */
+.olv-hub-tabs{display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; margin-top:6px; border-top:1px solid var(--hair-soft, var(--hair)); scrollbar-width:none;}
+.olv-hub-tabs::-webkit-scrollbar{display:none;}
+.olv-hub-tab{
+  position:relative; flex:none; display:inline-flex; align-items:center; gap:6px; min-height:40px;
+  padding:9px 15px; border-radius:10px; font-size:13px; white-space:nowrap; text-decoration:none;
+  color:var(--muted); background:transparent; border:1px solid transparent;
+}
+.olv-hub-tab .icon{width:14px; height:14px; opacity:.8;}
+.olv-hub-tab:hover{color:var(--gold-hi); border-color:var(--hair);}
+.olv-hub-tab.on{color:var(--gold-hi); background:rgba(var(--gold-rgb),.12); border-color:rgba(var(--gold-rgb),.45); font-weight:700;}
 .tab-badge{
   position:absolute; top:-6px; inset-inline-end:-6px;
   background:var(--danger); color:#fff; font-size:10.5px; font-weight:700;
