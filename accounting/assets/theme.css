@@ -345,6 +345,7 @@ tbody tr{transition:background .15s var(--ease);}
 .olv-modal-backdrop > *{animation:olv-modal-in .2s var(--spring) both;}
 .olv-modal-backdrop.closing{animation:olv-bd-out .14s var(--spring) both; pointer-events:none;}
 .olv-modal-backdrop.closing > *{animation:olv-modal-out .14s var(--spring) both;}
+.olv-new{animation:olv-rise .18s var(--spring) backwards;} /* صف/بطاقة جديدة (olvMarkNew) */
 .wrap > .group{animation:olv-rise .18s var(--spring) backwards;}
 /* تأخير بسيط (30ms) بين البطاقات المتجاورة وبحد أقصى 80ms: التنقل بين الصفحات بيتكرر عشرات المرات باليوم */
 .wrap > .group + .group{animation-delay:.03s;}
@@ -355,6 +356,7 @@ tbody tr{transition:background .15s var(--ease);}
   .olv-modal-backdrop > *{animation:olv-bd-in .15s ease both !important;}
   .olv-modal-backdrop.closing > *{animation:olv-bd-out .12s ease both !important;}
   .wrap > .group{animation:olv-bd-in .15s ease backwards !important; animation-delay:0s !important;}
+  .olv-new{animation:olv-bd-in .15s ease backwards !important;}
 }
 
 /* ---- إمكانية الوصول: حركة مخفّفة، شفافية مخفّفة، تباين أعلى ---- */

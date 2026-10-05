@@ -209,6 +209,7 @@
       sel.innerHTML = `<option value="">— بدون —</option>` + suppliers.map((s) => `<option value="${s.id}">${olvEsc(s.name)}</option>`).join("");
     }
 
+    const supTracker = olvNewTracker();
     async function loadSupplies() {
       const errBox = document.getElementById("err");
       const container = document.getElementById("supplies-by-category");
@@ -217,6 +218,9 @@
           .from("supplies").select("*").order("category").order("name");
         if (error) throw error;
         supplies = data || [];
+        const freshSup = supTracker.diff(supplies.map((s) => s.id));
+        // مستلزم جديد بتصنيف مسكّر: نفتح التصنيف حتى يشوفه المستخدم (تأكيد إنه انحفظ)
+        supplies.forEach((s) => { if (freshSup.has(s.id)) openCategories.add(s.category || "عام"); });
         if (!supplies.length) {
           container.innerHTML = `<div class="hint">لا يوجد مستلزمات بعد</div>`;
           return;
@@ -243,7 +247,7 @@
                   ${byCategory[cat].map((s) => {
                     const low = Number(s.current_stock) <= Number(s.low_stock_threshold) && Number(s.low_stock_threshold) > 0;
                     return `
-                    <tr>
+                    <tr data-row-id="${olvEsc(s.id)}">
                       <td>${olvEsc(s.name)}</td>
                       <td>${olvEsc(s.unit)}</td>
                       <td class="${low ? "low-stock" : ""}">${s.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
@@ -265,6 +269,7 @@
         `;
         }).join("");
 
+        olvMarkNew(container, freshSup, { scroll: true });
         container.querySelectorAll("button[data-cat-toggle]").forEach((btn) => {
           btn.addEventListener("click", () => {
             const cat = btn.dataset.catToggle;

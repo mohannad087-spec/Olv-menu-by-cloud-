@@ -200,9 +200,11 @@
       `;
     }
 
+    const ioTracker = olvNewTracker();
     function renderOrders() {
       const list = document.getElementById("orders-list");
       const active = lastOrders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
+      const freshOrders = ioTracker.diff(active.map((o) => String(o.id)));
       if (!active.length) {
         list.innerHTML = `<div class="hint" style="grid-column:1/-1; text-align:center; padding:40px 0;">لا يوجد طلبات واردة حاليًا</div>`;
         return;
@@ -212,7 +214,7 @@
         const mapped = orderFullyMapped(o);
         const statusClass = isNew ? "io-status-new" : o.status === "preparing" ? "io-status-preparing" : "io-status-other";
         return `
-          <div class="io-card${isNew ? " io-new" : ""}">
+          <div class="io-card${isNew ? " io-new" : ""}" data-row-id="${olvEsc(String(o.id))}">
             <div class="io-head">
               <b>#${olvEsc(o.number)}</b>
               <div class="io-total">${olvFormatMoney(o.total)}</div>
@@ -238,6 +240,7 @@
         `;
       }).join("");
 
+      olvMarkNew(list, freshOrders);
       list.querySelectorAll("select[data-map-item]").forEach((sel) => {
         sel.addEventListener("change", async () => {
           if (!sel.value) return;
