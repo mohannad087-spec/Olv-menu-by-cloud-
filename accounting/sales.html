@@ -355,19 +355,17 @@
           });
         });
         body.querySelectorAll("button[data-void]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("متأكد من إلغاء هذا الطلب؟ سيرجع كل ما استهلكه من مواد خام إلى المخزون تلقائيًا، ولن يُحتسب ضمن المبيعات أو التقارير بعد الآن.")) return;
+          olvHoldConfirm(btn, async () => {
             const reason = askVoidReason();
             if (!reason) return;
             btn.disabled = true;
             const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: btn.dataset.void, p_reason: reason });
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
             await loadSales();
-          });
+          }, { hint: "اضغط مطوّلاً على «إلغاء الطلب» للتأكيد — بيرجع المواد الخام للمخزون ولن يُحتسب ضمن المبيعات أو التقارير" });
         });
         body.querySelectorAll("button[data-void-item]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("متأكد من إلغاء هذا الصنف فقط؟ سيرجع للمخزون وينقص من إجمالي الطلب، وباقي الأصناف تضل كما هي.")) return;
+          olvHoldConfirm(btn, async () => {
             const reason = askVoidReason();
             if (!reason) return;
             btn.disabled = true;
@@ -375,7 +373,7 @@
             if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
             expandedSaleId = btn.closest("tr").id.replace("items-", "");
             await loadSales();
-          });
+          }, { hint: "اضغط مطوّلاً على «إلغاء الصنف» للتأكيد — بيرجع للمخزون وبينقص من إجمالي الطلب، وباقي الأصناف تضل كما هي" });
         });
       } catch (err) {
         olvShowError(errBox, err);

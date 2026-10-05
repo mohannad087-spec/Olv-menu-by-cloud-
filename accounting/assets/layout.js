@@ -145,6 +145,42 @@ function olvToast(msg, opts) {
   return el;
 }
 
+// ضغط مطوّل للتأكيد (للإجراءات المدمّرة النادرة مثل إلغاء طلب): الزر بيتعبّى أثناء الضغط وبينفّذ لما يكتمل.
+// لو فلت الزر قبل الاكتمال بيرجع التعبئة، والضغطة السريعة بتطلع تلميح. بيشتغل كمان بالكيبورد (Enter/Space مضغوط).
+function olvHoldConfirm(btn, onConfirm, opts) {
+  opts = opts || {};
+  const ms = opts.ms || 900;
+  let timer = null;
+  btn.classList.add("olv-hold");
+  btn.style.setProperty("--hold-ms", ms + "ms");
+  if (opts.hint) btn.title = opts.hint;
+  const start = () => {
+    if (btn.disabled || timer) return;
+    btn.classList.remove("held");
+    btn.classList.add("holding");
+    timer = setTimeout(() => {
+      timer = null;
+      btn.classList.remove("holding");
+      btn.classList.add("held");
+      Promise.resolve(onConfirm()).finally(() => btn.classList.remove("held"));
+    }, ms);
+  };
+  const cancel = (hint) => {
+    if (!timer) return;
+    clearTimeout(timer); timer = null;
+    btn.classList.remove("holding");
+    if (hint && opts.hint && typeof olvToast === "function") olvToast(opts.hint, { type: "info", ms: 3200 });
+  };
+  btn.addEventListener("pointerdown", (e) => { if (e.button === 0) start(); });
+  btn.addEventListener("pointerup", () => cancel(true));
+  btn.addEventListener("pointerleave", () => cancel(false));
+  btn.addEventListener("pointercancel", () => cancel(false));
+  btn.addEventListener("contextmenu", (e) => e.preventDefault());
+  btn.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); start(); } });
+  btn.addEventListener("keyup", (e) => { if (e.key === "Enter" || e.key === " ") cancel(true); });
+  btn.addEventListener("blur", () => cancel(false));
+}
+
 function olvIcon(name, cls) {
   const inner = OLV_ICON_PATHS[name] || "";
   return `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24">${inner}</svg>`;
