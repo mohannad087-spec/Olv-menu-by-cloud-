@@ -292,6 +292,7 @@
               btn.disabled = false;
               if (error) { olvShowError(errBox, error); return; }
               await loadIngredients();
+              olvToast("تم تعديل الكمية");
             });
           });
           body.querySelectorAll("button[data-del]").forEach((btn) => {
@@ -311,6 +312,7 @@
               const { error } = await window.supabaseClient.from("ingredients").delete().eq("id", btn.dataset.del);
               if (error) { olvShowError(errBox, error); return; }
               await loadIngredients();
+              olvToast("تم حذف المادة");
             });
           });
         }
@@ -392,6 +394,7 @@
           box.hidden = true;
           box.innerHTML = "";
           await loadIngredients();
+          olvToast(rows.length === 1 ? "تمت إضافة المادة" : `تمت إضافة ${rows.length} مواد`);
         } catch (err) {
           olvShowError(errBox, err);
         }
@@ -413,6 +416,7 @@
         document.getElementById("ing-form").reset();
         document.getElementById("i-unit").value = "قطعة";
         await loadIngredients();
+        olvToast("تمت إضافة المادة");
       } catch (err) {
         olvShowError(errBox, err);
       }

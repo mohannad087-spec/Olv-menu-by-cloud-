@@ -684,16 +684,8 @@
     // إشعار مؤقت يظهر أسفل الشاشة (نجاح بيع، أو تنبيه طلب جاهز)، بما إن
     // الشاشة بقيت مفتوحة على بيع سريع نفسها بدل الانتقال لصفحة منفصلة
     function showToast(msg, color, icon) {
-      const toast = document.createElement("div");
-      toast.innerHTML = (icon ? olvIcon(icon) : "") + `<span>${olvEsc(msg)}</span>`;
-      toast.style.cssText = [
-        "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
-        `background:${color || "var(--ok)"}`, "color:#fff", "padding:12px 22px", "border-radius:10px",
-        "font-size:14px", "font-weight:700", "z-index:100", "box-shadow:0 4px 16px rgba(0,0,0,.3)",
-        "display:flex", "align-items:center", "gap:8px",
-      ].join(";");
-      document.body.appendChild(toast);
-      if (window.olvToastLife) olvToastLife(toast, 2200); else setTimeout(() => toast.remove(), 2200);
+      const type = color === "var(--danger)" ? "danger" : color === "var(--gold-dp)" ? "gold" : "ok";
+      olvToast(msg, { type, icon, ms: 2200 });
     }
 
     // يراقب الطلبات اليوم اللي صارت "جاهز" (المطبخ صار خلص فيها) ويطلع

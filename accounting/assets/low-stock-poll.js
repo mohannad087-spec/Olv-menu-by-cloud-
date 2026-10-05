@@ -31,16 +31,7 @@ const OlvLowStockPoll = (function () {
   }
 
   function showToast(msg) {
-    const toast = document.createElement("div");
-    toast.innerHTML = (typeof olvIcon === "function" ? olvIcon("warning") : "") + `<span>${msg}</span>`;
-    toast.style.cssText = [
-      "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
-      "background:var(--danger)", "color:#fff", "padding:12px 22px", "border-radius:10px",
-      "font-size:14px", "font-weight:700", "z-index:100", "box-shadow:0 4px 16px rgba(0,0,0,.3)",
-      "max-width:90vw", "text-align:center", "display:flex", "align-items:center", "gap:8px",
-    ].join(";");
-    document.body.appendChild(toast);
-    if (window.olvToastLife) olvToastLife(toast, 3200); else setTimeout(() => toast.remove(), 3200);
+    if (typeof olvToast === "function") olvToast(msg, { type: "danger", icon: "warning", ms: 3200 });
   }
 
   // بيبني جملة "اسم١، اسم٢، اسم٣ و٢ غيرها" لمجموعة أصناف من نفس السبب
