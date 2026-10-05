@@ -66,7 +66,9 @@
     background:var(--ink-3); border:1px dashed var(--gold); color:var(--gold-hi);
     padding:7px 13px; border-radius:999px; font-size:12.5px; font-weight:600;
   }
+  .recipe-suggest-chip, .cov-chip{transition:transform .16s var(--spring), background .16s var(--ease), border-color .16s var(--ease), color .16s var(--ease); -webkit-tap-highlight-color:transparent;}
   .recipe-suggest-chip:hover{background:rgba(var(--gold-rgb),.14);}
+  .recipe-suggest-chip:active, .cov-chip:active{transform:scale(.96); transition-duration:.08s;}
   .cov-bar{height:10px; background:var(--ink-3); border-radius:999px; overflow:hidden; margin:8px 0 12px;}
   .cov-bar > div{height:100%; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); border-radius:999px;}
   .cov-chip{background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); padding:7px 12px; border-radius:999px; font-size:12.5px;}

@@ -265,10 +265,15 @@ tbody tr{transition:background .15s var(--ease);}
 .olv-config-warning{
   background:var(--danger); color:#fff; text-align:center; padding:10px 16px; font-size:13px;
 }
+/* البانر بيظهر/بيختفي بتلاشي + نزول مريح بدل ما الصفحة تقفز؛ المتصفحات اللي ما بتدعم interpolate-size بتعمل التبديل فورًا (نفس السلوك القديم) */
+:root{interpolate-size:allow-keywords;}
 .olv-connection-banner{
-  display:none; text-align:center; padding:10px 16px; font-size:13px; font-weight:700;
+  display:none; text-align:center; padding:0 16px; font-size:13px; font-weight:700;
+  opacity:0; block-size:0; overflow:clip;
+  transition:opacity .2s var(--spring), block-size .2s var(--spring), padding .2s var(--spring), display .2s allow-discrete;
 }
-.olv-connection-banner.show{display:block;}
+.olv-connection-banner.show{display:block; opacity:1; block-size:auto; padding:10px 16px;}
+@starting-style{ .olv-connection-banner.show{opacity:0; block-size:0; padding-block:0;} }
 .olv-connection-banner.offline{background:var(--danger); color:#fff;}
 .olv-connection-banner.online{background:var(--ok); color:#fff;}
 .olv-connection-banner.queued{background:var(--gold); color:var(--on-gold);}
@@ -351,6 +356,24 @@ tbody tr{transition:background .15s var(--ease);}
 .wrap > .group + .group{animation-delay:.03s;}
 .wrap > .group + .group + .group{animation-delay:.06s;}
 .wrap > .group + .group + .group + .group{animation-delay:.08s;}
+/* ---- فتح/إغلاق <details> بتدرّج (ارتفاع + شفافية). التحسين بيشتغل بس بالمتصفحات اللي بتدعم ::details-content، والباقي بيفتح فورًا زي قبل ---- */
+@supports selector(::details-content){
+  details::details-content{
+    block-size:0; opacity:0; overflow:clip; overflow-clip-margin:6px;
+    transition:block-size .2s var(--spring), opacity .15s ease, content-visibility .2s allow-discrete;
+  }
+  details[open]::details-content{block-size:auto; opacity:1;}
+}
+
+/* ---- ضغط مطوّل للتأكيد (olvHoldConfirm): التعبئة خطية أثناء الضغط (تقدّم حقيقي)، والرجوع عند الإفلات أسرع ---- */
+.olv-hold{position:relative; overflow:hidden; isolation:isolate; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation;}
+.olv-hold::after{
+  content:""; position:absolute; inset:0; z-index:-1; background:rgba(var(--danger-rgb,193,88,63),.38);
+  transform:scaleX(0); transform-origin:right center; transition:transform .2s var(--spring);
+}
+.olv-hold.holding::after{transform:scaleX(1); transition:transform var(--hold-ms,900ms) linear;}
+.olv-hold.held::after{transform:scaleX(1); transition:none;}
+
 /* ---- إشعارات موحّدة (olvToast في layout.js): ظهور من تحت 8px، خروج أسرع من الدخول، transitions فقط (قابلة للمقاطعة) ---- */
 #olv-toasts{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:100; display:flex; flex-direction:column; align-items:center; gap:8px; width:max-content; max-width:90vw; pointer-events:none;}
 .olv-toast{display:flex; align-items:center; gap:8px; padding:12px 22px; border-radius:10px; color:#fff; background:var(--ok); font-size:14px; font-weight:700; text-align:center; box-shadow:0 4px 16px rgba(0,0,0,.3); pointer-events:auto; cursor:pointer; opacity:0; transform:translateY(8px); transition:opacity .18s var(--spring), transform .22s var(--spring);}
@@ -367,6 +390,11 @@ tbody tr{transition:background .15s var(--ease);}
   .wrap > .group{animation:olv-bd-in .15s ease backwards !important; animation-delay:0s !important;}
   .olv-new{animation:olv-bd-in .15s ease backwards !important;}
   .olv-toast, .olv-toast.in, .olv-toast.out{transform:none !important;}
+  /* بانر الاتصال و details: تلاشي فقط بدون تغيير ارتفاع */
+  .olv-connection-banner{transition:opacity .15s ease, display .15s allow-discrete !important;}
+  details::details-content{transition:opacity .15s ease, content-visibility .15s allow-discrete !important;}
+  /* تعبئة الضغط المطوّل مؤشر تقدّم حقيقي، لازم تضل بمدة الضغط مو .12s */
+  .olv-hold.holding::after{transition-duration:var(--hold-ms,900ms) !important;}
 }
 
 /* ---- إمكانية الوصول: حركة مخفّفة، شفافية مخفّفة، تباين أعلى ---- */
@@ -375,7 +403,7 @@ tbody tr{transition:background .15s var(--ease);}
     animation-duration:.01ms !important; animation-iteration-count:1 !important;
     transition-duration:.12s !important; scroll-behavior:auto !important;
   }
-  .btn:active, .tab-link:active, .olv-hub-tab:active{transform:none !important;}
+  .btn:active, .tab-link:active, .olv-hub-tab:active, .pi-mini:active, .cov-chip:active, .recipe-suggest-chip:active{transform:none !important;}
   .tab-more-panel{transform:none !important;}
   .btn:hover, .tab-link:hover, .stat:hover, .olv-hub-tab:hover{transform:none !important;}
 }
