@@ -234,6 +234,7 @@
       `).join("");
     }
 
+    const ingTracker = olvNewTracker();
     async function loadIngredients() {
       const errBox = document.getElementById("err");
       const body = document.getElementById("ing-body");
@@ -244,6 +245,7 @@
         ]);
         if (error) throw error;
         ingredients = data || [];
+        const freshIng = ingTracker.diff(ingredients.map((i) => i.id));
         daysLeftById = daysLeftMap;
         renderUrgentBanner();
         if (!ingredients.length) {
@@ -258,7 +260,7 @@
               daysCell = `<span class="${urgent ? "low-stock" : ""}">${daysLeft <= 0 ? "نفدت تقريبًا" : `${daysLeft.toFixed(1)} يوم`}</span>`;
             }
             return `
-              <tr>
+              <tr data-row-id="${olvEsc(ing.id)}">
                 <td>${olvEsc(ing.name)}</td>
                 <td>${olvEsc(ing.unit)}</td>
                 <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
@@ -274,6 +276,7 @@
               </tr>
             `;
           }).join("");
+          olvMarkNew(body, freshIng, { scroll: true });
           body.querySelectorAll("button[data-apply]").forEach((btn) => {
             btn.addEventListener("click", async () => {
               const input = body.querySelector(`input[data-adjust="${btn.dataset.apply}"]`);

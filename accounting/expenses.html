@@ -198,6 +198,7 @@
       sel.innerHTML = categories.map((c) => `<option value="${c.id}">${olvEsc(c.name)}</option>`).join("");
     }
 
+    const expTracker = olvNewTracker();
     async function loadExpenses() {
       const errBox = document.getElementById("err");
       const body = document.getElementById("expenses-body");
@@ -206,12 +207,13 @@
           .from("expenses").select("*, expense_categories(name)")
           .order("expense_date", { ascending: false }).limit(60);
         if (error) throw error;
+        const fresh = expTracker.diff((data || []).map((r) => r.id));
         if (!data || !data.length) {
           body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد مصروفات مسجّلة بعد</td></tr>`;
           return;
         }
         body.innerHTML = data.map((r) => `
-          <tr>
+          <tr data-row-id="${olvEsc(r.id)}">
             <td>${r.expense_date}</td>
             <td>${r.expense_categories ? olvEsc(r.expense_categories.name) : "—"}</td>
             <td>${olvEsc(r.description) || "—"}${r.recurring_id ? ' <small style="color:var(--muted)">(متكرر)</small>' : ""}</td>
@@ -219,6 +221,7 @@
             <td>${window.olvRole === "staff" ? "" : `<button class="btn small danger" data-id="${r.id}">حذف</button>`}</td>
           </tr>
         `).join("");
+        olvMarkNew(body, fresh, { scroll: true });
         body.querySelectorAll("button[data-id]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             if (!confirm("متأكد من حذف هذا المصروف؟")) return;

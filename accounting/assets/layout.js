@@ -75,6 +75,34 @@ function olvDismiss(el, ms) {
   el.classList.add("closing");
   setTimeout(() => el.remove(), ms || 140);
 }
+// عناصر جديدة بالقوائم (صف مصروف جديد، طلب وارد، تذكرة مطبخ): أول رسمة = baseline بدون حركة، وبعدها أي id
+// ما انشاف قبل بياخد class olv-new (دخول 180ms) — بس الجديد، مو القائمة كلها مع كل تحديث دوري
+function olvNewTracker() {
+  let seen = null;
+  return {
+    diff(ids) {
+      const fresh = new Set();
+      if (seen !== null) ids.forEach((id) => { if (!seen.has(id)) fresh.add(id); });
+      seen = new Set(ids);
+      return fresh;
+    },
+  };
+}
+// بتحط olv-new على العناصر (data-row-id) اللي ids تبعتها بـfresh، واختياريًا بتمرّر أول واحد للعرض لو كان خارج الشاشة
+function olvMarkNew(container, fresh, opts) {
+  if (!container || !fresh || !fresh.size) return;
+  let first = null;
+  container.querySelectorAll("[data-row-id]").forEach((el) => {
+    if (fresh.has(el.dataset.rowId)) { el.classList.add("olv-new"); first = first || el; }
+  });
+  if (first && opts && opts.scroll) {
+    const r = first.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) {
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      first.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+    }
+  }
+}
 // حياة التوست: ظهور (شفافية + ارتفاع 8px) ثم خروج بعد ms. الـtoast لازم يكون مضاف للـbody ومعه position:fixed و transform:translateX(-50%)
 function olvToastLife(el, ms) {
   const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;

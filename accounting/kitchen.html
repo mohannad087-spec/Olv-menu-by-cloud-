@@ -177,6 +177,8 @@
       return (Date.now() - new Date(ts).getTime()) / 60000;
     }
 
+    // تتبّع التذاكر الجديدة لكل تبويب (بيتصفّر لما الكاشير يبدّل التبويب حتى ما تتحرك كل البطاقات)
+    let kTracker = olvNewTracker(), kTrackerTab = null;
     async function loadOrders() {
       const errBox = document.getElementById("err");
       const grid = document.getElementById("orders-grid");
@@ -191,6 +193,8 @@
           .limit(60);
         if (error) throw error;
         const orders = (data || []).filter((o) => o.sale_items && o.sale_items.length);
+        if (kTrackerTab !== activeTab) { kTracker = olvNewTracker(); kTrackerTab = activeTab; }
+        const freshTickets = kTracker.diff(orders.map((o) => o.id));
         if (!orders.length) {
           grid.innerHTML = `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"} حاليًا</div>`;
           return;
@@ -200,7 +204,7 @@
           const overdue = activeTab === "pending" && ageMinutes > 15;
           const isDelivery = o.order_type === "توصيل";
           return `
-            <div class="order-card${overdue ? " overdue" : ""}">
+            <div class="order-card${overdue ? " overdue" : ""}" data-row-id="${olvEsc(o.id)}">
               <div class="order-head">
                 <div class="order-time-wrap">
                   <span class="order-time">${o.order_no ? `#${o.order_no} · ` : ""}${formatTime(o.created_at)}</span>
@@ -229,6 +233,7 @@
             </div>
           `;
         }).join("");
+        olvMarkNew(grid, freshTickets);
         grid.querySelectorAll("button[data-id]").forEach((btn) => {
           btn.addEventListener("click", async () => {
             btn.disabled = true;
