@@ -103,18 +103,46 @@ function olvMarkNew(container, fresh, opts) {
     }
   }
 }
-// حياة التوست: ظهور (شفافية + ارتفاع 8px) ثم خروج بعد ms. الـtoast لازم يكون مضاف للـbody ومعه position:fixed و transform:translateX(-50%)
-function olvToastLife(el, ms) {
-  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  el.style.opacity = "0";
-  if (!reduce) el.style.transform = "translate(-50%, 8px)";
-  el.style.transition = "opacity .18s var(--spring), transform .22s var(--spring)";
-  requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = "1"; el.style.transform = "translateX(-50%)"; }));
-  setTimeout(() => {
-    el.style.opacity = "0";
-    if (!reduce) el.style.transform = "translate(-50%, 6px)";
-    setTimeout(() => el.remove(), 200);
-  }, ms);
+// إشعار موحّد: حاوية وحدة أسفل الشاشة، الإشعارات بتتكدّس فوق بعض (أقصى 3)، نفس الرسالة ما بتتكرر (بنمدّد عمرها)،
+// والضغط على الإشعار بسكّره. opts: { type: "ok" | "danger" | "gold" | "info", icon, ms }
+function olvToast(msg, opts) {
+  opts = opts || {};
+  let box = document.getElementById("olv-toasts");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "olv-toasts";
+    box.setAttribute("role", "status");
+    box.setAttribute("aria-live", "polite");
+    document.body.appendChild(box);
+  }
+  const text = String(msg);
+  const ms = opts.ms || 2200;
+  const live = () => Array.from(box.children).filter((e) => !e.classList.contains("out"));
+  const dup = live().find((e) => e.dataset.msg === text);
+  if (dup) { dup._arm(); return dup; }
+  live().slice(0, Math.max(0, live().length - 2)).forEach((e) => e._close());
+
+  const el = document.createElement("div");
+  el.className = "olv-toast " + (opts.type || "ok");
+  el.dataset.msg = text;
+  if (opts.icon && typeof olvIcon === "function") el.insertAdjacentHTML("beforeend", olvIcon(opts.icon));
+  const span = document.createElement("span");
+  span.textContent = text;
+  el.appendChild(span);
+  let timer = null;
+  el._close = () => {
+    clearTimeout(timer);
+    if (el.classList.contains("out")) return;
+    el.classList.remove("in"); el.classList.add("out");
+    setTimeout(() => el.remove(), 160);
+  };
+  el._arm = () => { clearTimeout(timer); timer = setTimeout(el._close, ms); };
+  el.addEventListener("click", el._close);
+  box.appendChild(el);
+  el.getBoundingClientRect(); // نثبّت الحالة الابتدائية قبل ما نضيف .in حتى تشتغل الحركة
+  el.classList.add("in");
+  el._arm();
+  return el;
 }
 
 function olvIcon(name, cls) {

@@ -227,6 +227,7 @@
             if (!confirm("متأكد من حذف هذا المصروف؟")) return;
             const { error } = await window.supabaseClient.from("expenses").delete().eq("id", btn.dataset.id);
             if (error) { olvShowError(errBox, error); return; }
+            olvToast("تم حذف المصروف");
             loadExpenses();
           });
         });
@@ -326,9 +327,11 @@
         if (editingRec) res = await window.supabaseClient.from("recurring_expenses").update(payload).eq("id", editingRec);
         else res = await window.supabaseClient.from("recurring_expenses").insert({ ...payload, created_by: session.user.id });
         if (res.error) throw res.error;
+        const wasEditing = !!editingRec;
         resetRecForm();
         await runRecurring();
         await Promise.all([loadRecs(), loadExpenses()]);
+        olvToast(wasEditing ? "تم تعديل المصروف المتكرر" : "تم حفظ المصروف المتكرر");
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
@@ -364,6 +367,7 @@
         const { error } = await window.supabaseClient.from("recurring_expenses").delete().eq("id", b.dataset.recDel);
         if (error) { olvShowError(errBox, error); return; }
         await Promise.all([loadRecs(), loadExpenses()]);
+        olvToast("تم حذف المصروف المتكرر");
       }
     });
 
@@ -394,6 +398,7 @@
         document.getElementById("expense-form").reset();
         document.getElementById("expense_date").value = olvToday();
         await loadExpenses();
+        olvToast("تم حفظ المصروف");
       } catch (err) {
         olvShowError(errBox, err);
       } finally {

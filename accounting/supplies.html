@@ -293,6 +293,7 @@
             btn.disabled = false;
             if (error) { olvShowError(errBox, error); return; }
             await loadSupplies();
+            olvToast("تم تعديل الكمية");
           });
         });
         container.querySelectorAll("button[data-del]").forEach((btn) => {
@@ -301,6 +302,7 @@
             const { error } = await window.supabaseClient.from("supplies").delete().eq("id", btn.dataset.del);
             if (error) { olvShowError(errBox, error); return; }
             await loadSupplies();
+            olvToast("تم حذف المستلزم");
           });
         });
       } catch (err) {
@@ -326,6 +328,7 @@
         document.getElementById("s-category").value = "عام";
         document.getElementById("s-unit").value = "قطعة";
         await loadSupplies();
+        olvToast("تمت إضافة المستلزم");
       } catch (err) {
         olvShowError(errBox, err);
       }
