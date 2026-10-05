@@ -124,7 +124,7 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 .tab-more-panel{
   display:block; visibility:hidden; opacity:0; transform:scale(.94) translateY(-6px); transform-origin:top right;
   pointer-events:none;
-  transition:opacity .16s var(--spring), transform .22s var(--spring), visibility 0s linear .22s;
+  transition:opacity .12s var(--spring), transform .14s var(--spring), visibility 0s linear .14s;
   position:fixed; z-index:60; width:260px; max-width:calc(100vw - 24px);
   max-height:calc(100vh - 100px); overflow-y:auto;
   background:var(--material); -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%);
@@ -133,7 +133,7 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 }
 .tab-more.open .tab-more-panel{
   visibility:visible; opacity:1; transform:none; pointer-events:auto;
-  transition:opacity .16s var(--spring), transform .26s var(--spring), visibility 0s;
+  transition:opacity .14s var(--spring), transform .2s var(--spring), visibility 0s;
 }
 .tab-more-group + .tab-more-group{margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft, rgba(var(--gold-rgb),.1));}
 .tab-more-group-label{font-size:11px; color:var(--muted); letter-spacing:0; padding:2px 10px 6px;}
@@ -275,7 +275,7 @@ tbody tr{transition:background .15s var(--ease);}
 .center-card{
   max-width:380px; margin:min(11vh,80px) auto 40px; background:var(--ink-2); border:1px solid var(--hair);
   border-radius:18px; padding:32px 28px; box-shadow:0 1px 2px rgba(0,0,0,.5), 0 24px 60px -16px rgba(0,0,0,.65);
-  animation:olv-card-in .5s var(--ease) both;
+  animation:olv-card-in .24s var(--spring) both;
 }
 @keyframes olv-card-in{from{opacity:0; transform:translateY(10px) scale(.98);} to{opacity:1; transform:none;}}
 .center-card h1{text-align:center; margin-bottom:22px; font-size:22px;}
@@ -298,16 +298,16 @@ tbody tr{transition:background .15s var(--ease);}
    على اللمس، :hover بيعلق على آخر عنصر انضغط ("رفعة" ما بتنزل) — فنحصرها
    بالأجهزة اللي بتدعم المرور الحقيقي، واللمس بياخد ردّة فعل :active فورية */
 @media (hover:hover) and (pointer:fine){
-  .tab-link:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
+  .tab-link:hover{border-color:var(--gold); color:var(--gold-hi);}
   .tab-link.on:hover{transform:none;}
   .olv-hub-tab:hover{color:var(--gold-hi); border-color:var(--hair);}
   .tab-more-link:hover{background:var(--ink-3); color:var(--gold-hi); transform:none;}
-  .btn:hover{border-color:var(--gold); color:var(--gold-hi); transform:translateY(-1px);}
+  .btn:hover{border-color:var(--gold); color:var(--gold-hi);}
   .btn:active{transform:scale(.97);}
   .btn.gold:hover{filter:brightness(1.06); box-shadow:0 6px 18px -4px rgba(var(--gold-rgb),.6);}
   .btn.danger:hover{border-color:var(--danger); color:#f0b7a8;}
   .btn:disabled:hover{transform:none;}
-  .stat:hover{transform:translateY(-3px); box-shadow:var(--card-shadow-hover); border-color:var(--hair);}
+  .stat:hover{box-shadow:var(--card-shadow-hover); border-color:var(--hair);}
   tr:hover td{background:rgba(var(--gold-rgb),.06);}
 }
 
@@ -345,17 +345,16 @@ tbody tr{transition:background .15s var(--ease);}
 .olv-modal-backdrop > *{animation:olv-modal-in .2s var(--spring) both;}
 .olv-modal-backdrop.closing{animation:olv-bd-out .14s var(--spring) both; pointer-events:none;}
 .olv-modal-backdrop.closing > *{animation:olv-modal-out .14s var(--spring) both;}
-.wrap > .group{animation:olv-rise .24s var(--spring) backwards;}
-/* أول عنصر بالـwrap غالبًا شريط الخطأ (.err) فأول بطاقة هي الثانية — التأخير يبدأ من الثالثة */
-.wrap > .group:nth-child(3){animation-delay:.035s;}
-.wrap > .group:nth-child(4){animation-delay:.07s;}
-.wrap > .group:nth-child(5){animation-delay:.105s;}
-.wrap > .group:nth-child(6){animation-delay:.14s;}
-.wrap > .group:nth-child(n+7){animation-delay:.17s;}
+.wrap > .group{animation:olv-rise .18s var(--spring) backwards;}
+/* تأخير بسيط (30ms) بين البطاقات المتجاورة وبحد أقصى 80ms: التنقل بين الصفحات بيتكرر عشرات المرات باليوم */
+.wrap > .group + .group{animation-delay:.03s;}
+.wrap > .group + .group + .group{animation-delay:.06s;}
+.wrap > .group + .group + .group + .group{animation-delay:.08s;}
 @media (prefers-reduced-motion: reduce){
-  .olv-modal-backdrop > *{animation:olv-bd-in .15s ease both;}
-  .olv-modal-backdrop.closing > *{animation:olv-bd-out .12s ease both;}
-  .wrap > .group{animation:olv-bd-in .15s ease backwards;}
+  /* الـ!important ضروري: القاعدة العامة تحت بتخلي كل animation-duration شبه صفر، وهاي لازم تضل تلاشي (أخف مو صفر) */
+  .olv-modal-backdrop > *{animation:olv-bd-in .15s ease both !important;}
+  .olv-modal-backdrop.closing > *{animation:olv-bd-out .12s ease both !important;}
+  .wrap > .group{animation:olv-bd-in .15s ease backwards !important; animation-delay:0s !important;}
 }
 
 /* ---- إمكانية الوصول: حركة مخفّفة، شفافية مخفّفة، تباين أعلى ---- */
@@ -366,6 +365,7 @@ tbody tr{transition:background .15s var(--ease);}
   }
   .btn:active, .tab-link:active, .olv-hub-tab:active{transform:none !important;}
   .tab-more-panel{transform:none !important;}
+  .btn:hover, .tab-link:hover, .stat:hover, .olv-hub-tab:hover{transform:none !important;}
 }
 @media (prefers-reduced-transparency: reduce){
   .tab-more-panel{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
