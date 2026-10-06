@@ -79,6 +79,12 @@
   .po-add-results button{display:flex; width:100%; justify-content:space-between; gap:10px; text-align:right; padding:10px 12px; background:none; border:none; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); color:var(--paper); font-size:14px;}
   .po-add-results button:hover{background:rgba(var(--gold-rgb),.1);}
   #po-wa{text-decoration:none;}
+  .po-filter{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:0 0 10px; position:sticky; top:0; z-index:5; background:var(--ink); padding:8px 0;}
+  .po-filter input[type=search]{flex:1; min-width:220px; box-sizing:border-box; padding:12px 14px; font-size:16px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:10px; font-family:'Tajawal',sans-serif;}
+  .po-filter input[type=search]:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(var(--gold-rgb),.18);}
+  .po-only{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); white-space:nowrap;}
+  .po-filter-count{font-size:12.5px; color:var(--muted); white-space:nowrap;}
+  .po-filter[hidden]{display:none;}
   .po-add-results .po-sec{padding:6px 12px; font-size:11.5px; color:var(--muted); background:var(--ink-3);}
   .po-add-results .po-create{color:var(--gold-hi); font-weight:700;}
   .po-new{border:1px solid var(--gold); border-radius:12px; padding:14px; margin-top:10px; background:var(--ink-2);}
@@ -119,6 +125,11 @@
 
     <div class="group" id="po-editor" hidden>
       <div class="po-editing" id="po-editing" hidden></div>
+      <div class="po-filter" id="po-filter-bar">
+        <input type="search" id="po-filter" placeholder="🔍 ابحث بكلمة في مواد المورّد — مثال: معس بطيخ" autocomplete="off" aria-label="ابحث في مواد المورّد">
+        <label class="po-only"><input type="checkbox" id="po-only"> المختارة فقط</label>
+        <span class="po-filter-count" id="po-filter-count"></span>
+      </div>
       <div class="po-tbl-wrap">
         <table class="po-tbl">
           <thead><tr><th>المادة</th><th>المخزون الحالي</th><th style="width:150px;">وحدة الطلب</th><th style="width:170px;">الكمية</th><th style="width:100px;">السعر التقديري</th><th>المجموع</th><th></th></tr></thead>
@@ -197,6 +208,9 @@
     const factorOf = (row, it) => (row.mode === "purchase" && it && it.puFactor) ? it.puFactor : 1;
     // وحدات بتنقسم (كيلو/لتر): بنعرض اختصارات كسور 0.1 0.2 0.25 0.5 1 لما الطلب بوحدة المخزون نفسها
     const DIVISIBLE = new Set(["كيلوغرام", "كغ", "كغم", "كيلو", "لتر", "kg", "l"]);
+    // بحث بالكلمات: كل كلمة لازم تكون موجودة بالاسم بأي ترتيب (معس بطيخ = معسل مزايا بطيخ)، وبنتجاهل ال التعريف والتشكيل
+    const tokensOf = (q) => norm(q).split(" ").filter(Boolean).map((t) => (t.length > 3 && t.startsWith("ال") ? t.slice(2) : t));
+    const matchTokens = (text, q) => { const t = tokensOf(q); if (!t.length) return true; const h = norm(text); return t.every((w) => h.includes(w)); };
     const divisible = (it, row) => !!it && DIVISIBLE.has(String(it.unit).trim()) && row.mode === "stock";
     const unitLabel = (row, it) => (row.mode === "purchase" && it && it.puName) ? it.puName : (it ? it.unit : "");
 
@@ -262,8 +276,14 @@
       $("po-no-items").hidden = !!rows.length;
       $("po-editing").hidden = !orderId;
       if (orderId) $("po-editing").textContent = "عم تعدّل مسودة محفوظة — احفظ لتحديثها.";
+      const fq = $("po-filter").value, onlySel = $("po-only").checked;
+      let shown = 0;
+      $("po-filter-bar").hidden = rows.length < 2;
       $("po-rows").innerHTML = rows.map((r, idx) => {
         const it = itemByKey(r.key); if (!it) return "";
+        if (fq && !matchTokens(it.name, fq)) return "";
+        if (onlySel && !(Number(r.qty) > 0)) return "";
+        shown++;
         const low = it.threshold > 0 && it.stock <= it.threshold;
         const hasPU = it.puName && it.puFactor;
         const unitSel = hasPU
@@ -280,6 +300,8 @@
           <td>${meta && meta.auto ? `<span class="po-kind" title="مربوط من صفحة المستلزمات">●</span>` : `<button type="button" class="po-x" data-unlink="${idx}" title="شيل المادة من هذا المورّد" aria-label="شيل المادة من هذا المورّد">✕</button>`}</td>
         </tr>`;
       }).join("");
+      $("po-filter-count").textContent = rows.length >= 2 ? (fq || onlySel ? `${shown} من ${rows.length}` : `${rows.length} مادة`) : "";
+      if (rows.length && !shown && (fq || onlySel)) $("po-rows").innerHTML = `<tr><td colspan="7" class="hint" style="padding:16px;">ما في مادة بهالكلمة بين مواد هذا المورّد — جرّب كلمة ثانية، أو أضفها من خانة الإضافة تحت.</td></tr>`;
       $("po-rows").querySelectorAll("[data-qty]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.qty].qty = el.value; refreshTotals(); }));
       $("po-rows").querySelectorAll("[data-fr]").forEach((el) => el.addEventListener("click", () => {
         rows[+el.dataset.fr].qty = el.dataset.v; const inp = document.querySelector(`[data-qty="${el.dataset.fr}"]`); if (inp) inp.value = el.dataset.v; refreshTotals();
@@ -345,6 +367,19 @@
         olvToast("انشالت المادة من المورّد");
       } catch (err) { olvShowError($("err"), err); }
     }
+    // ---------- فلتر مواد المورّد (سريع، بدون ما نعيد تحميل شي) ----------
+    let filterTimer = null;
+    $("po-filter").addEventListener("input", () => { clearTimeout(filterTimer); filterTimer = setTimeout(render, 60); });
+    $("po-only").addEventListener("change", render);
+    $("po-filter").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); const q = document.querySelector("#po-rows [data-qty]"); if (q) { q.focus(); q.select(); } }
+      else if (e.key === "Escape") { $("po-filter").value = ""; render(); }
+    });
+    // Enter بخانة الكمية بيرجّعك لخانة البحث وبيمسحها، حتى تكتب المادة اللي بعدها مباشرة
+    $("po-rows").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.matches("[data-qty]") && $("po-filter").value) { e.preventDefault(); $("po-filter").value = ""; render(); $("po-filter").focus(); }
+    });
+
     // ---------- إضافة مادة: مخزونك، الكتالوج، أو إنشاء مادة جديدة ----------
     const N = (t) => (window.olvCatNorm ? olvCatNorm(t) : norm(t));
     let catHits = new Map();
@@ -369,12 +404,12 @@
       const raw = $("po-add").value.trim(), q = N(raw), box = $("po-add-results"), seq = ++addSeq;
       if (!supplier || q.length < 1) { box.hidden = true; return; }
       const taken = new Set(rows.map((r) => r.key));
-      const mine = items.filter((i) => !taken.has(i.key) && N(i.name).includes(q)).slice(0, 8);
+      const mine = items.filter((i) => !taken.has(i.key) && matchTokens(i.name, raw)).slice(0, 8);
       let cat = [];
       if (typeof olvCatalogFind === "function" && q.length >= 2) {
         try {
           const have = new Set(items.map((i) => N(i.name)));
-          cat = (await olvCatalogFind()).filter((e) => !have.has(e.key) && e.hay.includes(q)).slice(0, 8);
+          cat = (await olvCatalogFind()).filter((e) => !have.has(e.key) && matchTokens(e.hay, raw)).slice(0, 8);
         } catch (e) { cat = []; }
       }
       if (seq !== addSeq) return; // كتابة أحدث بدأت
@@ -471,11 +506,11 @@
     }
     $("po-supplier").addEventListener("change", async () => {
       supplier = suppliers.find((s) => s.id === $("po-supplier").value) || null;
-      orderId = null; $("po-text").hidden = true; $("po-notes").value = "";
+      orderId = null; $("po-text").hidden = true; $("po-notes").value = ""; $("po-filter").value = ""; $("po-only").checked = false;
       try { await refreshForSupplier(null); } catch (err) { olvShowError($("err"), err); }
     });
     $("po-reset").addEventListener("click", async () => {
-      orderId = null; $("po-notes").value = ""; $("po-text").hidden = true;
+      orderId = null; $("po-notes").value = ""; $("po-text").hidden = true; $("po-filter").value = ""; $("po-only").checked = false;
       try { await refreshForSupplier(null); } catch (err) { olvShowError($("err"), err); }
     });
 
