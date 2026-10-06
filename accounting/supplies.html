@@ -72,11 +72,6 @@
   .cat-accordion-head .caret{color:var(--gold); transition:.2s; display:inline-block;}
   .cat-accordion-head .caret.open{transform:rotate(90deg);}
   .cat-accordion-head span:nth-child(2){flex:1;}
-  .order-qty-input{width:70px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:9px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
-  .order-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
-  .order-row .o-name{flex:1; font-size:13.5px;}
-  .order-row .o-stock{color:var(--muted); font-size:12px; min-width:90px;}
-  #order-text{width:100%; min-height:200px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:13.5px; line-height:1.9; white-space:pre-wrap;}
   .olv-add-box summary{cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
   .olv-add-box summary::-webkit-details-marker{display:none;}
   .olv-add-box summary::before{content:"＋"; color:var(--gold-hi); font-weight:700;}
@@ -94,7 +89,7 @@
     <div class="group">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
         <h2 style="margin:0;">المستلزمات الحالية</h2>
-        <button type="button" class="btn gold" id="prepare-order-btn"></button>
+        <a class="btn gold" id="prepare-order-btn" href="purchase-orders.html" style="text-decoration:none;"></a>
       </div>
       <div class="inv-filter">
         <input type="search" id="sup-q" placeholder="🔍 ابحث بكلمة في المستلزمات" autocomplete="off" aria-label="ابحث في المستلزمات">
@@ -161,23 +156,6 @@
       </div>
     </details>
 
-    <div class="group" id="order-group" hidden>
-      <h2>تجهيز طلبية</h2>
-      <p class="hint" style="margin-bottom:12px;">
-        الكمية المقترحة تلقائيًا = الفرق بين حد التنبيه والكمية الحالية لأي
-        مستلزم قارب ينفد. عدّل أي رقم يدويًا حسب حاجتك الفعلية، واترك الحقل
-        صفر لأي صنف ما بدك تطلبه.
-      </p>
-      <div id="order-items"></div>
-      <button type="button" class="btn gold" id="build-order-text-btn" style="margin-top:14px;">إنشاء نص الطلبية</button>
-      <div id="order-output" hidden style="margin-top:16px;">
-        <textarea id="order-text" readonly></textarea>
-        <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
-          <button type="button" class="btn" id="copy-order-btn"></button>
-          <a class="btn gold" id="whatsapp-order-link" href="#" target="_blank" rel="noopener"></a>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -202,8 +180,6 @@
       olvOpenCatalog({ kind: "s", onDone: () => loadSupplies() });
     });
     document.getElementById("prepare-order-btn").innerHTML = olvIcon("clipboard") + "<span>تجهيز طلبية</span>";
-    document.getElementById("copy-order-btn").innerHTML = olvIcon("clipboard") + "<span>نسخ النص</span>";
-    document.getElementById("whatsapp-order-link").innerHTML = olvIcon("phone") + "<span>إرسال عبر واتساب</span>";
 
     let supplies = [];
     let suppliers = [];
@@ -351,80 +327,6 @@
         olvToast("تمت إضافة المستلزم");
       } catch (err) {
         olvShowError(errBox, err);
-      }
-    });
-
-    function renderOrderItems() {
-      const el = document.getElementById("order-items");
-      el.innerHTML = supplies.map((s) => {
-        const suggested = Math.max(0, Number(s.low_stock_threshold) - Number(s.current_stock));
-        return `
-          <div class="order-row">
-            <div class="o-name">${olvEsc(s.name)}</div>
-            <div class="o-stock">الحالي: ${olvEsc(s.current_stock)} ${olvEsc(s.unit)}</div>
-            <input type="number" step="0.001" min="0" class="order-qty-input" value="${suggested || ""}" placeholder="0" data-order-qty="${s.id}">
-          </div>
-        `;
-      }).join("");
-    }
-
-    document.getElementById("prepare-order-btn").addEventListener("click", () => {
-      const group = document.getElementById("order-group");
-      group.hidden = !group.hidden;
-      if (!group.hidden) {
-        renderOrderItems();
-        document.getElementById("order-output").hidden = true;
-        group.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-
-    document.getElementById("build-order-text-btn").addEventListener("click", () => {
-      // نجمع الأصناف حسب المورّد: كل مورّد بقسم لحاله بالنص، ورابط الواتساب بيطلع بس لما
-      // تكون كل الأصناف لنفس المورّد (قبل كانت الطلبية كلها تروح لأول مورّد بالغلط)
-      const bySupplier = new Map();
-      document.querySelectorAll("input[data-order-qty]").forEach((input) => {
-        const qty = Number(input.value || 0);
-        if (!qty) return;
-        const s = supplies.find((x) => x.id === input.dataset.orderQty);
-        if (!s) return;
-        const key = s.supplier_id || "";
-        if (!bySupplier.has(key)) bySupplier.set(key, []);
-        bySupplier.get(key).push(`• ${s.name} × ${qty} ${s.unit}`);
-      });
-      const output = document.getElementById("order-output");
-      if (!bySupplier.size) {
-        alert("ما حددت أي كمية للطلب");
-        output.hidden = true;
-        return;
-      }
-      const supplierName = (id) => (suppliers.find((s) => s.id === id) || {}).name || "بدون مورّد محدد";
-      const body = bySupplier.size === 1
-        ? [...bySupplier.values()][0].join("\n")
-        : [...bySupplier.entries()].map(([id, lines]) => `— ${supplierName(id)} —\n${lines.join("\n")}`).join("\n\n");
-      const text = `طلبية مستلزمات — OLV\nالتاريخ: ${olvToday()}\n\n${body}`;
-      document.getElementById("order-text").value = text;
-      output.hidden = false;
-      const waLink = document.getElementById("whatsapp-order-link");
-      const onlyId = bySupplier.size === 1 ? [...bySupplier.keys()][0] : null;
-      const supplier = onlyId ? suppliers.find((s) => s.id === onlyId) : null;
-      if (supplier && supplier.phone) {
-        let n = supplier.phone.replace(/\D/g, "");
-        if (n.startsWith("0")) n = "962" + n.slice(1);
-        waLink.href = `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
-        waLink.style.display = "";
-      } else {
-        waLink.style.display = "none";
-      }
-    });
-
-    document.getElementById("copy-order-btn").addEventListener("click", async () => {
-      const textarea = document.getElementById("order-text");
-      try {
-        await navigator.clipboard.writeText(textarea.value);
-        alert("انتسخ النص");
-      } catch (e) {
-        textarea.select();
-        document.execCommand("copy");
       }
     });
 
