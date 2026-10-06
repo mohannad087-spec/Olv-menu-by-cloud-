@@ -59,7 +59,7 @@
 })();
 </script>
 <style>
-  .po-pick{display:grid; grid-template-columns:minmax(220px,1fr) auto; gap:12px; align-items:end;}
+  .po-pick{display:grid; grid-template-columns:minmax(220px,1fr) auto auto; gap:12px; align-items:end;}
   @media(max-width:620px){.po-pick{grid-template-columns:1fr;}}
   .po-sup-info{font-size:13px; color:var(--muted); margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
   .po-tbl-wrap{overflow-x:auto;}
@@ -119,6 +119,17 @@
           <select id="po-supplier"><option value="">— اختر —</option></select>
         </div>
         <button type="button" class="btn" id="po-autolink" hidden></button>
+        <button type="button" class="btn" id="po-newsup-btn">＋ مورّد جديد</button>
+      </div>
+      <div class="po-new" id="po-newsup" hidden>
+        <div style="font-weight:700; margin-bottom:10px;">مورّد جديد</div>
+        <div class="grid">
+          <div><label for="ns-name">الاسم</label><input id="ns-name" type="text" maxlength="120" placeholder="اسم المورّد أو الشركة"></div>
+          <div><label for="ns-phone">الهاتف (للواتساب)</label><input id="ns-phone" type="tel" dir="ltr" placeholder="07XXXXXXXX"></div>
+          <div><label for="ns-notes">ملاحظات (اختياري)</label><input id="ns-notes" type="text" maxlength="300"></div>
+        </div>
+        <div class="pi-warn bad" id="ns-err" style="min-height:16px; color:var(--danger-hi); font-size:13px; margin:6px 0;"></div>
+        <div style="display:flex; gap:8px;"><button type="button" class="btn gold" id="ns-save">إضافة واختياره</button><button type="button" class="btn" id="ns-cancel">إلغاء</button></div>
       </div>
       <div class="po-sup-info" id="po-sup-info"></div>
       <div class="hint" id="po-empty-hint" style="margin-top:10px;">اختر المورّد وبتظهر لك المواد اللي بتشتريها منه، مع المخزون الحالي وكمية مقترحة للناقص.</div>
@@ -162,6 +173,7 @@
       <textarea id="po-text" readonly hidden style="margin-top:14px;"></textarea>
     </div>
 
+    <datalist id="po-pu-names"><option value="صندوق"><option value="علبة"><option value="كرتونة"><option value="كيس"><option value="حزمة"><option value="جالون"><option value="شوال"></datalist>
     <div class="group">
       <h2 style="margin-top:0;">آخر الطلبيات</h2>
       <div class="po-tbl-wrap" id="po-history"><div class="hint">جاري التحميل...</div></div>
@@ -181,6 +193,7 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/catalog.js"></script>
+  <script defer src="assets/search.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("purchase-orders");
@@ -287,9 +300,10 @@
         shown++;
         const low = it.threshold > 0 && it.stock <= it.threshold;
         const hasPU = it.puName && it.puFactor;
-        const unitSel = hasPU
-          ? `<select data-unit="${idx}"><option value="purchase"${r.mode === "purchase" ? " selected" : ""}>${olvEsc(it.puName)} (= ${it.puFactor} ${olvEsc(it.unit)})</option><option value="stock"${r.mode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option></select>`
-          : `<span style="font-size:13px;">${olvEsc(it.unit)}</span>`;
+        const unitSel = `<select data-unit="${idx}" aria-label="وحدة الطلب">`
+          + (hasPU ? `<option value="purchase"${r.mode === "purchase" ? " selected" : ""}>${olvEsc(it.puName)} (= ${it.puFactor} ${olvEsc(it.unit)})</option>` : "")
+          + `<option value="stock"${r.mode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option>`
+          + `<option value="__edit__">${hasPU ? "✎ تغيير وحدة الشراء (صندوق، علبة...)" : "＋ وحدة شراء (صندوق، علبة، كرتونة...)"}</option></select>`;
         const meta = linked.get(r.key);
         return `<tr>
           <td><div class="po-name">${olvEsc(it.name)}</div><div class="po-kind">${KIND_LABEL[it.kind]}${low ? ` · <span class="po-need">ناقص</span>` : ""}</div></td>
@@ -323,6 +337,7 @@
       $("po-rows").querySelectorAll("[data-price]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.price].price = el.value; refreshTotals(); }));
       $("po-rows").querySelectorAll("[data-unit]").forEach((el) => el.addEventListener("change", () => {
         const r = rows[+el.dataset.unit], it = itemByKey(r.key);
+        if (el.value === "__edit__") { el.value = r.mode; openUnitEditor(+el.dataset.unit); return; }
         const oldF = factorOf(r, it); r.mode = el.value; const newF = factorOf(r, it);
         // بنحوّل الكمية والسعر بين الوحدتين عشان يضلوا نفس الشي بالمخزون
         if (r.qty !== "") r.qty = String(Math.round(Number(r.qty) * oldF / newF * 1000) / 1000);
@@ -381,6 +396,67 @@
         olvToast("انشالت المادة من المورّد");
       } catch (err) { olvShowError($("err"), err); }
     }
+    // ---------- تغيير وحدة الشراء (صندوق / علبة / كرتونة...) من داخل الطلبية ----------
+    // بتنحفظ على المادة نفسها (متل صفحة فواتير المشتريات)، فبتضل للطلبيات والفواتير الجاية
+    const PU_PRESETS = ["صندوق", "علبة", "كرتونة", "كيس", "حزمة", "جالون", "شوال"];
+    function openUnitEditor(idx) {
+      const r = rows[idx], it = r && itemByKey(r.key); if (!it) return;
+      const back = document.createElement("div");
+      back.className = "olv-modal-backdrop";
+      back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:200; display:flex; align-items:center; justify-content:center; padding:16px;";
+      const hasPU = it.puName && it.puFactor;
+      back.innerHTML = `<div class="po-new" style="background:var(--ink-2); width:100%; max-width:460px; margin:0;" role="dialog" aria-modal="true" aria-label="وحدة الشراء">
+        <div style="font-weight:700; margin-bottom:4px;">وحدة شراء "${olvEsc(it.name)}"</div>
+        <div class="hint" style="margin:0 0 10px;">بتشتريها بوحدة (صندوق، علبة...) والمخزون بيتحسب بـ<b>${olvEsc(it.unit)}</b>. بتنحفظ للمرات الجاية كمان.</div>
+        <div class="po-fr" id="ue-chips" style="margin-bottom:10px;">${PU_PRESETS.map((n) => `<button type="button" data-n="${n}">${n}</button>`).join("")}</div>
+        <div class="grid">
+          <div><label for="ue-name">اسم الوحدة</label><input id="ue-name" type="text" maxlength="30" list="po-pu-names" value="${olvEsc(it.puName || "")}" placeholder="مثال: صندوق"></div>
+          <div><label for="ue-f">كم ${olvEsc(it.unit)} بالـ<span id="ue-nl">${olvEsc(it.puName || "وحدة")}</span> الواحدة؟</label><input id="ue-f" type="number" min="0" step="any" inputmode="decimal" dir="ltr" value="${it.puFactor || ""}" placeholder="مثال: 12"></div>
+        </div>
+        <div class="pi-warn bad" id="ue-err" style="min-height:16px; color:var(--danger-hi); font-size:13px; margin:6px 0;"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn gold" id="ue-save">حفظ واستخدامها</button>
+          ${hasPU ? `<button type="button" class="btn danger" id="ue-clear">شيل وحدة الشراء</button>` : ""}
+          <button type="button" class="btn" id="ue-cancel">إلغاء</button>
+        </div></div>`;
+      document.body.appendChild(back);
+      const close = () => olvDismiss(back);
+      const q = (id) => back.querySelector("#" + id);
+      q("ue-name").addEventListener("input", () => { q("ue-nl").textContent = q("ue-name").value.trim() || "وحدة"; });
+      back.querySelectorAll("#ue-chips button").forEach((b) => b.addEventListener("click", () => { q("ue-name").value = b.dataset.n; q("ue-nl").textContent = b.dataset.n; q("ue-f").focus(); }));
+      q("ue-cancel").addEventListener("click", close);
+      back.addEventListener("mousedown", (e) => { if (e.target === back) close(); });
+      back.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); else if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); q("ue-save").click(); } });
+      async function apply(name, factor) {
+        const oldF = factorOf(r, it);
+        const { error } = await window.supabaseClient.from(it.kind === "ingredient" ? "ingredients" : "supplies")
+          .update({ purchase_unit: name, purchase_unit_factor: factor }).eq("id", it.id);
+        if (error) throw error;
+        it.puName = name || ""; it.puFactor = name && factor > 0 ? factor : 0;
+        // بنحافظ على نفس الكمية الفعلية بالمخزون: الكمية والسعر بيتحوّلوا للوحدة الجديدة
+        r.mode = it.puFactor ? "purchase" : "stock";
+        const newF = factorOf(r, it);
+        if (r.qty !== "") r.qty = String(Math.round(Number(r.qty) * oldF / newF * 1000) / 1000);
+        if (r.price !== "") r.price = String(Math.round(Number(r.price) / oldF * newF * 1000) / 1000);
+        render();
+      }
+      q("ue-save").addEventListener("click", async () => {
+        const name = q("ue-name").value.trim(), f = Number(q("ue-f").value);
+        if (!name) { q("ue-err").textContent = "اكتب اسم الوحدة (صندوق، علبة...)"; return; }
+        if (!(f > 0)) { q("ue-err").textContent = "اكتب كم " + it.unit + " بالوحدة الواحدة (رقم أكبر من صفر)"; return; }
+        q("ue-save").disabled = true;
+        try { await apply(name, f); close(); olvToast(`"${it.name}" بتنطلب بالـ${name} (= ${f} ${it.unit})`); }
+        catch (err) { q("ue-err").textContent = err.message || String(err); q("ue-save").disabled = false; }
+      });
+      const clr = q("ue-clear");
+      if (clr) clr.addEventListener("click", async () => {
+        clr.disabled = true;
+        try { await apply(null, null); close(); olvToast(`انشالت وحدة الشراء عن "${it.name}"`); }
+        catch (err) { q("ue-err").textContent = err.message || String(err); clr.disabled = false; }
+      });
+      q("ue-name").focus();
+    }
+
     // ---------- فلتر مواد المورّد (سريع، بدون ما نعيد تحميل شي) ----------
     let filterTimer = null;
     $("po-filter").addEventListener("input", () => { clearTimeout(filterTimer); filterTimer = setTimeout(render, 60); });
@@ -464,7 +540,7 @@
           <div><label for="pn-name">الاسم</label><input id="pn-name" type="text" maxlength="120" value="${olvEsc(name)}"></div>
           <div><label for="pn-kind">النوع</label><select id="pn-kind"><option value="ingredient">مادة خام / بضاعة</option><option value="supply">مستلزم (أكياس، أكواب...)</option></select></div>
           <div><label for="pn-unit">وحدة المخزون</label><select id="pn-unit">${UNITS.map((u) => `<option value="${u}"${u === "كيلوغرام" ? " selected" : ""}>${u}</option>`).join("")}</select></div>
-          <div><label for="pn-pu">وحدة الشراء (اختياري)</label><input id="pn-pu" type="text" maxlength="30" placeholder="مثال: كرتونة"></div>
+          <div><label for="pn-pu">وحدة الشراء (اختياري)</label><input id="pn-pu" type="text" maxlength="30" list="po-pu-names" placeholder="مثال: صندوق، علبة، كرتونة"></div>
           <div><label for="pn-pf">كم <span id="pn-pf-u">كيلوغرام</span> بالوحدة الواحدة؟</label><input id="pn-pf" type="number" min="0" step="any" inputmode="decimal" dir="ltr" placeholder="مثال: 10"></div>
         </div>
         <div class="hint" style="margin:8px 0;">بتنضاف للمخزون بكمية صفر، وبتنربط بهذا المورّد. تقدر تعدّل تفاصيلها لاحقًا من صفحة المخزون.</div>
@@ -509,6 +585,34 @@
         await refreshForSupplier(typed);
         olvToast(`انربط ${fresh.length} مادة من مشترياتك السابقة`);
       } catch (err) { olvShowError($("err"), err); }
+    });
+
+    // ---------- إضافة مورّد جديد من نفس الصفحة ----------
+    const phoneProblem = (v) => { v = String(v || "").trim(); if (!v) return ""; if (!/^[+\d\s\-()]+$/.test(v)) return "الهاتف لازم يكون أرقام بس"; return v.replace(/\D/g, "").length < 7 ? "رقم الهاتف قصير — تأكد منه" : ""; };
+    $("po-newsup-btn").addEventListener("click", () => { const f = $("po-newsup"); f.hidden = !f.hidden; $("ns-err").textContent = ""; if (!f.hidden) $("ns-name").focus(); });
+    $("ns-cancel").addEventListener("click", () => { $("po-newsup").hidden = true; });
+    $("po-newsup").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); $("ns-save").click(); } });
+    $("ns-save").addEventListener("click", async () => {
+      const name = $("ns-name").value.trim(), phone = $("ns-phone").value.trim();
+      if (name.length < 2) { $("ns-err").textContent = "اكتب اسم المورّد"; return; }
+      const bad = phoneProblem(phone); if (bad) { $("ns-err").textContent = bad; return; }
+      const dup = suppliers.find((x) => window.olvSearchNorm ? olvSearchNorm(x.name) === olvSearchNorm(name) : x.name === name);
+      const btn = $("ns-save"); btn.disabled = true;
+      try {
+        let sup = dup;
+        if (!sup) {
+          const { data, error } = await window.supabaseClient.from("suppliers").insert({ name, phone: phone || null, notes: $("ns-notes").value.trim() || null }).select();
+          if (error) throw error;
+          sup = Array.isArray(data) ? data[0] : data;
+          suppliers.push(sup); suppliers.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+          $("po-supplier").innerHTML = `<option value="">— اختر —</option>` + suppliers.map((x) => `<option value="${x.id}">${olvEsc(x.name)}</option>`).join("");
+        }
+        $("po-supplier").value = sup.id; $("po-newsup").hidden = true;
+        ["ns-name", "ns-phone", "ns-notes"].forEach((id) => { $(id).value = ""; });
+        $("po-supplier").dispatchEvent(new Event("change"));
+        olvToast(dup ? "المورّد موجود أصلًا — انختار" : `انضاف المورّد "${sup.name}" — ضيف له مواده من الخانة تحت`);
+      } catch (err) { $("ns-err").textContent = err.message || String(err); }
+      finally { btn.disabled = false; }
     });
 
     // ---------- اختيار المورّد ----------
