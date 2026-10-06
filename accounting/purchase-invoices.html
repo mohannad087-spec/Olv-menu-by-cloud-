@@ -777,6 +777,11 @@
           p_tax_recoverable: document.getElementById("pi-tax-rec").checked,
         });
         if (error) throw error;
+        if (fromOrderId) {
+          // الفاتورة انحفظت: بنعلّم الطلبية مستلمة (لو فشلت ما بنوقف شي، الفاتورة أهم)
+          const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
+          if (!poErr) { const b = document.getElementById("pi-from-order"); if (b) b.remove(); fromOrderId = null; if (window.olvToast) olvToast("انعلّمت الطلبية كمستلمة"); }
+        }
         lines = [newLine()];
         ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         document.getElementById("pi-file").value = "";
@@ -870,6 +875,36 @@
       }
     });
 
+    // استلام طلبية (purchase-orders.html): بنعبّي المورّد والسطور من الطلبية، وبعد حفظ الفاتورة بتتعلّم «مستلمة»
+    let fromOrderId = null;
+    async function prefillFromOrder(poId) {
+      const sb = window.supabaseClient;
+      const [{ data: o, error: e1 }, { data: ls, error: e2 }] = await Promise.all([
+        sb.from("purchase_orders").select("id, supplier_id, supplier_name, status, notes").eq("id", poId).single(),
+        sb.from("purchase_order_lines").select("ingredient_id, supply_id, qty, order_unit, factor, est_unit_price").eq("order_id", poId),
+      ]);
+      if (e1) throw e1; if (e2) throw e2;
+      if (o.status === "received" || o.status === "cancelled") throw new Error("هذه الطلبية " + (o.status === "received" ? "انستلمت" : "انلغت") + " من قبل");
+      if (o.supplier_id) document.getElementById("pi-supplier").value = o.supplier_id;
+      lines = (ls || []).map((l) => {
+        const it = items.find((i) => i.kind + ":" + i.id === (l.ingredient_id ? "ingredient:" + l.ingredient_id : "supply:" + l.supply_id));
+        if (!it) return null;
+        const f = Number(l.factor) || 1;
+        const price = l.est_unit_price == null ? "" : Number(l.est_unit_price);
+        // لو وحدة الطلب هي نفس وحدة الشراء المضبوطة للصنف: بنضل بوحدة الشراء، وإلا بنحوّل لوحدة المخزون
+        if (f !== 1 && Number(it.purchase_unit_factor) === f) return newLine({ itemKey: it.kind + ":" + it.id, unitMode: "purchase", qty: String(l.qty), price: price === "" ? "" : String(price) });
+        return newLine({ itemKey: it.kind + ":" + it.id, unitMode: "stock", qty: String(Math.round(Number(l.qty) * f * 1000) / 1000), price: price === "" ? "" : String(Math.round(price / f * 10000) / 10000) });
+      }).filter(Boolean);
+      if (!lines.length) lines = [newLine()];
+      fromOrderId = o.id;
+      const note = document.getElementById("pi-notes");
+      if (!note.value) note.value = "من طلبية " + o.supplier_name;
+      const banner = document.createElement("div");
+      banner.className = "pi-warn"; banner.id = "pi-from-order";
+      banner.textContent = "الأصناف والكميات محمّلة من طلبيتك — عدّل على الكميات والأسعار حسب الفاتورة الفعلية، وبعد الحفظ بتتعلّم الطلبية «مستلمة».";
+      document.getElementById("pi-supplier").closest(".field").before(banner);
+    }
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
@@ -879,6 +914,8 @@
       try {
         await Promise.all([loadItems(), loadSuppliers()]);
         lines = [newLine()];
+        const poId = new URLSearchParams(location.search).get("po");
+        if (poId) { try { await prefillFromOrder(poId); } catch (err) { olvShowError(document.getElementById("err"), err); } }
         renderLines();
         await loadHistory();
       } catch (err) { olvShowError(document.getElementById("err"), err); }
