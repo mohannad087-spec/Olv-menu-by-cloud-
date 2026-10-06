@@ -204,9 +204,6 @@
     $("po-wa").innerHTML = olvIcon("phone") + "<span>إرسال للمورّد عبر واتساب</span>";
 
     // ---------- أدوات ----------
-    const norm = (s) => String(s || "")
-      .replace(/[ً-ْـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
-      .toLowerCase().replace(/\s+/g, " ").trim();
     const round2 = (n) => Math.round(n * 100) / 100;
     const money = (n) => olvFormatMoney(n);
     const STATUS = { draft: "مسودة", sent: "مُرسلة", received: "مستلمة", cancelled: "ملغاة" };
@@ -222,9 +219,7 @@
     const factorOf = (row, it) => (row.mode === "purchase" && it && it.puFactor) ? it.puFactor : 1;
     // وحدات بتنقسم (كيلو/لتر): بنعرض اختصارات كسور 0.1 0.2 0.25 0.5 1 لما الطلب بوحدة المخزون نفسها
     const DIVISIBLE = new Set(["كيلوغرام", "كغ", "كغم", "كيلو", "لتر", "kg", "l"]);
-    // بحث بالكلمات: كل كلمة لازم تكون موجودة بالاسم بأي ترتيب (معس بطيخ = معسل مزايا بطيخ)، وبنتجاهل ال التعريف والتشكيل
-    const tokensOf = (q) => norm(q).split(" ").filter(Boolean).map((t) => (t.length > 3 && t.startsWith("ال") ? t.slice(2) : t));
-    const matchTokens = (text, q) => { const t = tokensOf(q); if (!t.length) return true; const h = norm(text); return t.every((w) => h.includes(w)); };
+    const matchTokens = olvSearchMatch; // بحث بالكلمات (assets/search.js): معس بطيخ = معسل مزايا بطيخ
     const divisible = (it, row) => !!it && DIVISIBLE.has(String(it.unit).trim()) && row.mode === "stock";
     const unitLabel = (row, it) => (row.mode === "purchase" && it && it.puName) ? it.puName : (it ? it.unit : "");
 
@@ -471,7 +466,7 @@
     });
 
     // ---------- إضافة مادة: مخزونك، الكتالوج، أو إنشاء مادة جديدة ----------
-    const N = (t) => (window.olvCatNorm ? olvCatNorm(t) : norm(t));
+    const N = (t) => olvSearchNorm(t);
     let catHits = new Map();
     function itemFromRow(kind, r) {
       const it = {
@@ -588,15 +583,14 @@
     });
 
     // ---------- إضافة مورّد جديد من نفس الصفحة ----------
-    const phoneProblem = (v) => { v = String(v || "").trim(); if (!v) return ""; if (!/^[+\d\s\-()]+$/.test(v)) return "الهاتف لازم يكون أرقام بس"; return v.replace(/\D/g, "").length < 7 ? "رقم الهاتف قصير — تأكد منه" : ""; };
     $("po-newsup-btn").addEventListener("click", () => { const f = $("po-newsup"); f.hidden = !f.hidden; $("ns-err").textContent = ""; if (!f.hidden) $("ns-name").focus(); });
     $("ns-cancel").addEventListener("click", () => { $("po-newsup").hidden = true; });
     $("po-newsup").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); $("ns-save").click(); } });
     $("ns-save").addEventListener("click", async () => {
       const name = $("ns-name").value.trim(), phone = $("ns-phone").value.trim();
       if (name.length < 2) { $("ns-err").textContent = "اكتب اسم المورّد"; return; }
-      const bad = phoneProblem(phone); if (bad) { $("ns-err").textContent = bad; return; }
-      const dup = suppliers.find((x) => window.olvSearchNorm ? olvSearchNorm(x.name) === olvSearchNorm(name) : x.name === name);
+      const bad = olvPhoneProblem(phone); if (bad) { $("ns-err").textContent = bad; return; }
+      const dup = suppliers.find((x) => olvSearchNorm(x.name) === olvSearchNorm(name));
       const btn = $("ns-save"); btn.disabled = true;
       try {
         let sup = dup;
@@ -622,12 +616,18 @@
       if (keep) rows = rows.map((r) => keep.get(r.key) || r);
       render();
     }
+    // كميات مكتوبة وما انحفظت: نسأل قبل ما نمسحها (تغيير المورّد أو "طلبية جديدة")
+    let shownSupplierId = "";
+    const confirmDiscard = () => !activeRows().length || confirm("في كميات مكتوبة بالطلبية الحالية — إذا كملت بتنمسح (إلا اللي انحفظ كمسودة). متأكد؟");
     $("po-supplier").addEventListener("change", async () => {
+      if (!confirmDiscard()) { $("po-supplier").value = shownSupplierId; return; }
+      shownSupplierId = $("po-supplier").value;
       supplier = suppliers.find((s) => s.id === $("po-supplier").value) || null;
       orderId = null; $("po-text").hidden = true; $("po-notes").value = ""; $("po-filter").value = ""; $("po-only").checked = false;
       try { await refreshForSupplier(null); } catch (err) { olvShowError($("err"), err); }
     });
     $("po-reset").addEventListener("click", async () => {
+      if (!confirmDiscard()) return;
       orderId = null; $("po-notes").value = ""; $("po-text").hidden = true; $("po-filter").value = ""; $("po-only").checked = false;
       try { await refreshForSupplier(null); } catch (err) { olvShowError($("err"), err); }
     });
@@ -643,21 +643,35 @@
         };
       });
     }
+    // حفظ واحد بالوقت: ضغطتين سريعتين (أو حفظ + واتساب) كانوا ينشئوا طلبيتين
+    let saving = false;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     async function saveOrder() {
+      if (saving) throw new Error("جاري الحفظ... استنى لحظة");
       if (!supplier) throw new Error("اختر المورّد أولًا");
       const lines = payloadLines();
       if (!lines.length) throw new Error("حدد كمية لصنف واحد على الأقل");
-      const sb = window.supabaseClient;
-      if (orderId) {
-        const { error: dErr } = await sb.from("purchase_order_lines").delete().eq("order_id", orderId);
-        if (dErr) throw dErr;
-      }
-      const { data, error } = await sb.rpc("save_purchase_order", {
-        p_order_id: orderId, p_supplier_id: supplier.id, p_notes: $("po-notes").value.trim() || null, p_lines: lines,
-      });
-      if (error) throw error;
-      orderId = data;
-      return data;
+      saving = true;
+      try {
+        const sb = window.supabaseClient;
+        const params = { p_order_id: orderId, p_supplier_id: supplier.id, p_notes: $("po-notes").value.trim() || null, p_lines: lines };
+        let emptied = false;
+        if (orderId) {
+          const { error: dErr } = await sb.from("purchase_order_lines").delete().eq("order_id", orderId);
+          if (dErr) throw dErr;
+          emptied = true;
+        }
+        // بعد مسح سطور المسودة القديمة، الحفظ الجديد لازم ينجح: بنعيد المحاولة لو انقطع النت لحظة
+        let last = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const { data, error } = await sb.rpc("save_purchase_order", params);
+          if (!error) { orderId = data; return data; }
+          last = error;
+          if (!emptied) break; // طلبية جديدة: ما في شي انمسح، الخطأ بيرجع للمستخدم فورًا
+          await sleep(700 * (attempt + 1));
+        }
+        throw emptied ? new Error("فشل الحفظ وسطور المسودة القديمة انمسحت — لا تسكّر الصفحة، الكميات لسا قدامك: اضغط حفظ مرة ثانية. (" + (last.message || last) + ")") : last;
+      } finally { saving = false; }
     }
     $("po-save").addEventListener("click", async () => {
       const btn = $("po-save"); btn.disabled = true;
@@ -720,6 +734,7 @@
     }
     // فتح طلبية سابقة بالمحرر: edit=true بتعدّل المسودة نفسها، edit=false بتنسخها كطلبية جديدة
     async function openOrder(id, edit) {
+      if (!confirmDiscard()) return;
       try {
         const sb = window.supabaseClient;
         const [{ data: o, error: e1 }, { data: ls, error: e2 }] = await Promise.all([
@@ -729,7 +744,7 @@
         if (e1) throw e1; if (e2) throw e2;
         supplier = suppliers.find((s) => s.id === o.supplier_id) || null;
         if (!supplier) throw new Error("المورّد انحذف — ما بنقدر نفتح الطلبية");
-        $("po-supplier").value = supplier.id;
+        $("po-supplier").value = supplier.id; shownSupplierId = supplier.id;
         await loadLinks();
         const keyOf = (l) => (l.ingredient_id ? "ingredient:" + l.ingredient_id : "supply:" + l.supply_id);
         // أي مادة بالطلبية وما عادت مربوطة بنضيفها للسطور (بدون ما نربطها)

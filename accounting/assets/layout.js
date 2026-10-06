@@ -181,6 +181,15 @@ function olvHoldConfirm(btn, onConfirm, opts) {
   btn.addEventListener("blur", () => cancel(false));
 }
 
+// رقم هاتف: أرقام ومسافات و+ و- بس، 7 خانات رقمية على الأقل. بيرجّع نص المشكلة أو "" لو سليم/فاضي
+// (غلطة بالرقم بتخلّي واتساب الطلبية يروح لغلط)
+function olvPhoneProblem(v) {
+  v = String(v || "").trim();
+  if (!v) return "";
+  if (!/^[+\d\s\-()]+$/.test(v)) return "الهاتف لازم يكون أرقام بس";
+  return v.replace(/\D/g, "").length < 7 ? "رقم الهاتف قصير — تأكد منه" : "";
+}
+
 function olvIcon(name, cls) {
   const inner = OLV_ICON_PATHS[name] || "";
   return `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24">${inner}</svg>`;
