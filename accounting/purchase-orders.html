@@ -59,23 +59,47 @@
 })();
 </script>
 <style>
-  .po-pick{display:grid; grid-template-columns:minmax(220px,1fr) auto auto; gap:12px; align-items:end;}
-  @media(max-width:620px){.po-pick{grid-template-columns:1fr;}}
+  .po-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+  .po-head h2{margin:0;}
+  .po-ai-toggle{border-color:var(--gold); color:var(--gold-hi);}
+  .po-ai-toggle[aria-expanded="true"]{background:rgba(var(--gold-rgb),.1);}
+  #ai-box{margin-top:12px; padding-top:12px; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
   .po-sup-info{font-size:13px; color:var(--muted); margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
-  .po-tbl-wrap{overflow-x:auto;}
-  .po-tbl{width:100%; border-collapse:collapse; min-width:720px;}
-  .po-tbl th{font-size:12px; color:var(--muted); text-align:right; padding:6px 6px; font-weight:500; white-space:nowrap;}
-  .po-tbl td{padding:6px 5px; vertical-align:middle; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
-  .po-tbl input,.po-tbl select{box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif; width:100%;}
-  .po-tbl input:focus,.po-tbl select:focus{outline:none; border-color:var(--gold);}
-  .po-name{font-weight:600; font-size:14px;}
-  .po-kind{font-size:11px; color:var(--muted);}
-  .po-thr{width:64px; padding:3px 6px !important; font-size:12.5px !important; min-height:0 !important; display:inline-block;}
-  .po-need{color:var(--danger-hi); font-weight:700; font-size:12px;}
-  .po-stock{font-size:13px; white-space:nowrap;}
-  .po-total{font-weight:700; white-space:nowrap;}
+  .po-links{display:flex; gap:16px; flex-wrap:wrap; margin-top:6px;}
+  .po-link{background:none; border:none; color:var(--gold-hi); font-size:13.5px; padding:8px 0; min-height:0; font-family:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(var(--gold-rgb),.4);}
+  .po-link[hidden]{display:none;}
+  /* سطر لكل مادة: الاسم والمخزون، وجنبه الكمية بأزرار − و+. الضغط على الاسم بيفتح التفاصيل (الوحدة، السعر، حد التنبيه) */
+  .po-list{display:flex; flex-direction:column;}
+  .po-item{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .po-item:last-child{border-bottom:none;}
+  .po-main{background:none; border:none; padding:4px 0; text-align:right; color:var(--paper); font-family:inherit; cursor:pointer; min-height:0; width:100%;}
+  .po-name{font-weight:600; font-size:15px; line-height:1.35;}
+  .po-item.on .po-name{color:var(--gold-hi);}
+  .po-meta{font-size:12px; color:var(--muted); margin-top:2px;}
+  .po-need{color:var(--danger-hi); font-weight:700;}
+  .po-qbox{display:flex; flex-direction:column; align-items:center; gap:2px;}
+  .po-qty{display:flex; align-items:center; gap:4px;}
+  .po-qty button{width:38px; height:40px; border-radius:10px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font-size:20px; line-height:1; padding:0; font-family:inherit; cursor:pointer;}
+  .po-qty button:active{transform:scale(.94);}
+  .po-qty input{width:60px; height:40px; box-sizing:border-box; text-align:center; padding:0 4px; font-size:16px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:10px; font-family:'Tajawal',sans-serif;}
+  .po-qty input:focus{outline:none; border-color:var(--gold);}
+  .po-item.on .po-qty input{border-color:var(--gold); font-weight:700;}
+  .po-unit{background:none; border:none; color:var(--muted); font-size:12px; padding:2px 6px; min-height:0; font-family:inherit; cursor:pointer;}
+  .po-unit.sw{text-decoration:underline dotted; text-underline-offset:3px;}
+  .po-add{width:100%; box-sizing:border-box; padding:12px 14px; font-size:16px; background:var(--ink-2); border:1px dashed var(--hair); color:var(--paper); border-radius:10px; font-family:'Tajawal',sans-serif;}
+  .po-add:focus{outline:none; border-style:solid; border-color:var(--gold);}
+  .po-bar{position:sticky; bottom:0; z-index:6; background:var(--ink-2); border-top:1px solid var(--hair); margin:14px -18px 0; padding:10px 18px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
+  .po-bar-btns{display:flex; gap:8px; flex-wrap:wrap;}
+  .po-bar-btns .btn{min-height:44px;}
   .po-x{background:none; border:none; color:var(--muted); font-size:18px; padding:6px 10px; min-height:36px;}
   .po-x:hover{color:var(--danger-hi);}
+  .po-kind{font-size:11px; color:var(--muted);}
+  .po-fr{display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;}
+  .po-fr button{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:999px; padding:2px 9px; font-size:12px; min-height:26px; font-family:inherit;}
+  .po-fr button:hover{border-color:var(--gold); color:var(--gold-hi);}
+  .po-sheet .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .po-sheet label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .po-sheet input,.po-sheet select{width:100%; box-sizing:border-box; padding:10px 8px; font-size:16px; background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;}
   .po-add-results{border:1px solid var(--hair); border-radius:10px; background:var(--ink-2); margin-top:6px; max-height:260px; overflow:auto;}
   .po-add-results button{display:flex; width:100%; justify-content:space-between; gap:10px; text-align:right; padding:10px 12px; background:none; border:none; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); color:var(--paper); font-size:14px;}
   .po-add-results button:hover{background:rgba(var(--gold-rgb),.1);}
@@ -92,17 +116,17 @@
   .po-new .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px;}
   .po-new label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
   .po-new input,.po-new select{width:100%; box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;}
-  .po-fr{display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;}
-  .po-fr button{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:999px; padding:2px 9px; font-size:12px; min-height:26px; font-family:inherit;}
-  .po-fr button:hover{border-color:var(--gold); color:var(--gold-hi);}
-  .po-sum{display:flex; gap:18px; flex-wrap:wrap; align-items:center; margin:14px 0 6px; font-size:14px;}
+  .po-sum{display:flex; gap:12px; align-items:baseline; font-size:14px;}
   .po-sum .big{font-size:20px; font-weight:700; color:var(--gold-hi);}
+  .po-h{padding:12px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .po-h:last-child{border-bottom:none;}
+  .po-h-top{display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .po-h-act{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+  .ai-unsure{border-color:#c9902b !important;}
+  .ai-warn{font-size:11.5px; color:#c9902b; grid-column:1 / -1; margin-top:-4px;}
   #po-text{width:100%; min-height:190px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:14px; box-sizing:border-box;}
   .po-chip{display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid var(--hair);}
   .po-chip.draft{color:var(--muted);} .po-chip.sent{color:var(--gold-hi); border-color:var(--gold);} .po-chip.received{color:var(--ok); border-color:var(--ok);} .po-chip.cancelled{color:var(--danger-hi); border-color:var(--danger);}
-  .po-hist td,.po-hist th{padding:8px 6px; text-align:right; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); font-size:13.5px;}
-  .po-hist th{color:var(--muted); font-size:12px; font-weight:500;}
-  .po-hist{width:100%; border-collapse:collapse; min-width:640px;}
   #ai-text{width:100%; min-height:110px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:12px 14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:16px; box-sizing:border-box; resize:vertical;}
   #ai-text:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(var(--gold-rgb),.18);}
   .ai-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
@@ -117,7 +141,7 @@
   .ai-line select,.ai-line input{box-sizing:border-box; width:100%; padding:9px 8px; font-size:15px; background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;}
   .ai-line .miss{border-color:var(--danger); }
   .ai-raw{grid-column:1 / -1; font-size:12px; color:var(--muted); margin-bottom:-4px;}
-  @media(max-width:620px){.ai-line{grid-template-columns:1fr 1fr;} .ai-line .ai-item{grid-column:1 / -1;} .ai-line .ai-sup{grid-column:1 / 2;}}
+  @media(max-width:620px){.ai-line{grid-template-columns:76px minmax(0,1fr) auto;} .ai-line .ai-item,.ai-line .ai-sup{grid-column:1 / -1;} .ai-line .ai-sup{order:5;}}
   .ai-foot{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px;}
   .po-editing{border:1px dashed var(--gold); border-radius:10px; padding:8px 12px; margin-bottom:12px; font-size:13px; color:var(--gold-hi);}
 </style>
@@ -127,29 +151,30 @@
   <div class="wrap">
     <div class="err" id="err"></div>
 
-    <div class="group" id="ai-box">
-      <h2 style="margin-top:0;">✨ جهّز الطلبيات من واتساب أو صورة</h2>
-      <div class="hint" style="margin:0 0 10px;">الصق رسالة الطلبية أو صوّر الورقة (أو سكرين شوت)، والذكاء الاصطناعي بيطلع المواد والكميات ويقسمها حسب المورّد. بتراجع وبتعدّل قبل ما ينحفظ شي.</div>
-      <textarea id="ai-text" maxlength="6000" placeholder="مثال:&#10;٢ كرتونة حليب&#10;٥ كيلو بندورة&#10;من أبو أحمد: كيس سكر وكرتونة كاسات"></textarea>
-      <div class="ai-actions">
-        <label class="btn" for="ai-file" id="ai-file-btn">📷 صورة أو PDF</label>
-        <input type="file" id="ai-file" accept="image/*,application/pdf" hidden>
-        <span class="ai-file-name" id="ai-file-name"></span>
-        <button type="button" class="btn gold" id="ai-go">✨ حلّل وجهّز الطلبيات</button>
-      </div>
-      <div class="hint" id="ai-status" style="margin:8px 0 0;"></div>
-      <div id="ai-result" hidden></div>
-    </div>
-
     <div class="group">
-      <h2 style="margin-top:0;">تجهيز طلبية لمورّد</h2>
-      <div class="po-pick">
-        <div class="field" style="margin:0;">
-          <label for="po-supplier">اختر المورّد</label>
-          <select id="po-supplier"><option value="">— اختر —</option></select>
+      <div class="po-head">
+        <h2>طلبية لمورّد</h2>
+        <button type="button" class="btn small po-ai-toggle" id="ai-toggle" aria-expanded="false" aria-controls="ai-box">✨ من واتساب أو صورة</button>
+      </div>
+      <div id="ai-box" hidden>
+        <div class="hint" style="margin:0 0 8px;">الصق رسالة الطلبية أو صوّر الورقة، وبيطلع لك المواد والكميات مقسّمة حسب المورّد. بتراجعها قبل أي شي.</div>
+        <textarea id="ai-text" maxlength="6000" placeholder="مثال:&#10;٢ كرتونة حليب&#10;٥ كيلو بندورة&#10;من أبو أحمد: كيس سكر وكرتونة كاسات"></textarea>
+        <div class="ai-actions">
+          <label class="btn" for="ai-file" id="ai-file-btn">📷 صورة</label>
+          <input type="file" id="ai-file" accept="image/*,application/pdf" hidden>
+          <span class="ai-file-name" id="ai-file-name"></span>
+          <button type="button" class="btn gold" id="ai-go">✨ حلّل</button>
         </div>
-        <button type="button" class="btn" id="po-autolink" hidden></button>
-        <button type="button" class="btn" id="po-newsup-btn">＋ مورّد جديد</button>
+        <div class="hint" id="ai-status" style="margin:8px 0 0;"></div>
+        <div id="ai-result" hidden></div>
+      </div>
+      <div class="field" style="margin:12px 0 0;">
+        <label for="po-supplier">المورّد</label>
+        <select id="po-supplier"><option value="">— اختر —</option></select>
+      </div>
+      <div class="po-sup-info" id="po-sup-info"></div>
+      <div class="po-links">
+        <button type="button" class="po-link" id="po-newsup-btn">＋ مورّد جديد</button>
       </div>
       <div class="po-new" id="po-newsup" hidden>
         <div style="font-weight:700; margin-bottom:10px;">مورّد جديد</div>
@@ -161,52 +186,44 @@
         <div class="pi-warn bad" id="ns-err" style="min-height:16px; color:var(--danger-hi); font-size:13px; margin:6px 0;"></div>
         <div style="display:flex; gap:8px;"><button type="button" class="btn gold" id="ns-save">إضافة واختياره</button><button type="button" class="btn" id="ns-cancel">إلغاء</button></div>
       </div>
-      <div class="po-sup-info" id="po-sup-info"></div>
-      <div class="hint" id="po-empty-hint" style="margin-top:10px;">اختر المورّد وبتظهر لك المواد اللي بتشتريها منه، مع المخزون الحالي وكمية مقترحة للناقص.</div>
+      <div class="hint" id="po-empty-hint" style="margin-top:10px;">اختر المورّد وبتطلع مواده، والناقص منها أول القائمة بكمية مقترحة.</div>
     </div>
 
     <div class="group" id="po-editor" hidden>
       <div class="po-editing" id="po-editing" hidden></div>
       <div class="po-filter" id="po-filter-bar">
-        <input type="search" id="po-filter" placeholder="🔍 ابحث بكلمة في مواد المورّد — مثال: معس بطيخ" autocomplete="off" aria-label="ابحث في مواد المورّد">
-        <label class="po-only"><input type="checkbox" id="po-only"> المختارة فقط</label>
+        <input type="search" id="po-filter" placeholder="🔍 ابحث — مثال: معس بطيخ" autocomplete="off" aria-label="ابحث في مواد المورّد">
+        <label class="po-only"><input type="checkbox" id="po-only"> المختارة</label>
         <span class="po-filter-count" id="po-filter-count"></span>
       </div>
-      <div class="po-tbl-wrap">
-        <table class="po-tbl">
-          <thead><tr><th>المادة</th><th>المخزون الحالي</th><th style="width:150px;">وحدة الطلب</th><th style="width:170px;">الكمية</th><th style="width:100px;">السعر التقديري</th><th>المجموع</th><th></th></tr></thead>
-          <tbody id="po-rows"></tbody>
-        </table>
-      </div>
-      <div class="hint" id="po-no-items" hidden style="margin:12px 0;">ما في مواد مربوطة بهذا المورّد لسا. أضفها من الأسفل، أو اضغط «ربط تلقائي» لتجيبها من مشترياتك السابقة منه.</div>
+      <div class="po-list" id="po-rows"></div>
+      <div class="hint" id="po-no-items" hidden style="margin:12px 0;">ما في مواد مربوطة بهذا المورّد لسا. أضفها من الخانة تحت.</div>
 
-      <div style="margin-top:14px;">
-        <div class="field" style="margin:0;">
-          <label for="po-add">+ إضافة مادة لهذا المورّد (بتنربط فيه للمرات الجاية)</label>
-          <input type="text" id="po-add" placeholder="ابحث باسم المادة... وإذا مش موجودة بتقدر تنشئها أو تجيبها من الكتالوج" autocomplete="off">
-        </div>
+      <div style="margin-top:12px;">
+        <input type="text" id="po-add" class="po-add" placeholder="＋ أضف مادة لهذا المورّد..." autocomplete="off" aria-label="أضف مادة لهذا المورّد">
         <div class="po-add-results" id="po-add-results" hidden></div>
         <div class="po-new" id="po-new" hidden></div>
+        <div class="po-links"><button type="button" class="po-link" id="po-autolink" hidden></button></div>
       </div>
 
-      <div class="field" style="margin-top:14px;">
-        <label for="po-notes">ملاحظات للمورّد (اختياري)</label>
-        <input type="text" id="po-notes" maxlength="300" placeholder="مثال: التوصيل قبل الظهر">
+      <input type="text" id="po-notes" class="po-add" style="margin-top:10px;" maxlength="300" placeholder="ملاحظة للمورّد (اختياري) — مثال: التوصيل قبل الظهر" aria-label="ملاحظة للمورّد">
+
+      <div class="po-bar">
+        <div class="po-sum"><span><b id="po-count">0</b> صنف</span><span class="big" id="po-total">0.00</span></div>
+        <div class="po-bar-btns">
+          <a class="btn gold" id="po-wa" href="#" target="_blank" rel="noopener"></a>
+          <button type="button" class="btn" id="po-save"></button>
+          <button type="button" class="btn" id="po-copy"></button>
+        </div>
       </div>
-      <div class="po-sum"><span>عدد الأصناف: <b id="po-count">0</b></span><span>الإجمالي التقديري: <span class="big" id="po-total">0.00</span></span></div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-        <button type="button" class="btn gold" id="po-save"></button>
-        <button type="button" class="btn" id="po-copy"></button>
-        <a class="btn gold" id="po-wa" href="#" target="_blank" rel="noopener"></a>
-        <button type="button" class="btn" id="po-reset">طلبية جديدة</button>
-      </div>
+      <div class="po-links" style="justify-content:center;"><button type="button" class="po-link" id="po-reset">مسح وبدء طلبية جديدة</button></div>
       <textarea id="po-text" readonly hidden style="margin-top:14px;"></textarea>
     </div>
 
     <datalist id="po-pu-names"><option value="صندوق"><option value="علبة"><option value="كرتونة"><option value="كيس"><option value="حزمة"><option value="جالون"><option value="شوال"></datalist>
     <div class="group">
       <h2 style="margin-top:0;">آخر الطلبيات</h2>
-      <div class="po-tbl-wrap" id="po-history"><div class="hint">جاري التحميل...</div></div>
+      <div id="po-history"><div class="hint">جاري التحميل...</div></div>
     </div>
   </div>
 
@@ -228,10 +245,15 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("purchase-orders");
     const $ = (id) => document.getElementById(id);
-    $("po-autolink").innerHTML = olvIcon("truck") + "<span>ربط تلقائي من مشترياتي السابقة</span>";
-    $("po-save").innerHTML = olvIcon("clipboard") + "<span>حفظ كمسودة</span>";
-    $("po-copy").innerHTML = olvIcon("clipboard") + "<span>نسخ النص</span>";
-    $("po-wa").innerHTML = olvIcon("phone") + "<span>إرسال للمورّد عبر واتساب</span>";
+    $("po-autolink").textContent = "جيب مواده من مشترياتي السابقة منه";
+    $("po-save").textContent = "حفظ مسودة";
+    $("po-copy").textContent = "نسخ";
+    $("po-wa").innerHTML = olvIcon("phone") + "<span>إرسال واتساب</span>";
+    $("ai-toggle").addEventListener("click", () => {
+      const open = $("ai-box").hidden;
+      $("ai-box").hidden = !open; $("ai-toggle").setAttribute("aria-expanded", String(open));
+      if (open) $("ai-text").focus();
+    });
 
     // ---------- أدوات ----------
     const round2 = (n) => Math.round(n * 100) / 100;
@@ -311,13 +333,13 @@
       $("po-empty-hint").hidden = !!supplier;
       $("po-autolink").hidden = !supplier;
       $("po-sup-info").innerHTML = supplier
-        ? `<span>${olvIcon("phone")} ${olvEsc(supplier.phone || "بدون رقم هاتف")}</span><span>${linked.size} مادة مربوطة</span>` : "";
+        ? `<span>${olvIcon("phone")} ${olvEsc(supplier.phone || "بدون رقم هاتف")}</span><span>${linked.size} مادة</span>` : "";
       $("po-no-items").hidden = !!rows.length;
       $("po-editing").hidden = !orderId;
       if (orderId) $("po-editing").textContent = "عم تعدّل مسودة محفوظة — احفظ لتحديثها.";
       const fq = $("po-filter").value, onlySel = $("po-only").checked;
       let shown = 0;
-      $("po-filter-bar").hidden = rows.length < 2;
+      $("po-filter-bar").hidden = rows.length < 6;
       $("po-rows").innerHTML = rows.map((r, idx) => {
         const it = itemByKey(r.key); if (!it) return "";
         if (fq && !matchTokens(it.name, fq)) return "";
@@ -325,26 +347,95 @@
         shown++;
         const low = it.threshold > 0 && it.stock <= it.threshold;
         const hasPU = it.puName && it.puFactor;
-        const unitSel = `<select data-unit="${idx}" aria-label="وحدة الطلب">`
-          + (hasPU ? `<option value="purchase"${r.mode === "purchase" ? " selected" : ""}>${olvEsc(it.puName)} (= ${it.puFactor} ${olvEsc(it.unit)})</option>` : "")
-          + `<option value="stock"${r.mode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option>`
-          + `<option value="__edit__">${hasPU ? "✎ تغيير وحدة الشراء (صندوق، علبة...)" : "＋ وحدة شراء (صندوق، علبة، كرتونة...)"}</option></select>`;
-        const meta = linked.get(r.key);
-        return `<tr>
-          <td><div class="po-name">${olvEsc(it.name)}</div><div class="po-kind">${KIND_LABEL[it.kind]}${low ? ` · <span class="po-need">ناقص</span>` : ""}</div></td>
-          <td class="po-stock">${olvEsc(it.stock)} ${olvEsc(it.unit)}<div class="po-kind">حد التنبيه: <input type="number" class="po-thr" min="0" step="any" inputmode="decimal" dir="ltr" value="${it.threshold > 0 ? olvEsc(it.threshold) : ""}" placeholder="—" data-thr="${idx}" title="لما المخزون ينزل لهالرقم بتظهر «ناقص» وبنقترح كمية الطلب تلقائيًا"></div></td>
-          <td>${unitSel}</td>
-          <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-qty="${idx}" value="${olvEsc(r.qty)}" placeholder="0"${divisible(it, r) ? ' title="بتقدر تكتب كسور، مثلًا 0.2"' : ""}>${divisible(it, r) ? `<div class="po-fr" aria-label="كميات سريعة">${["0.1", "0.2", "0.25", "0.5", "1"].map((v) => `<button type="button" data-fr="${idx}" data-v="${v}">${v}</button>`).join("")}</div>` : ""}</td>
-          <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-price="${idx}" value="${olvEsc(r.price)}" placeholder="—"></td>
-          <td class="po-total" data-line-total="${idx}">${lineTotal(r) ? money(lineTotal(r)) : "—"}</td>
-          <td>${meta && meta.auto ? `<span class="po-kind" title="مربوط من صفحة المستلزمات">●</span>` : `<button type="button" class="po-x" data-unlink="${idx}" title="شيل المادة من هذا المورّد" aria-label="شيل المادة من هذا المورّد">✕</button>`}</td>
-        </tr>`;
+        return `<div class="po-item${Number(r.qty) > 0 ? " on" : ""}">
+          <button type="button" class="po-main" data-edit="${idx}" aria-label="تفاصيل ${olvEsc(it.name)}">
+            <div class="po-name">${olvEsc(it.name)}</div>
+            <div class="po-meta">عندك ${olvEsc(it.stock)} ${olvEsc(it.unit)}${low ? ` · <span class="po-need">ناقص</span>` : ""}</div>
+          </button>
+          <div class="po-qbox">
+            <div class="po-qty">
+              <button type="button" data-step="${idx}" data-d="1" aria-label="زيد">+</button>
+              <input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-qty="${idx}" value="${olvEsc(r.qty)}" placeholder="0" aria-label="كمية ${olvEsc(it.name)}">
+              <button type="button" data-step="${idx}" data-d="-1" aria-label="نقّص">−</button>
+            </div>
+            <button type="button" class="po-unit${hasPU ? " sw" : ""}" data-unitbtn="${idx}" title="${hasPU ? "اضغط لتبديل الوحدة" : "وحدة الطلب"}">${olvEsc(unitLabel(r, it))}</button>
+          </div>
+        </div>`;
       }).join("");
-      $("po-filter-count").textContent = rows.length >= 2 ? (fq || onlySel ? `${shown} من ${rows.length}` : `${rows.length} مادة`) : "";
-      if (rows.length && !shown && (fq || onlySel)) $("po-rows").innerHTML = `<tr><td colspan="7" class="hint" style="padding:16px;">ما في مادة بهالكلمة بين مواد هذا المورّد — جرّب كلمة ثانية، أو أضفها من خانة الإضافة تحت.</td></tr>`;
-      $("po-rows").querySelectorAll("[data-qty]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.qty].qty = el.value; refreshTotals(); }));
-      $("po-rows").querySelectorAll("[data-thr]").forEach((el) => el.addEventListener("change", async () => {
-        const r = rows[+el.dataset.thr], it = itemByKey(r.key); if (!it) return;
+      $("po-filter-count").textContent = rows.length >= 6 ? (fq || onlySel ? `${shown} من ${rows.length}` : `${rows.length} مادة`) : "";
+      if (rows.length && !shown && (fq || onlySel)) $("po-rows").innerHTML = `<div class="hint" style="padding:16px 0;">ما في مادة بهالكلمة بين مواد هذا المورّد — جرّب كلمة ثانية، أو أضفها من الخانة تحت.</div>`;
+      refreshTotals();
+    }
+    // الأحداث على القائمة كلها (بدل ما نربط كل زر لحاله بعد كل رسم)
+    const stepOf = (r, it) => (divisible(it, r) ? 0.5 : 1);
+    function setQty(idx, v) {
+      rows[idx].qty = v;
+      const inp = document.querySelector(`[data-qty="${idx}"]`);
+      if (inp && inp.value !== v) inp.value = v;
+      const row = inp && inp.closest(".po-item"); if (row) row.classList.toggle("on", Number(v) > 0);
+      refreshTotals();
+    }
+    function switchMode(r, it, mode) {
+      const oldF = factorOf(r, it); r.mode = mode; const newF = factorOf(r, it);
+      // بنحوّل الكمية والسعر بين الوحدتين عشان يضلوا نفس الشي بالمخزون
+      if (r.qty !== "") r.qty = String(Math.round(Number(r.qty) * oldF / newF * 1000) / 1000);
+      if (r.price !== "") r.price = String(Math.round(Number(r.price) / oldF * newF * 1000) / 1000);
+    }
+    $("po-rows").addEventListener("input", (e) => { const d = e.target.dataset; if (d.qty !== undefined) setQty(+d.qty, e.target.value); });
+    $("po-rows").addEventListener("click", (e) => {
+      const step = e.target.closest("[data-step]");
+      if (step) {
+        const idx = +step.dataset.step, r = rows[idx], it = itemByKey(r.key);
+        const v = Math.max(0, Math.round(((Number(r.qty) || 0) + Number(step.dataset.d) * stepOf(r, it)) * 1000) / 1000);
+        setQty(idx, v ? String(v) : "");
+        return;
+      }
+      const ub = e.target.closest("[data-unitbtn]");
+      if (ub) {
+        const idx = +ub.dataset.unitbtn, r = rows[idx], it = itemByKey(r.key);
+        if (it.puName && it.puFactor) { switchMode(r, it, r.mode === "purchase" ? "stock" : "purchase"); render(); }
+        else openItemSheet(idx);
+        return;
+      }
+      const ed = e.target.closest("[data-edit]");
+      if (ed) openItemSheet(+ed.dataset.edit);
+    });
+
+    // ---------- تفاصيل المادة (الوحدة، السعر التقديري، حد التنبيه، شيلها من المورّد) ----------
+    function openItemSheet(idx) {
+      const r = rows[idx], it = r && itemByKey(r.key); if (!it) return;
+      const hasPU = it.puName && it.puFactor;
+      const meta = linked.get(r.key);
+      const back = document.createElement("div");
+      back.className = "olv-modal-backdrop";
+      back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:200; display:flex; align-items:flex-end; justify-content:center; padding:16px;";
+      back.innerHTML = `<div class="po-new po-sheet" style="background:var(--ink-2); width:100%; max-width:460px; margin:0;" role="dialog" aria-modal="true" aria-label="تفاصيل المادة">
+        <div style="font-weight:700; margin-bottom:2px;">${olvEsc(it.name)}</div>
+        <div class="hint" style="margin:0 0 12px;">عندك ${olvEsc(it.stock)} ${olvEsc(it.unit)} · ${KIND_LABEL[it.kind]}</div>
+        <div class="grid">
+          <div><label for="is-unit">وحدة الطلب</label><select id="is-unit">
+            ${hasPU ? `<option value="purchase"${r.mode === "purchase" ? " selected" : ""}>${olvEsc(it.puName)} (= ${it.puFactor} ${olvEsc(it.unit)})</option>` : ""}
+            <option value="stock"${r.mode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option>
+            <option value="__edit__">${hasPU ? "✎ تغيير وحدة الشراء" : "＋ وحدة شراء (كرتونة، صندوق...)"}</option></select></div>
+          <div><label for="is-price">السعر التقديري للوحدة</label><input id="is-price" type="number" min="0" step="any" inputmode="decimal" dir="ltr" value="${olvEsc(r.price)}" placeholder="—"></div>
+          <div style="grid-column:1 / -1;"><label for="is-thr">حد التنبيه (لما ينزل المخزون لهالرقم بيطلع «ناقص» وبنقترح كمية)</label><input id="is-thr" type="number" min="0" step="any" inputmode="decimal" dir="ltr" value="${it.threshold > 0 ? olvEsc(it.threshold) : ""}" placeholder="بدون"></div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+          <button type="button" class="btn gold" id="is-ok">تم</button>
+          ${meta && meta.auto ? "" : `<button type="button" class="btn danger" id="is-unlink">شيلها من هذا المورّد</button>`}
+        </div></div>`;
+      document.body.appendChild(back);
+      const q = (id) => back.querySelector("#" + id);
+      const close = () => olvDismiss(back);
+      back.addEventListener("mousedown", (e) => { if (e.target === back) close(); });
+      back.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+      q("is-unit").addEventListener("change", () => {
+        if (q("is-unit").value === "__edit__") { close(); openUnitEditor(idx); return; }
+        switchMode(r, it, q("is-unit").value); q("is-price").value = r.price; render();
+      });
+      q("is-price").addEventListener("input", () => { r.price = q("is-price").value; refreshTotals(); });
+      q("is-thr").addEventListener("change", async () => {
+        const el = q("is-thr");
         const v = el.value.trim() === "" ? 0 : Number(el.value);
         if (!Number.isFinite(v) || v < 0) { olvToast("حد التنبيه لازم يكون رقم صفر أو أكثر", { type: "danger" }); el.value = it.threshold > 0 ? it.threshold : ""; return; }
         try {
@@ -355,27 +446,14 @@
           render();
           olvToast(v > 0 ? `حد تنبيه "${it.name}" = ${v}` + (r.qty ? ` — اقتُرحت كمية ${r.qty}` : "") : `انشال حد التنبيه عن "${it.name}"`);
         } catch (err) { olvShowError($("err"), err); }
-      }));
-      $("po-rows").querySelectorAll("[data-fr]").forEach((el) => el.addEventListener("click", () => {
-        rows[+el.dataset.fr].qty = el.dataset.v; const inp = document.querySelector(`[data-qty="${el.dataset.fr}"]`); if (inp) inp.value = el.dataset.v; refreshTotals();
-      }));
-      $("po-rows").querySelectorAll("[data-price]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.price].price = el.value; refreshTotals(); }));
-      $("po-rows").querySelectorAll("[data-unit]").forEach((el) => el.addEventListener("change", () => {
-        const r = rows[+el.dataset.unit], it = itemByKey(r.key);
-        if (el.value === "__edit__") { el.value = r.mode; openUnitEditor(+el.dataset.unit); return; }
-        const oldF = factorOf(r, it); r.mode = el.value; const newF = factorOf(r, it);
-        // بنحوّل الكمية والسعر بين الوحدتين عشان يضلوا نفس الشي بالمخزون
-        if (r.qty !== "") r.qty = String(Math.round(Number(r.qty) * oldF / newF * 1000) / 1000);
-        if (r.price !== "") r.price = String(Math.round(Number(r.price) / oldF * newF * 1000) / 1000);
-        render();
-      }));
-      $("po-rows").querySelectorAll("[data-unlink]").forEach((el) => el.addEventListener("click", () => unlink(+el.dataset.unlink)));
-      refreshTotals();
+      });
+      q("is-ok").addEventListener("click", close);
+      const ul = q("is-unlink"); if (ul) ul.addEventListener("click", () => { close(); unlink(idx); });
+      q("is-ok").focus();
     }
     const lineTotal = (r) => round2((Number(r.qty) || 0) * (Number(r.price) || 0));
     function activeRows() { return rows.filter((r) => Number(r.qty) > 0 && itemByKey(r.key)); }
     function refreshTotals() {
-      rows.forEach((r, idx) => { const el = document.querySelector(`[data-line-total="${idx}"]`); if (el) el.textContent = lineTotal(r) ? money(lineTotal(r)) : "—"; });
       const act = activeRows();
       $("po-count").textContent = act.length;
       $("po-total").textContent = money(round2(act.reduce((s, r) => s + lineTotal(r), 0)));
@@ -735,20 +813,19 @@
       if (error) throw error;
       const box = $("po-history");
       if (!data || !data.length) { box.innerHTML = `<div class="hint">ما في طلبيات محفوظة بعد.</div>`; return; }
-      box.innerHTML = `<table class="po-hist"><thead><tr><th>التاريخ</th><th>المورّد</th><th>الأصناف</th><th>التقدير</th><th>الحالة</th><th></th></tr></thead><tbody>${data.map((o) => `
-        <tr>
-          <td>${olvEsc(String(o.created_at).slice(0, 10))}</td>
-          <td>${olvEsc(o.supplier_name)}</td>
-          <td>${(o.purchase_order_lines || []).length}</td>
-          <td>${Number(o.est_total) ? money(o.est_total) : "—"}</td>
-          <td><span class="po-chip ${o.status}">${STATUS[o.status] || o.status}</span></td>
-          <td style="white-space:nowrap;">
-            ${o.status === "draft" ? `<button type="button" class="btn small" data-open="${o.id}">فتح وتعديل</button>` : ""}
+      box.innerHTML = data.map((o) => `
+        <div class="po-h">
+          <div class="po-h-top">
+            <div><b>${olvEsc(o.supplier_name)}</b><div class="po-meta">${olvEsc(String(o.created_at).slice(0, 10))} · ${(o.purchase_order_lines || []).length} صنف${Number(o.est_total) ? ` · ${money(o.est_total)}` : ""}</div></div>
+            <span class="po-chip ${o.status}">${STATUS[o.status] || o.status}</span>
+          </div>
+          <div class="po-h-act">
             ${o.status === "sent" || o.status === "draft" ? `<button type="button" class="btn small gold" data-receive="${o.id}">استلمتها ← فاتورة</button>` : ""}
-            ${o.status === "sent" || o.status === "draft" ? `<button type="button" class="btn small danger" data-cancel="${o.id}">إلغاء</button>` : ""}
+            ${o.status === "draft" ? `<button type="button" class="btn small" data-open="${o.id}">فتح</button>` : ""}
             <button type="button" class="btn small" data-clone="${o.id}">تكرار</button>
-          </td>
-        </tr>`).join("")}</tbody></table>`;
+            ${o.status === "sent" || o.status === "draft" ? `<button type="button" class="btn small danger" data-cancel="${o.id}">إلغاء</button>` : ""}
+          </div>
+        </div>`).join("");
       box.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openOrder(b.dataset.open, true)));
       box.querySelectorAll("[data-clone]").forEach((b) => b.addEventListener("click", () => openOrder(b.dataset.clone, false)));
       box.querySelectorAll("[data-receive]").forEach((b) => b.addEventListener("click", () => { location.href = "purchase-invoices.html?po=" + encodeURIComponent(b.dataset.receive); }));
@@ -891,11 +968,11 @@
         aiLines = (out.lines || []).map((l) => {
           const it = l.item_key ? itemByKey(l.item_key) : null;
           const sup = l.supplier_id && suppliers.some((s) => s.id === l.supplier_id) ? l.supplier_id : (it ? guessSupplier(it.key) : "");
-          return { raw: l.raw + (l.unit_raw && !String(l.raw).includes(l.unit_raw) ? ` (${l.unit_raw})` : ""), key: it ? it.key : "", qty: l.qty == null ? "" : String(l.qty), mode: defaultMode(it, l.unit), sup };
+          return { raw: l.raw + (l.unit_raw && !String(l.raw).includes(l.unit_raw) ? ` (${l.unit_raw})` : ""), key: it ? it.key : "", unsure: !!it && l.sure === false, qty: l.qty == null ? "" : String(l.qty), mode: defaultMode(it, l.unit), sup };
         });
         if (!aiLines.length) { $("ai-status").textContent = "ما لقيت أصناف بالنص أو الصورة — جرّب نص أوضح."; renderAi(); return; }
-        const miss = aiLines.filter((l) => !l.key).length;
-        $("ai-status").textContent = `طلع ${aiLines.length} صنف${miss ? ` — ${miss} ما انعرفوا، اختر المادة إلهم أو احذفهم` : ""}. راجع الكميات والموردين وبعدها احفظ.`;
+        const miss = aiLines.filter((l) => !l.key).length, unsure = aiLines.filter((l) => l.unsure).length;
+        $("ai-status").textContent = `طلع ${aiLines.length} صنف${miss ? ` — ${miss} ما انعرفوا (بالأحمر)` : ""}${unsure ? ` — ${unsure} تأكد منهم (بالبرتقالي)` : ""}. راجع وبعدها اضغط «جهّز الطلبية» لكل مورّد.`;
         renderAi();
         $("ai-result").scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (err) {
@@ -926,7 +1003,8 @@
           : `<select disabled aria-label="الوحدة"><option>${olvEsc(it.unit)}</option></select>`) : `<select disabled aria-label="الوحدة"><option>—</option></select>`;
         return `<div class="ai-line">
           <div class="ai-raw">«${olvEsc(l.raw)}»</div>
-          <select class="ai-item${l.key ? "" : " miss"}" data-ai-item="${idx}" aria-label="المادة">${itemOpts}</select>
+          <select class="ai-item${l.key ? (l.unsure ? " ai-unsure" : "") : " miss"}" data-ai-item="${idx}" aria-label="المادة">${itemOpts}</select>
+          ${l.unsure ? `<div class="ai-warn">تأكد إنها المادة الصح</div>` : ""}
           <input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-ai-qty="${idx}" value="${olvEsc(l.qty)}" placeholder="الكمية" class="${Number(l.qty) > 0 ? "" : "miss"}" aria-label="الكمية">
           ${unitSel}
           <select class="ai-sup${l.sup ? "" : " miss"}" data-ai-sup="${idx}" aria-label="المورّد"${l.key ? "" : " disabled"}>${supOpts}</select>
@@ -937,11 +1015,11 @@
       box.innerHTML = order.map((g) => {
         const idxs = groups.get(g);
         const title = g === "?" ? "ما انعرفت — اختر المادة من مخزونك أو احذف السطر" : g === "" ? "بدون مورّد — اختر المورّد لكل سطر" : `طلبية ${olvEsc(supName(g))}`;
-        return `<div class="ai-grp${g === "?" || g === "" ? " bad" : ""}"><div class="ai-grp-h"><span>${title}</span><span class="po-kind">${idxs.length} صنف</span></div>${idxs.map(lineHtml).join("")}</div>`;
+        const load = g && g !== "?" ? `<button type="button" class="btn small gold" data-ai-load="${g}">جهّز الطلبية ←</button>` : "";
+        return `<div class="ai-grp${g === "?" || g === "" ? " bad" : ""}"><div class="ai-grp-h"><span>${title} <span class="po-kind">${idxs.length} صنف</span></span>${load}</div>${idxs.map(lineHtml).join("")}</div>`;
       }).join("") + `<div class="ai-foot">
-          <button type="button" class="btn gold" id="ai-save">حفظ ${ready > 1 ? ready + " طلبيات" : "الطلبية"} كمسودة</button>
-          <button type="button" class="btn" id="ai-clear">إلغاء</button>
-          <span class="hint" style="margin:0;">بعد الحفظ بتفتح كل طلبية وبترسلها للمورّد واتساب.</span>
+          <button type="button" class="po-link" id="ai-clear">إلغاء التحليل</button>
+          ${ready ? `<span class="hint" style="margin:0;">«جهّز الطلبية» بتنقل أصناف المورّد للطلبية تحت، ومنها بترسلها واتساب.</span>` : ""}
         </div>`;
       box.querySelectorAll("[data-ai-item]").forEach((el) => { el.value = aiLines[+el.dataset.aiItem].key; });
       box.querySelectorAll("[data-ai-sup]").forEach((el) => { el.value = aiLines[+el.dataset.aiSup].sup; });
@@ -951,7 +1029,7 @@
       const t = e.target, d = t.dataset;
       if (d.aiItem !== undefined) {
         const l = aiLines[+d.aiItem], it = itemByKey(t.value);
-        l.key = it ? it.key : ""; l.mode = defaultMode(it, l.mode);
+        l.key = it ? it.key : ""; l.unsure = false; l.mode = defaultMode(it, l.mode);
         if (it && !l.sup) l.sup = guessSupplier(it.key);
         renderAi();
       } else if (d.aiSup !== undefined) { aiLines[+d.aiSup].sup = t.value; renderAi(); }
@@ -965,66 +1043,56 @@
       const del = e.target.closest("[data-ai-del]");
       if (del) { aiLines.splice(+del.dataset.aiDel, 1); renderAi(); return; }
       if (e.target.closest("#ai-clear")) { if (confirm("تلغي الطلبيات المحلّلة؟")) { aiLines = []; renderAi(); $("ai-status").textContent = ""; } return; }
-      const save = e.target.closest("#ai-save");
-      if (save) {
-        save.disabled = true;
-        try { await aiSaveAll(); }
+      const load = e.target.closest("[data-ai-load]");
+      if (load) {
+        load.disabled = true;
+        try { await aiLoadInto(load.dataset.aiLoad); }
         catch (err) { olvShowError($("err"), err); }
-        finally { if (document.body.contains(save)) save.disabled = false; }
+        finally { if (document.body.contains(load)) load.disabled = false; }
       }
     });
 
-    async function aiSaveAll() {
-      const bad = aiLines.findIndex((l) => !l.key || !(Number(l.qty) > 0) || !l.sup || !itemByKey(l.key));
-      if (bad >= 0) {
-        const l = aiLines[bad];
-        throw new Error(`سطر «${l.raw}» ناقص: ${!l.key ? "اختر المادة" : !(Number(l.qty) > 0) ? "اكتب الكمية" : "اختر المورّد"} — أو احذفه`);
-      }
+    // أصناف مورّد واحد من التحليل بتنتقل للطلبية العادية (نفس الشاشة اللي بتنرسل منها واتساب)
+    async function aiLoadInto(supId) {
+      const ls = aiLines.filter((l) => l.sup === supId && l.key);
+      const bad = ls.find((l) => !(Number(l.qty) > 0) || !itemByKey(l.key));
+      if (bad) throw new Error(`سطر «${bad.raw}» ناقص: اكتب الكمية — أو احذفه`);
+      if (!confirmDiscard()) return;
       const sb = window.supabaseClient;
-      const bySup = new Map();
-      aiLines.forEach((l) => { if (!bySup.has(l.sup)) bySup.set(l.sup, []); bySup.get(l.sup).push(l); });
-      const saved = [];
-      for (const [supId, ls] of bySup) {
-        // نفس المادة مرتين بنفس الطلبية بتنجمع (وإذا بوحدتين مختلفتين بتتحول لوحدة المخزون)
-        const merged = new Map();
-        ls.forEach((l) => {
-          const it = itemByKey(l.key), f = l.mode === "purchase" && it.puFactor ? it.puFactor : 1, q = Number(l.qty);
-          const m = merged.get(l.key);
-          if (!m) merged.set(l.key, { it, mode: f === 1 ? "stock" : "purchase", qty: q });
-          else if ((m.mode === "purchase") === (f !== 1)) m.qty += q;
-          else { m.qty = m.qty * (m.mode === "purchase" ? it.puFactor : 1) + q * f; m.mode = "stock"; }
-        });
-        // المواد بتنربط بالمورّد للمرات الجاية (متل الإضافة اليدوية)
-        const { data: have, error: hErr } = await sb.from("supplier_items").select("ingredient_id, supply_id").eq("supplier_id", supId);
-        if (hErr) throw hErr;
-        const haveKeys = new Set((have || []).map((r) => (r.ingredient_id ? "ingredient:" + r.ingredient_id : "supply:" + r.supply_id)));
-        for (const m of merged.values()) {
-          if (haveKeys.has(m.it.key) || m.it.supplierId === supId) continue;
-          const { error } = await sb.from("supplier_items").insert({ supplier_id: supId, [m.it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: m.it.id });
-          if (error && error.code !== "23505") throw error;
-        }
-        const lines = [...merged.values()].map((m) => {
-          const f = m.mode === "purchase" ? m.it.puFactor : 1;
-          return {
-            [m.it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: m.it.id,
-            qty: round3(m.qty), order_unit: f === 1 ? m.it.unit : m.it.puName, factor: f,
-            est_unit_price: m.it.price > 0 ? round2(m.it.price * f) : null,
-          };
-        });
-        const { data: id, error } = await sb.rpc("save_purchase_order", { p_order_id: null, p_supplier_id: supId, p_notes: null, p_lines: lines });
-        if (error) {
-          renderAi();
-          throw new Error((saved.length ? `انحفظت ${saved.length} طلبية، و` : "") + `فشل حفظ طلبية ${supName(supId)}: ${error.message || error}`);
-        }
-        saved.push({ id, sup: supId, n: lines.length });
-        aiLines = aiLines.filter((l) => l.sup !== supId); // انحفظت: ما بتنحفظ مرتين لو فشل اللي بعدها
+      // نفس المادة مرتين بتنجمع (وإذا بوحدتين مختلفتين بتتحول لوحدة المخزون)
+      const merged = new Map();
+      ls.forEach((l) => {
+        const it = itemByKey(l.key), f = l.mode === "purchase" && it.puFactor ? it.puFactor : 1, q = Number(l.qty);
+        const m = merged.get(l.key);
+        if (!m) merged.set(l.key, { it, mode: f === 1 ? "stock" : "purchase", qty: q });
+        else if ((m.mode === "purchase") === (f !== 1)) m.qty += q;
+        else { m.qty = m.qty * (m.mode === "purchase" ? it.puFactor : 1) + q * f; m.mode = "stock"; }
+      });
+      supplier = suppliers.find((x) => x.id === supId) || null;
+      if (!supplier) throw new Error("المورّد مش موجود");
+      $("po-supplier").value = supId; shownSupplierId = supId;
+      orderId = null; $("po-notes").value = ""; $("po-text").hidden = true; $("po-filter").value = ""; $("po-only").checked = false;
+      await loadLinks();
+      // المواد بتنربط بالمورّد للمرات الجاية (متل الإضافة اليدوية)
+      for (const m of merged.values()) {
+        if (linked.has(m.it.key)) continue;
+        const { error } = await sb.from("supplier_items").insert({ supplier_id: supId, [m.it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: m.it.id });
+        if (error && error.code !== "23505") throw error;
+        linked.set(m.it.key, { auto: false });
       }
-      renderAi();
-      $("ai-text").value = ""; $("ai-file").value = ""; setAiFile(null);
-      $("ai-status").innerHTML = `انحفظت ${saved.length} مسودة: ` + saved.map((s) => `<button type="button" class="btn small" data-ai-open="${s.id}">فتح وإرسال — ${olvEsc(supName(s.sup))} (${s.n})</button>`).join(" ");
-      $("ai-status").querySelectorAll("[data-ai-open]").forEach((b) => b.addEventListener("click", () => openOrder(b.dataset.aiOpen, true)));
-      olvToast(`انحفظت ${saved.length} طلبية كمسودة`);
-      await loadHistory();
+      buildRows();
+      rows.forEach((r) => { r.qty = ""; });
+      merged.forEach((m, key) => {
+        const r = rows.find((x) => x.key === key); if (!r) return;
+        if (r.mode !== m.mode) switchMode(r, m.it, m.mode);
+        r.qty = String(round3(m.qty));
+      });
+      rows.sort((a, b) => Number(Number(b.qty) > 0) - Number(Number(a.qty) > 0));
+      aiLines = aiLines.filter((l) => l.sup !== supId || !l.key);
+      renderAi(); render();
+      if (!aiLines.length) { $("ai-text").value = ""; $("ai-file").value = ""; setAiFile(null); $("ai-status").textContent = ""; }
+      $("po-editor").scrollIntoView({ behavior: "smooth", block: "start" });
+      olvToast(`جاهزة طلبية ${supplier.name} — راجعها وابعتها واتساب`);
     }
 
     (async () => {

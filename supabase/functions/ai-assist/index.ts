@@ -5,6 +5,7 @@
 // نفس مفتاح read-invoice: GEMINI_API_KEY (واختياري GEMINI_MODEL) بأسرار Edge Functions.
 // للمالك والمدير فقط. المواد والموردين الموجودين بينقروا من السيرفر حتى ما يتكرروا.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { norm, resolveItem } from "../_shared/match.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,17 +40,17 @@ const PROMPT = `أنت مساعد مخزون لمطعم/كافيه. المرفق
 فاتورة، جرد مكتوب، كتالوج، أو طلب صريح مثل "ضيف مورّد اسمه أبو سامر 0791234567" أو "اعمل بطاقة مشروب غازي فيها كولا وسبرايت".
 استخرج اقتراحات منظّمة:
 
-suppliers: الموردين المذكورين (name، phone إن وُجد بأرقام إنجليزية، notes قصيرة إن وُجدت). إذا المورّد موجود أصلًا بقائمة الموردين ضع رمزه بـ existing (مثل s2).
+suppliers: الموردين المذكورين (name، phone إن وُجد بأرقام إنجليزية، notes قصيرة إن وُجدت). إذا المورّد موجود أصلًا بقائمة الموردين ضع اسمه منسوخ حرفيًا من القائمة بـ existing، وإلا null.
 
 materials: كل مادة أو مستلزم مذكور:
 - name: اسم واضح ومرتّب بالعربي كما يُستخدم بالمطعم (مثلًا "حليب كامل الدسم" بدل "حليب ك.د")، بدون الكمية أو السعر.
-- existing: إذا المادة نفسها موجودة بقائمة المواد ضع رمزها (مثل i12) — لا تخمّن، وإلا null.
+- existing: إذا المادة نفسها موجودة بقائمة المواد ضع اسمها منسوخ حرفيًا من القائمة — لازم تكون نفس المادة بالضبط (نفس النكهة والحجم)، لا تخمّن، وإلا null.
 - kind: "ingredient" لمواد الأكل والشرب والبضاعة، "supply" للمستلزمات (أكواب، أكياس، مناديل، منظفات، فحم...).
 - unit: وحدة المخزون، واحدة من: ${UNITS.join("، ")}.
 - purchase_unit و purchase_factor: إذا بتنشرى بعبوة أكبر (كرتونة 24 علبة، صندوق 10 كيلو) اكتب اسمها وكم وحدة مخزون فيها، وإلا null.
 - stock: الكمية الموجودة حاليًا إذا النص جرد أو بيذكر الكمية الموجودة، وإلا null (كميات الطلب أو الشراء مش مخزون).
 - price و price_per: السعر إذا مكتوب، و price_per = "purchase" إذا السعر للعبوة الكبيرة أو "stock" إذا لوحدة المخزون.
-- supplier: رمز المورّد الموجود (s2) أو اسم مورّد جديد من suppliers إذا المادة منه، وإلا null.
+- supplier: اسم المورّد (من الموردين الموجودين منسوخ حرفيًا، أو مورّد جديد من suppliers) إذا المادة منه، وإلا null.
 - card و variant: فقط إذا المستخدم طلب بطاقة منيو أو المواد واضح إنها أنواع لنفس الصنف المعروض (مثلًا بطاقة "مشروب غازي علبة 330 مل" وأنواعها كولا، سبرايت). card = اسم البطاقة، variant = اسم النوع داخلها. البطاقات للمواد (ingredient) بس. وإلا null.
 
 أرقام إنجليزية دايمًا. لا تخترع أشياء مش موجودة بالنص أو الصورة، ولا تكرر نفس المادة.`;
@@ -131,7 +132,7 @@ Deno.serve(async (req) => {
     if (data.length > MAX_BASE64_CHARS) return json({ ok: false, error: "الملف كبير زيادة (الحد ~6 ميغا)" }, 400);
   }
 
-  // المواد والموردين والبطاقات الموجودة، برموز قصيرة (i1, s1) حتى ما يتكرروا
+  // المواد والموردين والبطاقات الموجودة بأسمائها، حتى ما يتكرروا
   const [iRes, uRes, sRes] = await Promise.all([
     admin.from("ingredients").select("id, name, unit, menu_group").order("name").limit(3000),
     admin.from("supplies").select("id, name, unit").order("name").limit(3000),
@@ -145,12 +146,12 @@ Deno.serve(async (req) => {
   const suppliers = sRes.data || [];
   const cards = [...new Set((iRes.data || []).map((r) => r.menu_group).filter(Boolean))];
   const clean = (s: string) => String(s || "").replace(/[\n|]/g, " ").slice(0, 80);
-  const itemList = items.map((it, i) => `i${i + 1}|${clean(it.name)}|${clean(it.unit)}`).join("\n") || "(ما في)";
-  const supList = suppliers.map((s, i) => `s${i + 1}|${clean(s.name)}`).join("\n") || "(ما في)";
+  const itemList = items.map((it) => `${clean(it.name)} | ${clean(it.unit)}`).join("\n") || "(ما في)";
+  const supList = suppliers.map((s) => clean(s.name)).join("\n") || "(ما في)";
   const cardList = cards.map(clean).join("\n") || "(ما في)";
 
   const parts: unknown[] = [
-    { text: `${PROMPT}\n\nقائمة المواد الموجودة (رمز|اسم|وحدة):\n${itemList}\n\nالموردين الموجودين:\n${supList}\n\nبطاقات المنيو الموجودة:\n${cardList}` },
+    { text: `${PROMPT}\n\nقائمة المواد الموجودة (اسم | وحدة):\n${itemList}\n\nالموردين الموجودين:\n${supList}\n\nبطاقات المنيو الموجودة:\n${cardList}` },
   ];
   if (text) parts.push({ text: "النص:\n<<<\n" + text + "\n>>>" });
   if (data) parts.push({ inline_data: { mime_type: mime, data } });
@@ -196,29 +197,27 @@ Deno.serve(async (req) => {
     } catch {
       return json({ ok: false, error: "رد النموذج غير مفهوم — جرّب مرة ثانية" }, 502);
     }
-    const codeIdx = (v: unknown, prefix: string, n: number) => {
-      const m = new RegExp("^" + prefix + "(\\d+)$").exec(String(v || "").trim());
-      const i = m ? Number(m[1]) - 1 : -1;
-      return i >= 0 && i < n ? i : -1;
-    };
+    const supByName = new Map(suppliers.map((x) => [norm(x.name), x]));
+    const findSupplier = (v: unknown) => supByName.get(norm(String(v || ""))) || null;
     const str = (v: unknown, n: number) => (v == null ? null : String(v).replace(/\s+/g, " ").trim().slice(0, n) || null);
     const pos = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
     const outSup = (Array.isArray(parsed.suppliers) ? parsed.suppliers : []).slice(0, 50).map((s: any) => {
-      const si = codeIdx(s?.existing, "s", suppliers.length);
+      const ex = findSupplier(s?.existing) || findSupplier(s?.name);
       return {
         name: str(s?.name, 120),
         phone: str(s?.phone, 30),
         notes: str(s?.notes, 300),
-        existing_id: si >= 0 ? suppliers[si].id : null,
+        existing_id: ex ? ex.id : null,
       };
     }).filter((s: { name: string | null }) => s.name);
     const outMat = (Array.isArray(parsed.materials) ? parsed.materials : []).slice(0, 200).map((m: any) => {
-      const ii = codeIdx(m?.existing, "i", items.length);
-      const si = codeIdx(m?.supplier, "s", suppliers.length);
+      // «موجود» بس إذا الاسم مطابق أو التطابق أكيد — غير هيك منعتبرها مادة جديدة والمستخدم بيقرر
+      const { item: ex, sure } = resolveItem(m?.existing ? String(m.existing) : null, String(m?.name || ""), items);
+      const sup = findSupplier(m?.supplier);
       const pu = str(m?.purchase_unit, 30), pf = pos(m?.purchase_factor);
       return {
         name: str(m?.name, 120),
-        existing_key: ii >= 0 ? items[ii].key : null,
+        existing_key: ex && (sure || norm(ex.name) === norm(String(m?.name || ""))) ? ex.key : null,
         kind: m?.kind === "supply" ? "supply" : "ingredient",
         unit: UNITS.includes(m?.unit) ? m.unit : "قطعة",
         purchase_unit: pu && pf ? pu : null,
@@ -226,8 +225,8 @@ Deno.serve(async (req) => {
         stock: typeof m?.stock === "number" && Number.isFinite(m.stock) && m.stock >= 0 ? m.stock : null,
         price: pos(m?.price),
         price_per: m?.price_per === "purchase" && pu && pf ? "purchase" : "stock",
-        supplier_id: si >= 0 ? suppliers[si].id : null,
-        supplier_name: si >= 0 || /^s\d+$/i.test(String(m?.supplier || "").trim()) ? null : str(m?.supplier, 120),
+        supplier_id: sup ? sup.id : null,
+        supplier_name: sup ? null : str(m?.supplier, 120),
         card: str(m?.card, 80),
         variant: str(m?.variant, 80),
       };

@@ -72,14 +72,44 @@
   .pi-mini{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:8px; padding:8px 10px; font-size:13px; transition:transform .16s var(--spring); -webkit-tap-highlight-color:transparent;}
   .pi-mini:active{transform:scale(.96); transition-duration:.08s;}
   .pi-total-box{background:var(--ink-3); border:1px solid var(--hair); border-radius:12px; padding:14px 16px;}
+  .pi-total-box .row[hidden]{display:none;}
   .pi-total-box .row{display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:14px;}
   .pi-total-box .big{font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:700; color:var(--gold-hi);}
   .pi-pay{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;}
-  .pi-pay label{flex:1; min-width:110px; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
+  .pi-pay label{flex:1; min-width:72px; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
   .pi-pay input{display:none;}
   .pi-pay label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
-  .pi-dt{border:1px dashed var(--hair); border-radius:12px; padding:12px 12px 2px; margin-bottom:12px;}
-  .pi-dt .field{margin-bottom:10px;}
+  .pi-snap{display:flex; align-items:center; gap:14px; padding:16px; border:1.5px dashed var(--gold); border-radius:14px; background:rgba(var(--gold-rgb),.07); cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .16s var(--spring);}
+  .pi-snap:active{transform:scale(.98);}
+  .pi-snap-ic{font-size:28px; line-height:1;}
+  .pi-snap b{display:block; font-size:16px; color:var(--gold-hi);}
+  .pi-snap small{display:block; font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .pi-addline{width:100%; margin-top:8px; padding:12px; border:1px dashed var(--hair); border-radius:10px; background:none; color:var(--paper); font-size:15px; font-family:inherit; cursor:pointer;}
+  .pi-addline:hover{border-color:var(--gold);}
+  .pi-links{display:flex; gap:6px 16px; flex-wrap:wrap; align-items:center; margin-top:8px;}
+  .pi-link{background:none; border:none; color:var(--gold-hi); font-size:13px; padding:6px 0; min-height:0; font-family:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(var(--gold-rgb),.4);}
+  .pi-link-sel{background:none; border:none; color:var(--gold-hi); font-size:13px; padding:6px 0; font-family:inherit; max-width:100%; cursor:pointer;}
+  .pi-more{margin-top:14px; border:1px solid var(--hair); border-radius:12px; background:var(--ink-2);}
+  .pi-more summary{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 14px; cursor:pointer; font-size:14px; list-style:none;}
+  .pi-more summary::-webkit-details-marker{display:none;}
+  .pi-more summary::before{content:"▸"; color:var(--muted); margin-left:6px;}
+  .pi-more[open] summary::before{content:"▾";}
+  .pi-more summary span:first-of-type{flex:1;}
+  .pi-more-sum{font-size:12.5px; color:var(--gold-hi);}
+  .pi-more-body{padding:4px 14px 2px; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .pi-more-body .field{margin:10px 0;}
+  /* الموبايل: كل صنف كبطاقة (الصنف فوق، تحته الوحدة، وتحتهم الكمية والسعر والإجمالي) بدل جدول عريض بينسحب لجنب */
+  @media(max-width:620px){
+    .pi-lines{min-width:0;}
+    .pi-lines thead{display:none;}
+    .pi-lines tr{display:grid; grid-template-columns:1fr 1fr auto; gap:6px; padding:10px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+    .pi-lines td{padding:0;}
+    .pi-lines td:nth-child(1){grid-column:1 / -1;}
+    .pi-lines td:nth-child(2){grid-column:1 / 3;}
+    .pi-lines td:nth-child(6){grid-column:3; grid-row:2;}
+    .pi-lines td:nth-child(5){grid-column:3; grid-row:3; align-self:center;}
+    .pi-lines .pi-line-total{padding-top:0;}
+  }
   .pi-badge{display:inline-block; font-size:11.5px; border-radius:999px; padding:2px 9px; font-weight:700;}
   .pi-badge.cash{background:rgba(124,138,74,.25); color:var(--ok);}
   .pi-badge.credit{background:rgba(193,88,63,.2); color:var(--danger-hi);}
@@ -101,50 +131,23 @@
     <div class="err" id="err"></div>
 
     <div class="group">
-      <h2>فاتورة مشتريات جديدة</h2>
-      <p class="hint" style="margin-bottom:14px;">
-        أدخل فاتورة المورّد كاملة مرة وحدة (ورقية، صورة، واتساب، PDF): بيزيد مخزون كل صنف وآخر سعر شراء له،
-        بينحسب مصروف واحد بإجمالي الفاتورة، وإذا كانت آجل أو جزئي بينكتب على حساب المورّد. للمالك والمدير فقط.
-      </p>
+      <h2>فاتورة مشتريات</h2>
+      <label class="pi-snap" for="pi-file">
+        <span class="pi-snap-ic">📷</span>
+        <span><b>صوّر الفاتورة</b><small>بيقرأها ويعبّي الأصناف والأسعار، وأنت بتراجع قبل الحفظ</small></span>
+      </label>
+      <input type="file" id="pi-file" accept="image/*,application/pdf" hidden>
+      <button type="button" id="pi-ai-btn" hidden disabled></button>
+      <div class="hint" id="pi-ai-status" style="margin:8px 0 0;"></div>
 
-      <div class="pi-grid">
+      <div class="row2" style="margin-top:14px;">
         <div class="field">
-          <label>المورّد</label>
+          <label for="pi-supplier">المورّد</label>
           <select id="pi-supplier"></select>
         </div>
         <div class="field">
-          <label>رقم الفاتورة (بيمنع التكرار)</label>
-          <input type="text" id="pi-no" placeholder="مثال: 1045" maxlength="60">
-        </div>
-        <div class="field">
-          <label>تاريخ الفاتورة</label>
+          <label for="pi-date">التاريخ</label>
           <input type="date" id="pi-date">
-        </div>
-        <div class="field">
-          <label>صورة أو PDF للفاتورة (اختياري)</label>
-          <input type="file" id="pi-file" accept="image/*,application/pdf">
-        </div>
-      </div>
-
-      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:2px 0 12px;">
-        <button type="button" class="btn small gold" id="pi-ai-btn" disabled>✨ اقرأ الفاتورة من الصورة (ذكاء اصطناعي)</button>
-        <span class="hint" id="pi-ai-status" style="margin:0;">اختر صورة أو PDF للفاتورة فوق، بعدها اضغط الزر — بيعبّي الجدول وأنت بتراجع.</span>
-      </div>
-
-      <div style="display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 12px;">
-        <select id="pi-template" class="pi-mini"><option value="">نسخ أصناف من فاتورة سابقة...</option></select>
-        <button type="button" class="pi-mini" id="pi-paste-toggle">لصق أصناف (Excel / واتساب)</button>
-      </div>
-
-      <div class="pi-paste" id="pi-paste-box" hidden style="margin-bottom:14px;">
-        <div class="hint" style="margin-bottom:6px;">
-          الصق سطر لكل صنف: <b>الاسم  الكمية  السعر</b> (مفصولة بمسافات أو Tab من Excel). مثال: <code>لحم 5 12.5</code>.
-          الأصناف اللي ما انتعرفت بتنعلّم بالأحمر لتختارها بنفسك.
-        </div>
-        <textarea id="pi-paste-text" placeholder="لحم بقري 10 12.5&#10;بصل 20 0.5&#10;أكياس 200 0.02"></textarea>
-        <div style="margin-top:8px; display:flex; gap:8px;">
-          <button type="button" class="btn small gold" id="pi-paste-go">حلّل وأضف</button>
-          <button type="button" class="btn small" id="pi-paste-cancel">إغلاق</button>
         </div>
       </div>
 
@@ -155,57 +158,82 @@
         </table>
       </div>
       <datalist id="pi-items-list"></datalist>
-      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;"><button type="button" class="btn small" id="pi-add-line">+ إضافة صنف</button><button type="button" class="btn small" id="pi-catalog">تصفّح الكتالوج الجاهز</button></div>
+      <button type="button" class="pi-addline" id="pi-add-line">＋ أضف صنف</button>
+      <div class="pi-links">
+        <button type="button" class="pi-link" id="pi-paste-toggle">لصق أصناف (Excel / واتساب)</button>
+        <button type="button" class="pi-link" id="pi-catalog">من الكتالوج الجاهز</button>
+        <select id="pi-template" class="pi-link-sel" aria-label="نسخ أصناف من فاتورة سابقة"><option value="">نسخ من فاتورة سابقة…</option></select>
+      </div>
+      <div class="pi-paste" id="pi-paste-box" hidden style="margin:8px 0 14px;">
+        <div class="hint" style="margin-bottom:6px;">
+          سطر لكل صنف: <b>الاسم  الكمية  السعر</b>. مثال: <code>لحم 5 12.5</code>. اللي ما انعرف بيتعلّم بالأحمر.
+        </div>
+        <textarea id="pi-paste-text" placeholder="لحم بقري 10 12.5&#10;بصل 20 0.5&#10;أكياس 200 0.02"></textarea>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button type="button" class="btn small gold" id="pi-paste-go">حلّل وأضف</button>
+          <button type="button" class="btn small" id="pi-paste-cancel">إغلاق</button>
+        </div>
+      </div>
 
-      <div class="pi-grid" style="margin-top:18px; align-items:start;">
-        <div>
-          <div class="pi-dt">
+      <label style="font-size:13px; color:var(--muted); display:block; margin-top:18px;">الدفع</label>
+      <div class="pi-pay" id="pi-pay">
+        <label class="on" data-pay="cash"><input type="radio" name="pi-pay" value="cash" checked>كاش</label>
+        <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">آجل</label>
+        <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">جزء</label>
+      </div>
+      <div class="field" id="pi-partial-wrap" hidden>
+        <label for="pi-partial">المبلغ المدفوع الآن</label>
+        <input type="number" id="pi-partial" min="0" step="0.01" dir="ltr">
+      </div>
+
+      <details class="pi-more" id="pi-more">
+        <summary><span>رقم الفاتورة، خصم، ضريبة، ملاحظات</span><span class="pi-more-sum" id="pi-more-sum"></span></summary>
+        <div class="pi-more-body">
+          <div class="row2">
             <div class="field">
-              <label>الخصم</label>
+              <label for="pi-no">رقم الفاتورة (بيمنع التكرار)</label>
+              <input type="text" id="pi-no" placeholder="مثال: 1045" maxlength="60">
+            </div>
+            <div class="field">
+              <label for="pi-paper-total">إجمالي الفاتورة الورقية (للمطابقة)</label>
+              <input type="number" id="pi-paper-total" min="0" step="0.01" dir="ltr">
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label for="pi-discount">الخصم</label>
               <div style="display:flex; gap:6px;">
                 <input type="number" id="pi-discount" min="0" step="0.01" dir="ltr" placeholder="0" style="flex:1;">
                 <select id="pi-discount-mode" style="width:96px;"><option value="amount">مبلغ</option><option value="pct">نسبة %</option></select>
               </div>
             </div>
             <div class="field">
-              <label>ضريبة المشتريات %</label>
-              <input type="number" id="pi-tax-rate" min="0" max="100" step="0.01" dir="ltr" placeholder="مثال: 16">
+              <label for="pi-tax-rate">ضريبة المشتريات %</label>
+              <input type="number" id="pi-tax-rate" min="0" max="100" step="0.01" dir="ltr" placeholder="بدون">
             </div>
-            <div class="field">
-              <label>الأسعار المدخلة</label>
-              <select id="pi-tax-mode"><option value="excl">غير شاملة الضريبة (بتنضاف فوقها)</option><option value="incl">شاملة الضريبة (مضمّنة)</option></select>
-            </div>
-            <label class="le-check" style="display:flex; align-items:center; gap:8px; font-size:13px; margin:0 0 10px;">
-              <input type="checkbox" id="pi-tax-rec" checked style="width:18px; height:18px;"> الضريبة قابلة للاسترداد (ما بتدخل بتكلفة الأصناف)
-            </label>
-          </div>
-          <label style="font-size:13px; color:var(--muted);">طريقة الدفع</label>
-          <div class="pi-pay" id="pi-pay">
-            <label class="on" data-pay="cash"><input type="radio" name="pi-pay" value="cash" checked>كاش (مدفوعة كاملة)</label>
-            <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">آجل (لسا ما اندفع)</label>
-            <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">دفعة جزئية</label>
-          </div>
-          <div class="field" id="pi-partial-wrap" hidden>
-            <label>المبلغ المدفوع الآن</label>
-            <input type="number" id="pi-partial" min="0" step="0.01" dir="ltr">
           </div>
           <div class="field">
-            <label>إجمالي الفاتورة الورقية (اختياري — للمطابقة)</label>
-            <input type="number" id="pi-paper-total" min="0" step="0.01" dir="ltr">
+            <label for="pi-tax-mode">الأسعار المدخلة</label>
+            <select id="pi-tax-mode"><option value="excl">غير شاملة الضريبة (بتنضاف فوقها)</option><option value="incl">شاملة الضريبة (مضمّنة)</option></select>
           </div>
+          <label class="le-check" style="display:flex; align-items:center; gap:8px; font-size:13px; margin:0 0 12px;">
+            <input type="checkbox" id="pi-tax-rec" checked style="width:18px; height:18px;"> الضريبة قابلة للاسترداد (ما بتدخل بتكلفة الأصناف)
+          </label>
           <div class="field">
-            <label>ملاحظات (اختياري)</label>
+            <label for="pi-notes">ملاحظات</label>
             <input type="text" id="pi-notes" maxlength="300">
           </div>
         </div>
+      </details>
+
+      <div style="margin-top:16px;">
         <div class="pi-total-box">
-          <div class="row"><span>عدد الأصناف</span><b id="pi-count">0</b></div>
-          <div class="row"><span>مجموع الأصناف</span><b id="pi-subtotal">0.00</b></div>
+          <div class="row"><span><b id="pi-count">0</b> صنف</span><b id="pi-subtotal">0.00</b></div>
           <div class="row" id="pi-row-discount" hidden><span>الخصم</span><b id="pi-discount-val" style="color:var(--ok);">0.00</b></div>
           <div class="row" id="pi-row-tax" hidden><span>ضريبة المشتريات</span><b id="pi-tax-val">0.00</b></div>
           <div class="row"><span>الإجمالي المستحق</span><span class="big" id="pi-total">0.00</span></div>
-          <div class="row"><span>المدفوع</span><b id="pi-paid">0.00</b></div>
-          <div class="row"><span>المتبقي على المورّد (آجل)</span><b id="pi-remaining">0.00</b></div>
+          <div class="row" id="pi-row-paid" hidden><span>المدفوع</span><b id="pi-paid">0.00</b></div>
+          <div class="row" id="pi-row-remaining" hidden><span>المتبقي على المورّد (آجل)</span><b id="pi-remaining">0.00</b></div>
           <div class="pi-warn" id="pi-match-warn" hidden></div>
           <button type="button" class="btn gold" id="pi-save" style="width:100%; margin-top:12px; min-height:50px;">حفظ الفاتورة</button>
         </div>
@@ -224,6 +252,7 @@
       <p class="hint" style="margin-top:10px;">
         الفاتورة ما بتتعدّل. إذا في غلطة، صاحب المطعم بيلغيها بسبب (بيرجع المخزون وبيشيل المصروف وقيد المورّد) وبتدخلها من جديد.
         دفعات المورّد اللاحقة بتنسجّل من صفحة <a href="suppliers.html" style="color:var(--gold-hi);">الموردين</a>.
+        <a href="purchases.html" style="color:var(--muted);">المشتريات المفردة القديمة</a>
       </p>
     </div>
   </div>
@@ -364,8 +393,8 @@
             <div data-warn>${priceWarning(line, it)}</div>
           </td>
           <td><select data-f="unit"${it ? "" : " disabled"}>${unitOpts}</select></td>
-          <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}"></td>
-          <td><input type="number" data-f="price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.price)}"></td>
+          <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}" placeholder="الكمية" aria-label="الكمية"></td>
+          <td><input type="number" data-f="price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.price)}" placeholder="السعر" aria-label="سعر الوحدة"></td>
           <td><span class="pi-line-total" data-total>${money(it ? lineTotal(line) : 0)}</span></td>
           <td><button type="button" class="btn small danger" data-act="del" aria-label="حذف">✕</button></td>
         </tr>`;
@@ -386,6 +415,14 @@
       document.getElementById("pi-total").textContent = money(total);
       document.getElementById("pi-paid").textContent = money(paid);
       document.getElementById("pi-remaining").textContent = money(total - paid);
+      document.getElementById("pi-row-paid").hidden = payMode === "cash";
+      document.getElementById("pi-row-remaining").hidden = payMode === "cash";
+      // ملخّص القسم المطوي حتى تعرف شو فيه بدون ما تفتحه
+      const more = [];
+      if (document.getElementById("pi-no").value.trim()) more.push("رقم " + document.getElementById("pi-no").value.trim());
+      if (T.discount > 0) more.push("خصم " + money(T.discount));
+      if (T.rate > 0) more.push("ضريبة " + T.rate + "%");
+      document.getElementById("pi-more-sum").textContent = more.join(" · ");
       const paper = document.getElementById("pi-paper-total").value;
       const warn = document.getElementById("pi-match-warn");
       if (paper !== "" && Math.abs(Number(paper) - total) > 0.01) {
@@ -665,10 +702,12 @@
     // ---------- قراءة الفاتورة بالذكاء الاصطناعي (Gemini عبر دالة read-invoice) ----------
     const aiBtn = document.getElementById("pi-ai-btn");
     const aiStatus = document.getElementById("pi-ai-status");
+    // اختيار الصورة بيقرأها فورًا (بدون زر ثاني)
     document.getElementById("pi-file").addEventListener("change", (e) => {
       aiBtn.disabled = !e.target.files[0];
-      aiStatus.textContent = e.target.files[0] ? "جاهز — اضغط الزر عشان يقرأ الفاتورة." : "اختر صورة أو PDF للفاتورة فوق، بعدها اضغط الزر — بيعبّي الجدول وأنت بتراجع.";
+      if (e.target.files[0]) aiBtn.click();
     });
+    document.getElementById("pi-no").addEventListener("input", updateTotals);
 
     // يصغّر الصورة (أطول ضلع 1800px، JPEG) قبل الإرسال — أسرع وأخف على الحد المجاني
     function fileToPayload(file) {
@@ -862,7 +901,7 @@
           .from("purchase_invoices").select("*, suppliers(name)").order("created_at", { ascending: false }).limit(HISTORY_LIMIT);
         if (error) throw error;
         const tpl = document.getElementById("pi-template");
-        tpl.innerHTML = `<option value="">نسخ أصناف من فاتورة سابقة...</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
+        tpl.innerHTML = `<option value="">نسخ من فاتورة سابقة…</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
           .map((i) => `<option value="${i.id}">${olvEsc(i.invoice_date)} — ${olvEsc(i.suppliers ? i.suppliers.name : "بدون مورّد")}${i.invoice_no ? " #" + olvEsc(i.invoice_no) : ""} (${money(i.total_amount)})</option>`).join("");
         if (!data || !data.length) { body.innerHTML = `<tr class="empty-row"><td colspan="6">ما في فواتير مسجّلة بعد</td></tr>`; return; }
         const taxSum = data.filter((i) => i.status === "active").reduce((s, i) => s + Number(i.tax_amount || 0), 0);
