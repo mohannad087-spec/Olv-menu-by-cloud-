@@ -51,9 +51,22 @@ Deno.serve(async (req) => {
 
   // عميل إداري كامل (service_role) — يُستخدم فقط بعد التأكد من دور المستدعي
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const { data: callerProfile } = await admin.from("profiles").select("role").eq("id", user.id).single();
-  if (!callerProfile || !["owner", "manager"].includes(callerProfile.role)) {
+  const { data: callerProfile } = await admin.from("profiles").select("role, is_active").eq("id", user.id).single();
+  // حساب موقوف ما بيعمل أي عملية إدارية حتى لو جلسته لسا صالحة (الحظر ما بيلغي الـJWT المفتوح فورًا)
+  if (!callerProfile || callerProfile.is_active === false || !["owner", "manager"].includes(callerProfile.role)) {
     return json({ ok: false, error: "هذه العملية تحتاج صلاحية مدير أو مالك" }, 403);
+  }
+
+  // المدير بيتعامل مع الكاشير (staff) بس: ما بيقدر يوقف أو يعيّن كلمة سر لمالك أو مدير آخر
+  // (reset_password بيرجّع كلمة السر المؤقتة، فبدون هالقيد المدير بيستولي على حساب المالك)
+  async function targetAllowed(targetId: string): Promise<Response | null> {
+    if (!/^[0-9a-f-]{36}$/i.test(targetId)) return json({ ok: false, error: "userId غير صالح" }, 400);
+    const { data: target } = await admin.from("profiles").select("role").eq("id", targetId).single();
+    if (!target) return json({ ok: false, error: "المستخدم غير موجود" }, 404);
+    if (callerProfile.role === "manager" && target.role !== "staff") {
+      return json({ ok: false, error: "المدير يتعامل مع الكاشير بس — هذا الحساب لمدير أو مالك ويحتاج صاحب المطعم" }, 403);
+    }
+    return null;
   }
 
   let body: Record<string, unknown>;
@@ -99,6 +112,8 @@ Deno.serve(async (req) => {
       const active = Boolean(body.active);
       if (!targetId) return json({ ok: false, error: "userId مطلوب" }, 400);
       if (targetId === user.id) return json({ ok: false, error: "ما تقدر توقف حسابك أنت" }, 400);
+      const denied = await targetAllowed(targetId);
+      if (denied) return denied;
       // إيقاف/رفع حظر تسجيل الدخول فعليًا (مو بس علامة شكلية) — "none"
       // هي القيمة الموثّقة برمجيًا لرفع الحظر بـSupabase، وليست "0s" (لا
       // تعتبر إلغاء حظر). ملاحظة مهمة: الحظر ما بيلغي جلسة مفتوحة أصلًا
@@ -117,6 +132,8 @@ Deno.serve(async (req) => {
     if (body.action === "reset_password") {
       const targetId = String(body.userId || "");
       if (!targetId) return json({ ok: false, error: "userId مطلوب" }, 400);
+      const denied = await targetAllowed(targetId);
+      if (denied) return denied;
       const tempPassword = randomTempPassword();
       const { error } = await admin.auth.admin.updateUserById(targetId, { password: tempPassword });
       if (error) return json({ ok: false, error: error.message }, 400);
