@@ -218,7 +218,6 @@ const OLV_HUBS = [
     tabs: [
       { id: "purchase-orders", href: "purchase-orders.html", label: "تجهيز طلبية", icon: "clipboard" },
       { id: "purchase-invoices", href: "purchase-invoices.html", label: "فواتير المشتريات", icon: "receipt" },
-      { id: "purchases", href: "purchases.html", label: "مشتريات مفردة (قديمة)", icon: "cart" },
     ],
   },
 ];
