@@ -79,6 +79,15 @@
   .po-add-results button{display:flex; width:100%; justify-content:space-between; gap:10px; text-align:right; padding:10px 12px; background:none; border:none; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); color:var(--paper); font-size:14px;}
   .po-add-results button:hover{background:rgba(var(--gold-rgb),.1);}
   #po-wa{text-decoration:none;}
+  .po-add-results .po-sec{padding:6px 12px; font-size:11.5px; color:var(--muted); background:var(--ink-3);}
+  .po-add-results .po-create{color:var(--gold-hi); font-weight:700;}
+  .po-new{border:1px solid var(--gold); border-radius:12px; padding:14px; margin-top:10px; background:var(--ink-2);}
+  .po-new .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px;}
+  .po-new label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .po-new input,.po-new select{width:100%; box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;}
+  .po-fr{display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;}
+  .po-fr button{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:999px; padding:2px 9px; font-size:12px; min-height:26px; font-family:inherit;}
+  .po-fr button:hover{border-color:var(--gold); color:var(--gold-hi);}
   .po-sum{display:flex; gap:18px; flex-wrap:wrap; align-items:center; margin:14px 0 6px; font-size:14px;}
   .po-sum .big{font-size:20px; font-weight:700; color:var(--gold-hi);}
   #po-text{width:100%; min-height:190px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:14px; box-sizing:border-box;}
@@ -112,7 +121,7 @@
       <div class="po-editing" id="po-editing" hidden></div>
       <div class="po-tbl-wrap">
         <table class="po-tbl">
-          <thead><tr><th>المادة</th><th>المخزون الحالي</th><th style="width:150px;">وحدة الطلب</th><th style="width:100px;">الكمية</th><th style="width:100px;">السعر التقديري</th><th>المجموع</th><th></th></tr></thead>
+          <thead><tr><th>المادة</th><th>المخزون الحالي</th><th style="width:150px;">وحدة الطلب</th><th style="width:170px;">الكمية</th><th style="width:100px;">السعر التقديري</th><th>المجموع</th><th></th></tr></thead>
           <tbody id="po-rows"></tbody>
         </table>
       </div>
@@ -121,9 +130,10 @@
       <div style="margin-top:14px;">
         <div class="field" style="margin:0;">
           <label for="po-add">+ إضافة مادة لهذا المورّد (بتنربط فيه للمرات الجاية)</label>
-          <input type="text" id="po-add" placeholder="ابحث باسم المادة أو المستلزم..." autocomplete="off">
+          <input type="text" id="po-add" placeholder="ابحث باسم المادة... وإذا مش موجودة بتقدر تنشئها أو تجيبها من الكتالوج" autocomplete="off">
         </div>
         <div class="po-add-results" id="po-add-results" hidden></div>
+        <div class="po-new" id="po-new" hidden></div>
       </div>
 
       <div class="field" style="margin-top:14px;">
@@ -158,6 +168,7 @@
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/catalog.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("purchase-orders");
@@ -184,6 +195,9 @@
     let orderId = null;        // مسودة قيد التعديل
     const itemByKey = (k) => items.find((i) => i.key === k);
     const factorOf = (row, it) => (row.mode === "purchase" && it && it.puFactor) ? it.puFactor : 1;
+    // وحدات بتنقسم (كيلو/لتر): بنعرض اختصارات كسور 0.1 0.2 0.25 0.5 1 لما الطلب بوحدة المخزون نفسها
+    const DIVISIBLE = new Set(["كيلوغرام", "كغ", "كغم", "كيلو", "لتر", "kg", "l"]);
+    const divisible = (it, row) => !!it && DIVISIBLE.has(String(it.unit).trim()) && row.mode === "stock";
     const unitLabel = (row, it) => (row.mode === "purchase" && it && it.puName) ? it.puName : (it ? it.unit : "");
 
     // ---------- تحميل ----------
@@ -260,13 +274,16 @@
           <td><div class="po-name">${olvEsc(it.name)}</div><div class="po-kind">${KIND_LABEL[it.kind]}${low ? ` · <span class="po-need">ناقص</span>` : ""}</div></td>
           <td class="po-stock">${olvEsc(it.stock)} ${olvEsc(it.unit)}${it.threshold > 0 ? `<div class="po-kind">الحد: ${olvEsc(it.threshold)}</div>` : ""}</td>
           <td>${unitSel}</td>
-          <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-qty="${idx}" value="${olvEsc(r.qty)}" placeholder="0"></td>
+          <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-qty="${idx}" value="${olvEsc(r.qty)}" placeholder="0"${divisible(it, r) ? ' title="بتقدر تكتب كسور، مثلًا 0.2"' : ""}>${divisible(it, r) ? `<div class="po-fr" aria-label="كميات سريعة">${["0.1", "0.2", "0.25", "0.5", "1"].map((v) => `<button type="button" data-fr="${idx}" data-v="${v}">${v}</button>`).join("")}</div>` : ""}</td>
           <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-price="${idx}" value="${olvEsc(r.price)}" placeholder="—"></td>
           <td class="po-total" data-line-total="${idx}">${lineTotal(r) ? money(lineTotal(r)) : "—"}</td>
           <td>${meta && meta.auto ? `<span class="po-kind" title="مربوط من صفحة المستلزمات">●</span>` : `<button type="button" class="po-x" data-unlink="${idx}" title="شيل المادة من هذا المورّد" aria-label="شيل المادة من هذا المورّد">✕</button>`}</td>
         </tr>`;
       }).join("");
       $("po-rows").querySelectorAll("[data-qty]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.qty].qty = el.value; refreshTotals(); }));
+      $("po-rows").querySelectorAll("[data-fr]").forEach((el) => el.addEventListener("click", () => {
+        rows[+el.dataset.fr].qty = el.dataset.v; const inp = document.querySelector(`[data-qty="${el.dataset.fr}"]`); if (inp) inp.value = el.dataset.v; refreshTotals();
+      }));
       $("po-rows").querySelectorAll("[data-price]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.price].price = el.value; refreshTotals(); }));
       $("po-rows").querySelectorAll("[data-unit]").forEach((el) => el.addEventListener("change", () => {
         const r = rows[+el.dataset.unit], it = itemByKey(r.key);
@@ -328,24 +345,105 @@
         olvToast("انشالت المادة من المورّد");
       } catch (err) { olvShowError($("err"), err); }
     }
-    $("po-add").addEventListener("input", () => {
-      const q = norm($("po-add").value), box = $("po-add-results");
+    // ---------- إضافة مادة: مخزونك، الكتالوج، أو إنشاء مادة جديدة ----------
+    const N = (t) => (window.olvCatNorm ? olvCatNorm(t) : norm(t));
+    let catHits = new Map();
+    function itemFromRow(kind, r) {
+      const it = {
+        key: kind + ":" + r.id, kind, id: r.id, name: r.name, unit: r.unit,
+        stock: Number(r.current_stock) || 0, threshold: Number(r.low_stock_threshold) || 0, price: Number(r.unit_price) || 0,
+        puName: r.purchase_unit || "", puFactor: r.purchase_unit && Number(r.purchase_unit_factor) > 0 ? Number(r.purchase_unit_factor) : 0,
+        supplierId: r.supplier_id || null,
+      };
+      if (!items.some((i) => i.key === it.key)) items.push(it);
+      return itemByKey(it.key);
+    }
+    async function addItemToOrder(it) {
+      if (!linked.has(it.key)) await linkItem(it);
+      if (!rows.some((r) => r.key === it.key)) rows.push(newRow(it));
+      $("po-add").value = ""; $("po-add-results").hidden = true; $("po-new").hidden = true; render();
+      const el = document.querySelector(`[data-qty="${rows.findIndex((r) => r.key === it.key)}"]`); if (el) el.focus();
+    }
+    let addSeq = 0;
+    async function renderAddResults() {
+      const raw = $("po-add").value.trim(), q = N(raw), box = $("po-add-results"), seq = ++addSeq;
       if (!supplier || q.length < 1) { box.hidden = true; return; }
       const taken = new Set(rows.map((r) => r.key));
-      const hits = items.filter((i) => !taken.has(i.key) && norm(i.name).includes(q)).slice(0, 12);
+      const mine = items.filter((i) => !taken.has(i.key) && N(i.name).includes(q)).slice(0, 8);
+      let cat = [];
+      if (typeof olvCatalogFind === "function" && q.length >= 2) {
+        try {
+          const have = new Set(items.map((i) => N(i.name)));
+          cat = (await olvCatalogFind()).filter((e) => !have.has(e.key) && e.hay.includes(q)).slice(0, 8);
+        } catch (e) { cat = []; }
+      }
+      if (seq !== addSeq) return; // كتابة أحدث بدأت
+      catHits = new Map(cat.map((e) => [String(e.id), e]));
+      const exact = items.some((i) => N(i.name) === q) || cat.some((e) => e.key === q);
       box.hidden = false;
-      box.innerHTML = hits.length
-        ? hits.map((i) => `<button type="button" data-add="${i.key}"><span>${olvEsc(i.name)}</span><span class="po-kind">${KIND_LABEL[i.kind]} · ${olvEsc(i.unit)}</span></button>`).join("")
-        : `<div class="hint" style="padding:10px 12px;">ما في نتائج (أو المادة مضافة)</div>`;
+      box.innerHTML =
+        (mine.length ? `<div class="po-sec">من مخزونك</div>` + mine.map((i) => `<button type="button" data-add="${i.key}"><span>${olvEsc(i.name)}</span><span class="po-kind">${KIND_LABEL[i.kind]} · ${olvEsc(i.unit)}</span></button>`).join("") : "")
+        + (cat.length ? `<div class="po-sec">من الكتالوج الجاهز — بتنضاف للمخزون بكمية صفر</div>` + cat.map((e) => `<button type="button" data-cat="${e.id}"><span>${olvEsc(e.name)}</span><span class="po-kind">${e.kind === "s" ? "مستلزم" : "مادة"} · ${olvEsc(e.unit)}${e.pu ? " · " + olvEsc(e.pu) : ""}</span></button>`).join("") : "")
+        + (!exact && raw.length >= 2 ? `<button type="button" class="po-create" data-create="1"><span>＋ إنشاء مادة جديدة باسم «${olvEsc(raw)}»</span></button>` : "")
+        || `<div class="hint" style="padding:10px 12px;">اكتب اسم المادة</div>`;
       box.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", async () => {
         const it = itemByKey(b.dataset.add); if (!it) return;
-        try {
-          if (!linked.has(it.key)) await linkItem(it);
-          rows.push(newRow(it)); $("po-add").value = ""; box.hidden = true; render();
-          const el = document.querySelector(`[data-qty="${rows.length - 1}"]`); if (el) el.focus();
-        } catch (err) { olvShowError($("err"), err); }
+        try { await addItemToOrder(it); } catch (err) { olvShowError($("err"), err); }
       }));
-    });
+      box.querySelectorAll("[data-cat]").forEach((b) => b.addEventListener("click", async () => {
+        const e = catHits.get(b.dataset.cat); if (!e) return;
+        b.disabled = true;
+        try {
+          const res = await olvCatalogAddOne(e);
+          const it = itemFromRow(res.kind, res.row);
+          await addItemToOrder(it);
+          olvToast(`انضافت "${it.name}" للمخزون ولهذا المورّد`);
+        } catch (err) { b.disabled = false; olvShowError($("err"), err); }
+      }));
+      const cb = box.querySelector("[data-create]");
+      if (cb) cb.addEventListener("click", () => openNewForm(raw));
+    }
+    let addTimer = null;
+    $("po-add").addEventListener("input", () => { clearTimeout(addTimer); addTimer = setTimeout(renderAddResults, 120); });
+
+    // إنشاء مادة جديدة بسرعة (اسم + وحدة، ووحدة شراء اختيارية) وربطها بالمورّد وإضافتها للطلبية
+    const UNITS = ["كيلوغرام", "غرام", "لتر", "مليلتر", "قطعة", "علبة", "كيس", "زجاجة", "عبوة", "رول", "حزمة"];
+    function openNewForm(name) {
+      const f = $("po-new"); $("po-add-results").hidden = true; f.hidden = false;
+      f.innerHTML = `<div style="font-weight:700; margin-bottom:10px;">مادة جديدة</div>
+        <div class="grid">
+          <div><label for="pn-name">الاسم</label><input id="pn-name" type="text" maxlength="120" value="${olvEsc(name)}"></div>
+          <div><label for="pn-kind">النوع</label><select id="pn-kind"><option value="ingredient">مادة خام / بضاعة</option><option value="supply">مستلزم (أكياس، أكواب...)</option></select></div>
+          <div><label for="pn-unit">وحدة المخزون</label><select id="pn-unit">${UNITS.map((u) => `<option value="${u}"${u === "كيلوغرام" ? " selected" : ""}>${u}</option>`).join("")}</select></div>
+          <div><label for="pn-pu">وحدة الشراء (اختياري)</label><input id="pn-pu" type="text" maxlength="30" placeholder="مثال: كرتونة"></div>
+          <div><label for="pn-pf">كم <span id="pn-pf-u">كيلوغرام</span> بالوحدة الواحدة؟</label><input id="pn-pf" type="number" min="0" step="any" inputmode="decimal" dir="ltr" placeholder="مثال: 10"></div>
+        </div>
+        <div class="hint" style="margin:8px 0;">بتنضاف للمخزون بكمية صفر، وبتنربط بهذا المورّد. تقدر تعدّل تفاصيلها لاحقًا من صفحة المخزون.</div>
+        <div style="display:flex; gap:8px;"><button type="button" class="btn gold" id="pn-save">إنشاء وإضافة للطلبية</button><button type="button" class="btn" id="pn-cancel">إلغاء</button></div>`;
+      $("pn-unit").addEventListener("change", () => { $("pn-pf-u").textContent = $("pn-unit").value; });
+      $("pn-cancel").addEventListener("click", () => { f.hidden = true; });
+      $("pn-save").addEventListener("click", async () => {
+        const nm = $("pn-name").value.trim(); if (nm.length < 2) { olvToast("اكتب اسم المادة", { type: "danger" }); return; }
+        const btn = $("pn-save"); btn.disabled = true;
+        try {
+          const dup = items.find((i) => N(i.name) === N(nm));
+          if (dup) { await addItemToOrder(dup); olvToast("المادة موجودة أصلًا بمخزونك — انضافت للطلبية"); return; }
+          const kind = $("pn-kind").value, unit = $("pn-unit").value;
+          const pu = $("pn-pu").value.trim(), pf = Number($("pn-pf").value);
+          if (pu && !(pf > 0)) throw new Error("حدد كم " + unit + " بوحدة الشراء");
+          const row = { name: nm, unit, current_stock: 0, low_stock_threshold: 0 };
+          if (pu && pf > 0) { row.purchase_unit = pu; row.purchase_unit_factor = pf; }
+          if (kind === "supply") row.category = "عام";
+          const { data, error } = await window.supabaseClient.from(kind === "ingredient" ? "ingredients" : "supplies").insert(row).select();
+          if (error) throw error;
+          const it = itemFromRow(kind, Array.isArray(data) ? data[0] : data);
+          await addItemToOrder(it);
+          olvToast(`انضافت "${it.name}" للمخزون ولهذا المورّد`);
+        } catch (err) { olvShowError($("err"), err); }
+        finally { btn.disabled = false; }
+      });
+      $("pn-name").focus();
+    }
     // المواد اللي اشتريتها من هذا المورّد قبل (من فواتير ومشتريات سابقة) بتنربط دفعة وحدة
     $("po-autolink").addEventListener("click", async () => {
       if (!supplier) return;
