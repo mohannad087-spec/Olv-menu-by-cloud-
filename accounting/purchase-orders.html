@@ -70,6 +70,7 @@
   .po-tbl input:focus,.po-tbl select:focus{outline:none; border-color:var(--gold);}
   .po-name{font-weight:600; font-size:14px;}
   .po-kind{font-size:11px; color:var(--muted);}
+  .po-thr{width:64px; padding:3px 6px !important; font-size:12.5px !important; min-height:0 !important; display:inline-block;}
   .po-need{color:var(--danger-hi); font-weight:700; font-size:12px;}
   .po-stock{font-size:13px; white-space:nowrap;}
   .po-total{font-weight:700; white-space:nowrap;}
@@ -292,7 +293,7 @@
         const meta = linked.get(r.key);
         return `<tr>
           <td><div class="po-name">${olvEsc(it.name)}</div><div class="po-kind">${KIND_LABEL[it.kind]}${low ? ` · <span class="po-need">ناقص</span>` : ""}</div></td>
-          <td class="po-stock">${olvEsc(it.stock)} ${olvEsc(it.unit)}${it.threshold > 0 ? `<div class="po-kind">الحد: ${olvEsc(it.threshold)}</div>` : ""}</td>
+          <td class="po-stock">${olvEsc(it.stock)} ${olvEsc(it.unit)}<div class="po-kind">حد التنبيه: <input type="number" class="po-thr" min="0" step="any" inputmode="decimal" dir="ltr" value="${it.threshold > 0 ? olvEsc(it.threshold) : ""}" placeholder="—" data-thr="${idx}" title="لما المخزون ينزل لهالرقم بتظهر «ناقص» وبنقترح كمية الطلب تلقائيًا"></div></td>
           <td>${unitSel}</td>
           <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-qty="${idx}" value="${olvEsc(r.qty)}" placeholder="0"${divisible(it, r) ? ' title="بتقدر تكتب كسور، مثلًا 0.2"' : ""}>${divisible(it, r) ? `<div class="po-fr" aria-label="كميات سريعة">${["0.1", "0.2", "0.25", "0.5", "1"].map((v) => `<button type="button" data-fr="${idx}" data-v="${v}">${v}</button>`).join("")}</div>` : ""}</td>
           <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-price="${idx}" value="${olvEsc(r.price)}" placeholder="—"></td>
@@ -303,6 +304,19 @@
       $("po-filter-count").textContent = rows.length >= 2 ? (fq || onlySel ? `${shown} من ${rows.length}` : `${rows.length} مادة`) : "";
       if (rows.length && !shown && (fq || onlySel)) $("po-rows").innerHTML = `<tr><td colspan="7" class="hint" style="padding:16px;">ما في مادة بهالكلمة بين مواد هذا المورّد — جرّب كلمة ثانية، أو أضفها من خانة الإضافة تحت.</td></tr>`;
       $("po-rows").querySelectorAll("[data-qty]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.qty].qty = el.value; refreshTotals(); }));
+      $("po-rows").querySelectorAll("[data-thr]").forEach((el) => el.addEventListener("change", async () => {
+        const r = rows[+el.dataset.thr], it = itemByKey(r.key); if (!it) return;
+        const v = el.value.trim() === "" ? 0 : Number(el.value);
+        if (!Number.isFinite(v) || v < 0) { olvToast("حد التنبيه لازم يكون رقم صفر أو أكثر", { type: "danger" }); el.value = it.threshold > 0 ? it.threshold : ""; return; }
+        try {
+          const { error } = await window.supabaseClient.from(it.kind === "ingredient" ? "ingredients" : "supplies").update({ low_stock_threshold: v }).eq("id", it.id);
+          if (error) throw error;
+          it.threshold = v;
+          if (r.qty === "") r.qty = suggestedQty(it, r.mode);
+          render();
+          olvToast(v > 0 ? `حد تنبيه "${it.name}" = ${v}` + (r.qty ? ` — اقتُرحت كمية ${r.qty}` : "") : `انشال حد التنبيه عن "${it.name}"`);
+        } catch (err) { olvShowError($("err"), err); }
+      }));
       $("po-rows").querySelectorAll("[data-fr]").forEach((el) => el.addEventListener("click", () => {
         rows[+el.dataset.fr].qty = el.dataset.v; const inp = document.querySelector(`[data-qty="${el.dataset.fr}"]`); if (inp) inp.value = el.dataset.v; refreshTotals();
       }));
@@ -559,8 +573,9 @@
         const id = await saveOrder();
         const { error } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: id, p_status: "sent" });
         if (error) throw error;
-        orderId = null; olvToast("انحفظت الطلبية وانعلّمت كمُرسلة"); await loadHistory();
-        $("po-editing").hidden = true;
+        orderId = null; $("po-notes").value = ""; $("po-filter").value = ""; $("po-only").checked = false;
+        await refreshForSupplier(null); // الطلبية انرسلت: بنفضّي الشاشة حتى ما تنرسل مرتين بالغلط (موجودة بسجل الطلبيات، وزر «تكرار» بيرجّعها)
+        olvToast("انحفظت الطلبية وانعلّمت كمُرسلة"); await loadHistory();
       } catch (err) { olvShowError($("err"), err); }
     });
 
@@ -633,7 +648,11 @@
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
-      try { await loadAll(); await loadHistory(); } catch (err) { olvShowError($("err"), err); }
+      try {
+        await loadAll(); await loadHistory();
+        const pre = new URLSearchParams(location.search).get("supplier");
+        if (pre && suppliers.some((x) => x.id === pre)) { $("po-supplier").value = pre; $("po-supplier").dispatchEvent(new Event("change")); }
+      } catch (err) { olvShowError($("err"), err); }
     })();
     });
   </script>

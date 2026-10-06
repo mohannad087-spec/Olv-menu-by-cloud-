@@ -87,6 +87,11 @@
   .pi-void{opacity:.5; text-decoration:line-through;}
   .pi-paste textarea{width:100%; box-sizing:border-box; min-height:110px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
     border-radius:10px; padding:10px; font-family:'Tajawal',sans-serif; font-size:14px; direction:rtl;}
+  .pi-ac{position:absolute; z-index:60; background:var(--ink-2); border:1px solid var(--gold); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); max-height:300px; overflow:auto; min-width:280px;}
+  .pi-ac button{display:flex; width:100%; justify-content:space-between; gap:10px; text-align:right; padding:10px 12px; background:none; border:none; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); color:var(--paper); font-size:14px; font-family:inherit; min-height:40px;}
+  .pi-ac button:last-child{border-bottom:0;}
+  .pi-ac button.on,.pi-ac button:hover{background:rgba(var(--gold-rgb),.14);}
+  .pi-ac .m{font-size:11.5px; color:var(--muted); white-space:nowrap;}
 </style>
 
 </head>
@@ -236,6 +241,7 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/catalog.js"></script>
+  <script defer src="assets/search.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("purchase-invoices");
@@ -353,7 +359,7 @@
           : `<option value="stock">اختر الصنف أولًا</option>`;
         return `<tr data-idx="${idx}">
           <td>
-            <input type="text" list="pi-items-list" data-f="item" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
+            <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
             ${line.unmatchedName && !it ? `<div class="pi-warn bad">ما انعرف "${olvEsc(line.unmatchedName)}" — اختر الصنف من القائمة</div>` : ""}
             <div data-warn>${priceWarning(line, it)}</div>
           </td>
@@ -392,6 +398,51 @@
         warn.hidden = true;
       }
     }
+
+    // ---------- قائمة اقتراحات بحث بالكلمات (بدل datalist اللي بيطابق نص متصل بس) ----------
+    // "معس بطيخ" بتلاقي "معسل مزايا بطيخ". الاختيار بيحط نفس نص الخيار بالخانة وبيطلق نفس حدث الإدخال، فمنطق المطابقة تحته ما اتغيّر
+    const ac = { box: null, input: null, opts: [], idx: -1 };
+    function acClose() { if (ac.box) { ac.box.remove(); ac.box = null; } ac.input = null; ac.opts = []; ac.idx = -1; }
+    function acOptions(q) {
+      if (!String(q).trim()) return [];
+      const mine = items.filter((it) => olvSearchMatch(itemLabel(it), q)).slice(0, 8).map((it) => ({ label: itemLabel(it), name: it.name, meta: it.kind === "ingredient" ? "مادة خام" : "مستلزم" }));
+      const cat = catalogOnly.filter((e) => olvSearchMatch(e.name + " " + (e.hay || ""), q)).slice(0, 6).map((e) => ({ label: catLabel(e), name: e.name, meta: "من الكتالوج (بتنضاف للمخزون)" }));
+      return mine.concat(cat);
+    }
+    function acRender() {
+      if (!ac.input) return;
+      if (!ac.opts.length) { if (ac.box) ac.box.hidden = true; return; }
+      if (!ac.box) { ac.box = document.createElement("div"); ac.box.className = "pi-ac"; ac.box.setAttribute("role", "listbox"); document.body.appendChild(ac.box); }
+      ac.box.hidden = false;
+      const r = ac.input.getBoundingClientRect();
+      ac.box.style.top = (window.scrollY + r.bottom + 4) + "px";
+      ac.box.style.right = Math.max(8, document.documentElement.clientWidth - r.right - window.scrollX) + "px";
+      ac.box.style.width = Math.max(300, r.width) + "px";
+      ac.box.innerHTML = ac.opts.map((o, i) => `<button type="button" role="option" data-i="${i}" class="${i === ac.idx ? "on" : ""}"><span>${olvEsc(o.name)}</span><span class="m">${olvEsc(o.meta)}</span></button>`).join("");
+    }
+    function acPick(i) {
+      const o = ac.opts[i]; const inp = ac.input; if (!o || !inp) return;
+      inp.value = o.label; acClose();
+      inp.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    document.addEventListener("input", (e) => {
+      const t = e.target; if (!t.matches || !t.matches('#pi-lines input[data-f="item"]')) return;
+      const exact = labelToItem().has(t.value) || catalogOnly.some((c) => catLabel(c) === t.value);
+      ac.input = t; ac.idx = -1; ac.opts = exact ? [] : acOptions(t.value); acRender();
+    });
+    document.addEventListener("keydown", (e) => {
+      const t = e.target; if (!ac.box || ac.box.hidden || t !== ac.input) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); ac.idx = Math.min(ac.opts.length - 1, ac.idx + 1); acRender(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); ac.idx = Math.max(0, ac.idx - 1); acRender(); }
+      else if (e.key === "Enter") { e.preventDefault(); acPick(ac.idx >= 0 ? ac.idx : 0); }
+      else if (e.key === "Escape") { acClose(); }
+    });
+    document.addEventListener("mousedown", (e) => {
+      const b = e.target.closest && e.target.closest(".pi-ac button"); if (b) { e.preventDefault(); acPick(Number(b.dataset.i)); return; }
+      if (ac.box && e.target !== ac.input) acClose();
+    });
+    window.addEventListener("scroll", () => { if (ac.box && !ac.box.hidden) acRender(); }, true);
+    document.getElementById("pi-lines").addEventListener("focusout", () => { setTimeout(() => { if (ac.input && document.activeElement !== ac.input) acClose(); }, 150); });
 
     document.getElementById("pi-lines").addEventListener("input", (e) => {
       const tr = e.target.closest("tr"); if (!tr) return;

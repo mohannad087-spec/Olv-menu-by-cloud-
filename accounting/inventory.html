@@ -74,6 +74,12 @@
   .olv-add-box summary::-webkit-details-marker{display:none;}
   .olv-add-box summary::before{content:"＋"; color:var(--gold-hi); font-weight:700;}
   .olv-add-box[open] summary::before{content:"－";}
+  .inv-filter{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  .inv-filter input[type=search]{flex:1; min-width:220px; box-sizing:border-box; padding:12px 14px; font-size:16px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:10px; font-family:'Tajawal',sans-serif;}
+  .inv-filter input[type=search]:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(var(--gold-rgb),.18);}
+  .inv-low{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); white-space:nowrap;}
+  .thr-input{width:76px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:8px; font-size:15px; font-family:'Tajawal',sans-serif; box-sizing:border-box;}
+  .thr-input:focus{outline:none; border-color:var(--gold);}
 </style>
 </head>
 <body>
@@ -96,11 +102,16 @@
           الأصناف الأساسية (لا يشمل استهلاك الإضافات حاليًا)، ويحتاج بضعة
           أيام من المبيعات الفعلية حتى يصبح دقيقًا.
         </p>
+        <div class="inv-filter">
+          <input type="search" id="inv-q" placeholder="🔍 ابحث بكلمة — مثال: معس بطيخ" autocomplete="off" aria-label="ابحث في المخزون">
+          <label class="inv-low"><input type="checkbox" id="inv-low"> الناقص فقط</label>
+          <span class="hint" id="inv-count" style="margin:0;"></span>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>يكفي لـ</th><th>تعديل</th><th></th></tr></thead>
+            <thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th title="لما الكمية توصل هالرقم أو تنزل عنه بتظهر «ناقص» وبتقترح تجهيز الطلبية كمية">حد التنبيه</th><th>يكفي لـ</th><th>تعديل</th><th></th></tr></thead>
             <tbody id="ing-body">
-              <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
+              <tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr>
             </tbody>
           </table>
         </div>
@@ -183,13 +194,14 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/catalog.js"></script>
+  <script defer src="assets/search.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("inventory");
     document.getElementById("urgent-title").innerHTML = olvIcon("warning") + "<span>مواد قاربت تنفد</span>";
     document.getElementById("open-catalog-btn").innerHTML = olvIcon("search") + "<span>تصفّح الكتالوج وإضافة أصناف</span>";
     document.getElementById("open-catalog-btn").addEventListener("click", () => {
-      olvOpenCatalog({ kind: "i", onDone: async () => { await loadIngredients(); } });
+      olvOpenCatalog({ kind: "i", onDone: async () => { clearInvFilter(); await loadIngredients(); } });
     });
     document.getElementById("extract-ing-btn").innerHTML = olvIcon("refresh") + "<span>استخراج أسماء من وصف الأصناف والإضافات</span>";
 
@@ -248,10 +260,27 @@
         const freshIng = ingTracker.diff(ingredients.map((i) => i.id));
         daysLeftById = daysLeftMap;
         renderUrgentBanner();
+        renderIngredients(freshIng);
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    // الرسم لحاله (بدون جلب) حتى البحث والفلتر يشتغلوا فورًا
+    function renderIngredients(freshIng) {
+      const errBox = document.getElementById("err");
+      const body = document.getElementById("ing-body");
+      const q = document.getElementById("inv-q").value, lowOnly = document.getElementById("inv-low").checked;
+      const isLow = (ing) => Number(ing.low_stock_threshold) > 0 && Number(ing.current_stock) <= Number(ing.low_stock_threshold);
+      const list = ingredients.filter((ing) => olvSearchMatch(ing.name, q) && (!lowOnly || isLow(ing)));
+      document.getElementById("inv-count").textContent = ingredients.length ? ((q || lowOnly) ? `${list.length} من ${ingredients.length}` : `${ingredients.length} مادة`) : "";
+      {
         if (!ingredients.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد مواد خام بعد</td></tr>`;
+          body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد مواد خام بعد</td></tr>`;
+        } else if (!list.length) {
+          body.innerHTML = `<tr class="empty-row"><td colspan="7">ما في مادة بهالكلمة${lowOnly ? " ناقصة" : ""} — جرّب كلمة ثانية</td></tr>`;
         } else {
-          body.innerHTML = ingredients.map((ing) => {
+          body.innerHTML = list.map((ing) => {
             const low = Number(ing.current_stock) <= Number(ing.low_stock_threshold) && Number(ing.low_stock_threshold) > 0;
             const daysLeft = daysLeftById[ing.id] ?? null;
             let daysCell = `<span class="hint">لا يوجد بيانات كافية</span>`;
@@ -264,6 +293,7 @@
                 <td>${olvEsc(ing.name)}</td>
                 <td>${olvEsc(ing.unit)}</td>
                 <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
+                <td><input type="number" class="thr-input" min="0" step="any" inputmode="decimal" dir="ltr" value="${Number(ing.low_stock_threshold) > 0 ? olvEsc(ing.low_stock_threshold) : ""}" placeholder="—" data-thr="${ing.id}" aria-label="حد التنبيه"></td>
                 <td>${daysCell}</td>
                 <td>
                   <div style="display:flex; gap:6px;">
@@ -276,7 +306,19 @@
               </tr>
             `;
           }).join("");
-          olvMarkNew(body, freshIng, { scroll: true });
+          if (freshIng) olvMarkNew(body, freshIng, { scroll: true });
+          body.querySelectorAll("input[data-thr]").forEach((inp) => {
+            inp.addEventListener("change", async () => {
+              const ing = ingredients.find((i) => i.id === inp.dataset.thr); if (!ing) return;
+              const v = inp.value.trim() === "" ? 0 : Number(inp.value);
+              if (!Number.isFinite(v) || v < 0) { olvShowError(errBox, new Error("حد التنبيه لازم يكون رقم صفر أو أكثر")); inp.value = Number(ing.low_stock_threshold) > 0 ? ing.low_stock_threshold : ""; return; }
+              const { error } = await window.supabaseClient.from("ingredients").update({ low_stock_threshold: v }).eq("id", ing.id);
+              if (error) { olvShowError(errBox, error); return; }
+              ing.low_stock_threshold = v;
+              renderIngredients();
+              olvToast(v > 0 ? `حد تنبيه "${ing.name}" = ${v}` : `انشال حد التنبيه عن "${ing.name}"`);
+            });
+          });
           body.querySelectorAll("button[data-apply]").forEach((btn) => {
             btn.addEventListener("click", async () => {
               const input = body.querySelector(`input[data-adjust="${btn.dataset.apply}"]`);
@@ -316,10 +358,13 @@
             });
           });
         }
-      } catch (err) {
-        olvShowError(errBox, err);
       }
     }
+    document.getElementById("inv-q").addEventListener("input", () => renderIngredients());
+    document.getElementById("inv-low").addEventListener("change", () => renderIngredients());
+    document.getElementById("inv-q").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.target.value = ""; renderIngredients(); } });
+    // مادة جديدة انضافت: نمسح البحث حتى تظهر بالجدول وتتعلّم
+    const clearInvFilter = () => { document.getElementById("inv-q").value = ""; document.getElementById("inv-low").checked = false; };
 
     // يستخرج أسماء مواد خام محتملة من وصف المنتجات (مفصولة بفاصلة عادة،
     // متل "خبز طازج، لحمة مشوية، صلصة خاصة") ومن أسماء الإضافات (عادة
@@ -393,6 +438,7 @@
           if (error) throw error;
           box.hidden = true;
           box.innerHTML = "";
+          clearInvFilter();
           await loadIngredients();
           olvToast(rows.length === 1 ? "تمت إضافة المادة" : `تمت إضافة ${rows.length} مواد`);
         } catch (err) {
@@ -415,6 +461,7 @@
         if (error) throw error;
         document.getElementById("ing-form").reset();
         document.getElementById("i-unit").value = "قطعة";
+        clearInvFilter();
         await loadIngredients();
         olvToast("تمت إضافة المادة");
       } catch (err) {
