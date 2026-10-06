@@ -232,6 +232,7 @@ function olvRenderNav(active) {
       links: [
         { id: "inventory", href: "inventory.html", label: "المخزون والجرد", icon: "box" },
         { id: "purchase-invoices", href: "purchase-invoices.html", label: "المشتريات", icon: "receipt" },
+        { id: "purchase-orders", href: "purchase-orders.html", label: "تجهيز طلبية", icon: "clipboard" },
         { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
         { id: "product-recipes", href: "product-recipes.html", label: "الأصناف والوصفات", icon: "coffee", staffHref: "recipes.html", staffLabel: "دليل تحضير المشروبات" },
       ],
