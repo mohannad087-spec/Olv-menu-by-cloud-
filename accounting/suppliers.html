@@ -136,10 +136,21 @@
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
         <h2 id="detail-name" style="margin:0;">—</h2>
         <div style="display:flex; gap:8px;">
+          <a class="btn small gold" id="order-for-supplier" href="purchase-orders.html" style="text-decoration:none;">تجهيز طلبية لهذا المورّد</a>
+          <button type="button" class="btn small" id="edit-supplier-btn">تعديل البيانات</button>
           <button type="button" class="btn small" id="print-statement-btn"></button>
           <button type="button" class="btn small" id="close-detail-btn">إغلاق</button>
         </div>
       </div>
+
+      <form id="edit-supplier-form" hidden style="border:1px dashed var(--gold); border-radius:12px; padding:14px; margin-bottom:14px;">
+        <div class="row3">
+          <div class="field"><label for="es-name">الاسم</label><input type="text" id="es-name" maxlength="120" required></div>
+          <div class="field"><label for="es-phone">الهاتف</label><input type="tel" id="es-phone" dir="ltr" placeholder="07XXXXXXXX"></div>
+          <div class="field"><label for="es-notes">ملاحظات</label><input type="text" id="es-notes" maxlength="300"></div>
+        </div>
+        <div style="display:flex; gap:8px;"><button type="submit" class="btn gold small">حفظ التعديل</button><button type="button" class="btn small" id="es-cancel">إلغاء</button></div>
+      </form>
 
       <div class="stats">
         <div class="stat">
@@ -303,6 +314,8 @@
       if (!supplier) return;
       document.getElementById("detail-group").hidden = false;
       document.getElementById("detail-name").textContent = supplier.name;
+      document.getElementById("order-for-supplier").href = "purchase-orders.html?supplier=" + encodeURIComponent(supplier.id);
+      document.getElementById("edit-supplier-form").hidden = true;
       document.querySelectorAll("tr[data-select]").forEach((row) => {
         row.classList.toggle("on", row.dataset.select === id);
       });
@@ -394,10 +407,18 @@
       window.print();
     }
 
+    // المبلغ لازم أكبر من صفر — قبل كان 0 بينرسل وبيرجع خطأ قاعدة بيانات غامض
+    function positiveAmount(id) {
+      const v = Number(document.getElementById(id).value);
+      if (!Number.isFinite(v) || v <= 0) throw new Error("اكتب مبلغ أكبر من صفر");
+      return v;
+    }
     document.getElementById("supplier-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
+      const badPhone = phoneProblem(document.getElementById("s-phone").value);
+      if (badPhone) { olvShowError(errBox, new Error(badPhone)); return; }
       try {
         const payload = {
           name: document.getElementById("s-name").value.trim(),
@@ -422,7 +443,7 @@
         const payload = {
           supplier_id: selectedSupplier,
           type: "invoice",
-          amount: Number(document.getElementById("inv-amount").value || 0),
+          amount: positiveAmount("inv-amount"),
           description: document.getElementById("inv-desc").value.trim() || null,
           transaction_date: document.getElementById("inv-date").value || olvToday(),
         };
@@ -446,7 +467,7 @@
         const payload = {
           supplier_id: selectedSupplier,
           type: "payment",
-          amount: Number(document.getElementById("pay-amount").value || 0),
+          amount: positiveAmount("pay-amount"),
           description: document.getElementById("pay-desc").value.trim() || null,
           transaction_date: document.getElementById("pay-date").value || olvToday(),
         };
@@ -461,6 +482,29 @@
       }
     });
 
+    // رقم الهاتف: بنقبل أرقام ومسافات و+ و- بس، 7 خانات رقمية على الأقل (غلطة طباعة بالرقم بتخلّي واتساب الطلبية يروح لغلط)
+    const phoneProblem = (v) => { v = String(v || "").trim(); if (!v) return ""; if (!/^[+\d\s\-()]+$/.test(v)) return "الهاتف لازم يكون أرقام بس"; return v.replace(/\D/g, "").length < 7 ? "رقم الهاتف قصير — تأكد منه" : ""; };
+    document.getElementById("edit-supplier-btn").addEventListener("click", () => {
+      const sup = suppliers.find((x) => x.id === selectedSupplier); if (!sup) return;
+      document.getElementById("es-name").value = sup.name || ""; document.getElementById("es-phone").value = sup.phone || ""; document.getElementById("es-notes").value = sup.notes || "";
+      const f = document.getElementById("edit-supplier-form"); f.hidden = !f.hidden; if (!f.hidden) document.getElementById("es-name").focus();
+    });
+    document.getElementById("es-cancel").addEventListener("click", () => { document.getElementById("edit-supplier-form").hidden = true; });
+    document.getElementById("edit-supplier-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      const name = document.getElementById("es-name").value.trim(), phone = document.getElementById("es-phone").value.trim();
+      const bad = phoneProblem(phone); if (bad) { olvShowError(errBox, new Error(bad)); return; }
+      if (name.length < 2) { olvShowError(errBox, new Error("اكتب اسم المورّد")); return; }
+      try {
+        const { error } = await window.supabaseClient.from("suppliers").update({ name, phone: phone || null, notes: document.getElementById("es-notes").value.trim() || null }).eq("id", selectedSupplier);
+        if (error) throw error;
+        document.getElementById("edit-supplier-form").hidden = true;
+        await loadSuppliers();
+        document.getElementById("detail-name").textContent = name;
+        olvToast("انحفظ تعديل المورّد");
+      } catch (err) { olvShowError(errBox, err); }
+    });
     document.getElementById("close-detail-btn").addEventListener("click", closeDetail);
     document.getElementById("print-statement-btn").addEventListener("click", printStatement);
 

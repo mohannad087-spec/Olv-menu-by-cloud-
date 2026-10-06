@@ -81,6 +81,9 @@
   .olv-add-box summary::-webkit-details-marker{display:none;}
   .olv-add-box summary::before{content:"＋"; color:var(--gold-hi); font-weight:700;}
   .olv-add-box[open] summary::before{content:"－";}
+  .inv-filter{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  .inv-filter input[type=search]{flex:1; min-width:220px; box-sizing:border-box; padding:12px 14px; font-size:16px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:10px; font-family:'Tajawal',sans-serif;}
+  .inv-filter input[type=search]:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(var(--gold-rgb),.18);}
 </style>
 </head>
 <body>
@@ -92,6 +95,10 @@
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
         <h2 style="margin:0;">المستلزمات الحالية</h2>
         <button type="button" class="btn gold" id="prepare-order-btn"></button>
+      </div>
+      <div class="inv-filter">
+        <input type="search" id="sup-q" placeholder="🔍 ابحث بكلمة في المستلزمات" autocomplete="off" aria-label="ابحث في المستلزمات">
+        <span class="hint" id="sup-count" style="margin:0;"></span>
       </div>
       <div id="supplies-by-category">
         <div class="hint">جاري التحميل...</div>
@@ -186,6 +193,7 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/catalog.js"></script>
+  <script defer src="assets/search.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("supplies");
@@ -210,34 +218,44 @@
     }
 
     const supTracker = olvNewTracker();
-    async function loadSupplies() {
+    // useCache=true: إعادة رسم بدون جلب (للبحث وفتح/تسكير التصنيفات)
+    async function loadSupplies(useCache) {
       const errBox = document.getElementById("err");
       const container = document.getElementById("supplies-by-category");
       try {
-        const { data, error } = await window.supabaseClient
-          .from("supplies").select("*").order("category").order("name");
-        if (error) throw error;
-        supplies = data || [];
-        const freshSup = supTracker.diff(supplies.map((s) => s.id));
+        let freshSup = new Set();
+        if (!(useCache && supplies.length)) {
+          const { data, error } = await window.supabaseClient
+            .from("supplies").select("*").order("category").order("name");
+          if (error) throw error;
+          supplies = data || [];
+          freshSup = supTracker.diff(supplies.map((s) => s.id));
+        }
+        const q = document.getElementById("sup-q").value.trim();
+        const isLowS = (s) => Number(s.low_stock_threshold) > 0 && Number(s.current_stock) <= Number(s.low_stock_threshold);
+        const shownList = supplies.filter((s) => olvSearchMatch(s.name + " " + (s.category || ""), q));
+        document.getElementById("sup-count").textContent = supplies.length ? (q ? `${shownList.length} من ${supplies.length}` : `${supplies.length} مستلزم`) : "";
         // مستلزم جديد بتصنيف مسكّر: نفتح التصنيف حتى يشوفه المستخدم (تأكيد إنه انحفظ)
         supplies.forEach((s) => { if (freshSup.has(s.id)) openCategories.add(s.category || "عام"); });
         if (!supplies.length) {
           container.innerHTML = `<div class="hint">لا يوجد مستلزمات بعد</div>`;
           return;
         }
+        if (!shownList.length) { container.innerHTML = `<div class="hint">ما في مستلزم بهالكلمة — جرّب كلمة ثانية</div>`; return; }
         const byCategory = {};
-        supplies.forEach((s) => {
+        shownList.forEach((s) => {
           const cat = s.category || "عام";
           (byCategory[cat] = byCategory[cat] || []).push(s);
         });
         container.innerHTML = Object.keys(byCategory).map((cat) => {
-          const open = openCategories.has(cat);
+          const open = openCategories.has(cat) || !!q; // البحث بيفتح التصنيفات اللي فيها نتائج
+          const lowN = byCategory[cat].filter(isLowS).length;
           return `
           <div class="cat-accordion" style="margin-bottom:10px;">
             <button type="button" class="cat-accordion-head" data-cat-toggle="${olvEsc(cat)}">
               <span class="caret${open ? " open" : ""}">▸</span>
               <span>${olvEsc(cat)}</span>
-              <span class="badge">${byCategory[cat].length}</span>
+              <span class="badge">${byCategory[cat].length}</span>${lowN ? `<span class="badge" style="background:var(--danger); color:#fff;" title="مستلزمات ناقصة بهالتصنيف">${lowN} ناقص</span>` : ""}
             </button>
             ${open ? `
             <div class="table-wrap">
@@ -275,7 +293,7 @@
             const cat = btn.dataset.catToggle;
             if (openCategories.has(cat)) openCategories.delete(cat);
             else openCategories.add(cat);
-            loadSupplies();
+            loadSupplies(true);
           });
         });
         container.querySelectorAll("button[data-apply]").forEach((btn) => {
@@ -310,6 +328,8 @@
       }
     }
 
+    let supTimer = null;
+    document.getElementById("sup-q").addEventListener("input", () => { clearTimeout(supTimer); supTimer = setTimeout(() => loadSupplies(true), 100); });
     document.getElementById("supply-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("err");

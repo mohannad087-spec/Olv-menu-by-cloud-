@@ -133,6 +133,7 @@
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/search.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("stock-count");
@@ -183,9 +184,10 @@
     }
 
     function visibleItems() {
-      const q = document.getElementById("sc-q").value.trim().toLowerCase();
+      const q = document.getElementById("sc-q").value;
       const k = document.getElementById("sc-kind").value;
-      return items.filter((i) => (k === "all" || i.kind === k) && (!q || i.name.toLowerCase().includes(q)));
+      // بحث بالكلمات (معس بطيخ = معسل مزايا بطيخ)، وبيشمل اسم التصنيف
+      return items.filter((i) => (k === "all" || i.kind === k) && olvSearchMatch(i.name + " " + i.cat, q));
     }
 
     function render() {
