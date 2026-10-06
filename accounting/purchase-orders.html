@@ -103,6 +103,22 @@
   .po-hist td,.po-hist th{padding:8px 6px; text-align:right; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); font-size:13.5px;}
   .po-hist th{color:var(--muted); font-size:12px; font-weight:500;}
   .po-hist{width:100%; border-collapse:collapse; min-width:640px;}
+  #ai-text{width:100%; min-height:110px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:12px 14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:16px; box-sizing:border-box; resize:vertical;}
+  #ai-text:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(var(--gold-rgb),.18);}
+  .ai-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
+  .ai-file-name{font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis;}
+  .ai-file-name button{background:none; border:none; color:var(--muted); font-size:16px; padding:4px 8px; min-height:0;}
+  .ai-grp{border:1px solid var(--hair); border-radius:12px; padding:12px; margin-top:12px; background:var(--ink-2);}
+  .ai-grp.bad{border-color:var(--danger);}
+  .ai-grp-h{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-weight:700; margin-bottom:8px;}
+  .ai-grp-h .po-kind{font-weight:400;}
+  .ai-line{display:grid; grid-template-columns:minmax(160px,2fr) 90px minmax(110px,1fr) minmax(130px,1.2fr) auto; gap:8px; align-items:center; padding:8px 0; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .ai-grp-h + .ai-line{border-top:none;}
+  .ai-line select,.ai-line input{box-sizing:border-box; width:100%; padding:9px 8px; font-size:15px; background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;}
+  .ai-line .miss{border-color:var(--danger); }
+  .ai-raw{grid-column:1 / -1; font-size:12px; color:var(--muted); margin-bottom:-4px;}
+  @media(max-width:620px){.ai-line{grid-template-columns:1fr 1fr;} .ai-line .ai-item{grid-column:1 / -1;} .ai-line .ai-sup{grid-column:1 / 2;}}
+  .ai-foot{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px;}
   .po-editing{border:1px dashed var(--gold); border-radius:10px; padding:8px 12px; margin-bottom:12px; font-size:13px; color:var(--gold-hi);}
 </style>
 </head>
@@ -110,6 +126,20 @@
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
+
+    <div class="group" id="ai-box">
+      <h2 style="margin-top:0;">✨ جهّز الطلبيات من واتساب أو صورة</h2>
+      <div class="hint" style="margin:0 0 10px;">الصق رسالة الطلبية أو صوّر الورقة (أو سكرين شوت)، والذكاء الاصطناعي بيطلع المواد والكميات ويقسمها حسب المورّد. بتراجع وبتعدّل قبل ما ينحفظ شي.</div>
+      <textarea id="ai-text" maxlength="6000" placeholder="مثال:&#10;٢ كرتونة حليب&#10;٥ كيلو بندورة&#10;من أبو أحمد: كيس سكر وكرتونة كاسات"></textarea>
+      <div class="ai-actions">
+        <label class="btn" for="ai-file" id="ai-file-btn">📷 صورة أو PDF</label>
+        <input type="file" id="ai-file" accept="image/*,application/pdf" hidden>
+        <span class="ai-file-name" id="ai-file-name"></span>
+        <button type="button" class="btn gold" id="ai-go">✨ حلّل وجهّز الطلبيات</button>
+      </div>
+      <div class="hint" id="ai-status" style="margin:8px 0 0;"></div>
+      <div id="ai-result" hidden></div>
+    </div>
 
     <div class="group">
       <h2 style="margin-top:0;">تجهيز طلبية لمورّد</h2>
@@ -762,6 +792,239 @@
         $("po-notes").value = o.notes || ""; $("po-text").hidden = true;
         render(); $("po-editor").scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (err) { olvShowError($("err"), err); }
+    }
+
+    // ---------- تجهيز الطلبيات بالذكاء الاصطناعي (نص واتساب أو صورة → مسودات حسب المورّد) ----------
+    // الدالة parse-order بتطلع السطور مربوطة بمواد المخزون؛ المورّد بنختاره هون من ربط المواد
+    // بالموردين، وإلا من آخر شراء. كل شي مسودة بتراجعها — ما بنحفظ ولا بننشئ مواد لحالنا.
+    let aiFile = null;
+    let aiLines = [];          // { raw, key, qty, mode, sup, supHint }
+    let aiSupOf = new Map();   // key -> { ids: [مورّدين مربوطين], last: آخر مورّد اشترينا منه }
+    const round3 = (n) => Math.round(n * 1000) / 1000;
+    const supName = (id) => (suppliers.find((s) => s.id === id) || {}).name || "";
+
+    function setAiFile(f) {
+      aiFile = f || null;
+      $("ai-file-name").innerHTML = aiFile ? `<span>📎 ${olvEsc(aiFile.name || "صورة ملصوقة")}</span><button type="button" id="ai-file-x" aria-label="شيل الصورة">✕</button>` : "";
+      const x = $("ai-file-x"); if (x) x.addEventListener("click", () => { $("ai-file").value = ""; setAiFile(null); });
+    }
+    $("ai-file").addEventListener("change", (e) => setAiFile(e.target.files[0]));
+    // لصق صورة (سكرين شوت) مباشرة بخانة النص
+    $("ai-text").addEventListener("paste", (e) => {
+      const f = [...(e.clipboardData && e.clipboardData.files || [])].find((x) => x.type.startsWith("image/"));
+      if (f) { e.preventDefault(); setAiFile(f); }
+    });
+
+    // يصغّر الصورة (أطول ضلع 1800px، JPEG) قبل الإرسال — نفس أسلوب فواتير المشتريات
+    function fileToPayload(file) {
+      return new Promise((resolve, reject) => {
+        const readRaw = () => {
+          if (file.size > 5 * 1024 * 1024) { reject(new Error("الملف أكبر من 5 ميغا — صغّره أو صوّره من جديد")); return; }
+          const fr = new FileReader();
+          fr.onload = () => resolve({ mime_type: file.type || "application/octet-stream", data: String(fr.result).split(",")[1] });
+          fr.onerror = () => reject(new Error("تعذّرت قراءة الملف"));
+          fr.readAsDataURL(file);
+        };
+        if (!file.type.startsWith("image/") || file.type === "image/heic") { readRaw(); return; }
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const scale = Math.min(1, 1800 / Math.max(img.width, img.height));
+          const c = document.createElement("canvas");
+          c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          resolve({ mime_type: "image/jpeg", data: c.toDataURL("image/jpeg", 0.85).split(",")[1] });
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); readRaw(); };
+        img.src = url;
+      });
+    }
+
+    // مين بيورّد كل مادة: الربط (supplier_items + مورّد المستلزم) أولًا، وبعدها آخر شراء
+    async function loadSupplierGuesses() {
+      const sb = window.supabaseClient;
+      const [lRes, pRes] = await Promise.all([
+        sb.from("supplier_items").select("supplier_id, ingredient_id, supply_id").limit(5000),
+        sb.from("purchases").select("supplier_id, ingredient_id, supply_id, created_at").not("supplier_id", "is", null).order("created_at", { ascending: false }).limit(2000),
+      ]);
+      if (lRes.error) throw lRes.error;
+      aiSupOf = new Map();
+      const get = (k) => { if (!aiSupOf.has(k)) aiSupOf.set(k, { ids: [], last: null }); return aiSupOf.get(k); };
+      (lRes.data || []).forEach((r) => { const g = get(r.ingredient_id ? "ingredient:" + r.ingredient_id : "supply:" + r.supply_id); if (!g.ids.includes(r.supplier_id)) g.ids.push(r.supplier_id); });
+      items.forEach((i) => { if (i.supplierId) { const g = get(i.key); if (!g.ids.includes(i.supplierId)) g.ids.push(i.supplierId); } });
+      if (!pRes.error) (pRes.data || []).forEach((p) => {
+        const k = p.ingredient_id ? "ingredient:" + p.ingredient_id : p.supply_id ? "supply:" + p.supply_id : null;
+        if (k) { const g = get(k); if (!g.last) g.last = p.supplier_id; }
+      });
+    }
+    function guessSupplier(key) {
+      const g = aiSupOf.get(key); if (!g) return "";
+      const ok = (id) => suppliers.some((s) => s.id === id);
+      if (g.ids.length && ok(g.ids[0])) return g.last && g.ids.includes(g.last) ? g.last : g.ids[0];
+      return g.last && ok(g.last) ? g.last : "";
+    }
+    const defaultMode = (it, mode) => (it && it.puName && it.puFactor) ? (mode === "stock" ? "stock" : "purchase") : "stock";
+
+    $("ai-go").addEventListener("click", async () => {
+      const text = $("ai-text").value.trim();
+      if (!text && !aiFile) { olvToast("الصق نص الطلبية أو اختر صورة", { type: "danger" }); return; }
+      if (!navigator.onLine) { olvShowError($("err"), new Error("التحليل بالذكاء الاصطناعي بيحتاج إنترنت")); return; }
+      if (aiLines.length && !confirm("في طلبيات محلّلة لسا ما انحفظت — بتنمسح وبنحلّل من جديد. متأكد؟")) return;
+      const btn = $("ai-go"); btn.disabled = true;
+      $("ai-status").textContent = "عم يحلّل الطلبية... (10–30 ثانية)";
+      try {
+        const body = { text };
+        if (aiFile) Object.assign(body, await fileToPayload(aiFile));
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+        const [res] = await Promise.all([
+          fetch(cfg.SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/parse-order", {
+            method: "POST",
+            headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token, apikey: cfg.SUPABASE_ANON_KEY },
+            body: JSON.stringify(body),
+          }),
+          loadSupplierGuesses(),
+        ]);
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.ok) throw new Error(out.error || "فشل التحليل (" + res.status + ")");
+        aiLines = (out.lines || []).map((l) => {
+          const it = l.item_key ? itemByKey(l.item_key) : null;
+          const sup = l.supplier_id && suppliers.some((s) => s.id === l.supplier_id) ? l.supplier_id : (it ? guessSupplier(it.key) : "");
+          return { raw: l.raw + (l.unit_raw && !String(l.raw).includes(l.unit_raw) ? ` (${l.unit_raw})` : ""), key: it ? it.key : "", qty: l.qty == null ? "" : String(l.qty), mode: defaultMode(it, l.unit), sup };
+        });
+        if (!aiLines.length) { $("ai-status").textContent = "ما لقيت أصناف بالنص أو الصورة — جرّب نص أوضح."; renderAi(); return; }
+        const miss = aiLines.filter((l) => !l.key).length;
+        $("ai-status").textContent = `طلع ${aiLines.length} صنف${miss ? ` — ${miss} ما انعرفوا، اختر المادة إلهم أو احذفهم` : ""}. راجع الكميات والموردين وبعدها احفظ.`;
+        renderAi();
+        $("ai-result").scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (err) {
+        $("ai-status").textContent = "";
+        olvShowError($("err"), err);
+      } finally { btn.disabled = false; }
+    });
+
+    function renderAi() {
+      const box = $("ai-result");
+      box.hidden = !aiLines.length;
+      if (!aiLines.length) { box.innerHTML = ""; return; }
+      const sortedItems = items.slice().sort((a, b) => a.name.localeCompare(b.name, "ar"));
+      const itemOpts = `<option value="">— اختر المادة —</option>` + sortedItems.map((i) => `<option value="${i.key}">${olvEsc(i.name)} (${olvEsc(i.unit)})</option>`).join("");
+      const supOpts = `<option value="">— اختر المورّد —</option>` + suppliers.map((s) => `<option value="${s.id}">${olvEsc(s.name)}</option>`).join("");
+      // المجموعات: اللي ما انعرفت، بعدها كل مورّد، وآخر شي اللي بدون مورّد
+      const groups = new Map();
+      aiLines.forEach((l, idx) => {
+        const g = !l.key ? "?" : (l.sup || "");
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(idx);
+      });
+      const order = [...groups.keys()].sort((a, b) => (a === "?" ? -1 : b === "?" ? 1 : a === "" ? 1 : b === "" ? -1 : supName(a).localeCompare(supName(b), "ar")));
+      const lineHtml = (idx) => {
+        const l = aiLines[idx], it = l.key ? itemByKey(l.key) : null;
+        const unitSel = it ? (it.puName && it.puFactor
+          ? `<select data-ai-mode="${idx}" aria-label="الوحدة"><option value="purchase"${l.mode === "purchase" ? " selected" : ""}>${olvEsc(it.puName)} (= ${it.puFactor} ${olvEsc(it.unit)})</option><option value="stock"${l.mode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option></select>`
+          : `<select disabled aria-label="الوحدة"><option>${olvEsc(it.unit)}</option></select>`) : `<select disabled aria-label="الوحدة"><option>—</option></select>`;
+        return `<div class="ai-line">
+          <div class="ai-raw">«${olvEsc(l.raw)}»</div>
+          <select class="ai-item${l.key ? "" : " miss"}" data-ai-item="${idx}" aria-label="المادة">${itemOpts}</select>
+          <input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-ai-qty="${idx}" value="${olvEsc(l.qty)}" placeholder="الكمية" class="${Number(l.qty) > 0 ? "" : "miss"}" aria-label="الكمية">
+          ${unitSel}
+          <select class="ai-sup${l.sup ? "" : " miss"}" data-ai-sup="${idx}" aria-label="المورّد"${l.key ? "" : " disabled"}>${supOpts}</select>
+          <button type="button" class="po-x" data-ai-del="${idx}" title="احذف السطر" aria-label="احذف السطر">✕</button>
+        </div>`;
+      };
+      const ready = [...groups.keys()].filter((g) => g && g !== "?").length;
+      box.innerHTML = order.map((g) => {
+        const idxs = groups.get(g);
+        const title = g === "?" ? "ما انعرفت — اختر المادة من مخزونك أو احذف السطر" : g === "" ? "بدون مورّد — اختر المورّد لكل سطر" : `طلبية ${olvEsc(supName(g))}`;
+        return `<div class="ai-grp${g === "?" || g === "" ? " bad" : ""}"><div class="ai-grp-h"><span>${title}</span><span class="po-kind">${idxs.length} صنف</span></div>${idxs.map(lineHtml).join("")}</div>`;
+      }).join("") + `<div class="ai-foot">
+          <button type="button" class="btn gold" id="ai-save">حفظ ${ready > 1 ? ready + " طلبيات" : "الطلبية"} كمسودة</button>
+          <button type="button" class="btn" id="ai-clear">إلغاء</button>
+          <span class="hint" style="margin:0;">بعد الحفظ بتفتح كل طلبية وبترسلها للمورّد واتساب.</span>
+        </div>`;
+      box.querySelectorAll("[data-ai-item]").forEach((el) => { el.value = aiLines[+el.dataset.aiItem].key; });
+      box.querySelectorAll("[data-ai-sup]").forEach((el) => { el.value = aiLines[+el.dataset.aiSup].sup; });
+    }
+    // الأحداث على الصندوق كله (بنعيد الرسم عند تغيير المادة أو المورّد لأنه بيغيّر المجموعة)
+    $("ai-result").addEventListener("change", (e) => {
+      const t = e.target, d = t.dataset;
+      if (d.aiItem !== undefined) {
+        const l = aiLines[+d.aiItem], it = itemByKey(t.value);
+        l.key = it ? it.key : ""; l.mode = defaultMode(it, l.mode);
+        if (it && !l.sup) l.sup = guessSupplier(it.key);
+        renderAi();
+      } else if (d.aiSup !== undefined) { aiLines[+d.aiSup].sup = t.value; renderAi(); }
+      else if (d.aiMode !== undefined) { aiLines[+d.aiMode].mode = t.value; }
+    });
+    $("ai-result").addEventListener("input", (e) => {
+      const d = e.target.dataset;
+      if (d.aiQty !== undefined) { aiLines[+d.aiQty].qty = e.target.value; e.target.classList.toggle("miss", !(Number(e.target.value) > 0)); }
+    });
+    $("ai-result").addEventListener("click", async (e) => {
+      const del = e.target.closest("[data-ai-del]");
+      if (del) { aiLines.splice(+del.dataset.aiDel, 1); renderAi(); return; }
+      if (e.target.closest("#ai-clear")) { if (confirm("تلغي الطلبيات المحلّلة؟")) { aiLines = []; renderAi(); $("ai-status").textContent = ""; } return; }
+      const save = e.target.closest("#ai-save");
+      if (save) {
+        save.disabled = true;
+        try { await aiSaveAll(); }
+        catch (err) { olvShowError($("err"), err); }
+        finally { if (document.body.contains(save)) save.disabled = false; }
+      }
+    });
+
+    async function aiSaveAll() {
+      const bad = aiLines.findIndex((l) => !l.key || !(Number(l.qty) > 0) || !l.sup || !itemByKey(l.key));
+      if (bad >= 0) {
+        const l = aiLines[bad];
+        throw new Error(`سطر «${l.raw}» ناقص: ${!l.key ? "اختر المادة" : !(Number(l.qty) > 0) ? "اكتب الكمية" : "اختر المورّد"} — أو احذفه`);
+      }
+      const sb = window.supabaseClient;
+      const bySup = new Map();
+      aiLines.forEach((l) => { if (!bySup.has(l.sup)) bySup.set(l.sup, []); bySup.get(l.sup).push(l); });
+      const saved = [];
+      for (const [supId, ls] of bySup) {
+        // نفس المادة مرتين بنفس الطلبية بتنجمع (وإذا بوحدتين مختلفتين بتتحول لوحدة المخزون)
+        const merged = new Map();
+        ls.forEach((l) => {
+          const it = itemByKey(l.key), f = l.mode === "purchase" && it.puFactor ? it.puFactor : 1, q = Number(l.qty);
+          const m = merged.get(l.key);
+          if (!m) merged.set(l.key, { it, mode: f === 1 ? "stock" : "purchase", qty: q });
+          else if ((m.mode === "purchase") === (f !== 1)) m.qty += q;
+          else { m.qty = m.qty * (m.mode === "purchase" ? it.puFactor : 1) + q * f; m.mode = "stock"; }
+        });
+        // المواد بتنربط بالمورّد للمرات الجاية (متل الإضافة اليدوية)
+        const { data: have, error: hErr } = await sb.from("supplier_items").select("ingredient_id, supply_id").eq("supplier_id", supId);
+        if (hErr) throw hErr;
+        const haveKeys = new Set((have || []).map((r) => (r.ingredient_id ? "ingredient:" + r.ingredient_id : "supply:" + r.supply_id)));
+        for (const m of merged.values()) {
+          if (haveKeys.has(m.it.key) || m.it.supplierId === supId) continue;
+          const { error } = await sb.from("supplier_items").insert({ supplier_id: supId, [m.it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: m.it.id });
+          if (error && error.code !== "23505") throw error;
+        }
+        const lines = [...merged.values()].map((m) => {
+          const f = m.mode === "purchase" ? m.it.puFactor : 1;
+          return {
+            [m.it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: m.it.id,
+            qty: round3(m.qty), order_unit: f === 1 ? m.it.unit : m.it.puName, factor: f,
+            est_unit_price: m.it.price > 0 ? round2(m.it.price * f) : null,
+          };
+        });
+        const { data: id, error } = await sb.rpc("save_purchase_order", { p_order_id: null, p_supplier_id: supId, p_notes: null, p_lines: lines });
+        if (error) {
+          renderAi();
+          throw new Error((saved.length ? `انحفظت ${saved.length} طلبية، و` : "") + `فشل حفظ طلبية ${supName(supId)}: ${error.message || error}`);
+        }
+        saved.push({ id, sup: supId, n: lines.length });
+        aiLines = aiLines.filter((l) => l.sup !== supId); // انحفظت: ما بتنحفظ مرتين لو فشل اللي بعدها
+      }
+      renderAi();
+      $("ai-text").value = ""; $("ai-file").value = ""; setAiFile(null);
+      $("ai-status").innerHTML = `انحفظت ${saved.length} مسودة: ` + saved.map((s) => `<button type="button" class="btn small" data-ai-open="${s.id}">فتح وإرسال — ${olvEsc(supName(s.sup))} (${s.n})</button>`).join(" ");
+      $("ai-status").querySelectorAll("[data-ai-open]").forEach((b) => b.addEventListener("click", () => openOrder(b.dataset.aiOpen, true)));
+      olvToast(`انحفظت ${saved.length} طلبية كمسودة`);
+      await loadHistory();
     }
 
     (async () => {
