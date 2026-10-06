@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تجهيز طلبية — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .po-pick{display:grid; grid-template-columns:minmax(220px,1fr) auto; gap:12px; align-items:end;}
+  @media(max-width:620px){.po-pick{grid-template-columns:1fr;}}
+  .po-sup-info{font-size:13px; color:var(--muted); margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .po-tbl-wrap{overflow-x:auto;}
+  .po-tbl{width:100%; border-collapse:collapse; min-width:720px;}
+  .po-tbl th{font-size:12px; color:var(--muted); text-align:right; padding:6px 6px; font-weight:500; white-space:nowrap;}
+  .po-tbl td{padding:6px 5px; vertical-align:middle; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .po-tbl input,.po-tbl select{box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif; width:100%;}
+  .po-tbl input:focus,.po-tbl select:focus{outline:none; border-color:var(--gold);}
+  .po-name{font-weight:600; font-size:14px;}
+  .po-kind{font-size:11px; color:var(--muted);}
+  .po-need{color:var(--danger-hi); font-weight:700; font-size:12px;}
+  .po-stock{font-size:13px; white-space:nowrap;}
+  .po-total{font-weight:700; white-space:nowrap;}
+  .po-x{background:none; border:none; color:var(--muted); font-size:18px; padding:6px 10px; min-height:36px;}
+  .po-x:hover{color:var(--danger-hi);}
+  .po-add-results{border:1px solid var(--hair); border-radius:10px; background:var(--ink-2); margin-top:6px; max-height:260px; overflow:auto;}
+  .po-add-results button{display:flex; width:100%; justify-content:space-between; gap:10px; text-align:right; padding:10px 12px; background:none; border:none; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); color:var(--paper); font-size:14px;}
+  .po-add-results button:hover{background:rgba(var(--gold-rgb),.1);}
+  #po-wa{text-decoration:none;}
+  .po-sum{display:flex; gap:18px; flex-wrap:wrap; align-items:center; margin:14px 0 6px; font-size:14px;}
+  .po-sum .big{font-size:20px; font-weight:700; color:var(--gold-hi);}
+  #po-text{width:100%; min-height:190px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:14px; border-radius:10px; font-family:'Tajawal',sans-serif; font-size:14px; box-sizing:border-box;}
+  .po-chip{display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid var(--hair);}
+  .po-chip.draft{color:var(--muted);} .po-chip.sent{color:var(--gold-hi); border-color:var(--gold);} .po-chip.received{color:var(--ok); border-color:var(--ok);} .po-chip.cancelled{color:var(--danger-hi); border-color:var(--danger);}
+  .po-hist td,.po-hist th{padding:8px 6px; text-align:right; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); font-size:13.5px;}
+  .po-hist th{color:var(--muted); font-size:12px; font-weight:500;}
+  .po-hist{width:100%; border-collapse:collapse; min-width:640px;}
+  .po-editing{border:1px dashed var(--gold); border-radius:10px; padding:8px 12px; margin-bottom:12px; font-size:13px; color:var(--gold-hi);}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2 style="margin-top:0;">تجهيز طلبية لمورّد</h2>
+      <div class="po-pick">
+        <div class="field" style="margin:0;">
+          <label for="po-supplier">اختر المورّد</label>
+          <select id="po-supplier"><option value="">— اختر —</option></select>
+        </div>
+        <button type="button" class="btn" id="po-autolink" hidden></button>
+      </div>
+      <div class="po-sup-info" id="po-sup-info"></div>
+      <div class="hint" id="po-empty-hint" style="margin-top:10px;">اختر المورّد وبتظهر لك المواد اللي بتشتريها منه، مع المخزون الحالي وكمية مقترحة للناقص.</div>
+    </div>
+
+    <div class="group" id="po-editor" hidden>
+      <div class="po-editing" id="po-editing" hidden></div>
+      <div class="po-tbl-wrap">
+        <table class="po-tbl">
+          <thead><tr><th>المادة</th><th>المخزون الحالي</th><th style="width:150px;">وحدة الطلب</th><th style="width:100px;">الكمية</th><th style="width:100px;">السعر التقديري</th><th>المجموع</th><th></th></tr></thead>
+          <tbody id="po-rows"></tbody>
+        </table>
+      </div>
+      <div class="hint" id="po-no-items" hidden style="margin:12px 0;">ما في مواد مربوطة بهذا المورّد لسا. أضفها من الأسفل، أو اضغط «ربط تلقائي» لتجيبها من مشترياتك السابقة منه.</div>
+
+      <div style="margin-top:14px;">
+        <div class="field" style="margin:0;">
+          <label for="po-add">+ إضافة مادة لهذا المورّد (بتنربط فيه للمرات الجاية)</label>
+          <input type="text" id="po-add" placeholder="ابحث باسم المادة أو المستلزم..." autocomplete="off">
+        </div>
+        <div class="po-add-results" id="po-add-results" hidden></div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <label for="po-notes">ملاحظات للمورّد (اختياري)</label>
+        <input type="text" id="po-notes" maxlength="300" placeholder="مثال: التوصيل قبل الظهر">
+      </div>
+      <div class="po-sum"><span>عدد الأصناف: <b id="po-count">0</b></span><span>الإجمالي التقديري: <span class="big" id="po-total">0.00</span></span></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <button type="button" class="btn gold" id="po-save"></button>
+        <button type="button" class="btn" id="po-copy"></button>
+        <a class="btn gold" id="po-wa" href="#" target="_blank" rel="noopener"></a>
+        <button type="button" class="btn" id="po-reset">طلبية جديدة</button>
+      </div>
+      <textarea id="po-text" readonly hidden style="margin-top:14px;"></textarea>
+    </div>
+
+    <div class="group">
+      <h2 style="margin-top:0;">آخر الطلبيات</h2>
+      <div class="po-tbl-wrap" id="po-history"><div class="hint">جاري التحميل...</div></div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("purchase-orders");
+    const $ = (id) => document.getElementById(id);
+    $("po-autolink").innerHTML = olvIcon("truck") + "<span>ربط تلقائي من مشترياتي السابقة</span>";
+    $("po-save").innerHTML = olvIcon("clipboard") + "<span>حفظ كمسودة</span>";
+    $("po-copy").innerHTML = olvIcon("clipboard") + "<span>نسخ النص</span>";
+    $("po-wa").innerHTML = olvIcon("phone") + "<span>إرسال للمورّد عبر واتساب</span>";
+
+    // ---------- أدوات ----------
+    const norm = (s) => String(s || "")
+      .replace(/[ً-ْـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .toLowerCase().replace(/\s+/g, " ").trim();
+    const round2 = (n) => Math.round(n * 100) / 100;
+    const money = (n) => olvFormatMoney(n);
+    const STATUS = { draft: "مسودة", sent: "مُرسلة", received: "مستلمة", cancelled: "ملغاة" };
+    const KIND_LABEL = { ingredient: "مادة خام", supply: "مستلزم" };
+
+    let suppliers = [];
+    let items = [];            // كل المواد الخام والمستلزمات
+    let supplier = null;       // المورّد المختار
+    let linked = new Map();    // key -> { auto: true } لو مربوط من صفحة المستلزمات (supplier_id) مو من supplier_items
+    let rows = [];             // سطور الطلبية بالشاشة: { key, mode: "purchase"|"stock", qty, price }
+    let orderId = null;        // مسودة قيد التعديل
+    const itemByKey = (k) => items.find((i) => i.key === k);
+    const factorOf = (row, it) => (row.mode === "purchase" && it && it.puFactor) ? it.puFactor : 1;
+    const unitLabel = (row, it) => (row.mode === "purchase" && it && it.puName) ? it.puName : (it ? it.unit : "");
+
+    // ---------- تحميل ----------
+    async function loadAll() {
+      const sb = window.supabaseClient;
+      const [sRes, iRes, uRes] = await Promise.all([
+        sb.from("suppliers").select("id, name, phone").order("name"),
+        sb.from("ingredients").select("id, name, unit, current_stock, low_stock_threshold, unit_price, purchase_unit, purchase_unit_factor").order("name"),
+        sb.from("supplies").select("id, name, unit, current_stock, low_stock_threshold, unit_price, purchase_unit, purchase_unit_factor, supplier_id").order("name"),
+      ]);
+      [sRes, iRes, uRes].forEach((r) => { if (r.error) throw r.error; });
+      suppliers = sRes.data || [];
+      const mk = (kind) => (r) => ({
+        key: kind + ":" + r.id, kind, id: r.id, name: r.name, unit: r.unit,
+        stock: Number(r.current_stock) || 0, threshold: Number(r.low_stock_threshold) || 0,
+        price: Number(r.unit_price) || 0,
+        puName: r.purchase_unit || "", puFactor: r.purchase_unit && Number(r.purchase_unit_factor) > 0 ? Number(r.purchase_unit_factor) : 0,
+        supplierId: r.supplier_id || null,
+      });
+      items = (iRes.data || []).map(mk("ingredient")).concat((uRes.data || []).map(mk("supply")));
+      $("po-supplier").innerHTML = `<option value="">— اختر —</option>` + suppliers.map((s) => `<option value="${s.id}">${olvEsc(s.name)}</option>`).join("");
+    }
+
+    // مواد المورّد = اللي انربطت فيه (supplier_items) + المستلزمات اللي مورّدها هو (من صفحة المستلزمات)
+    async function loadLinks() {
+      linked = new Map();
+      if (!supplier) return;
+      const { data, error } = await window.supabaseClient.from("supplier_items").select("ingredient_id, supply_id").eq("supplier_id", supplier.id);
+      if (error) throw error;
+      (data || []).forEach((r) => linked.set(r.ingredient_id ? "ingredient:" + r.ingredient_id : "supply:" + r.supply_id, { auto: false }));
+      items.filter((i) => i.kind === "supply" && i.supplierId === supplier.id).forEach((i) => { if (!linked.has(i.key)) linked.set(i.key, { auto: true }); });
+    }
+
+    // الكمية المقترحة: لو المخزون وصل الحد أو نزل عنه، نطلب لحد ضعف الحد (بوحدة الطلب، مقرّبة لفوق)
+    function suggestedQty(it, mode) {
+      if (!(it.threshold > 0) || it.stock > it.threshold) return "";
+      const need = it.threshold * 2 - it.stock;
+      if (!(need > 0)) return "";
+      const f = mode === "purchase" && it.puFactor ? it.puFactor : 1;
+      const q = need / f;
+      return String(mode === "purchase" ? Math.ceil(q - 1e-9) : Math.ceil(q * 100 - 1e-9) / 100);
+    }
+    function newRow(it, over) {
+      const mode = it.puName && it.puFactor ? "purchase" : "stock";
+      const f = mode === "purchase" ? it.puFactor : 1;
+      return Object.assign({ key: it.key, mode, qty: suggestedQty(it, mode), price: it.price > 0 ? String(round2(it.price * f)) : "" }, over || {});
+    }
+    function buildRows() {
+      const list = [...linked.keys()].map(itemByKey).filter(Boolean);
+      // الناقص أولًا، وبعدها بالاسم
+      list.sort((a, b) => ((b.threshold > 0 && b.stock <= b.threshold) - (a.threshold > 0 && a.stock <= a.threshold)) || a.name.localeCompare(b.name, "ar"));
+      rows = list.map((it) => newRow(it));
+    }
+
+    // ---------- الرسم ----------
+    function render() {
+      $("po-editor").hidden = !supplier;
+      $("po-empty-hint").hidden = !!supplier;
+      $("po-autolink").hidden = !supplier;
+      $("po-sup-info").innerHTML = supplier
+        ? `<span>${olvIcon("phone")} ${olvEsc(supplier.phone || "بدون رقم هاتف")}</span><span>${linked.size} مادة مربوطة</span>` : "";
+      $("po-no-items").hidden = !!rows.length;
+      $("po-editing").hidden = !orderId;
+      if (orderId) $("po-editing").textContent = "عم تعدّل مسودة محفوظة — احفظ لتحديثها.";
+      $("po-rows").innerHTML = rows.map((r, idx) => {
+        const it = itemByKey(r.key); if (!it) return "";
+        const low = it.threshold > 0 && it.stock <= it.threshold;
+        const hasPU = it.puName && it.puFactor;
+        const unitSel = hasPU
+          ? `<select data-unit="${idx}"><option value="purchase"${r.mode === "purchase" ? " selected" : ""}>${olvEsc(it.puName)} (= ${it.puFactor} ${olvEsc(it.unit)})</option><option value="stock"${r.mode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option></select>`
+          : `<span style="font-size:13px;">${olvEsc(it.unit)}</span>`;
+        const meta = linked.get(r.key);
+        return `<tr>
+          <td><div class="po-name">${olvEsc(it.name)}</div><div class="po-kind">${KIND_LABEL[it.kind]}${low ? ` · <span class="po-need">ناقص</span>` : ""}</div></td>
+          <td class="po-stock">${olvEsc(it.stock)} ${olvEsc(it.unit)}${it.threshold > 0 ? `<div class="po-kind">الحد: ${olvEsc(it.threshold)}</div>` : ""}</td>
+          <td>${unitSel}</td>
+          <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-qty="${idx}" value="${olvEsc(r.qty)}" placeholder="0"></td>
+          <td><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" data-price="${idx}" value="${olvEsc(r.price)}" placeholder="—"></td>
+          <td class="po-total" data-line-total="${idx}">${lineTotal(r) ? money(lineTotal(r)) : "—"}</td>
+          <td>${meta && meta.auto ? `<span class="po-kind" title="مربوط من صفحة المستلزمات">●</span>` : `<button type="button" class="po-x" data-unlink="${idx}" title="شيل المادة من هذا المورّد" aria-label="شيل المادة من هذا المورّد">✕</button>`}</td>
+        </tr>`;
+      }).join("");
+      $("po-rows").querySelectorAll("[data-qty]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.qty].qty = el.value; refreshTotals(); }));
+      $("po-rows").querySelectorAll("[data-price]").forEach((el) => el.addEventListener("input", () => { rows[+el.dataset.price].price = el.value; refreshTotals(); }));
+      $("po-rows").querySelectorAll("[data-unit]").forEach((el) => el.addEventListener("change", () => {
+        const r = rows[+el.dataset.unit], it = itemByKey(r.key);
+        const oldF = factorOf(r, it); r.mode = el.value; const newF = factorOf(r, it);
+        // بنحوّل الكمية والسعر بين الوحدتين عشان يضلوا نفس الشي بالمخزون
+        if (r.qty !== "") r.qty = String(Math.round(Number(r.qty) * oldF / newF * 1000) / 1000);
+        if (r.price !== "") r.price = String(Math.round(Number(r.price) / oldF * newF * 1000) / 1000);
+        render();
+      }));
+      $("po-rows").querySelectorAll("[data-unlink]").forEach((el) => el.addEventListener("click", () => unlink(+el.dataset.unlink)));
+      refreshTotals();
+    }
+    const lineTotal = (r) => round2((Number(r.qty) || 0) * (Number(r.price) || 0));
+    function activeRows() { return rows.filter((r) => Number(r.qty) > 0 && itemByKey(r.key)); }
+    function refreshTotals() {
+      rows.forEach((r, idx) => { const el = document.querySelector(`[data-line-total="${idx}"]`); if (el) el.textContent = lineTotal(r) ? money(lineTotal(r)) : "—"; });
+      const act = activeRows();
+      $("po-count").textContent = act.length;
+      $("po-total").textContent = money(round2(act.reduce((s, r) => s + lineTotal(r), 0)));
+      updateWa();
+    }
+
+    // ---------- النص والواتساب ----------
+    function orderText() {
+      const act = activeRows();
+      const lines = act.map((r) => { const it = itemByKey(r.key); return `• ${it.name} × ${r.qty} ${unitLabel(r, it)}`; });
+      const notes = $("po-notes").value.trim();
+      return `طلبية — OLV\nالمورّد: ${supplier ? supplier.name : ""}\nالتاريخ: ${olvToday()}\n\n${lines.join("\n")}${notes ? `\n\nملاحظات: ${notes}` : ""}`;
+    }
+    function waNumber(phone) {
+      let n = String(phone || "").replace(/\D/g, "");
+      if (n.startsWith("00")) n = n.slice(2);
+      else if (n.startsWith("0")) n = "962" + n.slice(1);
+      return n;
+    }
+    function updateWa() {
+      const a = $("po-wa");
+      const n = supplier ? waNumber(supplier.phone) : "";
+      if (n && activeRows().length) { a.href = `https://wa.me/${n}?text=${encodeURIComponent(orderText())}`; a.style.display = ""; }
+      else { a.removeAttribute("href"); a.style.display = n ? "" : "none"; }
+    }
+    $("po-notes").addEventListener("input", updateWa);
+
+    // ---------- ربط المواد ----------
+    async function linkItem(it) {
+      const col = it.kind === "ingredient" ? "ingredient_id" : "supply_id";
+      const { error } = await window.supabaseClient.from("supplier_items").insert({ supplier_id: supplier.id, [col]: it.id });
+      if (error) throw error;
+      linked.set(it.key, { auto: false });
+    }
+    async function unlink(idx) {
+      const r = rows[idx], it = itemByKey(r.key); if (!it) return;
+      if (!confirm(`شيل "${it.name}" من مواد هذا المورّد؟ (ما بينحذف من المخزون)`)) return;
+      try {
+        const col = it.kind === "ingredient" ? "ingredient_id" : "supply_id";
+        const { error } = await window.supabaseClient.from("supplier_items").delete().eq("supplier_id", supplier.id).eq(col, it.id);
+        if (error) throw error;
+        linked.delete(r.key); rows.splice(idx, 1); render();
+        olvToast("انشالت المادة من المورّد");
+      } catch (err) { olvShowError($("err"), err); }
+    }
+    $("po-add").addEventListener("input", () => {
+      const q = norm($("po-add").value), box = $("po-add-results");
+      if (!supplier || q.length < 1) { box.hidden = true; return; }
+      const taken = new Set(rows.map((r) => r.key));
+      const hits = items.filter((i) => !taken.has(i.key) && norm(i.name).includes(q)).slice(0, 12);
+      box.hidden = false;
+      box.innerHTML = hits.length
+        ? hits.map((i) => `<button type="button" data-add="${i.key}"><span>${olvEsc(i.name)}</span><span class="po-kind">${KIND_LABEL[i.kind]} · ${olvEsc(i.unit)}</span></button>`).join("")
+        : `<div class="hint" style="padding:10px 12px;">ما في نتائج (أو المادة مضافة)</div>`;
+      box.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", async () => {
+        const it = itemByKey(b.dataset.add); if (!it) return;
+        try {
+          if (!linked.has(it.key)) await linkItem(it);
+          rows.push(newRow(it)); $("po-add").value = ""; box.hidden = true; render();
+          const el = document.querySelector(`[data-qty="${rows.length - 1}"]`); if (el) el.focus();
+        } catch (err) { olvShowError($("err"), err); }
+      }));
+    });
+    // المواد اللي اشتريتها من هذا المورّد قبل (من فواتير ومشتريات سابقة) بتنربط دفعة وحدة
+    $("po-autolink").addEventListener("click", async () => {
+      if (!supplier) return;
+      try {
+        const { data, error } = await window.supabaseClient.from("purchases").select("ingredient_id, supply_id").eq("supplier_id", supplier.id).limit(2000);
+        if (error) throw error;
+        const keys = new Set();
+        (data || []).forEach((p) => keys.add(p.ingredient_id ? "ingredient:" + p.ingredient_id : p.supply_id ? "supply:" + p.supply_id : null));
+        keys.delete(null);
+        const fresh = [...keys].filter((k) => !linked.has(k)).map(itemByKey).filter(Boolean);
+        if (!fresh.length) { olvToast(keys.size ? "كل مواد مشترياتك السابقة مربوطة أصلًا" : "ما في مشتريات سابقة مسجّلة من هذا المورّد", { type: "info" }); return; }
+        for (const it of fresh) await linkItem(it);
+        const typed = new Map(rows.map((r) => [r.key, r]));
+        await refreshForSupplier(typed);
+        olvToast(`انربط ${fresh.length} مادة من مشترياتك السابقة`);
+      } catch (err) { olvShowError($("err"), err); }
+    });
+
+    // ---------- اختيار المورّد ----------
+    // بنحافظ على اللي كتبته بالسطور لو بس ضفنا مواد جديدة
+    async function refreshForSupplier(keep) {
+      await loadLinks(); buildRows();
+      if (keep) rows = rows.map((r) => keep.get(r.key) || r);
+      render();
+    }
+    $("po-supplier").addEventListener("change", async () => {
+      supplier = suppliers.find((s) => s.id === $("po-supplier").value) || null;
+      orderId = null; $("po-text").hidden = true; $("po-notes").value = "";
+      try { await refreshForSupplier(null); } catch (err) { olvShowError($("err"), err); }
+    });
+    $("po-reset").addEventListener("click", async () => {
+      orderId = null; $("po-notes").value = ""; $("po-text").hidden = true;
+      try { await refreshForSupplier(null); } catch (err) { olvShowError($("err"), err); }
+    });
+
+    // ---------- الحفظ ----------
+    function payloadLines() {
+      return activeRows().map((r) => {
+        const it = itemByKey(r.key), f = factorOf(r, it);
+        return {
+          [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id,
+          qty: Number(r.qty), order_unit: unitLabel(r, it), factor: f,
+          est_unit_price: r.price === "" ? null : Number(r.price),
+        };
+      });
+    }
+    async function saveOrder() {
+      if (!supplier) throw new Error("اختر المورّد أولًا");
+      const lines = payloadLines();
+      if (!lines.length) throw new Error("حدد كمية لصنف واحد على الأقل");
+      const sb = window.supabaseClient;
+      if (orderId) {
+        const { error: dErr } = await sb.from("purchase_order_lines").delete().eq("order_id", orderId);
+        if (dErr) throw dErr;
+      }
+      const { data, error } = await sb.rpc("save_purchase_order", {
+        p_order_id: orderId, p_supplier_id: supplier.id, p_notes: $("po-notes").value.trim() || null, p_lines: lines,
+      });
+      if (error) throw error;
+      orderId = data;
+      return data;
+    }
+    $("po-save").addEventListener("click", async () => {
+      const btn = $("po-save"); btn.disabled = true;
+      try { await saveOrder(); olvToast("انحفظت المسودة"); render(); await loadHistory(); }
+      catch (err) { olvShowError($("err"), err); }
+      finally { btn.disabled = false; }
+    });
+    $("po-copy").addEventListener("click", async () => {
+      if (!activeRows().length) { olvToast("حدد كمية لصنف واحد على الأقل", { type: "danger" }); return; }
+      const ta = $("po-text"); ta.value = orderText(); ta.hidden = false;
+      try { await navigator.clipboard.writeText(ta.value); olvToast("انتسخ نص الطلبية"); } catch (e) { ta.select(); document.execCommand("copy"); olvToast("انتسخ نص الطلبية"); }
+    });
+    // واتساب: الرابط جاهز بالـhref (حتى ما يتحجب كنافذة منبثقة)، وبنحفظ الطلبية ونعلّمها «مُرسلة» بالخلفية
+    $("po-wa").addEventListener("click", async (e) => {
+      if (!activeRows().length) { e.preventDefault(); olvToast("حدد كمية لصنف واحد على الأقل", { type: "danger" }); return; }
+      try {
+        const id = await saveOrder();
+        const { error } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: id, p_status: "sent" });
+        if (error) throw error;
+        orderId = null; olvToast("انحفظت الطلبية وانعلّمت كمُرسلة"); await loadHistory();
+        $("po-editing").hidden = true;
+      } catch (err) { olvShowError($("err"), err); }
+    });
+
+    // ---------- السجل ----------
+    async function loadHistory() {
+      const { data, error } = await window.supabaseClient.from("purchase_orders")
+        .select("id, supplier_id, supplier_name, status, est_total, notes, created_at, purchase_order_lines(id)")
+        .order("created_at", { ascending: false }).limit(30);
+      if (error) throw error;
+      const box = $("po-history");
+      if (!data || !data.length) { box.innerHTML = `<div class="hint">ما في طلبيات محفوظة بعد.</div>`; return; }
+      box.innerHTML = `<table class="po-hist"><thead><tr><th>التاريخ</th><th>المورّد</th><th>الأصناف</th><th>التقدير</th><th>الحالة</th><th></th></tr></thead><tbody>${data.map((o) => `
+        <tr>
+          <td>${olvEsc(String(o.created_at).slice(0, 10))}</td>
+          <td>${olvEsc(o.supplier_name)}</td>
+          <td>${(o.purchase_order_lines || []).length}</td>
+          <td>${Number(o.est_total) ? money(o.est_total) : "—"}</td>
+          <td><span class="po-chip ${o.status}">${STATUS[o.status] || o.status}</span></td>
+          <td style="white-space:nowrap;">
+            ${o.status === "draft" ? `<button type="button" class="btn small" data-open="${o.id}">فتح وتعديل</button>` : ""}
+            ${o.status === "sent" || o.status === "draft" ? `<button type="button" class="btn small gold" data-receive="${o.id}">استلمتها ← فاتورة</button>` : ""}
+            ${o.status === "sent" || o.status === "draft" ? `<button type="button" class="btn small danger" data-cancel="${o.id}">إلغاء</button>` : ""}
+            <button type="button" class="btn small" data-clone="${o.id}">تكرار</button>
+          </td>
+        </tr>`).join("")}</tbody></table>`;
+      box.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openOrder(b.dataset.open, true)));
+      box.querySelectorAll("[data-clone]").forEach((b) => b.addEventListener("click", () => openOrder(b.dataset.clone, false)));
+      box.querySelectorAll("[data-receive]").forEach((b) => b.addEventListener("click", () => { location.href = "purchase-invoices.html?po=" + encodeURIComponent(b.dataset.receive); }));
+      box.querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", async () => {
+        if (!confirm("إلغاء هذه الطلبية؟")) return;
+        try {
+          const { error: e } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: b.dataset.cancel, p_status: "cancelled" });
+          if (e) throw e;
+          if (orderId === b.dataset.cancel) { orderId = null; render(); }
+          olvToast("انلغت الطلبية"); await loadHistory();
+        } catch (err) { olvShowError($("err"), err); }
+      }));
+    }
+    // فتح طلبية سابقة بالمحرر: edit=true بتعدّل المسودة نفسها، edit=false بتنسخها كطلبية جديدة
+    async function openOrder(id, edit) {
+      try {
+        const sb = window.supabaseClient;
+        const [{ data: o, error: e1 }, { data: ls, error: e2 }] = await Promise.all([
+          sb.from("purchase_orders").select("id, supplier_id, notes, status").eq("id", id).single(),
+          sb.from("purchase_order_lines").select("ingredient_id, supply_id, qty, order_unit, factor, est_unit_price").eq("order_id", id),
+        ]);
+        if (e1) throw e1; if (e2) throw e2;
+        supplier = suppliers.find((s) => s.id === o.supplier_id) || null;
+        if (!supplier) throw new Error("المورّد انحذف — ما بنقدر نفتح الطلبية");
+        $("po-supplier").value = supplier.id;
+        await loadLinks();
+        const keyOf = (l) => (l.ingredient_id ? "ingredient:" + l.ingredient_id : "supply:" + l.supply_id);
+        // أي مادة بالطلبية وما عادت مربوطة بنضيفها للسطور (بدون ما نربطها)
+        const keys = new Set([...linked.keys(), ...(ls || []).map(keyOf)]);
+        const base = [...keys].map(itemByKey).filter(Boolean);
+        rows = base.map((it) => newRow(it, { qty: "" }));
+        (ls || []).forEach((l) => {
+          const r = rows.find((x) => x.key === keyOf(l)), it = r && itemByKey(r.key); if (!r) return;
+          const f = Number(l.factor) || 1;
+          if (f !== 1 && it.puFactor === f) { r.mode = "purchase"; r.qty = String(l.qty); r.price = l.est_unit_price == null ? "" : String(l.est_unit_price); }
+          else { r.mode = "stock"; r.qty = String(Math.round(Number(l.qty) * f * 1000) / 1000); r.price = l.est_unit_price == null ? "" : String(Math.round(Number(l.est_unit_price) / f * 1000) / 1000); }
+        });
+        rows.sort((a, b) => (Number(b.qty > 0) - Number(a.qty > 0)));
+        orderId = edit && o.status === "draft" ? o.id : null;
+        $("po-notes").value = o.notes || ""; $("po-text").hidden = true;
+        render(); $("po-editor").scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (err) { olvShowError($("err"), err); }
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      try { await loadAll(); await loadHistory(); } catch (err) { olvShowError($("err"), err); }
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
