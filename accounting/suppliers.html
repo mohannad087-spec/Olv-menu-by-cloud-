@@ -417,7 +417,7 @@
       e.preventDefault();
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
-      const badPhone = phoneProblem(document.getElementById("s-phone").value);
+      const badPhone = olvPhoneProblem(document.getElementById("s-phone").value);
       if (badPhone) { olvShowError(errBox, new Error(badPhone)); return; }
       try {
         const payload = {
@@ -482,8 +482,6 @@
       }
     });
 
-    // رقم الهاتف: بنقبل أرقام ومسافات و+ و- بس، 7 خانات رقمية على الأقل (غلطة طباعة بالرقم بتخلّي واتساب الطلبية يروح لغلط)
-    const phoneProblem = (v) => { v = String(v || "").trim(); if (!v) return ""; if (!/^[+\d\s\-()]+$/.test(v)) return "الهاتف لازم يكون أرقام بس"; return v.replace(/\D/g, "").length < 7 ? "رقم الهاتف قصير — تأكد منه" : ""; };
     document.getElementById("edit-supplier-btn").addEventListener("click", () => {
       const sup = suppliers.find((x) => x.id === selectedSupplier); if (!sup) return;
       document.getElementById("es-name").value = sup.name || ""; document.getElementById("es-phone").value = sup.phone || ""; document.getElementById("es-notes").value = sup.notes || "";
@@ -494,7 +492,7 @@
       e.preventDefault();
       const errBox = document.getElementById("err");
       const name = document.getElementById("es-name").value.trim(), phone = document.getElementById("es-phone").value.trim();
-      const bad = phoneProblem(phone); if (bad) { olvShowError(errBox, new Error(bad)); return; }
+      const bad = olvPhoneProblem(phone); if (bad) { olvShowError(errBox, new Error(bad)); return; }
       if (name.length < 2) { olvShowError(errBox, new Error("اكتب اسم المورّد")); return; }
       try {
         const { error } = await window.supabaseClient.from("suppliers").update({ name, phone: phone || null, notes: document.getElementById("es-notes").value.trim() || null }).eq("id", selectedSupplier);
