@@ -104,6 +104,15 @@
   .order-line .note{color:var(--danger-hi); font-size:12.5px; margin-top:2px; margin-inline-start:32px;}
   .order-line .note .icon{width:12px; height:12px; vertical-align:-1px;}
   .sub-tab .icon{width:15px; height:15px;}
+  .k-btn{min-height:52px; font-size:16px; width:100%;}
+  .k-bar{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; width:100%; margin-bottom:14px;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; padding:12px 14px;
+    font:inherit; font-size:14px; color:var(--paper); text-align:start;
+  }
+  .k-bar[hidden]{display:none;}
+  .k-bar .btn{margin-inline-start:auto;}
+  .k-sound{border-color:var(--gold); color:var(--gold-hi); font-weight:700; cursor:pointer; min-height:48px;}
   .empty-state{color:var(--muted); text-align:center; padding:60px 0; grid-column:1/-1;}
 </style>
 </head>
@@ -113,9 +122,15 @@
     <div class="err" id="err"></div>
 
     <div class="sub-tabs">
-      <button class="sub-tab on" data-tab="pending"><span id="sub-tab-icon-pending"></span> قيد التحضير</button>
+      <button class="sub-tab on" data-tab="pending"><span id="sub-tab-icon-pending"></span> قيد التحضير <span id="k-count-pending"></span></button>
       <button class="sub-tab" data-tab="ready"><span id="sub-tab-icon-ready"></span> جاهز</button>
       <span class="hint" style="margin-inline-start:auto;">تحديث تلقائي كل 15 ثانية</span>
+    </div>
+
+    <button type="button" class="k-bar k-sound" id="k-sound" hidden>🔔 اضغط هون لتشغيل صوت الطلبات الجديدة</button>
+    <div class="k-bar" id="k-stale" hidden>
+      في <b id="k-stale-n">0</b> طلب قديم ما انعلّم «جاهز» (أقدم من 12 ساعة، مخفيين عن الشاشة)
+      <button type="button" class="btn small" id="k-stale-btn">علّمهم جاهزين</button>
     </div>
 
     <div class="orders-grid" id="orders-grid">
@@ -143,127 +158,190 @@
 
     const PENDING_STATUS = "قيد التحضير";
     const READY_STATUS = "جاهز";
+    const WINDOW_HOURS = 12; // الشاشة بتعرض طلبات آخر 12 ساعة بس؛ الأقدم «عالقة» وبتنعرض كتنبيه لحالها
+    const OVERDUE_MIN = 15;
+    const errBox = document.getElementById("err");
+    const grid = document.getElementById("orders-grid");
     let activeTab = "pending";
     let knownPendingIds = null; // null = لسا ما انعمل الأساس (baseline) الأول
+    let pendingNos = new Map();  // id → رقم الطلب، حتى نعرف شو انلغى
+    let staleIds = [];
+    let busy = false;
 
-    // يفحص وجود طلبات جديدة قيد التحضير بشكل مستقل عن التبويب المفتوح
-    // حاليًا (قد يكون الموظف فاتح تبويب "جاهز" وقت وصول طلب جديد)، ويشغّل
-    // نغمة تنبيه فقط لما يكتشف طلبًا جديدًا فعليًا وليس عند أول تحميل للصفحة
-    async function checkForNewOrders() {
-      const { data, error } = await window.supabaseClient
-        .from("sales_entries")
-        .select("id, sale_items(id)")
-        .eq("kitchen_status", PENDING_STATUS)
-        .eq("status", "completed")
-        .limit(60);
-      if (error) return;
-      const currentIds = new Set((data || []).filter((o) => o.sale_items && o.sale_items.length).map((o) => o.id));
-      if (knownPendingIds === null) {
-        knownPendingIds = currentIds;
-        return;
-      }
-      let hasNew = false;
-      currentIds.forEach((id) => { if (!knownPendingIds.has(id)) hasNew = true; });
-      knownPendingIds = currentIds;
-      if (hasNew) OlvSound.playNewOrder();
-    }
+    const since = () => new Date(Date.now() - WINDOW_HOURS * 3600e3).toISOString();
+    // الأصناف الملغاة (void_sale_item) ما بتنعرض للمطبخ، والطلب اللي كل أصنافه ملغاة بيختفي
+    const liveItems = (o) => (o.sale_items || []).filter((it) => it.status !== "voided");
 
     function formatTime(ts) {
       const d = new Date(ts);
       return d.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", numberingSystem: "latn" });
     }
-
     function minutesSince(ts) {
       return (Date.now() - new Date(ts).getTime()) / 60000;
     }
 
+    // المتصفح ما بيشغّل صوت قبل أول لمسة عالصفحة: منبيّن شريط لحد ما ينضغط، حتى ما يفوت المطبخ صوت طلب
+    const soundBar = document.getElementById("k-sound");
+    function refreshSoundBar() {
+      const c = typeof OlvSound !== "undefined" ? OlvSound.ensureContext() : null;
+      soundBar.hidden = !c || c.state === "running";
+    }
+    soundBar.addEventListener("click", () => { OlvSound.ensureContext(); setTimeout(refreshSoundBar, 200); });
+    document.addEventListener("click", () => setTimeout(refreshSoundBar, 200));
+
+    // الشاشة تضل شغّالة (تابلت المطبخ ما ينطفي) — إذا المتصفح بيدعمها
+    let wakeLock = null;
+    async function keepAwake() {
+      try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); } } catch (_) {}
+    }
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { keepAwake(); poll(); } });
+
+    // طلبات قيد التحضير (مستقل عن التبويب المفتوح): صوت للجديد، وتنبيه إذا طلب كان عالشاشة وانلغى
+    async function checkPending(rows) {
+      const current = new Map(rows.map((o) => [o.id, o.order_no]));
+      if (knownPendingIds !== null) {
+        let hasNew = false;
+        current.forEach((_, id) => { if (!knownPendingIds.has(id)) hasNew = true; });
+        if (hasNew && typeof OlvSound !== "undefined") OlvSound.playNewOrder();
+        const gone = [...knownPendingIds].filter((id) => !current.has(id));
+        if (gone.length) {
+          const { data } = await window.supabaseClient.from("sales_entries").select("id, order_no").in("id", gone).eq("status", "voided");
+          (data || []).forEach((o) => {
+            olvToast(`طلب ${o.order_no ? "#" + o.order_no : ""} انلغى — وقّف تحضيره`, { type: "danger", ms: 15000 });
+            if (typeof OlvSound !== "undefined") OlvSound.playError();
+          });
+        }
+      }
+      knownPendingIds = new Set(current.keys());
+      pendingNos = current;
+    }
+
+    function cardHtml(o) {
+      const pending = activeTab === "pending";
+      const ageMinutes = Math.floor(minutesSince(o.created_at));
+      const overdue = pending && ageMinutes > OVERDUE_MIN;
+      const isDelivery = o.order_type === "توصيل";
+      return `
+        <div class="order-card${overdue ? " overdue" : ""}" data-row-id="${olvEsc(o.id)}">
+          <div class="order-head">
+            <div class="order-time-wrap">
+              <span class="order-time">${o.order_no ? `#${olvEsc(o.order_no)} · ` : ""}${formatTime(o.created_at)}</span>
+              ${pending ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
+            </div>
+            ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(o.order_type)}</span>` : ""}
+          </div>
+          ${o.customer_name ? `<div class="order-route">${olvIcon("person")} ${olvEsc(o.customer_name)}</div>` : ""}
+          ${o.table_number ? `<div class="order-route">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table_number)}</div>` : ""}
+          <div class="order-items">
+            ${o.items.map((it) => `
+              <div class="order-line">
+                <div class="qty-line">
+                  <span class="order-qty-badge">${olvEsc(it.qty)}×</span>
+                  <span class="item-name">${olvEsc(it.product_name)}</span>
+                </div>
+                ${it.addons_summary ? `<div class="addons">+ ${olvEsc(it.addons_summary)}</div>` : ""}
+                ${it.note ? `<div class="note">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
+              </div>
+            `).join("")}
+          </div>
+          <button class="btn ${pending ? "gold" : ""} k-btn" data-id="${olvEsc(o.id)}" data-next="${pending ? READY_STATUS : PENDING_STATUS}">
+            ${pending ? olvIcon("check") + " تم التجهيز" : olvIcon("undo") + " إرجاع لقيد التحضير"}
+          </button>
+        </div>
+      `;
+    }
+
     // تتبّع التذاكر الجديدة لكل تبويب (بيتصفّر لما الكاشير يبدّل التبويب حتى ما تتحرك كل البطاقات)
     let kTracker = olvNewTracker(), kTrackerTab = null;
-    async function loadOrders() {
-      const errBox = document.getElementById("err");
-      const grid = document.getElementById("orders-grid");
+    async function poll() {
+      if (busy) return;
+      busy = true;
       try {
-        const status = activeTab === "pending" ? PENDING_STATUS : READY_STATUS;
-        const { data, error } = await window.supabaseClient
-          .from("sales_entries")
-          .select("*, sale_items(*)")
-          .eq("kitchen_status", status)
-          .eq("status", "completed")
-          .order("created_at", { ascending: activeTab === "pending" })
-          .limit(60);
-        if (error) throw error;
-        const orders = (data || []).filter((o) => o.sale_items && o.sale_items.length);
+        const sel = "id, order_no, created_at, order_type, customer_name, table_number, sale_items(id, qty, product_name, addons_summary, note, status)";
+        // قيد التحضير: دايمًا (للصوت والتنبيهات)، من الأقدم للأحدث ضمن آخر 12 ساعة — هيك الحد ما بيقص الطلبات الجديدة
+        const [pRes, rRes, sRes] = await Promise.all([
+          window.supabaseClient.from("sales_entries").select(sel)
+            .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").gte("created_at", since())
+            .order("created_at", { ascending: true }).limit(100),
+          activeTab === "ready"
+            ? window.supabaseClient.from("sales_entries").select(sel)
+              .eq("kitchen_status", READY_STATUS).eq("status", "completed").gte("created_at", since())
+              .order("created_at", { ascending: false }).limit(60)
+            : Promise.resolve({ data: null, error: null }),
+          window.supabaseClient.from("sales_entries").select("id")
+            .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").lt("created_at", since()).limit(200),
+        ]);
+        if (pRes.error) throw pRes.error;
+        if (rRes.error) throw rRes.error;
+        const shape = (rows) => (rows || []).map((o) => ({ ...o, items: liveItems(o) })).filter((o) => o.items.length);
+        const pending = shape(pRes.data);
+        await checkPending(pending);
+        staleIds = (sRes.data || []).map((o) => o.id);
+        const staleBar = document.getElementById("k-stale");
+        staleBar.hidden = !staleIds.length;
+        document.getElementById("k-stale-n").textContent = staleIds.length;
+        document.getElementById("k-count-pending").textContent = pending.length ? `(${pending.length})` : "";
+        errBox.textContent = "";
+
+        const orders = activeTab === "pending" ? pending : shape(rRes.data);
         if (kTrackerTab !== activeTab) { kTracker = olvNewTracker(); kTrackerTab = activeTab; }
         const freshTickets = kTracker.diff(orders.map((o) => o.id));
-        if (!orders.length) {
-          grid.innerHTML = `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"} حاليًا</div>`;
-          return;
-        }
-        grid.innerHTML = orders.map((o) => {
-          const ageMinutes = Math.floor(minutesSince(o.created_at));
-          const overdue = activeTab === "pending" && ageMinutes > 15;
-          const isDelivery = o.order_type === "توصيل";
-          return `
-            <div class="order-card${overdue ? " overdue" : ""}" data-row-id="${olvEsc(o.id)}">
-              <div class="order-head">
-                <div class="order-time-wrap">
-                  <span class="order-time">${o.order_no ? `#${o.order_no} · ` : ""}${formatTime(o.created_at)}</span>
-                  ${activeTab === "pending" ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
-                </div>
-                ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(o.order_type)}</span>` : ""}
-              </div>
-              ${o.customer_name ? `<div class="order-route">${olvIcon("person")} ${olvEsc(o.customer_name)}</div>` : ""}
-              ${o.table_number ? `<div class="order-route">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table_number)}</div>` : ""}
-              ${o.customer_phone ? `<div class="order-route" dir="ltr">${olvIcon("phone")} ${olvEsc(o.customer_phone)}</div>` : ""}
-              <div class="order-items">
-                ${o.sale_items.map((it) => `
-                  <div class="order-line">
-                    <div class="qty-line">
-                      <span class="order-qty-badge">${it.qty}×</span>
-                      <span class="item-name">${olvEsc(it.product_name)}</span>
-                    </div>
-                    ${it.addons_summary ? `<div class="addons">+ ${olvEsc(it.addons_summary)}</div>` : ""}
-                    ${it.note ? `<div class="note">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
-                  </div>
-                `).join("")}
-              </div>
-              <button class="btn ${activeTab === "pending" ? "gold" : ""} small" data-id="${o.id}" data-next="${activeTab === "pending" ? READY_STATUS : PENDING_STATUS}">
-                ${activeTab === "pending" ? olvIcon("check") + " تم التجهيز" : olvIcon("undo") + " إرجاع لقيد التحضير"}
-              </button>
-            </div>
-          `;
-        }).join("");
+        grid.innerHTML = orders.length
+          ? orders.map(cardHtml).join("")
+          : `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"} حاليًا</div>`;
         olvMarkNew(grid, freshTickets);
-        grid.querySelectorAll("button[data-id]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            btn.disabled = true;
-            const { error } = await window.supabaseClient
-              .rpc("set_kitchen_status", { p_sale_id: btn.dataset.id, p_status: btn.dataset.next });
-            if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
-            if (activeTab === "pending" && typeof OlvSound !== "undefined") OlvSound.playOrderReady();
-            loadOrders();
-          });
-        });
       } catch (err) {
         olvShowError(errBox, err);
+      } finally {
+        busy = false;
       }
     }
+
+    // زر واحد لكل البطاقات (بدل مستمع لكل زر مع كل تحديث)
+    grid.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-id]");
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      const { error } = await window.supabaseClient
+        .rpc("set_kitchen_status", { p_sale_id: btn.dataset.id, p_status: btn.dataset.next });
+      if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+      if (btn.dataset.next === READY_STATUS) {
+        if (typeof OlvSound !== "undefined") OlvSound.playOrderReady();
+        knownPendingIds && knownPendingIds.delete(btn.dataset.id); // مش إلغاء — ما في داعي لتنبيه
+      }
+      const card = btn.closest(".order-card");
+      if (card) card.remove();
+      poll();
+    });
+
+    document.getElementById("k-stale-btn").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      if (!staleIds.length || !confirm(`تعليم ${staleIds.length} طلب قديم (أقدم من ${WINDOW_HOURS} ساعة) كـ«جاهز»؟`)) return;
+      btn.disabled = true;
+      for (const id of staleIds) {
+        const { error } = await window.supabaseClient.rpc("set_kitchen_status", { p_sale_id: id, p_status: READY_STATUS });
+        if (error) { olvShowError(errBox, error); break; }
+      }
+      btn.disabled = false;
+      poll();
+    });
 
     document.querySelectorAll(".sub-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".sub-tab").forEach((b) => b.classList.remove("on"));
         btn.classList.add("on");
         activeTab = btn.dataset.tab;
-        loadOrders();
+        poll();
       });
     });
 
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
-      await loadOrders();
-      await checkForNewOrders();
-      setInterval(() => { loadOrders(); checkForNewOrders(); }, 15000);
+      refreshSoundBar();
+      keepAwake();
+      await poll();
+      setInterval(poll, 15000);
     })();
     });
   </script>
