@@ -124,6 +124,7 @@
     <div class="sub-tabs">
       <button class="sub-tab on" data-tab="pending"><span id="sub-tab-icon-pending"></span> قيد التحضير <span id="k-count-pending"></span></button>
       <button class="sub-tab" data-tab="ready"><span id="sub-tab-icon-ready"></span> جاهز</button>
+      <span class="hint" id="k-avg" hidden></span>
       <span class="hint" style="margin-inline-start:auto;">تحديث تلقائي كل 15 ثانية</span>
     </div>
 
@@ -226,6 +227,7 @@
           <div class="order-head">
             <div class="order-time-wrap">
               <span class="order-time">${o.order_no ? `#${olvEsc(o.order_no)} · ` : ""}${formatTime(o.created_at)}</span>
+              ${!pending && prepMinutes(o) !== null ? `<span class="order-age">تحضّر بـ ${prepMinutes(o)} د</span>` : ""}
               ${pending ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
             </div>
             ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(o.order_type)}</span>` : ""}
@@ -253,6 +255,22 @@
 
     // تتبّع التذاكر الجديدة لكل تبويب (بيتصفّر لما الكاشير يبدّل التبويب حتى ما تتحرك كل البطاقات)
     let kTracker = olvNewTracker(), kTrackerTab = null;
+    // «جاهز»: مع وقت الجاهزية (kitchen_ready_at من schema-kitchen-ready.sql) — وإذا العمود لسا مش موجود منكمّل بدونه
+    let hasReadyAt = true;
+    async function loadReady(sel) {
+      const q = (cols) => window.supabaseClient.from("sales_entries").select(cols)
+        .eq("kitchen_status", READY_STATUS).eq("status", "completed").gte("created_at", since())
+        .order("created_at", { ascending: false }).limit(60);
+      if (hasReadyAt) {
+        const r = await q(sel + ", kitchen_ready_at");
+        if (!r.error) return r;
+        if (r.error.code !== "42703" && !/kitchen_ready_at/.test(r.error.message || "")) return r;
+        hasReadyAt = false;
+      }
+      return q(sel);
+    }
+    const prepMinutes = (o) => (o.kitchen_ready_at ? Math.max(0, Math.round((new Date(o.kitchen_ready_at) - new Date(o.created_at)) / 60000)) : null);
+
     async function poll() {
       if (busy) return;
       busy = true;
@@ -263,11 +281,7 @@
           window.supabaseClient.from("sales_entries").select(sel)
             .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").gte("created_at", since())
             .order("created_at", { ascending: true }).limit(100),
-          activeTab === "ready"
-            ? window.supabaseClient.from("sales_entries").select(sel)
-              .eq("kitchen_status", READY_STATUS).eq("status", "completed").gte("created_at", since())
-              .order("created_at", { ascending: false }).limit(60)
-            : Promise.resolve({ data: null, error: null }),
+          activeTab === "ready" ? loadReady(sel) : Promise.resolve({ data: null, error: null }),
           window.supabaseClient.from("sales_entries").select("id")
             .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").lt("created_at", since()).limit(200),
         ]);
@@ -284,6 +298,10 @@
         errBox.textContent = "";
 
         const orders = activeTab === "pending" ? pending : shape(rRes.data);
+        const times = activeTab === "ready" ? orders.map(prepMinutes).filter((m) => m !== null) : [];
+        const avgEl = document.getElementById("k-avg");
+        avgEl.hidden = !times.length;
+        if (times.length) avgEl.textContent = `متوسط التحضير: ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} د (${times.length} طلب)`;
         if (kTrackerTab !== activeTab) { kTracker = olvNewTracker(); kTrackerTab = activeTab; }
         const freshTickets = kTracker.diff(orders.map((o) => o.id));
         grid.innerHTML = orders.length
