@@ -4,13 +4,13 @@
 -- (ولا بينزّل المخزون مرتين ولا بيطبع للمطبخ مرتين).
 -- يُطبّق مرة وحدة بـ SQL Editor (آمن للتكرار).
 -- ملاحظة: schema-cashier-hardening.sql القديم بيحذف أي نسخة من record_sale مش 12 وسيط —
--- إذا انعاد تطبيقه لازم يرجع ينطبّق هالملف بعده.
+-- إذا انعاد تطبيقه لازم يرجع ينطبّق هالملف بعده. وأي تعديل على منطق البيع لازم ينعمل بالنسختين.
 
 alter table public.sales_entries add column if not exists client_ref uuid;
 create unique index if not exists sales_entries_client_ref_key on public.sales_entries (client_ref) where client_ref is not null;
 
--- النسخة القديمة (12 وسيط) لازم تنشال، وإلا الاستدعاء بدون p_client_ref بيصير ملتبس
-drop function if exists public.record_sale(date, numeric, numeric, numeric, text, jsonb, text, numeric, numeric, text, text, text);
+-- نسخة إضافية بـ13 وسيط (p_client_ref إجباري فيها)، والقديمة بـ12 بتضل لطلبات الأونلاين والطلبات المحفوظة
+-- محليًا من قبل: الاستدعاء مع p_client_ref بيروح للجديدة، وبدونه للقديمة، فما في التباس.
 
 create or replace function public.record_sale(
   p_entry_date date,
@@ -19,13 +19,13 @@ create or replace function public.record_sale(
   p_delivery numeric,
   p_notes text,
   p_items jsonb,
+  p_client_ref uuid,
   p_order_type text default null,
   p_cash_received numeric default null,
   p_change_due numeric default null,
   p_table_number text default null,
   p_customer_phone text default null,
-  p_customer_name text default null,
-  p_client_ref uuid default null
+  p_customer_name text default null
 ) returns uuid
 language plpgsql
 security definer set search_path = public
@@ -170,7 +170,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.record_sale(date, numeric, numeric, numeric, text, jsonb, text, numeric, numeric, text, text, text, uuid) from public, anon;
-grant execute on function public.record_sale(date, numeric, numeric, numeric, text, jsonb, text, numeric, numeric, text, text, text, uuid) to authenticated;
+revoke execute on function public.record_sale(date, numeric, numeric, numeric, text, jsonb, uuid, text, numeric, numeric, text, text, text) from public, anon;
+grant execute on function public.record_sale(date, numeric, numeric, numeric, text, jsonb, uuid, text, numeric, numeric, text, text, text) to authenticated;
 
 notify pgrst, 'reload schema';
