@@ -22,3 +22,4 @@ Every push to `main` deploys the **whole repo** to GitHub Pages (`.github/workfl
 - `accounting/sw.js` intentionally caches nothing; keep it that way.
 - Mobile-first, RTL; don't add letter-spacing to Arabic text.
 - Claude merges its own PRs once CI is green (owner's standing instruction).
+- `ui-ux-pro-max` skill: its SKILL.md calls `python "${CLAUDE_PLUGIN_ROOT}/.claude/skills/..."`; in this repo run `python3 .claude/skills/ui-ux-pro-max/scripts/search.py ...` from the repo root instead. Its palettes/styles are suggestions; the app's existing look (`theme.css`, apple-design) wins unless the owner asks for a redesign.
