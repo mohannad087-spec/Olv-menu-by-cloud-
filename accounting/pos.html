@@ -486,9 +486,64 @@
   @media (prefers-reduced-transparency: reduce){
     .pos-cart-panel{background:var(--ink-2) !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;}
   }
+  /* ---- زجاج سائل + حركة (2026-10، مهارة ui-ux-pro-max) ----
+     بالكمبيوتر/التابلت: عمود التصنيفات والتذكرة لوحين زجاج عايمين فوق الهالة
+     الدافئة، والأصناف بلاطات معتمة. حركات صغيرة بتأكد كل ضغطة: رقم الكمية
+     بينطّ فوق الصنف، وبعد الدفع علامة ✓ بتنرسم وورق زيتون بينزل (بدون ما يأخّر الكاشير) */
+  @media (min-width:901px){
+    .pos-layout{gap:14px; padding:12px 14px 0;}
+    .pos-main{padding:4px 0 20px;}
+    .pos-cat-sidebar, .pos-cart-panel{
+      border:1px solid var(--glass-line); border-radius:24px;
+      background:var(--glass); -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%);
+      box-shadow:var(--glass-shadow), inset 0 1px 0 var(--glass-line);
+      max-height:calc(100vh - var(--nav-h, 112px) - var(--status-h, 0px) - 24px);
+    }
+    .pos-cat-sidebar{padding:12px 10px;}
+    .cart-bar{background:transparent;}
+    .pos-status-bar{background:var(--glass); border-top-color:var(--glass-line); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);}
+  }
+  @media (max-width:900px){
+    .pos-cat-sidebar{background:transparent; border-bottom:0;}
+  }
+
+  .cat-tab{border-radius:16px; background:var(--ink-2); border-color:var(--hair-soft);}
+  .card{border-radius:22px; border-color:var(--hair-soft);}
+  .card .thumb-fallback{border-radius:16px;}
+  .cart-item{background:var(--ink-2); border-radius:16px; animation:olv-line-in .3s var(--spring) backwards;}
+  @keyframes olv-line-in{from{opacity:0; transform:translateX(-10px);}}
+  .btn.gold.pay, .btn.gold.checkout-confirm{color:var(--on-olive); border-radius:16px;}
+  /* رقم الكمية فوق الصنف: بيطلع بنطّة أول مرة، وبيرتدّ مع كل إضافة */
+  .card .q{
+    position:absolute; top:12px; inset-inline-end:12px; z-index:2; min-width:30px; height:30px; padding:0 7px;
+    border-radius:999px; background:var(--olive); color:var(--on-olive); font-weight:800; font-size:14.5px;
+    display:grid; place-items:center; box-shadow:0 6px 14px -6px rgba(47,36,22,.6);
+    transform:scale(0); transition:transform .35s var(--spring-bounce); pointer-events:none;
+  }
+  .card .q.show{transform:scale(1);}
+  .card .q.bump{animation:olv-q-bump .32s var(--spring-bounce);}
+  @keyframes olv-q-bump{40%{transform:scale(1.28);}}
+  .checkout-success .check .icon{stroke-dasharray:24; stroke-dashoffset:24;}
+  .checkout-success.show .check .icon{animation:olv-check .4s .08s var(--spring) forwards;}
+  @keyframes olv-check{to{stroke-dashoffset:0;}}
+  .olv-leaf{
+    position:fixed; z-index:70; width:12px; height:20px; border-radius:12px 0; pointer-events:none;
+    animation:olv-leaf-fall 1.3s cubic-bezier(.3,.6,.4,1) forwards;
+  }
+  @keyframes olv-leaf-fall{
+    0%{transform:translate(0,0) rotate(0); opacity:1;}
+    100%{transform:translate(var(--dx),70vh) rotate(var(--rot)); opacity:0;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .card .q{transition:none;} .card .q.bump, .cart-item{animation:none;}
+    .checkout-success .check .icon{stroke-dasharray:none; animation:none;}
+  }
+  @media (prefers-reduced-transparency: reduce){
+    .pos-cat-sidebar, .pos-status-bar{background:var(--ink-2) !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;}
+  }
 </style>
 </head>
-<body>
+<body class="olv-glass">
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
@@ -878,6 +933,7 @@
         const src = p.image_url || productPhotoUrl(p.name, p.category);
         return `
         <div class="card" data-id="${p.id}" data-sound="add">
+          <span class="q" aria-hidden="true"></span>
           ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
           ${src
             ? `<img class="thumb" src="${src}" alt="${olvEsc(p.name)}" data-fallback-icon="${fallbackIcon}" onerror="olvHandleImageError(this)">`
@@ -904,6 +960,7 @@
         });
       });
 
+      syncCardQty(false);
       pagination.hidden = totalPages <= 1;
       document.getElementById("page-info").textContent = `${currentPage} / ${totalPages}`;
       document.getElementById("page-prev").disabled = currentPage <= 1;
@@ -1079,8 +1136,46 @@
       localStorage.removeItem(DRAFT_KEY);
     }
 
+    // رقم الكمية فوق كل صنف بالشبكة (مجموع كل أسطره بالتذكرة). اللي زاد
+    // من آخر مرة بياخد "نطّة" صغيرة تأكيدًا إنو الضغطة وصلت
+    var lastQty = new Map(); // var مش let: renderGrid ممكن تنادي قبل هالسطر
+    function syncCardQty(animate = true) {
+      const qty = new Map();
+      OlvCart.all().forEach((it) => qty.set(it.productId, (qty.get(it.productId) || 0) + it.qty));
+      document.querySelectorAll("#products-grid .card[data-id]").forEach((card) => {
+        const q = card.querySelector(".q");
+        if (!q) return;
+        const n = qty.get(card.dataset.id) || 0;
+        const before = (lastQty || new Map()).get(card.dataset.id) || 0;
+        q.textContent = n || "";
+        q.classList.toggle("show", n > 0);
+        if (animate && n > before) {
+          q.classList.remove("bump"); void q.offsetWidth; q.classList.add("bump");
+        }
+      });
+      lastQty = qty;
+    }
+
+    // ورق زيتون ذهبي وأخضر بينزل بعد الدفع — زينة بس، ما بتمسك اللمس
+    function leafBurst() {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      for (let k = 0; k < 22; k++) {
+        const l = document.createElement("i");
+        l.className = "olv-leaf";
+        l.style.left = (30 + Math.random() * 40) + "vw";
+        l.style.top = "30vh";
+        l.style.background = k % 3 ? "var(--olive)" : "var(--gold)";
+        l.style.setProperty("--dx", (Math.random() * 40 - 20) + "vw");
+        l.style.setProperty("--rot", (Math.random() * 720 - 360) + "deg");
+        l.style.animationDelay = (Math.random() * 0.2) + "s";
+        document.body.appendChild(l);
+        setTimeout(() => l.remove(), 1700);
+      }
+    }
+
     function renderCart() {
       const cart = OlvCart.all();
+      syncCardQty();
       const list = document.getElementById("cart-list");
       const checkoutBtn = document.getElementById("checkout-btn");
       const saveDraftBtn = document.getElementById("save-draft-btn");
@@ -1317,6 +1412,7 @@
           // الكاشير ما لازم يستنى: لمسة على شاشة النجاح بتسكّرها فورًا (ومؤقت 650ms للحالة العادية)
           modal.querySelector("#checkout-success").addEventListener("click", close);
           if (typeof OlvSound !== "undefined") queued ? OlvSound.playError() : OlvSound.playSuccess();
+          if (!queued) leafBurst();
           isSubmitting = false;
           setTimeout(close, queued ? 6000 : 650);
         } catch (err) {
