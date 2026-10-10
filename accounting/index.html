@@ -59,6 +59,85 @@
 })();
 </script>
 <style>
+  /* ---- الرئيسية: لوحة بنتو (2026-10) ----
+     4 أعمدة على الكمبيوتر/التابلت، عمودين على التابلت الصغير، وعمود واحد
+     بالموبايل. البلاطات معتمة (المحتوى لازم يضل مقروء)، والزجاج بس بالشريط فوق */
+  .wrap{max-width:1120px;}
+  .hello{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:6px 0 18px;}
+  .hello h2{font-size:clamp(24px,4vw,34px); text-wrap:balance;}
+  .hello-acts{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .vs-chip{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; font-size:13px; font-weight:700;
+    background:rgba(86,105,46,.14); color:var(--olive-hi);}
+  :root[data-theme="dark"] .vs-chip{color:var(--olive-hi);}
+  .vs-chip.down{background:rgba(179,65,42,.12); color:var(--danger-hi);}
+  .vs-chip .icon{width:15px; height:15px;}
+
+  .bento{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-auto-rows:minmax(150px,auto); gap:14px; margin-bottom:22px;}
+  .bento .t{
+    position:relative; overflow:hidden; border-radius:22px; padding:18px; min-width:0;
+    background:var(--ink-2); border:1px solid var(--hair-soft); color:var(--paper); text-decoration:none;
+    display:flex; flex-direction:column; box-shadow:var(--card-shadow);
+    transition:transform .3s var(--spring), box-shadow .3s var(--spring);
+    animation:olv-tile-in .5s var(--spring) backwards;
+  }
+  .bento .t:nth-child(2){animation-delay:.04s} .bento .t:nth-child(3){animation-delay:.08s}
+  .bento .t:nth-child(4){animation-delay:.12s} .bento .t:nth-child(5){animation-delay:.16s}
+  .bento .t:nth-child(n+6){animation-delay:.2s}
+  @keyframes olv-tile-in{from{opacity:0; transform:translateY(12px) scale(.98);}}
+  a.t:active{transform:scale(.98); transition-duration:.08s;}
+  @media (hover:hover) and (pointer:fine){ a.t:hover{transform:translateY(-3px); box-shadow:var(--card-shadow-hover);} }
+  .s22{grid-column:span 2; grid-row:span 2;} .s21{grid-column:span 2;} .s12{grid-row:span 2;}
+  .t .lbl{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--muted); font-weight:500;}
+  .t .lbl .icon{width:18px; height:18px;}
+  .t .mid{margin-top:auto; font-size:clamp(24px,3vw,32px); font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums;}
+  .t .tag{font-size:12.5px; color:var(--muted); margin-top:6px;}
+  .hero .big{font-size:clamp(40px,6vw,64px); font-weight:800; line-height:1; margin-top:12px; font-variant-numeric:tabular-nums;}
+  .hero .tag{position:relative; z-index:1;}
+  .hero .spark{position:absolute; inset:auto 0 0 0; width:100%; height:52%;}
+  .spark .a{fill:rgba(86,105,46,.12);} .spark .l{fill:none; stroke:var(--olive); stroke-width:3; vector-effect:non-scaling-stroke; stroke-linecap:round;}
+  :root[data-theme="dark"] .spark .a{fill:rgba(143,160,85,.14);}
+  /* المنحنى بينكشف من أول اليوم لآخره (قصّ متحرك بدل dasharray لأنه بيخرب مع non-scaling-stroke) */
+  .spark{clip-path:inset(0 100% 0 0); animation:olv-reveal 1.4s .2s var(--spring) forwards;}
+  @keyframes olv-reveal{to{clip-path:inset(0 0 0 0);}}
+  .t.dark{background:#211a13; border-color:#211a13; color:#f3eadb;}
+  .t.dark .lbl, .t.dark .tag{color:#c9b89e;}
+  :root[data-theme="dark"] .t.dark{background:#0d0a07; border-color:rgba(255,235,200,.08);}
+  .t .mid.bad{color:var(--danger-hi);} .t.dark .mid.bad{color:#eba18e;}
+  .t.cta{background:var(--olive); border-color:var(--olive); color:var(--on-olive);}
+  .t.cta .lbl{color:var(--on-olive); opacity:.85;}
+  .t.cta .mid{display:flex; align-items:center; gap:10px;}
+  .t.cta .mid .icon{width:28px; height:28px;}
+  .t.alert .mid{color:var(--danger-hi);}
+  .t.alert.ok .mid{color:var(--ok);}
+  .best{display:flex; align-items:center; gap:14px; margin-top:auto;}
+  .best .ph{flex:none; width:64px; height:64px; border-radius:18px; background:#f4dccb; color:var(--gold-dp); display:grid; place-items:center;}
+  :root[data-theme="dark"] .best .ph{background:var(--ink-3); color:var(--gold);}
+  .best .ph .icon{width:32px; height:32px;}
+  .best b{display:block; font-size:22px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .best span{font-size:13px; color:var(--muted);}
+  .best > div:last-child{min-width:0;}
+  .orders{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
+  .ord{display:flex; align-items:center; gap:8px; padding:11px 12px; border-radius:14px; background:var(--ink-3); font-size:13.5px;}
+  .ord b{font-weight:800;} .ord span{margin-inline-start:auto; color:var(--muted); font-size:12.5px; white-space:nowrap;}
+  .split{display:flex; gap:4px; height:14px; margin-top:auto; border-radius:999px; overflow:hidden;}
+  .split i{display:block; height:100%; border-radius:999px; transform-origin:right; animation:olv-grow .9s .3s var(--spring) backwards;}
+  @keyframes olv-grow{from{transform:scaleX(0);}}
+  .legend{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; font-size:12.5px; color:var(--muted);}
+  .legend em{display:inline-block; width:10px; height:10px; border-radius:3px; margin-inline-end:6px; vertical-align:-1px;}
+  @media (max-width:900px){
+    .bento{grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(140px,auto);}
+    .s12{grid-row:span 1;}
+  }
+  @media (max-width:520px){
+    .bento{grid-template-columns:minmax(0,1fr);}
+    .s22,.s21{grid-column:span 1;}
+    .s22{grid-row:span 1; min-height:260px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .bento .t, .split i{animation:none !important;}
+    .spark{animation:none !important; clip-path:none;}
+  }
+
   #print-area{display:none;}
   @media print {
     body *{visibility:hidden;}
@@ -73,7 +152,7 @@
   }
 </style>
 </head>
-<body>
+<body class="olv-glass">
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
@@ -98,42 +177,65 @@
       </table>
     </div>
 
-    <div class="group" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+    <div class="hello">
       <div>
-        <h2 style="margin-bottom:2px;">ملخص اليوم</h2>
+        <h2 id="hello-title">ملخص اليوم</h2>
         <div class="hint" id="today-label"></div>
       </div>
-      <button class="btn" id="pdf-btn"></button>
+      <div class="hello-acts">
+        <span class="vs-chip" id="vs-chip" hidden></span>
+        <button class="btn small" id="pdf-btn"></button>
+      </div>
     </div>
 
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-row">
-          <div class="stat-icon"></div>
-          <div class="stat-body">
-            <div class="label">مبيعات اليوم</div>
-            <div class="value" id="stat-sales">—</div>
-          </div>
-        </div>
-      </div>
-      <div class="stat">
-        <div class="stat-row">
-          <div class="stat-icon"></div>
-          <div class="stat-body">
-            <div class="label">مصروفات اليوم</div>
-            <div class="value" id="stat-expenses">—</div>
-          </div>
-        </div>
-      </div>
-      <div class="stat">
-        <div class="stat-row">
-          <div class="stat-icon"></div>
-          <div class="stat-body">
-            <div class="label">صافي اليوم</div>
-            <div class="value" id="stat-net">—</div>
-          </div>
-        </div>
-      </div>
+    <!-- لوحة بنتو: بلاطات بأحجام مختلفة حسب أهمية الرقم (الأهم أكبر) -->
+    <div class="bento" id="bento">
+      <section class="t s22 hero">
+        <div class="lbl"><span data-icon="receipt"></span>مبيعات اليوم</div>
+        <div class="big" id="stat-sales">—</div>
+        <div class="tag" id="spark-note"></div>
+        <svg class="spark" id="spark" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </section>
+      <section class="t dark">
+        <div class="lbl"><span data-icon="wallet"></span>صافي اليوم</div>
+        <div class="mid" id="stat-net">—</div>
+        <div class="tag">المبيعات ناقص المصروفات</div>
+      </section>
+      <section class="t">
+        <div class="lbl"><span data-icon="minusCircle"></span>مصروفات اليوم</div>
+        <div class="mid" id="stat-expenses">—</div>
+      </section>
+      <a class="t cta" href="pos.html">
+        <div class="lbl">ابدأ بيع جديد</div>
+        <div class="mid"><span data-icon="bolt"></span>بيع سريع</div>
+      </a>
+      <a class="t alert" href="inventory.html" id="low-tile">
+        <div class="lbl"><span data-icon="warning"></span>مخزون منخفض</div>
+        <div class="mid" id="low-count">—</div>
+        <div class="tag" id="low-names"></div>
+      </a>
+      <section class="t s21">
+        <div class="lbl"><span data-icon="star"></span>الأكثر مبيعًا اليوم</div>
+        <div class="best" id="best"><div class="tag">—</div></div>
+      </section>
+      <a class="t s12" href="kitchen.html">
+        <div class="lbl"><span data-icon="flame"></span>قيد التحضير</div>
+        <div class="orders" id="orders"><div class="tag">—</div></div>
+      </a>
+      <section class="t">
+        <div class="lbl"><span data-icon="barChart"></span>متوسط الفاتورة</div>
+        <div class="mid" id="stat-avg">—</div>
+      </section>
+      <section class="t s21">
+        <div class="lbl"><span data-icon="creditCard"></span>طرق الدفع اليوم</div>
+        <div class="split" id="split" aria-hidden="true"></div>
+        <div class="legend" id="split-legend"></div>
+      </section>
+      <section class="t">
+        <div class="lbl"><span data-icon="receipt"></span>عدد الفواتير</div>
+        <div class="mid" id="stat-count">—</div>
+        <div class="tag" id="first-sale"></div>
+      </section>
     </div>
 
     <div class="group">
@@ -176,12 +278,42 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("dashboard");
-    document.getElementById("stat-sales").closest(".stat").querySelector(".stat-icon").innerHTML = olvIcon("receipt");
-    document.getElementById("stat-expenses").closest(".stat").querySelector(".stat-icon").innerHTML = olvIcon("minusCircle");
-    document.getElementById("stat-net").closest(".stat").querySelector(".stat-icon").innerHTML = olvIcon("wallet");
+    document.querySelectorAll("[data-icon]").forEach((el) => { el.outerHTML = olvIcon(el.dataset.icon); });
     document.getElementById("recent-sales-body").closest(".group").querySelector("h2").innerHTML = olvIcon("receipt") + "<span>آخر مبيعات مسجّلة</span>";
     document.getElementById("recent-expenses-title").innerHTML = olvIcon("minusCircle") + "<span>آخر مصروفات مسجّلة</span>";
     document.getElementById("pdf-btn").innerHTML = olvIcon("download") + "<span>تصدير PDF</span>";
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // الرقم بيعدّ من صفر لقيمته (حوالي ثانية) — بس أول ما تفتح الصفحة
+    function countUp(el, to, fmt) {
+      if (reduceMotion) { el.textContent = fmt(to); return; }
+      const t0 = performance.now(), d = 1000;
+      (function step(t) {
+        const k = Math.min(1, (t - t0) / d);
+        el.textContent = fmt(to * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) requestAnimationFrame(step);
+      })(t0);
+    }
+    const money = (v) => olvFormatMoney(v);
+    const whole = (v) => String(Math.round(v));
+    function hourLabel(h) { return h === 0 ? "12 بالليل" : h < 12 ? h + " الصبح" : h === 12 ? "12 الظهر" : (h - 12) + (h < 18 ? " العصر" : " بالليل"); }
+
+    // منحنى مبيعات اليوم: مجموع تراكمي ساعة بساعة من أول بيعة لهلأ
+    function drawSpark(sales) {
+      const svg = document.getElementById("spark");
+      const note = document.getElementById("spark-note");
+      if (!sales.length) { svg.innerHTML = ""; note.textContent = "لسا ما في مبيعات اليوم"; return; }
+      const hours = sales.map((r) => new Date(r.created_at).getHours());
+      const first = Math.min(...hours), last = Math.max(new Date().getHours(), ...hours);
+      const buckets = new Array(last - first + 1).fill(0);
+      sales.forEach((r, i) => { buckets[hours[i] - first] += r._total; });
+      let run = 0; const pts = [0, ...buckets.map((v) => (run += v))];
+      const max = Math.max(...pts) || 1, n = pts.length - 1 || 1;
+      const xy = pts.map((v, i) => [i / n * 400, 112 - v / max * 96]);
+      const line = xy.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+      svg.innerHTML = `<path class="a" d="${line} L400,120 L0,120Z"/><path class="l" d="${line}"/>`;
+      note.textContent = "من " + hourLabel(first) + " لهلأ، ساعة بساعة";
+    }
 
     let todaySummary = null;
 
@@ -204,13 +336,77 @@
       window.print();
     }
 
+    // بيانات إضافية للبلاطات (الأكثر مبيعًا، قيد التحضير، نقص المخزون، مقارنة
+    // بنفس اليوم الأسبوع الماضي). كل وحدة لحالها: لو فشلت بتضل "—" وما بتوقف الباقي
+    async function loadExtras(sales, totalSales) {
+      const db = window.supabaseClient;
+      const ids = new Set(sales.map((r) => r.id));
+      const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+      const dayStart = new Date(Date.now() - 36 * 3600e3).toISOString();
+      const [items, pending, low, lastWeek] = await Promise.allSettled([
+        ids.size ? db.from("sale_items").select("sale_id, product_name, qty, unit_price, status").gte("created_at", dayStart).limit(2000) : Promise.resolve({ data: [] }),
+        db.from("sales_entries").select("order_no, order_type, table_number, customer_name, created_at").eq("status", "completed").eq("kitchen_status", "قيد التحضير").gte("created_at", new Date(Date.now() - 12 * 3600e3).toISOString()).order("created_at", { ascending: true }).limit(20),
+        db.from("low_stock_items").select("name, reason"),
+        db.from("sales_entries").select("cash_amount, card_amount, delivery_amount").eq("entry_date", weekAgo).eq("status", "completed"),
+      ]);
+      const ok = (r) => r.status === "fulfilled" && !r.value.error ? r.value.data || [] : null;
+
+      const it = ok(items), bestEl = document.getElementById("best");
+      if (it) {
+        const by = new Map();
+        it.filter((x) => ids.has(x.sale_id) && x.status !== "voided").forEach((x) => {
+          const o = by.get(x.product_name) || { q: 0, m: 0 };
+          o.q += Number(x.qty); o.m += Number(x.qty) * Number(x.unit_price); by.set(x.product_name, o);
+        });
+        const top = [...by].sort((a, b) => b[1].q - a[1].q);
+        bestEl.innerHTML = top.length
+          ? `<div class="ph">${olvIcon("coffee")}</div><div><b>${olvEsc(top[0][0])}</b><span>${whole(top[0][1].q)} مرة · ${olvFormatMoney(top[0][1].m)}${top[1] ? " · بعده " + olvEsc(top[1][0]) : ""}</span></div>`
+          : `<div class="tag">لسا ما في مبيعات اليوم</div>`;
+      }
+
+      const pe = ok(pending), ordEl = document.getElementById("orders");
+      if (pe) {
+        const label = (o) => o.table_number ? "طاولة " + olvEsc(o.table_number) : (o.order_type ? olvEsc(o.order_type) : "طلب") + (o.order_no ? " #" + olvEsc(o.order_no) : "");
+        const mins = (o) => Math.max(0, Math.round((Date.now() - new Date(o.created_at)) / 60000));
+        ordEl.innerHTML = pe.length
+          ? pe.slice(0, 4).map((o) => `<div class="ord"><b>${label(o)}</b><span>من ${mins(o)} د</span></div>`).join("") + (pe.length > 4 ? `<div class="tag">و${pe.length - 4} غيرهم</div>` : "")
+          : `<div class="tag">ما في طلبات بتستنى. كل شي طلع</div>`;
+      }
+
+      const lo = ok(low);
+      if (lo) {
+        const tile = document.getElementById("low-tile");
+        document.getElementById("low-count").textContent = lo.length ? lo.length + (lo.length === 1 ? " مادة" : lo.length <= 10 ? " مواد" : " مادة") : "كله تمام";
+        document.getElementById("low-names").textContent = lo.slice(0, 3).map((x) => x.name).join("، ") + (lo.length > 3 ? "…" : "");
+        tile.classList.toggle("ok", !lo.length);
+      }
+
+      const lw = ok(lastWeek);
+      if (lw && lw.length && totalSales > 0) {
+        const prev = lw.reduce((s, r) => s + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
+        if (prev > 0) {
+          const pct = Math.round((totalSales - prev) / prev * 100);
+          const day = new Date(Date.now() - 7 * 864e5).toLocaleDateString("ar", { weekday: "long" });
+          const chip = document.getElementById("vs-chip");
+          chip.innerHTML = olvIcon("barChart") + `<span>${pct >= 0 ? "أعلى" : "أقل"} من ${day} الماضي بـ ${Math.abs(pct)}%</span>`;
+          chip.classList.toggle("down", pct < 0);
+          chip.hidden = false;
+        }
+      }
+    }
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
       if (window.olvRole !== "staff") { try { await window.supabaseClient.rpc("generate_recurring_expenses"); } catch (_) {} } // تنزيل المصروفات المتكررة المستحقة
       const errBox = document.getElementById("err");
       const today = olvToday();
-      document.getElementById("today-label").textContent = today;
+      const h = new Date().getHours();
+      const greet = h < 12 ? "صباح الخير" : "مساء الخير";
+      document.getElementById("hello-title").textContent = greet;
+      window.supabaseClient.from("profiles").select("full_name").eq("id", session.user.id).single()
+        .then(({ data }) => { const first = data && data.full_name ? data.full_name.trim().split(/\s+/)[0] : ""; if (first) document.getElementById("hello-title").textContent = greet + " يا " + first; }, () => {});
+      document.getElementById("today-label").textContent = new Date().toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long", numberingSystem: "latn" }) + " · ملخص اليوم";
       document.getElementById("pdf-btn").addEventListener("click", exportPdf);
 
       try {
@@ -220,7 +416,7 @@
           { data: recentSales, error: e3 },
           { data: recentExpenses, error: e4 },
         ] = await Promise.all([
-          window.supabaseClient.from("sales_entries").select("*").eq("entry_date", today).eq("status", "completed"),
+          window.supabaseClient.from("sales_entries").select("id, cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", today).eq("status", "completed"),
           window.supabaseClient.from("expenses").select("amount").eq("expense_date", today),
           window.supabaseClient.from("sales_entries").select("*").eq("status", "completed").order("entry_date", { ascending: false }).limit(8),
           window.supabaseClient.from("expenses").select("*, expense_categories(name)").order("expense_date", { ascending: false }).limit(8),
@@ -230,17 +426,38 @@
         if (e3) throw e3;
         if (e4) throw e4;
 
-        const totalSales = (todaySales || []).reduce(
-          (s, r) => s + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0
-        );
+        const sales = (todaySales || []).map((r) => ({ ...r, _total: Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount) }));
+        const totalSales = sales.reduce((s, r) => s + r._total, 0);
         const totalExpenses = (todayExpenses || []).reduce((s, r) => s + Number(r.amount), 0);
         const net = totalSales - totalExpenses;
 
-        document.getElementById("stat-sales").textContent = olvFormatMoney(totalSales);
-        document.getElementById("stat-expenses").textContent = olvFormatMoney(totalExpenses);
+        countUp(document.getElementById("stat-sales"), totalSales, money);
+        countUp(document.getElementById("stat-expenses"), totalExpenses, money);
         const netEl = document.getElementById("stat-net");
-        netEl.textContent = olvFormatMoney(net);
-        netEl.classList.add(net >= 0 ? "good" : "bad");
+        countUp(netEl, net, money);
+        if (net < 0) netEl.classList.add("bad");
+        countUp(document.getElementById("stat-count"), sales.length, whole);
+        countUp(document.getElementById("stat-avg"), sales.length ? totalSales / sales.length : 0, money);
+        if (sales.length) {
+          const firstAt = new Date(Math.min(...sales.map((r) => new Date(r.created_at))));
+          document.getElementById("first-sale").textContent = "أول فاتورة الساعة " + firstAt.toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" });
+        }
+        drawSpark(sales);
+
+        // طرق الدفع: كاش / شبكة / توصيل كنسبة من مبيعات اليوم
+        const parts = [
+          ["كاش", sales.reduce((s, r) => s + Number(r.cash_amount), 0), "var(--olive)"],
+          ["شبكة", sales.reduce((s, r) => s + Number(r.card_amount), 0), "var(--gold)"],
+          ["توصيل", sales.reduce((s, r) => s + Number(r.delivery_amount), 0), "#c9a993"],
+        ].filter((p) => p[1] > 0);
+        document.getElementById("split").innerHTML = totalSales
+          ? parts.map((p) => `<i style="flex:${p[1]};background:${p[2]}"></i>`).join("")
+          : `<i style="flex:1;background:var(--ink-3)"></i>`;
+        document.getElementById("split-legend").innerHTML = totalSales
+          ? parts.map((p) => `<span><em style="background:${p[2]}"></em>${p[0]} ${Math.round(p[1] / totalSales * 100)}% · ${olvFormatMoney(p[1])}</span>`).join("")
+          : "<span>لسا ما في مبيعات اليوم</span>";
+
+        loadExtras(sales, totalSales);
 
         const salesBody = document.getElementById("recent-sales-body");
         if (!recentSales || !recentSales.length) {
