@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>الإعدادات — محاسبة OLV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0a0a09">
+<meta name="theme-color" content="#f7f1e6">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
 <script>
 (function(){
   function computeTheme(){
-    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
@@ -24,7 +24,7 @@
     var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
       '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
     try {
-      var raw = localStorage.getItem('olv_custom_theme');
+      var raw = localStorage.getItem('olv_custom_theme_v2');
       var t = raw ? JSON.parse(raw) : null;
       if (!t) {
         props.forEach(function (p) { root.removeProperty(p); });
@@ -464,12 +464,12 @@
       <div style="display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-bottom:16px;">
         <div>
           <label class="hint" style="display:block; margin-bottom:6px;">لون الخلفية</label>
-          <input type="color" id="theme-bg-input" value="#0a0a09"
+          <input type="color" id="theme-bg-input" value="#f7f1e6"
             style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
         </div>
         <div>
           <label class="hint" style="display:block; margin-bottom:6px;">لون العلامة/الأزرار</label>
-          <input type="color" id="theme-accent-input" value="#c9a24b"
+          <input type="color" id="theme-accent-input" value="#b08a3e"
             style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
         </div>
         <button type="button" class="btn gold" id="theme-preview-btn" style="pointer-events:none;">مثال على الزر</button>
@@ -503,8 +503,8 @@
     document.getElementById("import-menu-btn").innerHTML = olvIcon("refresh") + "<span>مزامنة الأصناف من موقع المنيو الحقيقي</span>";
 
     // ---- تخصيص ثيم البرنامج الكامل (خلفية + لون علامة) ----
-    const DEFAULT_BG = "#0a0a09";
-    const DEFAULT_ACCENT = "#c9a24b";
+    const DEFAULT_BG = "#f7f1e6";
+    const DEFAULT_ACCENT = "#b08a3e";
     const bgInput = document.getElementById("theme-bg-input");
     const themeAccentInput = document.getElementById("theme-accent-input");
     const savedTheme = olvGetCustomThemeColors();

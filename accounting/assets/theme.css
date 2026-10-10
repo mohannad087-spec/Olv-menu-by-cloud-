@@ -1,44 +1,45 @@
 :root{
-  --ink:#0a0a09; --ink-2:#131209; --ink-3:#1a1810;
-  --gold:#c9a24b; --gold-hi:#f2dca6; --gold-dp:#7a5e22; --gold-rgb:201,162,75; --on-gold:#100e08;
-  --olive:#8a9a52; --olive-hi:#9dab63;
-  --paper:#ece5d5; --muted:#95897a; --hair:rgba(var(--gold-rgb),.25); --hair-soft:rgba(var(--gold-rgb),.1);
-  --danger:#c1583f; --danger-hi:#e0a190; --ok:#7c8a4a;
-  --overlay-bg:rgba(10,10,9,.94);
-  --card-shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px -8px rgba(0,0,0,.6);
-  --card-shadow-hover:0 2px 4px rgba(0,0,0,.55), 0 16px 36px -10px rgba(0,0,0,.7), 0 0 0 1px rgba(var(--gold-rgb),.18);
+  /* هوية OLV (2026-10): خلفية كريمية دافئة + ذهبي وزيتوني من الشعار.
+     الفاتح هو الافتراضي؛ الداكن (زر القمر) نسخة "إسبريسو" دافئة من نفس الألوان.
+     --gold = لون التعبئة (أزرار رئيسية، تبويب نشط)، --gold-hi = لون النص المميّز
+     (أسعار، روابط) وهو أغمق بالفاتح حتى يحقق تباين 4.5:1 على الكريمي */
+  color-scheme:light;
+  --ink:#f7f1e6; --ink-2:#fffdf8; --ink-3:#efe6d4;
+  --gold:#b08a3e; --gold-hi:#86631c; --gold-dp:#6b4c14; --gold-rgb:176,138,62; --on-gold:#241a0a;
+  --olive:#56692e; --olive-hi:#435324;
+  --paper:#2f2416; --muted:#6c5a44; --hair:rgba(110,85,40,.2); --hair-soft:rgba(110,85,40,.11);
+  --danger:#b3412a; --danger-hi:#9a3420; --ok:#56692e;
+  --overlay-bg:rgba(247,241,230,.94);
+  --material:rgba(255,253,248,.9);
+  --card-shadow:0 1px 0 rgba(110,85,40,.10), 0 6px 18px -12px rgba(80,60,25,.22);
+  --card-shadow-hover:0 2px 0 rgba(110,85,40,.12), 0 14px 30px -14px rgba(80,60,25,.32);
   --ease:cubic-bezier(.2,.7,.3,1);
   /* منحنيات حركة "نابضية" على طريقة Apple: --spring تقريب لنابض مخمّد
      بالكامل (بدون ارتداد) للحركة العادية، و--spring-bounce بارتداد خفيف
      بس للحركات اللي بتبدأ بزخم من إصبع المستخدم (سحب/رمي) */
   --spring:cubic-bezier(.22,1,.36,1);
   --spring-bounce:cubic-bezier(.34,1.25,.64,1);
-  --material:rgba(19,18,9,.86);
-  color-scheme:dark;
+  --r-card:18px;
 }
-:root[data-theme="light"]{
-  color-scheme:light;
-  --ink:#faf7f0; --ink-2:#ffffff; --ink-3:#f1ead9;
-  --gold:#b8863a; --gold-hi:#8a5f14; --gold-dp:#5c430f; --gold-rgb:184,134,58; --on-gold:#100e08;
-  --olive:#5c6b34; --olive-hi:#3f4b20;
-  --paper:#201b10; --muted:#55493d; --hair:rgba(80,60,25,.35); --hair-soft:rgba(80,60,25,.18);
-  --danger:#a8402a; --danger-hi:#8f3220; --ok:#3f4b20;
-  --overlay-bg:rgba(250,247,240,.94);
-  --material:rgba(255,255,255,.86);
-  --card-shadow:0 1px 3px rgba(40,30,10,.08), 0 1px 2px rgba(40,30,10,.06);
-  --card-shadow-hover:0 4px 8px rgba(40,30,10,.1), 0 12px 28px -8px rgba(40,30,10,.14), 0 0 0 1px rgba(var(--gold-rgb),.2);
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ink:#17120d; --ink-2:#211a13; --ink-3:#2b2219;
+  --gold:#c9a24b; --gold-hi:#e6c983; --gold-dp:#8a6a26; --gold-rgb:201,162,75; --on-gold:#1a1307;
+  --olive:#8fa055; --olive-hi:#a9b873;
+  --paper:#f3eadb; --muted:#b4a28a; --hair:rgba(201,162,75,.2); --hair-soft:rgba(201,162,75,.1);
+  --danger:#d0644a; --danger-hi:#eba18e; --ok:#8fa055;
+  --overlay-bg:rgba(23,18,13,.94);
+  --material:rgba(33,26,19,.9);
+  --card-shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 24px -12px rgba(0,0,0,.5);
+  --card-shadow-hover:0 2px 4px rgba(0,0,0,.45), 0 16px 32px -12px rgba(0,0,0,.6);
 }
 *{box-sizing:border-box;}
 body{
   margin:0; color:var(--paper);
   font-family:'Tajawal',system-ui,sans-serif; padding:0 0 90px;
-  background:
-    radial-gradient(1100px 560px at 12% -8%, rgba(var(--gold-rgb),.09), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(138,154,82,.07), transparent 55%),
-    var(--ink);
-  background-attachment:fixed;
+  background:var(--ink);
 }
-h1,h2,h3{font-family:'Cormorant Garamond',serif; margin:0; color:var(--gold-hi); font-weight:600; line-height:1.2;}
+h1,h2,h3{font-family:'Tajawal',sans-serif; margin:0; color:var(--paper); font-weight:800; line-height:1.25;}
 a{color:var(--gold-hi);}
 button{font-family:'Tajawal',sans-serif; cursor:pointer;}
 /* الاستجابة لحظة اللمس: نلغي تأخير النقر المزدوج (~300ms) على كل عناصر
@@ -56,24 +57,24 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 .top{
   position:sticky; top:0; z-index:30; background:var(--overlay-bg);
   backdrop-filter:blur(10px); border-bottom:1px solid var(--hair);
-  box-shadow:0 8px 24px -12px rgba(0,0,0,.5);
+  box-shadow:0 8px 24px -16px rgba(47,36,22,.35);
   padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
 }
 .olv-brand{display:flex; align-items:center; gap:10px;}
+/* شعار OLV الرسمي (assets/brand/olv-mark.png) على بلاطة سوداء متل خلفيته الأصلية */
 .brand-mark-sm{
-  flex:none; width:34px; height:34px; border-radius:9px;
-  background:linear-gradient(160deg,var(--gold-hi),var(--gold) 60%,var(--gold-dp));
+  flex:none; height:42px; border-radius:11px; background:#0b0a08; padding:5px 10px;
   display:flex; align-items:center; justify-content:center;
-  box-shadow:0 4px 10px -3px rgba(var(--gold-rgb),.55), inset 0 1px 0 rgba(255,255,255,.25);
+  box-shadow:0 4px 12px -6px rgba(0,0,0,.45);
 }
-.brand-mark-sm .icon{width:19px; height:19px; color:var(--on-gold); stroke-width:1.8;}
-.brand-text{font-size:20px; letter-spacing:2px;}
-.brand-text span{color:var(--muted); font-size:12px; letter-spacing:0; font-family:'Tajawal',sans-serif; font-weight:400; display:block; margin-top:2px;}
+.brand-mark-sm img{height:32px; width:auto; display:block;}
+.brand-text{font-size:18px;}
+.brand-text span{color:var(--muted); font-size:12px; font-weight:400; display:block; margin-top:2px;}
 .top .actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
 .olv-user-badge{
   display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:999px;
-  font-size:13px; font-weight:700; color:var(--gold-hi); background:rgba(var(--gold-rgb),.12);
-  border:1px solid var(--gold);
+  font-size:13px; font-weight:700; color:var(--paper); background:var(--ink-3);
+  border:1px solid var(--hair);
 }
 .olv-user-badge .icon{width:15px; height:15px;}
 
@@ -83,14 +84,14 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 }
 .tab-link{
   position:relative;
-  flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
+  flex:none; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
   padding:11px 18px; border-radius:999px; font-size:13px; white-space:nowrap; text-decoration:none;
   display:inline-flex; align-items:center; gap:7px; min-height:44px;
   transition:background .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
 }
 .tab-link:active{transform:scale(.96); transition-duration:.08s;}
 .tab-link .icon{width:15px; height:15px; opacity:.85;}
-.tab-link.on{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold); border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px -4px rgba(var(--gold-rgb),.45);}
+.tab-link.on{background:var(--paper); color:var(--ink-2); border-color:var(--paper); font-weight:700; box-shadow:0 6px 16px -8px rgba(47,36,22,.5);}
 
 .tab-link.on .icon{opacity:1;}
 /* تبويبات القسم (المخزون: المواد الخام | المستلزمات | الجرد ...) */
@@ -104,7 +105,7 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 .olv-hub-tab .icon{width:14px; height:14px; opacity:.8;}
 .olv-hub-tab{transition:background .18s var(--spring), color .18s var(--spring), transform .18s var(--spring);}
 .olv-hub-tab:active{transform:scale(.96); transition-duration:.08s;}
-.olv-hub-tab.on{color:var(--gold-hi); background:rgba(var(--gold-rgb),.12); border-color:rgba(var(--gold-rgb),.45); font-weight:700;}
+.olv-hub-tab.on{color:var(--paper); background:var(--ink-3); border-color:var(--hair); font-weight:700;}
 .tab-badge{
   position:absolute; top:-6px; inset-inline-end:-6px;
   background:var(--danger); color:#fff; font-size:10.5px; font-weight:700;
@@ -161,15 +162,15 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
    بالماوس */
 .btn{
   border:1px solid var(--hair); background:transparent; color:var(--paper);
-  padding:11px 16px; border-radius:8px; font-size:13px;
+  padding:11px 16px; border-radius:12px; font-size:14px; font-weight:500;
   transition:border-color .16s var(--ease), color .16s var(--ease), transform .2s var(--spring), box-shadow .16s var(--ease), filter .16s var(--ease), background .16s var(--ease);
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
   min-height:44px; -webkit-tap-highlight-color:transparent;
 }
 .btn:active{transform:scale(.97); filter:brightness(.94); transition-duration:.08s;}
-.btn.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold); font-weight:700; border:none; box-shadow:0 4px 14px -4px rgba(var(--gold-rgb),.5);}
+.btn.gold{background:var(--gold); color:var(--on-gold); font-weight:700; border:none; box-shadow:0 6px 16px -8px rgba(var(--gold-rgb),.7);}
 
-.btn.danger{border-color:rgba(193,88,63,.4); color:var(--danger-hi);}
+.btn.danger{border-color:rgba(179,65,42,.4); color:var(--danger-hi);}
 
 .btn.small{padding:8px 13px; font-size:12.5px; min-height:38px;}
 .btn:disabled{opacity:.5; cursor:not-allowed; transform:none; filter:none;}
@@ -179,7 +180,7 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
 .field input,.field select,.field textarea{
   width:100%; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
-  padding:12px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;
+  padding:12px; border-radius:12px; font-size:16px; font-family:'Tajawal',sans-serif;
 }
 /* حجم الخط 16px على كل الحقول أعلاه مقصود: أي حجم أصغر يخلي متصفح
    سفاري على الآيفون/الآيباد "يزوم" تلقائيًا على الحقل بمجرد الضغط عليه */
@@ -202,8 +203,8 @@ input[type="checkbox"], input[type="radio"]{
 @media(max-width:560px){.row2,.row3{grid-template-columns:1fr;}}
 
 .group{
-  background:var(--ink-2); border:1px solid var(--hair); border-radius:14px;
-  padding:18px; margin-bottom:20px; box-shadow:var(--card-shadow);
+  background:var(--ink-2); border:1px solid var(--hair); border-radius:var(--r-card);
+  padding:20px; margin-bottom:20px; box-shadow:var(--card-shadow);
   transition:box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
 .group h2{font-size:17px; margin-bottom:14px; display:flex; align-items:center; gap:9px;}
@@ -213,7 +214,7 @@ input[type="checkbox"], input[type="radio"]{
 .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px;}
 @media(max-width:640px){.stats{grid-template-columns:1fr;}}
 .stat{
-  background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px;
+  background:var(--ink-2); border:1px solid var(--hair); border-radius:var(--r-card); padding:16px;
   box-shadow:var(--card-shadow);
   transition:transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
@@ -229,7 +230,7 @@ input[type="checkbox"], input[type="radio"]{
 .stat .stat-icon .icon{width:21px; height:21px;}
 .stat .stat-body{min-width:0;}
 .stat .label{font-size:12px; color:var(--muted); margin-bottom:4px;}
-.stat .value{font-family:'Cormorant Garamond',serif; font-size:28px; color:var(--gold-hi); font-weight:600; line-height:1.1;}
+.stat .value{font-size:28px; color:var(--paper); font-weight:800; line-height:1.1;}
 .stat .value.bad{color:var(--danger-hi);}
 .stat .value.good{color:var(--ok);}
 
@@ -285,18 +286,16 @@ tbody tr{transition:background .15s var(--ease);}
 .olv-failed-acts{display:flex; gap:6px; flex:none;}
 .center-card{
   max-width:380px; margin:min(11vh,80px) auto 40px; background:var(--ink-2); border:1px solid var(--hair);
-  border-radius:18px; padding:32px 28px; box-shadow:0 1px 2px rgba(0,0,0,.5), 0 24px 60px -16px rgba(0,0,0,.65);
+  border-radius:18px; padding:32px 28px; box-shadow:var(--card-shadow-hover);
   animation:olv-card-in .24s var(--spring) both;
 }
 @keyframes olv-card-in{from{opacity:0; transform:translateY(10px) scale(.98);} to{opacity:1; transform:none;}}
 .center-card h1{text-align:center; margin-bottom:22px; font-size:22px;}
 .brand-mark{
-  width:64px; height:64px; margin:0 auto 18px; border-radius:16px;
-  background:linear-gradient(160deg,var(--gold-hi),var(--gold) 60%,var(--gold-dp));
-  display:flex; align-items:center; justify-content:center;
-  box-shadow:0 10px 24px -8px rgba(var(--gold-rgb),.55), inset 0 1px 0 rgba(255,255,255,.25);
+  margin:0 auto 20px; border-radius:16px; overflow:hidden; background:#0b0a08; max-width:260px;
+  box-shadow:0 12px 28px -14px rgba(0,0,0,.5);
 }
-.brand-mark .icon{width:34px; height:34px; color:var(--on-gold); stroke-width:1.6;}
+.brand-mark img{display:block; width:100%; height:auto;}
 .badge{display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; border:1px solid var(--hair); color:var(--muted);}
 .badge .icon{width:11px; height:11px; vertical-align:-1px;}
 
@@ -309,11 +308,11 @@ tbody tr{transition:background .15s var(--ease);}
    على اللمس، :hover بيعلق على آخر عنصر انضغط ("رفعة" ما بتنزل) — فنحصرها
    بالأجهزة اللي بتدعم المرور الحقيقي، واللمس بياخد ردّة فعل :active فورية */
 @media (hover:hover) and (pointer:fine){
-  .tab-link:hover{border-color:var(--gold); color:var(--gold-hi);}
+  .tab-link:hover{border-color:var(--gold);}
   .tab-link.on:hover{transform:none;}
   .olv-hub-tab:hover{color:var(--gold-hi); border-color:var(--hair);}
   .tab-more-link:hover{background:var(--ink-3); color:var(--gold-hi); transform:none;}
-  .btn:hover{border-color:var(--gold); color:var(--gold-hi);}
+  .btn:hover{border-color:var(--gold); background:rgba(var(--gold-rgb),.08);}
   .btn:active{transform:scale(.97);}
   .btn.gold:hover{filter:brightness(1.06); box-shadow:0 6px 18px -4px rgba(var(--gold-rgb),.6);}
   .btn.danger:hover{border-color:var(--danger); color:#f0b7a8;}
