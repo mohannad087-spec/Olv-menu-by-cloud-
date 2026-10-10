@@ -59,11 +59,44 @@
 })();
 </script>
 <style>
-  .supplier-row{cursor:pointer;}
-  .supplier-row:hover td{background:rgba(var(--gold-rgb),.08);}
-  .supplier-row.on td{background:rgba(var(--gold-rgb),.12);}
+  .sup-toolbar{display:flex; gap:10px; align-items:center; margin-bottom:14px;}
+  .sup-search{flex:1; position:relative;}
+  .sup-search input{width:100%; padding-inline-start:38px;}
+  .sup-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:18px; height:18px; color:var(--muted); pointer-events:none;}
+  .sup-list{display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:10px;}
+  .sup-card{display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--hair); border-radius:14px; background:var(--ink-2); cursor:pointer; transition:border-color .15s, background .15s; min-height:64px;}
+  .sup-card:hover{border-color:rgba(var(--gold-rgb),.5);}
+  .sup-card.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.08);}
+  .sup-card:active{transform:scale(.99);}
+  .sup-main{flex:1; min-width:0;}
+  .sup-name{font-weight:700; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sup-sub{font-size:12px; color:var(--muted); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sup-bal{font-weight:800; font-size:15px; white-space:nowrap;}
+  .sup-bal small{display:block; font-size:11px; font-weight:500; color:var(--muted); text-align:left;}
+  .sup-acts{display:flex; gap:6px;}
+  .icon-btn{width:44px; height:44px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); display:inline-flex; align-items:center; justify-content:center; text-decoration:none; flex:none;}
+  .icon-btn .icon{width:19px; height:19px;}
+  .icon-btn.wa{color:#1f9d55;}
   .balance-owed{color:var(--danger-hi); font-weight:700;}
   .balance-clear{color:var(--ok); font-weight:700;}
+  .balance-credit{color:var(--gold-dp, var(--gold)); font-weight:700;}
+  .detail-head{display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;}
+  .detail-acts{display:flex; gap:8px; flex-wrap:wrap;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .chip{padding:5px 11px; border-radius:999px; background:var(--ink-3); border:1px solid var(--hair); font-size:12.5px;}
+  .pay-box{background:var(--ink-3); border-radius:12px; padding:14px;}
+  details.more{margin-top:12px; border:1px dashed var(--hair); border-radius:12px; padding:10px 14px;}
+  details.more summary{cursor:pointer; font-weight:700; font-size:14px; min-height:32px; display:flex; align-items:center;}
+  .range-row{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px;}
+  .range-row .field{margin:0; flex:1; min-width:130px;}
+  .sec-title{font-size:15px; color:var(--muted); margin:18px 0 10px;}
+  /* الأرقام الثلاثة بسطر واحد حتى على الموبايل بدل ثلث شاشة */
+  .stats.compact{grid-template-columns:repeat(3,1fr); gap:8px;}
+  @media(max-width:640px){
+    .stats.compact .stat{padding:12px 10px;}
+    .stats.compact .value{font-size:18px;}
+    .stats.compact .label{font-size:11px;}
+  }
   #print-area{display:none;}
   @media print {
     body *{visibility:hidden;}
@@ -88,57 +121,66 @@
       <div class="range" id="print-supplier-phone"></div>
       <table>
         <tbody>
-          <tr><td>إجمالي الفواتير</td><td id="print-total-invoiced"></td></tr>
-          <tr><td>إجمالي المدفوع</td><td id="print-total-paid"></td></tr>
-          <tr class="totals"><td>الرصيد المستحق</td><td id="print-balance"></td></tr>
+          <tr><td>رصيد أول المدة</td><td id="print-opening"></td></tr>
+          <tr><td>فواتير بالفترة</td><td id="print-total-invoiced"></td></tr>
+          <tr><td>دفعات بالفترة</td><td id="print-total-paid"></td></tr>
+          <tr class="totals"><td>الرصيد آخر المدة</td><td id="print-balance"></td></tr>
         </tbody>
       </table>
       <table>
-        <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>المبلغ</th></tr></thead>
+        <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
         <tbody id="print-transactions-body"></tbody>
       </table>
     </div>
 
+    <div class="stats compact">
+      <div class="stat"><div class="label">مجموع المستحق للموردين</div><div class="value bad" id="sum-owed">—</div></div>
+      <div class="stat"><div class="label">موردين إلهم عليك</div><div class="value" id="sum-count">—</div></div>
+      <div class="stat"><div class="label">عدد الموردين</div><div class="value" id="sum-total">—</div></div>
+    </div>
+
     <div class="group">
-      <h2>إضافة مورد</h2>
-      <form id="supplier-form">
+      <div class="sup-toolbar">
+        <div class="sup-search field" style="margin:0;">
+          <span id="search-icon"></span>
+          <input type="search" id="sup-q" placeholder="دوّر باسم المورّد أو رقمه" autocomplete="off">
+        </div>
+        <button type="button" class="btn gold" id="new-sup-btn"></button>
+      </div>
+
+      <form id="supplier-form" hidden style="border:1px dashed var(--gold); border-radius:12px; padding:14px; margin-bottom:14px;">
         <div class="row2">
           <div class="field">
-            <label>اسم المورد / الشركة</label>
-            <input type="text" id="s-name" placeholder="مثال: مورد اللحوم" required>
+            <label for="s-name">اسم المورد / الشركة</label>
+            <input type="text" id="s-name" placeholder="مثال: مورد اللحوم" maxlength="120" required>
           </div>
           <div class="field">
-            <label>رقم الهاتف (اختياري)</label>
-            <input type="text" id="s-phone" placeholder="07xxxxxxxx">
+            <label for="s-phone">رقم الهاتف (اختياري)</label>
+            <input type="tel" id="s-phone" dir="ltr" inputmode="tel" placeholder="07XXXXXXXX">
           </div>
         </div>
         <div class="field">
-          <label>ملاحظات (اختياري)</label>
-          <input type="text" id="s-notes" placeholder="مثال: التوصيل كل يوم أحد">
+          <label for="s-notes">ملاحظات (اختياري)</label>
+          <input type="text" id="s-notes" maxlength="300" placeholder="مثال: التوصيل كل يوم أحد">
         </div>
-        <button type="submit" class="btn gold">إضافة مورد</button>
+        <div style="display:flex; gap:8px;">
+          <button type="submit" class="btn gold">إضافة مورد</button>
+          <button type="button" class="btn" id="s-cancel">إلغاء</button>
+        </div>
       </form>
-    </div>
 
-    <div class="group">
-      <h2>الموردون</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>المورد</th><th>الهاتف</th><th>الرصيد المستحق</th><th></th></tr></thead>
-          <tbody id="suppliers-body">
-            <tr class="empty-row"><td colspan="4">جاري التحميل...</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <div class="sup-list" id="suppliers-list"><div class="hint">جاري التحميل...</div></div>
     </div>
 
     <div class="group" id="detail-group" hidden>
-      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-        <h2 id="detail-name" style="margin:0;">—</h2>
-        <div style="display:flex; gap:8px;">
-          <a class="btn small gold" id="order-for-supplier" href="purchase-orders.html" style="text-decoration:none;">تجهيز طلبية لهذا المورّد</a>
+      <div class="detail-head">
+        <div>
+          <h2 id="detail-name" style="margin:0;">—</h2>
+          <div class="hint" id="detail-sub"></div>
+        </div>
+        <div class="detail-acts">
+          <a class="btn small gold" id="order-for-supplier" href="purchase-orders.html" style="text-decoration:none;">تجهيز طلبية</a>
           <button type="button" class="btn small" id="edit-supplier-btn">تعديل البيانات</button>
-          <button type="button" class="btn small" id="print-statement-btn"></button>
           <button type="button" class="btn small" id="close-detail-btn">إغلاق</button>
         </div>
       </div>
@@ -146,78 +188,98 @@
       <form id="edit-supplier-form" hidden style="border:1px dashed var(--gold); border-radius:12px; padding:14px; margin-bottom:14px;">
         <div class="row3">
           <div class="field"><label for="es-name">الاسم</label><input type="text" id="es-name" maxlength="120" required></div>
-          <div class="field"><label for="es-phone">الهاتف</label><input type="tel" id="es-phone" dir="ltr" placeholder="07XXXXXXXX"></div>
+          <div class="field"><label for="es-phone">الهاتف</label><input type="tel" id="es-phone" dir="ltr" inputmode="tel" placeholder="07XXXXXXXX"></div>
           <div class="field"><label for="es-notes">ملاحظات</label><input type="text" id="es-notes" maxlength="300"></div>
         </div>
-        <div style="display:flex; gap:8px;"><button type="submit" class="btn gold small">حفظ التعديل</button><button type="button" class="btn small" id="es-cancel">إلغاء</button></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="submit" class="btn gold small">حفظ التعديل</button>
+          <button type="button" class="btn small" id="es-cancel">إلغاء</button>
+          <button type="button" class="btn small danger" id="del-supplier-btn" style="margin-inline-start:auto;">حذف المورّد</button>
+        </div>
+        <div class="hint" id="del-hint"></div>
       </form>
 
-      <div class="stats">
-        <div class="stat">
-          <div class="label">إجمالي الفواتير</div>
-          <div class="value" id="d-invoiced">—</div>
-        </div>
-        <div class="stat">
-          <div class="label">إجمالي المدفوع</div>
-          <div class="value" id="d-paid">—</div>
-        </div>
-        <div class="stat">
-          <div class="label">الرصيد المستحق</div>
-          <div class="value" id="d-balance">—</div>
-        </div>
+      <div class="stats compact">
+        <div class="stat"><div class="label">إجمالي الفواتير</div><div class="value" id="d-invoiced">—</div></div>
+        <div class="stat"><div class="label">إجمالي المدفوع</div><div class="value" id="d-paid">—</div></div>
+        <div class="stat"><div class="label" id="d-balance-label">الرصيد المستحق</div><div class="value" id="d-balance">—</div></div>
       </div>
 
-      <div class="row2">
-        <form id="invoice-form" style="background:var(--ink-3); border-radius:10px; padding:14px;">
-          <div class="field" style="margin-bottom:10px;">
-            <label style="color:var(--gold-hi); font-weight:700;">تسجيل فاتورة جديدة (يزيد المستحق)</label>
+      <form id="payment-form" class="pay-box">
+        <div class="field" style="margin-bottom:10px;">
+          <label style="color:var(--ok); font-weight:700;">تسجيل دفعة للمورّد (بتنقّص المستحق)</label>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="pay-amount">المبلغ</label>
+            <input type="number" id="pay-amount" step="0.01" min="0.01" inputmode="decimal" required>
+            <div class="hint" id="pay-hint"></div>
           </div>
+          <div class="field">
+            <label for="pay-date">التاريخ</label>
+            <input type="date" id="pay-date" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="pay-desc">البيان (اختياري)</label>
+          <input type="text" id="pay-desc" maxlength="300" placeholder="مثال: دفعة نقدية / تحويل بنكي">
+        </div>
+        <button type="submit" class="btn gold">تسجيل دفعة</button>
+      </form>
+
+      <div class="hint" style="margin-top:12px;">
+        بضاعة جديدة من هالمورّد؟ سجّلها من <a id="new-invoice-link" href="purchase-invoices.html">فاتورة مشتريات</a>، عشان تدخل المخزون والمصاريف والدين مع بعض.
+      </div>
+
+      <details class="more" id="opening-box">
+        <summary>دين سابق / رصيد افتتاحي</summary>
+        <div class="hint" style="margin-bottom:10px;">للدين اللي كان قبل ما تبلّش تستعمل البرنامج بس. هالمبلغ بيزيد المستحق للمورّد، بس ما بيدخل المخزون ولا المصاريف.</div>
+        <form id="invoice-form">
           <div class="row2">
             <div class="field">
-              <label>المبلغ</label>
-              <input type="number" id="inv-amount" step="0.01" min="0.01" required>
+              <label for="inv-amount">المبلغ</label>
+              <input type="number" id="inv-amount" step="0.01" min="0.01" inputmode="decimal" required>
             </div>
             <div class="field">
-              <label>التاريخ</label>
+              <label for="inv-date">التاريخ</label>
               <input type="date" id="inv-date" required>
             </div>
           </div>
           <div class="field">
-            <label>البيان (اختياري)</label>
-            <input type="text" id="inv-desc" placeholder="مثال: فاتورة لحوم أسبوعية">
+            <label for="inv-desc">البيان (اختياري)</label>
+            <input type="text" id="inv-desc" maxlength="300" placeholder="مثال: رصيد سابق لغاية آخر الشهر">
           </div>
-          <button type="submit" class="btn gold">تسجيل فاتورة</button>
+          <button type="submit" class="btn small">تسجيل الدين</button>
         </form>
+      </details>
 
-        <form id="payment-form" style="background:var(--ink-3); border-radius:10px; padding:14px;">
-          <div class="field" style="margin-bottom:10px;">
-            <label style="color:var(--ok); font-weight:700;">تسجيل دفعة (ينقص المستحق)</label>
-          </div>
-          <div class="row2">
-            <div class="field">
-              <label>المبلغ</label>
-              <input type="number" id="pay-amount" step="0.01" min="0.01" required>
-            </div>
-            <div class="field">
-              <label>التاريخ</label>
-              <input type="date" id="pay-date" required>
-            </div>
-          </div>
-          <div class="field">
-            <label>البيان (اختياري)</label>
-            <input type="text" id="pay-desc" placeholder="مثال: دفعة نقدية">
-          </div>
-          <button type="submit" class="btn gold">تسجيل دفعة</button>
-        </form>
+      <div id="items-sec" hidden>
+        <h3 class="sec-title">المواد اللي بناخدها منه</h3>
+        <div class="chips" id="items-chips"></div>
       </div>
 
-      <div style="height:10px;"></div>
-      <h3 style="font-size:15px; color:var(--muted); margin-bottom:10px;">سجل الفواتير والدفعات</h3>
+      <div id="invoices-sec" hidden>
+        <h3 class="sec-title">آخر فواتير المشتريات</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>التاريخ</th><th>الرقم</th><th>المجموع</th><th>المدفوع عندها</th></tr></thead>
+            <tbody id="invoices-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3 class="sec-title">كشف الحساب</h3>
+      <div class="range-row">
+        <div class="field"><label for="f-from">من</label><input type="date" id="f-from"></div>
+        <div class="field"><label for="f-to">لغاية</label><input type="date" id="f-to"></div>
+        <button type="button" class="btn small" id="f-clear">كل السجل</button>
+        <button type="button" class="btn small" id="print-statement-btn"></button>
+      </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th></th></tr></thead>
+          <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th>الرصيد</th><th></th></tr></thead>
           <tbody id="transactions-body">
-            <tr class="empty-row"><td colspan="5">لا يوجد سجل بعد</td></tr>
+            <tr class="empty-row"><td colspan="6">لا يوجد سجل بعد</td></tr>
           </tbody>
         </table>
       </div>
@@ -240,278 +302,379 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("suppliers");
-    document.getElementById("print-statement-btn").innerHTML = olvIcon("printer") + "<span>طباعة كشف حساب</span>";
+    const $ = (id) => document.getElementById(id);
+    const sb = () => window.supabaseClient;
+    const errBox = $("err");
+    $("print-statement-btn").innerHTML = olvIcon("printer") + "<span>طباعة الكشف</span>";
+    $("new-sup-btn").innerHTML = olvIcon("plus") + "<span>مورد جديد</span>";
+    $("search-icon").outerHTML = olvIcon("search");
 
     let suppliers = [];
     let balances = {}; // supplier_id -> { total_invoiced, total_paid, balance }
     let selectedSupplier = null;
+    let lastTransactions = []; // من الأقدم للأحدث، مع رصيد متراكم
+    let currentBalance = 0;
+    let hasInvoices = false;
 
-    function balanceClass(balance) {
-      return balance > 0 ? "balance-owed" : "balance-clear";
+    const TYPE_LABELS = { invoice: "فاتورة", payment: "دفعة" };
+    const balOf = (id) => (balances[id] ? Number(balances[id].balance) : 0);
+    // سالب = دفعنا أكثر من المستحق، فالمورّد صار إله رصيد لصالحنا
+    function balanceView(bal) {
+      if (bal > 0.004) return { cls: "balance-owed", label: "إله عليك", text: olvFormatMoney(bal) };
+      if (bal < -0.004) return { cls: "balance-credit", label: "إلك عنده", text: olvFormatMoney(-bal) };
+      return { cls: "balance-clear", label: "خالص", text: olvFormatMoney(0) };
+    }
+    // تطبيع للبحث وكشف الأسماء المكررة: بدون همزات/تشكيل/مسافات زايدة
+    function norm(s) {
+      return String(s || "").toLowerCase().replace(/[ً-ْـ]/g, "")
+        .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
+    }
+    function waNumber(phone) {
+      let n = String(phone || "").replace(/\D/g, "");
+      if (n.startsWith("00")) n = n.slice(2);
+      else if (n.startsWith("0")) n = "962" + n.slice(1);
+      return n.length >= 8 ? n : "";
     }
 
+    function renderSummary() {
+      const owed = suppliers.reduce((s, x) => s + Math.max(balOf(x.id), 0), 0);
+      $("sum-owed").textContent = olvFormatMoney(owed);
+      $("sum-count").textContent = suppliers.filter((x) => balOf(x.id) > 0.004).length;
+      $("sum-total").textContent = suppliers.length;
+    }
+
+    function renderList() {
+      const box = $("suppliers-list");
+      if (!suppliers.length) { box.innerHTML = `<div class="hint">لا يوجد موردون مسجّلون بعد — اضغط «مورد جديد».</div>`; return; }
+      const q = norm($("sup-q").value);
+      const qDigits = $("sup-q").value.replace(/\D/g, "");
+      // الأكثر دين أول، بعدين حسب الاسم
+      const rows = suppliers
+        .filter((s) => !q || norm(s.name).includes(q) || norm(s.notes).includes(q) || (qDigits.length >= 3 && String(s.phone || "").replace(/\D/g, "").includes(qDigits)))
+        .sort((a, b) => (balOf(b.id) - balOf(a.id)) || String(a.name).localeCompare(String(b.name), "ar"));
+      if (!rows.length) { box.innerHTML = `<div class="hint">ما في مورّد بهالاسم.</div>`; return; }
+      box.innerHTML = rows.map((s) => {
+        const v = balanceView(balOf(s.id));
+        const wa = waNumber(s.phone);
+        const tel = String(s.phone || "").replace(/[^\d+]/g, "");
+        return `
+          <div class="sup-card${selectedSupplier === s.id ? " on" : ""}" data-select="${s.id}" role="button" tabindex="0">
+            <div class="sup-main">
+              <div class="sup-name">${olvEsc(s.name)}</div>
+              <div class="sup-sub">${olvEsc(s.notes || s.phone || "")}</div>
+            </div>
+            <div class="sup-bal ${v.cls}">${v.text}<small>${v.label}</small></div>
+            <div class="sup-acts">
+              ${tel ? `<a class="icon-btn" href="tel:${olvEsc(tel)}" aria-label="اتصال">${olvIcon("phone")}</a>` : ""}
+              ${wa ? `<a class="icon-btn wa" href="https://wa.me/${wa}" target="_blank" rel="noopener" aria-label="واتساب">${olvIcon("message")}</a>` : ""}
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    $("suppliers-list").addEventListener("click", (e) => {
+      if (e.target.closest("a")) return;
+      const card = e.target.closest("[data-select]");
+      if (card) selectSupplier(card.dataset.select);
+    });
+    $("suppliers-list").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest("[data-select]");
+      if (card) { e.preventDefault(); selectSupplier(card.dataset.select); }
+    });
+    $("sup-q").addEventListener("input", renderList);
+
     async function loadSuppliers() {
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("suppliers-body");
       try {
         const [{ data: supData, error: e1 }, { data: balData, error: e2 }] = await Promise.all([
-          window.supabaseClient.from("suppliers").select("*").order("name"),
-          window.supabaseClient.from("supplier_balances").select("*"),
+          sb().from("suppliers").select("*").order("name"),
+          sb().from("supplier_balances").select("*"),
         ]);
         if (e1) throw e1;
         if (e2) throw e2;
         suppliers = supData || [];
         balances = {};
         (balData || []).forEach((b) => { balances[b.supplier_id] = b; });
-
-        if (!suppliers.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="4">لا يوجد موردون مسجّلون بعد</td></tr>`;
-          return;
-        }
-        body.innerHTML = suppliers.map((s) => {
-          const bal = balances[s.id] ? Number(balances[s.id].balance) : 0;
-          return `
-            <tr class="supplier-row${selectedSupplier === s.id ? " on" : ""}" data-select="${s.id}">
-              <td>${olvEsc(s.name)}</td>
-              <td>${olvEsc(s.phone) || "—"}</td>
-              <td class="${balanceClass(bal)}">${olvFormatMoney(bal)}</td>
-              <td><button class="btn small danger" data-del="${s.id}">حذف</button></td>
-            </tr>
-          `;
-        }).join("");
-        body.querySelectorAll("tr[data-select]").forEach((row) => {
-          row.addEventListener("click", (e) => {
-            if (e.target.closest("button")) return;
-            selectSupplier(row.dataset.select);
-          });
-        });
-        body.querySelectorAll("button[data-del]").forEach((btn) => {
-          btn.addEventListener("click", async (e) => {
-            e.stopPropagation();
-            const sup = suppliers.find((x) => x.id === btn.dataset.del);
-            const bal = balances[btn.dataset.del] ? Number(balances[btn.dataset.del].balance) : 0;
-            // حذف المورّد بيمسح كل سجل فواتيره ودفعاته (CASCADE) — لو عليه رصيد، نطلب كتابة اسمه للتأكيد
-            if (Math.abs(bal) >= 0.01) {
-              const typed = prompt(`على "${sup ? sup.name : ""}" رصيد ${olvFormatMoney(bal)}.\nالحذف بيمسح كل فواتيره ودفعاته وبيضيع الدين نهائيًا.\n\nإذا متأكد، اكتب اسم المورّد بالضبط:`);
-              if (typed === null) return;
-              if (!sup || typed.trim() !== String(sup.name).trim()) { olvShowError(errBox, new Error("الاسم ما تطابق — ما انحذف المورّد")); return; }
-            } else if (!confirm("حذف هذا المورد؟ سيُحذف معه كل سجل الفواتير والدفعات الخاص فيه نهائيًا.")) return;
-            const { error } = await window.supabaseClient.from("suppliers").delete().eq("id", btn.dataset.del);
-            if (error) { olvShowError(errBox, error); return; }
-            if (selectedSupplier === btn.dataset.del) closeDetail();
-            await loadSuppliers();
-          });
-        });
+        renderSummary();
+        renderList();
       } catch (err) {
         olvShowError(errBox, err);
       }
     }
-
-    const TYPE_LABELS = { invoice: "فاتورة", payment: "دفعة" };
 
     async function selectSupplier(id) {
       selectedSupplier = id;
       const supplier = suppliers.find((s) => s.id === id);
       if (!supplier) return;
-      document.getElementById("detail-group").hidden = false;
-      document.getElementById("detail-name").textContent = supplier.name;
-      document.getElementById("order-for-supplier").href = "purchase-orders.html?supplier=" + encodeURIComponent(supplier.id);
-      document.getElementById("edit-supplier-form").hidden = true;
-      document.querySelectorAll("tr[data-select]").forEach((row) => {
-        row.classList.toggle("on", row.dataset.select === id);
-      });
-      await loadTransactions();
-      document.getElementById("detail-group").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("detail-group").hidden = false;
+      $("detail-name").textContent = supplier.name;
+      $("detail-sub").textContent = [supplier.phone, supplier.notes].filter(Boolean).join(" · ");
+      $("order-for-supplier").href = "purchase-orders.html?supplier=" + encodeURIComponent(supplier.id);
+      $("edit-supplier-form").hidden = true;
+      $("f-from").value = ""; $("f-to").value = "";
+      document.querySelectorAll("[data-select]").forEach((c) => c.classList.toggle("on", c.dataset.select === id));
+      await Promise.all([loadTransactions(), loadExtras()]);
+      $("detail-group").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function closeDetail() {
       selectedSupplier = null;
-      document.getElementById("detail-group").hidden = true;
-      document.querySelectorAll("tr[data-select]").forEach((row) => row.classList.remove("on"));
+      $("detail-group").hidden = true;
+      document.querySelectorAll("[data-select]").forEach((c) => c.classList.remove("on"));
     }
 
-    let lastTransactions = [];
+    // المواد المربوطة بالمورّد + آخر فواتير المشتريات منه (معلومات مساعدة — فشلها ما بيوقف الصفحة)
+    async function loadExtras() {
+      const id = selectedSupplier;
+      const [links, supplies, invs] = await Promise.all([
+        sb().from("supplier_items").select("ingredients(name), supplies(name)").eq("supplier_id", id),
+        sb().from("supplies").select("name").eq("supplier_id", id),
+        sb().from("purchase_invoices").select("id, invoice_no, invoice_date, total_amount, paid_amount, status")
+          .eq("supplier_id", id).order("invoice_date", { ascending: false }).limit(8),
+      ]);
+      if (id !== selectedSupplier) return;
+      const names = new Set();
+      (links.data || []).forEach((r) => { const n = (r.ingredients && r.ingredients.name) || (r.supplies && r.supplies.name); if (n) names.add(n); });
+      (supplies.data || []).forEach((r) => r.name && names.add(r.name));
+      $("items-sec").hidden = !names.size;
+      $("items-chips").innerHTML = [...names].sort((a, b) => a.localeCompare(b, "ar")).map((n) => `<span class="chip">${olvEsc(n)}</span>`).join("");
+
+      const list = (invs.data || []).filter((i) => i.status !== "voided").slice(0, 5);
+      hasInvoices = list.length > 0;
+      $("invoices-sec").hidden = !list.length;
+      $("invoices-body").innerHTML = list.map((i) => `
+        <tr>
+          <td>${olvEsc(i.invoice_date)}</td>
+          <td>${olvEsc(i.invoice_no) || "—"}</td>
+          <td>${olvFormatMoney(i.total_amount)}</td>
+          <td>${olvFormatMoney(i.paid_amount)}</td>
+        </tr>`).join("");
+      updateDeleteHint();
+    }
+
+    function updateDeleteHint() {
+      const locked = lastTransactions.length > 0 || hasInvoices;
+      $("del-supplier-btn").disabled = locked;
+      $("del-hint").textContent = locked ? "ما بينحذف لأنه إله سجل فواتير أو دفعات — الحذف كان رح يضيّع الدين." : "";
+    }
+
+    function inRange(t) {
+      const f = $("f-from").value, to = $("f-to").value;
+      return (!f || t.transaction_date >= f) && (!to || t.transaction_date <= to);
+    }
+    // الرصيد المتراكم محسوب على كل السجل؛ الفلترة بس بتخفي السطور برّا الفترة
+    function rangeSummary() {
+      const f = $("f-from").value;
+      const opening = f ? lastTransactions.filter((t) => t.transaction_date < f).reduce((s, t) => s + (t.type === "invoice" ? 1 : -1) * Number(t.amount), 0) : 0;
+      const rows = lastTransactions.filter(inRange);
+      const inv = rows.filter((t) => t.type === "invoice").reduce((s, t) => s + Number(t.amount), 0);
+      const paid = rows.filter((t) => t.type === "payment").reduce((s, t) => s + Number(t.amount), 0);
+      return { opening, rows, inv, paid, closing: opening + inv - paid };
+    }
+
+    function renderTransactions() {
+      const body = $("transactions-body");
+      const { rows } = rangeSummary();
+      if (!rows.length) {
+        body.innerHTML = `<tr class="empty-row"><td colspan="6">${lastTransactions.length ? "ما في حركات بهالفترة" : "لا يوجد سجل بعد"}</td></tr>`;
+        return;
+      }
+      body.innerHTML = rows.slice().reverse().map((t) => `
+        <tr>
+          <td>${olvEsc(t.transaction_date)}</td>
+          <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type] || olvEsc(t.type)}</td>
+          <td>${olvEsc(t.description) || "—"}</td>
+          <td>${olvFormatMoney(t.amount)}</td>
+          <td>${olvFormatMoney(t.running)}</td>
+          <td>${t.invoice_id
+            ? `<a class="hint" href="purchase-invoices.html" title="هالقيد جاي من فاتورة مشتريات — لتصحيحه، ألغِ الفاتورة نفسها">من فاتورة</a>`
+            : `<button class="btn small danger" data-del-tx="${t.id}">حذف</button>`}</td>
+        </tr>`).join("");
+    }
+
+    $("transactions-body").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-del-tx]");
+      if (!btn) return;
+      const t = lastTransactions.find((x) => x.id === btn.dataset.delTx);
+      if (!confirm(`حذف ${t ? TYPE_LABELS[t.type] + " بمبلغ " + olvFormatMoney(t.amount) : "هذا السطر"} من السجل؟`)) return;
+      const { error } = await sb().from("supplier_transactions").delete().eq("id", btn.dataset.delTx);
+      if (error) { olvShowError(errBox, error); return; }
+      await loadTransactions();
+      await loadSuppliers();
+    });
 
     async function loadTransactions() {
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("transactions-body");
+      const id = selectedSupplier;
       try {
-        const { data, error } = await window.supabaseClient
+        const { data, error } = await sb()
           .from("supplier_transactions").select("*")
-          .eq("supplier_id", selectedSupplier)
-          .order("transaction_date", { ascending: false })
-          .order("created_at", { ascending: false });
+          .eq("supplier_id", id)
+          .order("transaction_date", { ascending: true })
+          .order("created_at", { ascending: true });
         if (error) throw error;
-        lastTransactions = data || [];
+        if (id !== selectedSupplier) return;
+        let run = 0;
+        lastTransactions = (data || []).map((t) => {
+          run += (t.type === "invoice" ? 1 : -1) * Number(t.amount);
+          return { ...t, running: run };
+        });
 
         const totalInvoiced = lastTransactions.filter((t) => t.type === "invoice").reduce((s, t) => s + Number(t.amount), 0);
         const totalPaid = lastTransactions.filter((t) => t.type === "payment").reduce((s, t) => s + Number(t.amount), 0);
-        const balance = totalInvoiced - totalPaid;
-        document.getElementById("d-invoiced").textContent = olvFormatMoney(totalInvoiced);
-        document.getElementById("d-paid").textContent = olvFormatMoney(totalPaid);
-        const balEl = document.getElementById("d-balance");
-        balEl.textContent = olvFormatMoney(balance);
-        balEl.className = "value " + (balance > 0 ? "bad" : "good");
-
-        if (!lastTransactions.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد سجل بعد</td></tr>`;
-        } else {
-          body.innerHTML = lastTransactions.map((t) => `
-            <tr>
-              <td>${olvEsc(t.transaction_date)}</td>
-              <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type]}</td>
-              <td>${olvEsc(t.description) || "—"}</td>
-              <td>${olvFormatMoney(t.amount)}</td>
-              <td>${t.invoice_id
-                ? `<a class="hint" href="purchase-invoices.html" title="هالقيد جاي من فاتورة مشتريات — لتصحيحه، ألغِ الفاتورة نفسها">من فاتورة</a>`
-                : `<button class="btn small danger" data-del-tx="${t.id}">حذف</button>`}</td>
-            </tr>
-          `).join("");
-          body.querySelectorAll("button[data-del-tx]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              if (!confirm("حذف هذا السطر من السجل؟")) return;
-              const { error } = await window.supabaseClient.from("supplier_transactions").delete().eq("id", btn.dataset.delTx);
-              if (error) { olvShowError(errBox, error); return; }
-              await loadTransactions();
-              await loadSuppliers();
-            });
-          });
-        }
+        currentBalance = totalInvoiced - totalPaid;
+        $("d-invoiced").textContent = olvFormatMoney(totalInvoiced);
+        $("d-paid").textContent = olvFormatMoney(totalPaid);
+        const v = balanceView(currentBalance);
+        $("d-balance-label").textContent = currentBalance < -0.004 ? "رصيد لصالحك عند المورّد" : "الرصيد المستحق";
+        $("d-balance").textContent = v.text;
+        $("d-balance").className = "value " + (currentBalance > 0.004 ? "bad" : "good");
+        $("pay-hint").textContent = currentBalance > 0.004 ? `المستحق: ${olvFormatMoney(currentBalance)}` : "";
+        renderTransactions();
+        updateDeleteHint();
       } catch (err) {
         olvShowError(errBox, err);
       }
     }
 
+    ["f-from", "f-to"].forEach((id) => $(id).addEventListener("change", renderTransactions));
+    $("f-clear").addEventListener("click", () => { $("f-from").value = ""; $("f-to").value = ""; renderTransactions(); });
+
     function printStatement() {
-      if (!selectedSupplier) return;
       const supplier = suppliers.find((s) => s.id === selectedSupplier);
       if (!supplier) return;
-      const totalInvoiced = lastTransactions.filter((t) => t.type === "invoice").reduce((s, t) => s + Number(t.amount), 0);
-      const totalPaid = lastTransactions.filter((t) => t.type === "payment").reduce((s, t) => s + Number(t.amount), 0);
-      const balance = totalInvoiced - totalPaid;
-
-      document.getElementById("print-supplier-name").textContent = `كشف حساب — ${supplier.name}`;
-      document.getElementById("print-supplier-phone").textContent = supplier.phone ? `هاتف: ${supplier.phone}` : "";
-      document.getElementById("print-total-invoiced").textContent = olvFormatMoney(totalInvoiced);
-      document.getElementById("print-total-paid").textContent = olvFormatMoney(totalPaid);
-      document.getElementById("print-balance").textContent = olvFormatMoney(balance);
-      document.getElementById("print-transactions-body").innerHTML = lastTransactions.length
-        ? lastTransactions.map((t) => `
+      const { opening, rows, inv, paid, closing } = rangeSummary();
+      const f = $("f-from").value, to = $("f-to").value;
+      const period = f || to ? `الفترة: ${f || "البداية"} — ${to || "اليوم"}` : "كل السجل";
+      $("print-supplier-name").textContent = `كشف حساب — ${supplier.name}`;
+      $("print-supplier-phone").textContent = [supplier.phone ? `هاتف: ${supplier.phone}` : "", period].filter(Boolean).join(" · ");
+      $("print-opening").textContent = olvFormatMoney(opening);
+      $("print-total-invoiced").textContent = olvFormatMoney(inv);
+      $("print-total-paid").textContent = olvFormatMoney(paid);
+      $("print-balance").textContent = olvFormatMoney(closing);
+      $("print-transactions-body").innerHTML = rows.length
+        ? rows.map((t) => `
             <tr>
-              <td>${t.transaction_date}</td>
-              <td>${TYPE_LABELS[t.type]}</td>
+              <td>${olvEsc(t.transaction_date)}</td>
+              <td>${TYPE_LABELS[t.type] || olvEsc(t.type)}</td>
               <td>${olvEsc(t.description) || "—"}</td>
               <td>${olvFormatMoney(t.amount)}</td>
-            </tr>
-          `).join("")
-        : `<tr><td colspan="4">لا يوجد سجل</td></tr>`;
+              <td>${olvFormatMoney(t.running)}</td>
+            </tr>`).join("")
+        : `<tr><td colspan="5">لا يوجد سجل</td></tr>`;
       window.print();
     }
 
     // المبلغ لازم أكبر من صفر — قبل كان 0 بينرسل وبيرجع خطأ قاعدة بيانات غامض
     function positiveAmount(id) {
-      const v = Number(document.getElementById(id).value);
+      const v = Number($(id).value);
       if (!Number.isFinite(v) || v <= 0) throw new Error("اكتب مبلغ أكبر من صفر");
       return v;
     }
-    document.getElementById("supplier-form").addEventListener("submit", async (e) => {
+
+    $("new-sup-btn").addEventListener("click", () => {
+      const f = $("supplier-form"); f.hidden = !f.hidden;
+      if (!f.hidden) $("s-name").focus();
+    });
+    $("s-cancel").addEventListener("click", () => { $("supplier-form").reset(); $("supplier-form").hidden = true; });
+
+    $("supplier-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("err");
       errBox.style.display = "none";
-      const badPhone = olvPhoneProblem(document.getElementById("s-phone").value);
+      const name = $("s-name").value.trim();
+      const badPhone = olvPhoneProblem($("s-phone").value);
       if (badPhone) { olvShowError(errBox, new Error(badPhone)); return; }
+      if (name.length < 2) { olvShowError(errBox, new Error("اكتب اسم المورّد")); return; }
+      const dup = suppliers.find((s) => norm(s.name) === norm(name));
+      if (dup && !confirm(`في مورّد اسمه «${dup.name}» موجود من قبل. بدك تضيف واحد جديد بنفس الاسم؟`)) return;
       try {
-        const payload = {
-          name: document.getElementById("s-name").value.trim(),
-          phone: document.getElementById("s-phone").value.trim() || null,
-          notes: document.getElementById("s-notes").value.trim() || null,
-        };
-        const { error } = await window.supabaseClient.from("suppliers").insert(payload);
+        const payload = { name, phone: $("s-phone").value.trim() || null, notes: $("s-notes").value.trim() || null };
+        const { data, error } = await sb().from("suppliers").insert(payload).select("id");
         if (error) throw error;
-        document.getElementById("supplier-form").reset();
+        $("supplier-form").reset();
+        $("supplier-form").hidden = true;
+        olvToast("انضاف المورّد");
         await loadSuppliers();
+        if (data && data[0]) selectSupplier(data[0].id);
       } catch (err) {
         olvShowError(errBox, err);
       }
     });
 
-    document.getElementById("invoice-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
+    async function addTransaction(type, prefix) {
       if (!selectedSupplier) return;
-      const errBox = document.getElementById("err");
       errBox.style.display = "none";
       try {
+        const amount = positiveAmount(prefix + "-amount");
+        if (type === "payment" && amount > Math.max(currentBalance, 0) + 0.004) {
+          const msg = currentBalance > 0.004
+            ? `المستحق ${olvFormatMoney(currentBalance)} بس، وانت كاتب ${olvFormatMoney(amount)}.\nالفرق رح يصير رصيد إلك عند المورّد. متأكد؟`
+            : `ما عليك شي لهالمورّد. الدفعة رح تصير رصيد إلك عنده. متأكد؟`;
+          if (!confirm(msg)) return;
+        }
         const payload = {
           supplier_id: selectedSupplier,
-          type: "invoice",
-          amount: positiveAmount("inv-amount"),
-          description: document.getElementById("inv-desc").value.trim() || null,
-          transaction_date: document.getElementById("inv-date").value || olvToday(),
+          type,
+          amount,
+          description: $(prefix + "-desc").value.trim() || null,
+          transaction_date: $(prefix + "-date").value || olvToday(),
         };
-        const { error } = await window.supabaseClient.from("supplier_transactions").insert(payload);
+        const { error } = await sb().from("supplier_transactions").insert(payload);
         if (error) throw error;
-        document.getElementById("invoice-form").reset();
-        document.getElementById("inv-date").value = olvToday();
+        $(prefix === "pay" ? "payment-form" : "invoice-form").reset();
+        $(prefix + "-date").value = olvToday();
+        if (prefix === "inv") $("opening-box").open = false;
+        olvToast(type === "payment" ? "انسجلت الدفعة" : "انسجل الدين");
         await loadTransactions();
         await loadSuppliers();
       } catch (err) {
         olvShowError(errBox, err);
       }
-    });
+    }
+    $("invoice-form").addEventListener("submit", (e) => { e.preventDefault(); addTransaction("invoice", "inv"); });
+    $("payment-form").addEventListener("submit", (e) => { e.preventDefault(); addTransaction("payment", "pay"); });
 
-    document.getElementById("payment-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!selectedSupplier) return;
-      const errBox = document.getElementById("err");
-      errBox.style.display = "none";
-      try {
-        const payload = {
-          supplier_id: selectedSupplier,
-          type: "payment",
-          amount: positiveAmount("pay-amount"),
-          description: document.getElementById("pay-desc").value.trim() || null,
-          transaction_date: document.getElementById("pay-date").value || olvToday(),
-        };
-        const { error } = await window.supabaseClient.from("supplier_transactions").insert(payload);
-        if (error) throw error;
-        document.getElementById("payment-form").reset();
-        document.getElementById("pay-date").value = olvToday();
-        await loadTransactions();
-        await loadSuppliers();
-      } catch (err) {
-        olvShowError(errBox, err);
-      }
-    });
-
-    document.getElementById("edit-supplier-btn").addEventListener("click", () => {
+    $("edit-supplier-btn").addEventListener("click", () => {
       const sup = suppliers.find((x) => x.id === selectedSupplier); if (!sup) return;
-      document.getElementById("es-name").value = sup.name || ""; document.getElementById("es-phone").value = sup.phone || ""; document.getElementById("es-notes").value = sup.notes || "";
-      const f = document.getElementById("edit-supplier-form"); f.hidden = !f.hidden; if (!f.hidden) document.getElementById("es-name").focus();
+      $("es-name").value = sup.name || ""; $("es-phone").value = sup.phone || ""; $("es-notes").value = sup.notes || "";
+      const f = $("edit-supplier-form"); f.hidden = !f.hidden; if (!f.hidden) $("es-name").focus();
     });
-    document.getElementById("es-cancel").addEventListener("click", () => { document.getElementById("edit-supplier-form").hidden = true; });
-    document.getElementById("edit-supplier-form").addEventListener("submit", async (e) => {
+    $("es-cancel").addEventListener("click", () => { $("edit-supplier-form").hidden = true; });
+    $("edit-supplier-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("err");
-      const name = document.getElementById("es-name").value.trim(), phone = document.getElementById("es-phone").value.trim();
+      const name = $("es-name").value.trim(), phone = $("es-phone").value.trim();
       const bad = olvPhoneProblem(phone); if (bad) { olvShowError(errBox, new Error(bad)); return; }
       if (name.length < 2) { olvShowError(errBox, new Error("اكتب اسم المورّد")); return; }
       try {
-        const { error } = await window.supabaseClient.from("suppliers").update({ name, phone: phone || null, notes: document.getElementById("es-notes").value.trim() || null }).eq("id", selectedSupplier);
+        const { error } = await sb().from("suppliers").update({ name, phone: phone || null, notes: $("es-notes").value.trim() || null }).eq("id", selectedSupplier);
         if (error) throw error;
-        document.getElementById("edit-supplier-form").hidden = true;
+        $("edit-supplier-form").hidden = true;
         await loadSuppliers();
-        document.getElementById("detail-name").textContent = name;
+        const sup = suppliers.find((x) => x.id === selectedSupplier);
+        $("detail-name").textContent = name;
+        $("detail-sub").textContent = sup ? [sup.phone, sup.notes].filter(Boolean).join(" · ") : "";
         olvToast("انحفظ تعديل المورّد");
       } catch (err) { olvShowError(errBox, err); }
     });
-    document.getElementById("close-detail-btn").addEventListener("click", closeDetail);
-    document.getElementById("print-statement-btn").addEventListener("click", printStatement);
+
+    // الحذف مسموح بس لمورّد ما إله أي سجل (السيرفر كمان بيرفض غير هيك — schema-supplier-delete-guard.sql)
+    $("del-supplier-btn").addEventListener("click", async () => {
+      const sup = suppliers.find((x) => x.id === selectedSupplier); if (!sup) return;
+      if (!confirm(`حذف «${sup.name}» نهائيًا؟`)) return;
+      const { error } = await sb().from("suppliers").delete().eq("id", sup.id);
+      if (error) { olvShowError(errBox, error); return; }
+      closeDetail();
+      olvToast("انحذف المورّد");
+      await loadSuppliers();
+    });
+
+    $("close-detail-btn").addEventListener("click", closeDetail);
+    $("print-statement-btn").addEventListener("click", printStatement);
 
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
-      document.getElementById("inv-date").value = olvToday();
-      document.getElementById("pay-date").value = olvToday();
+      $("inv-date").value = olvToday();
+      $("pay-date").value = olvToday();
       await loadSuppliers();
     })();
     });
