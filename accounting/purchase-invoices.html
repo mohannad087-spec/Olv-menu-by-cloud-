@@ -392,7 +392,7 @@
             ${line.unmatchedName && !it ? `<div class="pi-warn bad">ما انعرف "${olvEsc(line.unmatchedName)}" — اختر الصنف من القائمة</div>` : ""}
             <div data-warn>${priceWarning(line, it)}</div>
           </td>
-          <td><select data-f="unit"${it ? "" : " disabled"}>${unitOpts}</select></td>
+          <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
           <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}" placeholder="الكمية" aria-label="الكمية"></td>
           <td><input type="number" data-f="price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.price)}" placeholder="السعر" aria-label="سعر الوحدة"></td>
           <td><span class="pi-line-total" data-total>${money(it ? lineTotal(line) : 0)}</span></td>

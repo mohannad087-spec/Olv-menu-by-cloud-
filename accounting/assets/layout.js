@@ -230,10 +230,13 @@ function olvRenderNav(active) {
     { id: "dashboard", href: "index.html", label: "الرئيسية", icon: "home" },
     { id: "pos", href: "pos.html", label: "بيع سريع", icon: "bolt" },
     { id: "sales", href: "sales.html", label: "المبيعات", icon: "receipt" },
-    { id: "tables", href: "tables.html", label: "الطاولات", icon: "grid" },
-    { id: "incoming-orders", href: "incoming-orders.html", label: "الطلبات الواردة", icon: "bell" },
-    { id: "kitchen", href: "kitchen.html", label: "المطبخ", icon: "flame" },
+    { id: "tables", href: "tables.html", label: "الطاولات", icon: "grid", deskOnly: true },
+    { id: "incoming-orders", href: "incoming-orders.html", label: "الطلبات الواردة", short: "الطلبات", icon: "bell" },
+    { id: "kitchen", href: "kitchen.html", label: "المطبخ", icon: "flame", deskOnly: true },
   ];
+  // على الموبايل الشريط بيصير تحت (4 روابط + المزيد)، فالروابط المعلَّمة
+  // deskOnly بتنتقل لمجموعة "التشغيل" بأول قائمة المزيد (بتظهر بالموبايل بس)
+  const mobileOps = primaryLinks.filter((l) => l.deskOnly);
   const moreGroups = [
     {
       label: "الجرد والمشتريات",
@@ -268,15 +271,16 @@ function olvRenderNav(active) {
   const hub = OLV_HUBS.find((h) => h.tabs.some((t) => t.id === active));
   const navActive = hub ? hub.navId : active;
   const moreActive = moreGroups.some((g) => g.links.some((l) => l.id === navActive));
+  const moreActiveMobile = mobileOps.some((l) => l.id === navActive);
 
   const tabLinkHtml = (l) =>
-    `<a class="tab-link${l.id === active ? " on" : ""}" href="${l.href}">${olvIcon(l.icon)}<span>${l.label}</span></a>`;
+    `<a class="tab-link${l.id === active ? " on" : ""}${l.deskOnly ? " desk-only" : ""}" href="${l.href}"${l.id === active ? ' aria-current="page"' : ""}>${olvIcon(l.icon)}<span${l.short ? ` data-short="${l.short}"` : ""}>${l.label}</span></a>`;
   const moreLinkHtml = (l) =>
     `<a class="tab-link tab-more-link${l.id === navActive ? " on" : ""}" href="${l.href}"${l.staffHref ? ` data-staff-href="${l.staffHref}" data-staff-label="${l.staffLabel}"` : ""}>${olvIcon(l.icon)}<span>${l.label}</span></a>`;
   // شريط تبويبات القسم (مثلًا: المواد الخام | المستلزمات | الجرد) تحت القائمة
   const hubHtml = hub
-    ? `<div class="olv-hub-tabs" role="tablist">${hub.tabs.map((t) =>
-        `<a class="olv-hub-tab${t.id === active ? " on" : ""}" href="${t.href}">${olvIcon(t.icon)}<span>${t.label}</span></a>`).join("")}</div>`
+    ? `<nav class="olv-hub-tabs" aria-label="أقسام">${hub.tabs.map((t) =>
+        `<a class="olv-hub-tab${t.id === active ? " on" : ""}" href="${t.href}"${t.id === active ? ' aria-current="page"' : ""}>${olvIcon(t.icon)}<span>${t.label}</span></a>`).join("")}</nav>`
     : "";
 
   const nav = document.getElementById("olv-nav");
@@ -297,10 +301,15 @@ function olvRenderNav(active) {
     <div class="tabs">
       ${primaryLinks.map(tabLinkHtml).join("")}
       <div class="tab-more" id="olv-nav-more">
-        <button type="button" class="tab-link tab-more-btn${moreActive ? " on" : ""}" id="olv-nav-more-btn">
+        <button type="button" class="tab-link tab-more-btn${moreActive ? " on" : ""}${moreActiveMobile ? " on-mobile" : ""}" id="olv-nav-more-btn">
           ${olvIcon("grid")}<span>المزيد</span>${olvIcon("chevronDown", "tab-more-chevron")}
         </button>
         <div class="tab-more-panel" id="olv-nav-more-panel">
+          ${mobileOps.length ? `
+            <div class="tab-more-group mobile-only">
+              <div class="tab-more-group-label">التشغيل</div>
+              ${mobileOps.map(moreLinkHtml).join("")}
+            </div>` : ""}
           ${moreGroups
             .map(
               (g) => `
@@ -381,6 +390,12 @@ function olvInitMoreMenu() {
   if (!wrap || !btn || !panel) return;
 
   function position() {
+    // بالموبايل القائمة ورقة فوق الشريط السفلي، ومكانها محدد بالـCSS
+    if (window.matchMedia("(max-width:640px)").matches) {
+      panel.style.top = panel.style.right = "";
+      panel.style.transformOrigin = "";
+      return;
+    }
     const r = btn.getBoundingClientRect();
     const panelWidth = panel.offsetWidth || 260;
     panel.style.top = Math.round(r.bottom + 8) + "px";
@@ -612,3 +627,27 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
+
+// يربط عنوان كل حقل (<label> داخل .field) بالحقل اللي تحته تلقائيًا: لمس
+// العنوان بيفتح الحقل، وقارئ الشاشة بيقرا اسمه. الصفحات كتبت العناوين بدون
+// for=، فبدل ما نعدّل عشرات النماذج يدويًا منعملها مرة وحدة هون، وبنعيدها لما
+// تنضاف نماذج جديدة للصفحة (نوافذ وصفوف بتنرسم بالجافاسكربت)
+let olvLabelSeq = 0;
+function olvLinkFieldLabels(root) {
+  (root || document).querySelectorAll(".field > label:not([for])").forEach((label) => {
+    if (label.querySelector("input, select, textarea")) return;
+    const ctl = label.parentElement.querySelector("input:not([type=hidden]), select, textarea");
+    if (!ctl) return;
+    if (!ctl.id) ctl.id = "olv-f-" + (++olvLabelSeq);
+    label.htmlFor = ctl.id;
+  });
+}
+document.addEventListener("DOMContentLoaded", () => {
+  olvLinkFieldLabels();
+  let pending = false;
+  new MutationObserver(() => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => { pending = false; olvLinkFieldLabels(); });
+  }).observe(document.body, { childList: true, subtree: true });
+});
