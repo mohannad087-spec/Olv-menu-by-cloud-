@@ -14,6 +14,7 @@
 // (auth-guard.js: olvIsNetworkError).
 (function () {
   const QUEUE_KEY = "olv_offline_queue_v1";
+  const FAILED_KEY = "olv_offline_failed_v1";
   const WRITE_METHODS = new Set(["POST", "PATCH", "DELETE", "PUT"]);
   let flushing = false;
 
@@ -24,6 +25,15 @@
   function saveQueue(list) {
     try { localStorage.setItem(QUEUE_KEY, JSON.stringify(list)); } catch (e) { /* تجاهل (خزنة ممتلئة مثلاً) */ }
     window.dispatchEvent(new CustomEvent("olv-offline-queue-change", { detail: { count: list.length } }));
+  }
+
+  function loadFailed() {
+    try { return JSON.parse(localStorage.getItem(FAILED_KEY) || "[]"); } catch (e) { return []; }
+  }
+
+  function saveFailed(list) {
+    try { localStorage.setItem(FAILED_KEY, JSON.stringify(list)); } catch (e) { /* تجاهل */ }
+    window.dispatchEvent(new CustomEvent("olv-offline-queue-change", { detail: { count: loadQueue().length } }));
   }
 
   function isNetworkFailure(err) {
@@ -123,8 +133,22 @@
           continue; // نعيد نفس العنصر بالتوكن الجديد
         }
         if (!res.ok) {
-          console.error("olv-offline-queue: تعذّرت مزامنة عملية محفوظة محليًا (سيُعاد المحاولة لاحقًا)", item, res.status);
-          break;
+          // مشكلة مؤقتة بالسيرفر: منستنى ومنعيد المحاولة لاحقًا
+          if (res.status >= 500 || res.status === 408 || res.status === 429) {
+            console.error("olv-offline-queue: تعذّرت مزامنة عملية محفوظة محليًا (سيُعاد المحاولة لاحقًا)", item, res.status);
+            break;
+          }
+          // السيرفر رفض العملية نفسها (مثلًا خصم أكبر من المسموح، صنف انحذف): ما منحذفها بصمت ولا
+          // منخليها توقف كل اللي بعدها — بتنتقل لقائمة «مرفوضة» بتظهر للمستخدم يقرر فيها
+          const text = await res.text().catch(() => "");
+          let reason = text;
+          try { const j = JSON.parse(text); reason = j.message || j.hint || text; } catch (e) { /* نص عادي */ }
+          const failed = loadFailed();
+          failed.push(Object.assign({}, item, { failed_at: new Date().toISOString(), status: res.status, reason: String(reason).slice(0, 300) }));
+          saveFailed(failed);
+          list.shift();
+          saveQueue(list);
+          continue;
         }
         list.shift();
         saveQueue(list);
@@ -137,6 +161,24 @@
   window.olvOfflineFetch = offlineAwareFetch;
   window.olvFlushOfflineQueue = flushQueue;
   window.olvGetOfflineQueueCount = function () { return loadQueue().length; };
+  // العمليات اللي رفضها السيرفر بعد رجوع النت (بتعرضها connection-status.js)
+  window.olvGetOfflineFailed = loadFailed;
+  // إعادة محاولة: بترجع لآخر الصف وبتنرفع من جديد (بتنفع لو السبب انحل، مثلًا مدير وافق على الخصم)
+  window.olvRetryOfflineFailed = function (id) {
+    const failed = loadFailed();
+    const i = failed.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const item = failed.splice(i, 1)[0];
+    ["failed_at", "status", "reason"].forEach((k) => delete item[k]);
+    saveFailed(failed);
+    const list = loadQueue();
+    list.push(item);
+    saveQueue(list);
+    flushQueue();
+  };
+  window.olvDiscardOfflineFailed = function (id) {
+    saveFailed(loadFailed().filter((x) => x.id !== id));
+  };
 
   window.addEventListener("online", flushQueue);
   window.dispatchEvent(new CustomEvent("olv-offline-queue-change", { detail: { count: loadQueue().length } }));

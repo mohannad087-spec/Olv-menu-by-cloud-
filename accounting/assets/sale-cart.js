@@ -2,8 +2,17 @@
 // من المنيو، وكلاهما ينزّل الخامات من المخزون عبر نفس دالة record_sale)
 const OlvCart = (function () {
   let items = []; // {productId, name, unitBase, addons:[{id,name,price}], qty, note}
+  // رقم مرجعي للبيع الحالي (record_sale p_client_ref): نفس الرقم لكل محاولات دفع نفس السلة،
+  // فإذا الطلب وصل للسيرفر والرد ضاع (انقطاع نت) وانعاد إرساله، ما بيتسجّل البيع مرتين.
+  // بيتجدد مع أي تغيير بالسلة.
+  let saleRef = null;
+  let refSupported = true; // بيصير false إذا السيرفر لسا ما فيه schema-sale-idempotency.sql
+  const touch = () => { saleRef = null; };
+  const newRef = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID()
+    : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
 
   function add(product, addons, qty, note) {
+    touch();
     items.push({
       productId: product.id,
       name: product.name,
@@ -15,12 +24,14 @@ const OlvCart = (function () {
   }
 
   function removeAt(idx) {
+    touch();
     items.splice(idx, 1);
   }
 
   // يعدّل بيانات سطر موجود بالسلة (الكمية/الإضافات/الملاحظة) — تُستخدم
   // لما يفتح المستخدم سطرًا بالتذكرة عشان يخصّصه بعد الإضافة السريعة
   function updateAt(idx, patch) {
+    touch();
     const item = items[idx];
     if (!item) return;
     Object.assign(item, patch);
@@ -28,12 +39,14 @@ const OlvCart = (function () {
 
   // يزيد/ينقص كمية سطر موجود مباشرة (بدون فتح شاشة التخصيص) — الحد الأدنى 1
   function incrementQtyAt(idx, delta) {
+    touch();
     const item = items[idx];
     if (!item) return;
     item.qty = Math.max(1, item.qty + delta);
   }
 
   function clear() {
+    touch();
     items = [];
   }
 
@@ -42,6 +55,7 @@ const OlvCart = (function () {
   }
 
   function restore(savedItems) {
+    touch();
     items = Array.isArray(savedItems) ? savedItems : [];
   }
 
@@ -77,7 +91,8 @@ const OlvCart = (function () {
       note: item.note || null,
     }));
 
-    const { data, error } = await window.supabaseClient.rpc("record_sale", {
+    if (!saleRef) saleRef = newRef();
+    const args = {
       p_entry_date: entryDate,
       p_cash: paymentMethod === "cash" ? grand : 0,
       p_card: paymentMethod === "card" ? grand : 0,
@@ -90,7 +105,12 @@ const OlvCart = (function () {
       p_table_number: tableNumber ?? null,
       p_customer_phone: customerPhone ?? null,
       p_customer_name: customerName ?? null,
-    });
+    };
+    let { data, error } = await window.supabaseClient.rpc("record_sale", refSupported ? { ...args, p_client_ref: saleRef } : args);
+    if (error && refSupported && (error.code === "PGRST202" || /p_client_ref/.test(error.message || ""))) {
+      refSupported = false;
+      ({ data, error } = await window.supabaseClient.rpc("record_sale", args));
+    }
     if (error) throw error;
     clear();
     return data;
