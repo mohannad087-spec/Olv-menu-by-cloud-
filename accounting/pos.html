@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>بيع سريع — محاسبة OLV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0a0a09">
+<meta name="theme-color" content="#f7f1e6">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
 <script>
 (function(){
   function computeTheme(){
-    var mode = localStorage.getItem('olv_theme_mode') || 'auto';
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
     var hour = new Date().getHours();
     return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
   }
@@ -24,7 +24,7 @@
     var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
       '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
     try {
-      var raw = localStorage.getItem('olv_custom_theme');
+      var raw = localStorage.getItem('olv_custom_theme_v2');
       var t = raw ? JSON.parse(raw) : null;
       if (!t) {
         props.forEach(function (p) { root.removeProperty(p); });
@@ -106,7 +106,7 @@
     padding:6px 16px; min-height:44px;
   }
   .pos-clock .pos-clock-time{
-    font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:700; color:var(--gold-hi); line-height:1.15;
+    font-family:'Tajawal',sans-serif; font-weight:800; font-size:18px; font-weight:700; color:var(--gold-hi); line-height:1.15;
   }
   .pos-clock .pos-clock-date{font-size:11px; color:var(--muted); line-height:1.3;}
   .search-wrap{position:relative; flex:1;}
@@ -136,7 +136,7 @@
   }
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; margin-bottom:20px;}
   .card{
-    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; overflow:hidden; cursor:pointer;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:var(--r-card); overflow:hidden; cursor:pointer;
     transition:transform .24s var(--spring), border-color .16s var(--ease), box-shadow .2s var(--ease);
     text-align:center; position:relative; box-shadow:var(--card-shadow);
   }
@@ -147,7 +147,7 @@
   .card:active{transform:scale(.96); transition-duration:.08s;}
   .card .best-badge{
     position:absolute; top:8px; inset-inline-start:8px; z-index:1;
-    background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold);
+    background:var(--gold); color:var(--on-gold);
     font-size:10.5px; font-weight:700; border-radius:999px; padding:3px 8px;
     display:flex; align-items:center; gap:3px; box-shadow:0 2px 8px rgba(0,0,0,.25);
   }
@@ -155,24 +155,31 @@
   .card .thumb{
     width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:var(--ink-3);
   }
+  /* الصنف بدون صورة: بلاطة ملوّنة بلون دافئ (بيتبدّل بين 4 ألوان حسب ترتيب الكرت)
+     بدل مربع رمادي، حتى الشبكة تبيّن حيّة ومريحة متل منيو كافيه */
   .card .thumb-fallback{
-    width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(135deg,var(--ink-3),var(--ink-2));
+    width:auto; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center;
+    margin:8px 8px 0; border-radius:14px; background:var(--tile, var(--ink-3));
   }
-  .card .thumb-fallback .icon{width:34px; height:34px; color:var(--gold); opacity:.55; stroke-width:1.5;}
+  .card:nth-child(4n+1){--tile:#f4dccb;} .card:nth-child(4n+2){--tile:#e4e9d2;}
+  .card:nth-child(4n+3){--tile:#f2e4bd;} .card:nth-child(4n){--tile:#eadccc;}
+  :root[data-theme="dark"] .card{--tile:var(--ink-3) !important;}
+  .card .thumb-fallback .icon{width:36px; height:36px; color:var(--gold-dp); opacity:.8; stroke-width:1.6;}
+  :root[data-theme="dark"] .card .thumb-fallback .icon{color:var(--gold);}
   .card .info{padding:9px 9px 12px; text-align:center;}
-  .card .name{font-size:13.5px; margin-bottom:3px; font-weight:600; line-height:1.3;}
+  .card .name{font-size:15px; margin-bottom:3px; font-weight:800; line-height:1.3;}
   .card .desc{
     font-size:11px; color:var(--muted); line-height:1.35; margin-bottom:6px;
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
   }
   .card .info-bottom{display:flex; align-items:center; justify-content:space-between; gap:6px;}
-  .card .price{font-size:14.5px; color:var(--gold-hi); font-weight:700; font-family:'Cormorant Garamond',serif;}
+  .card .price{font-size:14.5px; color:var(--gold-hi); font-weight:700; font-family:'Tajawal',sans-serif; font-weight:800;}
   .card .add-btn{
-    flex:none; background:linear-gradient(180deg,var(--olive-hi,#9dab63),var(--olive));
-    color:#0d1206; font-weight:700; font-size:11px; border:none; border-radius:999px;
+    flex:none; background:var(--olive);
+    color:#fff; font-weight:700; font-size:11px; border:none; border-radius:999px;
     padding:6px 11px; display:inline-flex; align-items:center; gap:2px; line-height:1;
   }
+  :root[data-theme="dark"] .card .add-btn{color:#11160a;}
   .card .add-btn:active{filter:brightness(.92);}
 
   /* ورقة تعديل سطر التذكرة: بتطلع من تحت وبترجع لتحت (نفس المسار)،
@@ -208,7 +215,7 @@
 
   /* ---- شاشة إتمام الدفع الاحترافية ---- */
   .checkout-backdrop{
-    position:fixed; inset:0; background:rgba(8,7,4,.6); backdrop-filter:blur(6px);
+    position:fixed; inset:0; background:rgba(30,22,12,.45); backdrop-filter:blur(6px);
     z-index:60; display:flex; align-items:center; justify-content:center; padding:20px;
     opacity:0; transition:opacity .15s var(--spring);
   }
@@ -216,7 +223,7 @@
   .checkout-modal{
     position:relative; width:100%; max-width:420px; max-height:92vh; overflow-y:auto;
     background:var(--ink-2); border:1px solid var(--hair); border-radius:22px;
-    box-shadow:0 24px 60px rgba(0,0,0,.5); padding:26px 24px calc(24px + env(safe-area-inset-bottom));
+    box-shadow:0 24px 60px rgba(30,22,12,.35); padding:26px 24px calc(24px + env(safe-area-inset-bottom));
     transform:scale(.94) translateY(12px); opacity:0; transition:transform .24s var(--spring), opacity .16s var(--spring);
   }
   .checkout-backdrop.in .checkout-modal{transform:scale(1) translateY(0); opacity:1;}
@@ -231,7 +238,7 @@
   .checkout-total{text-align:center; padding:18px 0 20px;}
   .checkout-total .label{font-size:12.5px; color:var(--muted); margin-bottom:4px;}
   .checkout-total .amount{
-    font-family:'Cormorant Garamond',serif; font-size:46px; font-weight:700; color:var(--gold-hi); line-height:1;
+    font-family:'Tajawal',sans-serif; font-weight:800; font-size:46px; font-weight:700; color:var(--gold-hi); line-height:1;
   }
   .checkout-summary{
     background:var(--ink-3); border-radius:12px; padding:12px 14px; margin-bottom:20px;
@@ -261,7 +268,7 @@
   .cash-panel{margin-bottom:8px;}
   .received-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
   .received-row .label{font-size:13px; color:var(--muted);}
-  .received-row .value{font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:700; color:var(--paper);}
+  .received-row .value{font-family:'Tajawal',sans-serif; font-weight:800; font-size:30px; font-weight:700; color:var(--paper);}
   /* direction:ltr إجباري هون — الصفحة كلها RTL، وبدونها شبكة CSS Grid
      بتوزّع عناصرها من اليمين لليسار فبيطلع ترتيب الأرقام معكوس (يبين
      "3 2 1" بدل "1 2 3")، وهيك بالظبط كان سبب المشكلة: المستخدم يضغط
@@ -284,10 +291,13 @@
   }
   .change-row.insufficient{background:rgba(193,88,63,.1); border-color:rgba(193,88,63,.35);}
   .change-row .label{font-size:13px; color:var(--muted);}
-  .change-row .value{font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:700; color:var(--ok);}
+  .change-row .value{font-family:'Tajawal',sans-serif; font-weight:800; font-size:24px; font-weight:700; color:var(--ok);}
   .change-row.insufficient .value{color:var(--danger-hi);}
 
   .checkout-confirm{width:100%; min-height:52px; font-size:16px;}
+  /* زر الدفع بلون الزيتون من الشعار: أهم زر بالشاشة، فبيتميّز عن باقي الأزرار الذهبية */
+  .btn.gold.pay, .btn.gold.checkout-confirm{background:var(--olive); color:#fff; box-shadow:0 8px 18px -10px rgba(86,105,46,.8); font-size:16px;}
+  :root[data-theme="dark"] .btn.gold.pay, :root[data-theme="dark"] .btn.gold.checkout-confirm{color:#11160a;}
 
   .checkout-success{
     position:absolute; inset:0; background:var(--ink-2); border-radius:22px; z-index:2;
@@ -357,7 +367,7 @@
     font-size:15px; color:var(--paper); font-weight:600; padding-top:8px;
     border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.12));
   }
-  .cart-bar .total{font-family:'Cormorant Garamond',serif; font-size:24px; color:var(--gold-hi); font-weight:700;}
+  .cart-bar .total{font-family:'Tajawal',sans-serif; font-weight:800; font-size:24px; color:var(--gold-hi); font-weight:700;}
   .cart-bar .actions{display:flex; gap:8px;}
   .cart-bar .actions .btn{flex:1;}
   .cart-list{margin-bottom:0;}
@@ -367,7 +377,7 @@
   }
   .cart-item-top{display:flex; align-items:flex-start; gap:10px;}
   .qty-badge{
-    flex:none; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:var(--on-gold);
+    flex:none; background:var(--gold); color:var(--on-gold);
     font-weight:700; font-size:12.5px; min-width:24px; height:24px; border-radius:7px;
     display:flex; align-items:center; justify-content:center; padding:0 4px;
   }
@@ -556,7 +566,7 @@
             </div>
             <div class="actions">
               <button class="btn" id="save-draft-btn" disabled>حفظ</button>
-              <button class="btn gold" id="checkout-btn" disabled>الدفع</button>
+              <button class="btn gold pay" id="checkout-btn" disabled>الدفع</button>
             </div>
           </div>
         </div>

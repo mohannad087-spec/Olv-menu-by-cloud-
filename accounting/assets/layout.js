@@ -284,7 +284,7 @@ function olvRenderNav(active) {
   nav.innerHTML = `
     <div class="top">
       <h1 class="olv-brand">
-        <span class="brand-mark-sm">${olvIcon("brand")}</span>
+        <span class="brand-mark-sm"><img src="assets/brand/olv-mark.png" alt="OLV" width="84" height="32"></span>
         <span class="brand-text">محاسبة OLV <span>لوحة تحكم المطعم</span></span>
       </h1>
       <div class="actions">
@@ -451,15 +451,15 @@ function olvInitThemeToggle() {
     return;
   }
   btn.style.display = "";
-  const currentMode = localStorage.getItem("olv_theme_mode") || "auto";
+  const currentMode = localStorage.getItem("olv_theme_mode_v2") || "light";
   btn.innerHTML = olvThemeModeIcon(currentMode);
   // onclick بدل addEventListener عمدًا: الدالة هاي ممكن تُستدعى أكثر من
   // مرة بنفس تحميل الصفحة (بعد حفظ/استعادة الثيم المخصَّص من الإعدادات)،
   // وonclick بيستبدل المعالج السابق بدل ما يراكم معالجات مكرَّرة فوق بعض
   btn.onclick = () => {
-    const mode = localStorage.getItem("olv_theme_mode") || "auto";
+    const mode = localStorage.getItem("olv_theme_mode_v2") || "light";
     const next = mode === "auto" ? "light" : mode === "light" ? "dark" : "auto";
-    localStorage.setItem("olv_theme_mode", next);
+    localStorage.setItem("olv_theme_mode_v2", next);
     if (window.olvApplyTheme) window.olvApplyTheme();
     btn.innerHTML = olvThemeModeIcon(next);
   };
@@ -471,7 +471,7 @@ function olvInitThemeToggle() {
 // النص الخافت، الحدود، ودرجات لون العلامة الفاتحة/الغامقة) عبر HSL —
 // ثيم ثابت واحد بيستبدل تبديل الفاتح/الداكن التلقائي بالكامل، تمامًا متل
 // موقع مرجعي بلونين محددين (خلفية + تمييز) بدون تبديل أوضاع
-const OLV_THEME_KEY = "olv_custom_theme";
+const OLV_THEME_KEY = "olv_custom_theme_v2";
 
 function olvHexToRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
