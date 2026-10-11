@@ -75,7 +75,8 @@
   .order-card.overdue{border-color:var(--danger); box-shadow:0 0 0 1px var(--danger), 0 8px 24px rgba(193,88,63,.15);}
   .order-card.overdue:hover{border-color:var(--danger);}
   .order-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px;}
-  .order-time-wrap{display:flex; align-items:baseline; gap:8px;}
+  .order-time-wrap{display:flex; align-items:baseline; gap:2px 8px; flex-wrap:wrap; min-width:0;}
+  .order-time-wrap > span{white-space:nowrap;}
   .order-time{font-family:'Tajawal',sans-serif; font-weight:800; font-size:21px; color:var(--gold-hi); font-weight:700;}
   .order-age{font-size:11.5px; color:var(--muted);}
   .order-age.overdue{color:var(--danger-hi); font-weight:700;}
@@ -226,7 +227,7 @@
         <div class="order-card${overdue ? " overdue" : ""}" data-row-id="${olvEsc(o.id)}">
           <div class="order-head">
             <div class="order-time-wrap">
-              <span class="order-time">${o.order_no ? `#${olvEsc(o.order_no)} · ` : ""}${formatTime(o.created_at)}</span>
+              <span class="order-time">${o.order_no ? `#${olvEsc(o.order_no)}</span><span class="order-time">` : ""}${formatTime(o.created_at)}</span>
               ${!pending && prepMinutes(o) !== null ? `<span class="order-age">تحضّر بـ ${prepMinutes(o)} د</span>` : ""}
               ${pending ? `<span class="order-age${overdue ? " overdue" : ""}">${overdue ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
             </div>

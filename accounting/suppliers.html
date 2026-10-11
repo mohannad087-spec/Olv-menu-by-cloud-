@@ -63,7 +63,8 @@
   .sup-search{flex:1; position:relative;}
   .sup-search input{width:100%; padding-inline-start:38px;}
   .sup-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:18px; height:18px; color:var(--muted); pointer-events:none;}
-  .sup-list{display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:10px;}
+  .sup-list{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap:10px;}
+  .sup-card{min-width:0;}
   .sup-card{display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--hair); border-radius:14px; background:var(--ink-2); cursor:pointer; transition:border-color .15s, background .15s; min-height:64px;}
   .sup-card:hover{border-color:rgba(var(--gold-rgb),.5);}
   .sup-card.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.08);}

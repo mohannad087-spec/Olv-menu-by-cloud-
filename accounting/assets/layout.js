@@ -386,6 +386,7 @@ async function olvLoadCurrentUserBadge() {
     if (profile.role === "staff") olvHideAdminLinks();
     const roleLabel = OLV_ROLE_LABELS[profile.role] || profile.role;
     nameEl.textContent = `${profile.full_name || "—"} (${roleLabel})`;
+    badge.title = nameEl.textContent; // الشاشات الضيقة بتخفي الاسم وبتخلّي الأيقونة
     badge.hidden = false;
   } catch (e) { /* شارة تعريفية بس — تجاهل أي فشل صامت */ }
 }
