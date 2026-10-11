@@ -731,6 +731,15 @@ function olvEmptyStates(root) {
     el.querySelector(".olv-empty-tx").textContent = text;
   });
 }
+// لون شريط الموبايل فوق (theme-color) بيتبع الوضع الفاتح/الداكن، بدل ما يضل كريمي بالداكن
+function olvSyncThemeColor() {
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (!m) return;
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
+  if (c) m.setAttribute("content", c);
+}
+olvSyncThemeColor();
+new MutationObserver(olvSyncThemeColor).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "style"] });
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest("[data-olv-focus]");
   if (!b) return;
