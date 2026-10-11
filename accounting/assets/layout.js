@@ -693,14 +693,59 @@ function olvSkeletons(root) {
       .observe(el, { childList: true });
   });
 }
+// شاشات فاضية مفيدة: أي «لا يوجد…/ما في…» بجدول أو قائمة فاضية بيصير إلها أيقونة هادية،
+// وإذا في خطوة جاية واضحة (أول بيعة، أول مصروف، أول موظف…) بيطلع زر إلها. بتشتغل لحالها
+// على كل الصفحات: الصفحات بتضل تكتب النص متل ما هو، وهون بس منزيّنه
+const OLV_EMPTY_ICONS = [
+  [/نتائج|بهالكلمة|بهالاسم|مطابقة/, "search"], [/مبيعات|فواتير|تقفيلات/, "receipt"], [/مصروفات/, "wallet"],
+  [/مواد|مستلزم|مخزون|أصناف/, "box"], [/موظف|بصمات|ساعات/, "person"], [/رواتب|سلف/, "banknote"],
+  [/طاولات/, "grid"], [/طلبات|طلبيات/, "bell"], [/مورد|مورّد/, "truck"], [/طابعات|طباعة/, "printer"],
+  [/عملاء/, "person"], [/بيانات/, "barChart"], [/تصنيفات|بطاقات/, "tag"], [/إضافات/, "plus"],
+];
+// النص → الخطوة الجاية: حقل بنفس الصفحة منركّز عليه، وإلا رابط لصفحة ثانية
+const OLV_EMPTY_ACTIONS = [
+  [/^لا يوجد مبيعات مسجّلة بعد$/, { label: "سجّل أول بيعة", href: "pos.html", icon: "bolt" }],
+  [/^لا يوجد مصروفات مسجّلة بعد$/, { label: "سجّل أول مصروف", focus: "amount", href: "expenses.html", icon: "plus" }],
+  [/^لا يوجد موظفون بعد$/, { label: "ضيف أول موظف", focus: "f-name", icon: "plus" }],
+  [/^لا يوجد مواد خام بعد$/, { label: "ضيف أول مادة", focus: "i-name", icon: "plus" }],
+  [/^لا يوجد طاولات مضافة/, { label: "ضيف الطاولات من الإعدادات", href: "settings.html", icon: "gear" }],
+];
+function olvEmptyStates(root) {
+  (root || document).querySelectorAll(".empty-row td, .empty-state, .hint").forEach((el) => {
+    if (el.children.length || el.dataset.olvEmpty) return;
+    const text = el.textContent.trim();
+    if (!/^(لا يوجد|لا توجد|ما في|ما لقى)/.test(text) || text.length > 90) return;
+    // .hint صغيرة جوّا نماذج ما منلمسها: بس اللي هي لحالها جوّا قائمة فاضية
+    if (el.classList.contains("hint") && el.parentElement && el.parentElement.children.length > 1) return;
+    el.dataset.olvEmpty = "1";
+    const icon = (OLV_EMPTY_ICONS.find(([re]) => re.test(text)) || [0, "note"])[1];
+    const act = (OLV_EMPTY_ACTIONS.find(([re]) => re.test(text)) || [0, null])[1];
+    const target = act && act.focus ? document.getElementById(act.focus) : null;
+    let btn = "";
+    if (target) btn = `<button type="button" class="btn small gold" data-olv-focus="${act.focus}">${olvIcon(act.icon)}<span>${act.label}</span></button>`;
+    else if (act && act.href && !location.pathname.endsWith("/" + act.href)) btn = `<a class="btn small gold" href="${act.href}">${olvIcon(act.icon)}<span>${act.label}</span></a>`;
+    el.classList.add("olv-empty");
+    el.innerHTML = `<span class="olv-empty-ic" aria-hidden="true">${olvIcon(icon)}</span><span class="olv-empty-tx"></span>${btn}`;
+    el.querySelector(".olv-empty-tx").textContent = text;
+  });
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-olv-focus]");
+  if (!b) return;
+  const f = document.getElementById(b.dataset.olvFocus);
+  if (!f) return;
+  f.scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "center" });
+  setTimeout(() => f.focus({ preventScroll: true }), olvReduceMotion ? 0 : 350);
+});
 document.addEventListener("DOMContentLoaded", () => {
   olvSkeletons();
+  olvEmptyStates();
   olvLinkFieldLabels();
   olvCountUpStats();
   let pending = false;
   new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvLinkFieldLabels(); olvCountUpStats(); });
+    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); });
   }).observe(document.body, { childList: true, subtree: true });
 });

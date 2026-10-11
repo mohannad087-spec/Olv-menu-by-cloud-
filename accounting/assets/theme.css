@@ -575,3 +575,15 @@ td .olv-skel{padding:4px 2px;}
   .wrap > .group{animation-delay:0s !important;}
   .olv-skel i{animation:none;}
 }
+
+/* شاشات فاضية (olvEmptyStates بـ layout.js): أيقونة بدائرة هادية + النص + زر الخطوة الجاية إذا في */
+.olv-empty{display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center; padding:26px 12px !important; color:var(--muted);}
+td.olv-empty{display:table-cell !important;}
+td.olv-empty > *{display:block; margin-inline:auto;}
+td.olv-empty > * + *{margin-top:8px;}
+td.olv-empty > .btn{display:inline-flex; margin-top:12px;}
+.olv-empty-ic{width:46px; height:46px; border-radius:15px; display:grid !important; place-items:center; background:var(--hair-soft); color:var(--gold-hi);}
+.olv-empty-ic .icon{width:22px; height:22px;}
+.olv-empty-tx{font-size:13.5px; line-height:1.6; max-width:42ch;}
+.olv-empty .btn{margin-top:4px;}
+.olv-empty a.btn{text-decoration:none;}
