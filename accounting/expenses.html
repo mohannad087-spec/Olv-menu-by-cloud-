@@ -223,13 +223,11 @@
         `).join("");
         olvMarkNew(body, fresh, { scroll: true });
         body.querySelectorAll("button[data-id]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("متأكد من حذف هذا المصروف؟")) return;
-            const { error } = await window.supabaseClient.from("expenses").delete().eq("id", btn.dataset.id);
-            if (error) { olvShowError(errBox, error); return; }
-            olvToast("تم حذف المصروف");
-            loadExpenses();
-          });
+          btn.addEventListener("click", () => olvUndoDelete(btn, {
+            msg: "انحذف المصروف",
+            run: () => window.supabaseClient.from("expenses").delete().eq("id", btn.dataset.id),
+            after: loadExpenses,
+          }));
         });
       } catch (err) {
         olvShowError(errBox, err);

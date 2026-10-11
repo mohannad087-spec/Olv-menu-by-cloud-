@@ -576,13 +576,11 @@
           </tr>
         `).join("");
         body.querySelectorAll("button[data-id]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("حذف هذا التصنيف؟ (لن يمسح المصروفات المسجّلة عليه)")) return;
-            const { error } = await window.supabaseClient
-              .from("expense_categories").delete().eq("id", btn.dataset.id);
-            if (error) { olvShowError(errBox, error); return; }
-            loadCategories();
-          });
+          btn.addEventListener("click", () => olvUndoDelete(btn, {
+            msg: "انحذف التصنيف (المصروفات تبعه بتضل)",
+            run: () => window.supabaseClient.from("expense_categories").delete().eq("id", btn.dataset.id),
+            after: loadCategories,
+          }));
         });
       } catch (err) {
         olvShowError(errBox, err);
@@ -607,13 +605,11 @@
           </tr>
         `).join("");
         body.querySelectorAll("button[data-id]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("حذف هذه الطاولة من الخريطة؟")) return;
-            const { error } = await window.supabaseClient
-              .from("restaurant_tables").delete().eq("id", btn.dataset.id);
-            if (error) { olvShowError(errBox, error); return; }
-            loadTables();
-          });
+          btn.addEventListener("click", () => olvUndoDelete(btn, {
+            msg: "انحذفت الطاولة",
+            run: () => window.supabaseClient.from("restaurant_tables").delete().eq("id", btn.dataset.id),
+            after: loadTables,
+          }));
         });
       } catch (err) {
         olvShowError(errBox, err);
@@ -700,12 +696,11 @@
           });
         });
         container.querySelectorAll("button[data-id]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("حذف هذا المنتج؟")) return;
-            const { error } = await window.supabaseClient.from("products").delete().eq("id", btn.dataset.id);
-            if (error) { olvShowError(errBox, error); return; }
-            loadProducts();
-          });
+          btn.addEventListener("click", () => olvUndoDelete(btn, {
+            msg: "انحذف المنتج",
+            run: () => window.supabaseClient.from("products").delete().eq("id", btn.dataset.id),
+            after: loadProducts,
+          }));
         });
         container.querySelectorAll("button[data-save-priority]").forEach((btn) => {
           btn.addEventListener("click", async () => {
@@ -769,12 +764,11 @@
           </tr>
         `).join("");
         body.querySelectorAll("button[data-id]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("حذف هذه الإضافة؟")) return;
-            const { error } = await window.supabaseClient.from("addons").delete().eq("id", btn.dataset.id);
-            if (error) { olvShowError(errBox, error); return; }
-            loadAddons();
-          });
+          btn.addEventListener("click", () => olvUndoDelete(btn, {
+            msg: "انحذفت الإضافة",
+            run: () => window.supabaseClient.from("addons").delete().eq("id", btn.dataset.id),
+            after: loadAddons,
+          }));
         });
       } catch (err) {
         olvShowError(errBox, err);

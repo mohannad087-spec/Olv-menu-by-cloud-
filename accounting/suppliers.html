@@ -497,11 +497,12 @@
       const btn = e.target.closest("button[data-del-tx]");
       if (!btn) return;
       const t = lastTransactions.find((x) => x.id === btn.dataset.delTx);
-      if (!confirm(`حذف ${t ? TYPE_LABELS[t.type] + " بمبلغ " + olvFormatMoney(t.amount) : "هذا السطر"} من السجل؟`)) return;
-      const { error } = await sb().from("supplier_transactions").delete().eq("id", btn.dataset.delTx);
-      if (error) { olvShowError(errBox, error); return; }
-      await loadTransactions();
-      await loadSuppliers();
+      const id = btn.dataset.delTx;
+      olvUndoDelete(btn, {
+        msg: `انحذف ${t ? TYPE_LABELS[t.type] + " " + olvFormatMoney(t.amount) : "السطر"}`,
+        run: () => sb().from("supplier_transactions").delete().eq("id", id),
+        after: async () => { await loadTransactions(); await loadSuppliers(); },
+      });
     });
 
     async function loadTransactions() {

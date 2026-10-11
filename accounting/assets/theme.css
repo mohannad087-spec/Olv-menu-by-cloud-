@@ -391,6 +391,9 @@ tbody tr{transition:background .15s var(--ease);}
 .olv-toast.danger{background:var(--danger);}
 .olv-toast.gold{background:var(--gold-dp);}
 .olv-toast.info{background:var(--ink-2); color:var(--paper); border:1px solid var(--hair);}
+.olv-toast-act{margin-inline-start:6px; padding:6px 12px; min-height:34px; border-radius:8px; border:1px solid currentColor; background:transparent; color:inherit; font:inherit; font-weight:800; cursor:pointer;}
+.olv-toast.info .olv-toast-act{color:var(--gold-hi); border-color:var(--gold);}
+.olv-toast-act:active{transform:scale(.96);}
 
 @media (prefers-reduced-motion: reduce){
   /* الـ!important ضروري: القاعدة العامة تحت بتخلي كل animation-duration شبه صفر، وهاي لازم تضل تلاشي (أخف مو صفر) */
