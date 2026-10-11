@@ -678,6 +678,16 @@ function renderOtype(){
 }
 function setOtype(id){ orderType=id; renderOtype(); }
 
+function clearCart(){
+  const keys = Object.keys(cart);
+  keys.forEach(k => delete cart[k]);
+  keys.forEach(k => {
+    const ctrl = document.getElementById('ctrl-'+k);
+    if(ctrl) ctrl.innerHTML = ctrlHtml(k);
+  });
+  update(); drawSheet(); closeSheet();
+}
+
 function sendOrder(){
   const {t}=totals();
   if(!t) return;
@@ -691,6 +701,7 @@ function sendOrder(){
   if(orderType==='table') lines.push(ar?'رقم الطاولة: ':'Table number: ');
   if(orderType==='delivery') lines.push(ar?'العنوان: ':'Address: ');
   window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(lines.join('\n'))}`,'_blank');
+  clearCart();
 }
 
 function setLang(l){
