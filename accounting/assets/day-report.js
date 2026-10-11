@@ -10,7 +10,7 @@
   const C = {
     bg: "#f7f1e6", card: "#fffdf8", line: "#e6dac3", text: "#2f2416", muted: "#7c6a50",
     gold: "#b08a3e", goldDp: "#6b4c14", goldHi: "#e6c983", olive: "#56692e", red: "#a3321f",
-    dark: "#17120d", darkText: "#d9cdb6", brown: "#8a6a26",
+    dark: "#17120d", darkText: "#d9cdb6", delivery: "#c9a993", // ألوان طرق الدفع نفس MASTER.md §8
   };
   const F = (w, s) => `${w} ${s}px Tajawal, system-ui, sans-serif`;
   const money = (n) => olvFormatMoney(n);
@@ -160,9 +160,9 @@
       text(ctx, "طرق الدفع", R, y, F(700, 34), C.text);
       y += 34;
       const parts = [
-        { l: "كاش", v: d.cash, c: C.gold },
-        { l: "شبكة", v: d.card, c: C.olive },
-        { l: "توصيل", v: d.delivery, c: C.brown },
+        { l: "كاش", v: d.cash, c: C.olive },
+        { l: "شبكة", v: d.card, c: C.gold },
+        { l: "توصيل", v: d.delivery, c: C.delivery },
       ].filter((p) => p.v > 0);
       ctx.save(); rr(ctx, P, y, inner, 40, 20); ctx.clip();
       let xr = R;
