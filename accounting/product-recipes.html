@@ -95,6 +95,30 @@
   .ai-actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
   @keyframes ai-in{from{opacity:0; transform:translateY(6px);}}
   @media (prefers-reduced-motion: reduce){ .ai-card{animation:none;} }
+  /* ربح كل صنف: شريط = سعر البيع، الجزء الذهبي تكلفة المواد والزيتوني الربح */
+  .pf-sum{font-size:14px; color:var(--paper); line-height:1.7;}
+  .pf-sum b{font-variant-numeric:tabular-nums;}
+  .pf-filters{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 4px;}
+  .pf-list{display:flex; flex-direction:column; gap:10px; margin-top:12px;}
+  .pf-row{border:1px solid var(--hair); border-radius:14px; padding:12px 14px; background:var(--ink-2);}
+  .pf-row.loss{border-color:color-mix(in srgb, var(--danger) 55%, transparent);}
+  .pf-row.low{border-color:var(--gold);}
+  .pf-top{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+  .pf-name{font-weight:700; font-size:14.5px; min-width:0; overflow-wrap:anywhere;}
+  .pf-pct{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .pf-row.ok .pf-pct{color:var(--olive);}
+  .pf-row.low .pf-pct{color:var(--gold-hi);}
+  .pf-row.loss .pf-pct{color:var(--danger-hi);}
+  .pf-bar{display:flex; height:8px; border-radius:999px; overflow:hidden; background:var(--ink-3); margin:8px 0 6px;}
+  .pf-bar .c{background:var(--gold);}
+  .pf-bar .p{background:var(--olive);}
+  .pf-row.loss .pf-bar .c{background:var(--danger);}
+  .pf-meta{font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; line-height:1.7;}
+  .pf-note{font-size:12.5px; margin-top:4px; line-height:1.6;}
+  .pf-note.rose{color:var(--gold-hi);}
+  .pf-note.miss{color:var(--muted);}
+  .pf-note.sug{color:var(--paper);}
+  .pf-more{margin-top:10px;}
 </style>
 </head>
 <body>
@@ -112,6 +136,18 @@
       <div class="cov-bar"><div id="cov-fill" style="width:0%"></div></div>
       <div class="hint" style="margin-bottom:8px;">أصناف فعّالة بدون وصفة (اضغط على صنف لتبلّش وصفته):</div>
       <div class="recipe-suggest-chips" id="cov-missing"></div>
+    </div>
+
+    <div class="group" id="profit">
+      <h2>ربح كل صنف</h2>
+      <p class="hint">تكلفة المواد بالوصفة (حسب آخر سعر شراء) مقابل سعر البيع. الأحسن تكون التكلفة 35% من السعر أو أقل.</p>
+      <div class="pf-sum" id="pf-sum">جاري التحميل...</div>
+      <div class="pf-filters" id="pf-filters" role="group" aria-label="فلترة الأصناف" hidden>
+        <button type="button" class="cov-chip on" data-f="all">الكل</button>
+        <button type="button" class="cov-chip" data-f="bad">ربح قليل</button>
+        <button type="button" class="cov-chip" data-f="rose">غليت موادها</button>
+      </div>
+      <div class="pf-list" id="pf-list"></div>
     </div>
 
     <div class="group" id="ai-recipes-group">
@@ -176,6 +212,7 @@
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="assets/item-margins.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
@@ -199,6 +236,7 @@
       if (error) { olvShowError(errBox(), error); return; }
       withRecipe = new Set((data || []).map((r) => r.product_id));
       renderCoverage();
+      loadProfit(); // أي تعديل بالوصفات بيغيّر التكلفة
     }
 
     function renderCoverage() {
@@ -220,6 +258,59 @@
       loadProductRecipe();
       renderCoverage();
       document.getElementById("product-recipe-group").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    // ---------- ربح كل صنف ----------
+    let pf = null, pfFilter = "all", pfAll = false;
+    const PF_FIRST = 12;
+    function pfRow(x) {
+      const pctTxt = x.level === "unknown" ? "—" : (x.level === "loss" ? "خسران" : `ربح ${100 - x.costPct}%${x.level === "low" ? " · قليل" : ""}`);
+      const cw = x.price > 0 ? Math.min(100, x.cost / x.price * 100) : 0;
+      const notes = [];
+      if (x.rose.length) notes.push(`<div class="pf-note rose">${olvIcon("warning")} غلي ${x.rose.map((r) => `${olvEsc(r.name)} ${r.pct}%`).join("، ")}${x.oldCost != null && x.price > 0 ? `، والربح نزل من ${olvFormatMoney(x.price - x.oldCost)} لـ ${olvFormatMoney(x.profit)}` : ""}</div>`);
+      if (x.missing.length) notes.push(`<div class="pf-note miss">ما في سعر شراء لـ ${x.missing.map(olvEsc).join("، ")}، سجّل فاتورة إلها لتنحسب التكلفة صح</div>`);
+      if (!(x.price > 0)) notes.push(`<div class="pf-note miss">الصنف ما إله سعر بيع</div>`);
+      if (x.suggest) notes.push(`<div class="pf-note sug">لترجع التكلفة ${window.OLV_MARGIN_TARGET}% من السعر، السعر المقترح <b>${olvFormatMoney(x.suggest)}</b></div>`);
+      return `<div class="pf-row ${x.level}">
+        <div class="pf-top"><span class="pf-name">${olvEsc(x.name)}</span><span class="pf-pct">${pctTxt}</span></div>
+        <div class="pf-bar" aria-hidden="true"><span class="c" style="width:${cw}%"></span><span class="p" style="width:${100 - cw}%"></span></div>
+        <div class="pf-meta">السعر ${olvFormatMoney(x.price)} · التكلفة ${olvFormatMoney(x.cost)} · الربح ${olvFormatMoney(x.profit)}</div>
+        ${notes.join("")}
+      </div>`;
+    }
+    function renderProfit() {
+      const sum = document.getElementById("pf-sum"), list = document.getElementById("pf-list");
+      if (!pf.items.length) {
+        sum.textContent = "ما في أصناف إلها وصفة لسا. لما تكتب وصفة لصنف، بيطلع هون قدّيش بيكلّف وقدّيش بتربح فيه.";
+        list.innerHTML = ""; document.getElementById("pf-filters").hidden = true; return;
+      }
+      const rank = { loss: 0, low: 1, unknown: 3, ok: 2 };
+      const sorted = [...pf.items].sort((a, b) => (b.rose.length > 0) - (a.rose.length > 0) || rank[a.level] - rank[b.level] || (b.costPct || 0) - (a.costPct || 0));
+      const roseN = pf.items.filter((x) => x.rose.length).length;
+      const parts = [];
+      if (pf.avgCostPct != null) parts.push(`المواد بتكلّف بالمتوسط <b>${pf.avgCostPct}%</b> من سعر الصنف`);
+      parts.push(pf.worst ? `<b>${pf.worst}</b> ${pf.worst === 1 ? "صنف ربحه قليل" : "أصناف ربحها قليل"}` : "كل الأصناف ربحها منيح");
+      if (roseN) parts.push(`<b>${roseN}</b> ${roseN === 1 ? "صنف غليت مواده" : "أصناف غليت موادها"} بآخر فواتير`);
+      sum.innerHTML = parts.join(" · ");
+      document.getElementById("pf-filters").hidden = false;
+      const shown = sorted.filter((x) => pfFilter === "all" || (pfFilter === "bad" ? x.level === "low" || x.level === "loss" : x.rose.length));
+      const cut = pfAll ? shown : shown.slice(0, PF_FIRST);
+      list.innerHTML = cut.length
+        ? cut.map(pfRow).join("") + (shown.length > cut.length ? `<button type="button" class="btn small pf-more" id="pf-more">اعرض الكل (${shown.length})</button>` : "")
+        : `<div class="hint">${pfFilter === "bad" ? "ما في صنف ربحه قليل 👌" : "ما في مواد غليت بآخر شهرين"}</div>`;
+    }
+    async function loadProfit() {
+      try { pf = await olvLoadItemMargins(); renderProfit(); }
+      catch (err) { document.getElementById("pf-sum").textContent = "تعذّر حساب الربح: " + (err.message || err); }
+    }
+    document.getElementById("pf-filters").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-f]"); if (!b) return;
+      pfFilter = b.dataset.f; pfAll = false;
+      document.querySelectorAll("#pf-filters [data-f]").forEach((x) => x.classList.toggle("on", x === b));
+      renderProfit();
+    });
+    document.getElementById("pf-list").addEventListener("click", (e) => {
+      if (e.target.closest("#pf-more")) { pfAll = true; renderProfit(); }
     });
 
     function populateSelects() {

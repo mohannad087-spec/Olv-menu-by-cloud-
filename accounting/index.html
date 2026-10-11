@@ -71,6 +71,8 @@
   :root[data-theme="dark"] .vs-chip{color:var(--olive-hi);}
   .vs-chip.down{background:rgba(179,65,42,.12); color:var(--danger-hi);}
   .vs-chip .icon{width:15px; height:15px;}
+  a.vs-chip{text-decoration:none;}
+  .vs-chip[hidden]{display:none;}
 
   .bento{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-auto-rows:minmax(150px,auto); gap:14px; margin-bottom:22px;}
   .bento .t{
@@ -184,6 +186,7 @@
       </div>
       <div class="hello-acts">
         <span class="vs-chip" id="vs-chip" hidden></span>
+        <a class="vs-chip down" id="margin-chip" href="product-recipes.html#profit" hidden></a>
         <button class="btn small gold" id="share-day-btn"></button>
         <button class="btn small" id="pdf-btn"></button>
       </div>
@@ -271,6 +274,7 @@
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/day-report.js"></script>
+  <script defer src="assets/item-margins.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
@@ -341,6 +345,19 @@
 
     // بيانات إضافية للبلاطات (الأكثر مبيعًا، قيد التحضير، نقص المخزون، مقارنة
     // بنفس اليوم الأسبوع الماضي). كل وحدة لحالها: لو فشلت بتضل "—" وما بتوقف الباقي
+    // تنبيه صغير لما في أصناف ربحها قليل أو غليت موادها، بياخد على «ربح كل صنف»
+    async function loadMarginChip() {
+      try {
+        const m = await olvLoadItemMargins();
+        const rose = m.items.filter((x) => x.rose.length).length;
+        const n = Math.max(m.worst, rose);
+        if (!n) return;
+        const chip = document.getElementById("margin-chip");
+        chip.innerHTML = olvIcon("warning") + `<span>${rose ? (rose === 1 ? "صنف غليت مواده" : rose + " أصناف غليت موادها") : (m.worst === 1 ? "صنف ربحه قليل" : m.worst + " أصناف ربحها قليل")}</span>`;
+        chip.hidden = false;
+      } catch (_) {}
+    }
+
     async function loadExtras(sales, totalSales) {
       const db = window.supabaseClient;
       const ids = new Set(sales.map((r) => r.id));
@@ -462,6 +479,7 @@
           : "<span>لسا ما في مبيعات اليوم</span>";
 
         loadExtras(sales, totalSales);
+        if (window.olvRole !== "staff") loadMarginChip();
 
         const salesBody = document.getElementById("recent-sales-body");
         if (!recentSales || !recentSales.length) {
