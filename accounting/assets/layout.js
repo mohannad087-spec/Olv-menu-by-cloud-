@@ -121,7 +121,7 @@ function olvToast(msg, opts) {
   const ms = opts.ms || 2200;
   const live = () => Array.from(box.children).filter((e) => !e.classList.contains("out"));
   const dup = live().find((e) => e.dataset.msg === text);
-  if (dup) { dup._arm(); return dup; }
+  if (dup && !opts.action) { dup._arm(); return dup; }
   live().slice(0, Math.max(0, live().length - 2)).forEach((e) => e._close());
 
   const el = document.createElement("div");
@@ -139,6 +139,15 @@ function olvToast(msg, opts) {
     setTimeout(() => el.remove(), 160);
   };
   el._arm = () => { clearTimeout(timer); timer = setTimeout(el._close, ms); };
+  // زر جوا الإشعار (متل «تراجع»): الضغط عليه بينفّذ وبيسكّر الإشعار
+  if (opts.action) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "olv-toast-act";
+    b.textContent = opts.action.label;
+    b.addEventListener("click", (e) => { e.stopPropagation(); el._close(); opts.action.onClick(); });
+    el.appendChild(b);
+  }
   el.addEventListener("click", el._close);
   box.appendChild(el);
   el.getBoundingClientRect(); // نثبّت الحالة الابتدائية قبل ما نضيف .in حتى تشتغل الحركة
@@ -146,6 +155,48 @@ function olvToast(msg, opts) {
   el._arm();
   return el;
 }
+
+// حذف مع «تراجع» بدل «متأكد؟»: السطر بيختفي فورًا، وبيطلع إشعار فيه زر تراجع لـ 6 ثواني،
+// وبعدها بس بينحذف فعليًا. لو تراجع بيرجع السطر وما بيصير شي. لو الحذف فشل بالسيرفر بيرجع السطر
+// وبتطلع الغلطة. لو سكّر الصفحة قبل ما تخلص الثواني، الحذف بينبعت فورًا (وإذا ما وصل، السطر
+// بيضل موجود: الغلط هون آمن، ما بيضيع شي)
+const olvPendingDeletes = new Set();
+function olvUndoDelete(btn, opts) {
+  const row = btn.closest("tr, li, .card") || btn;
+  const ms = opts.ms || 6000;
+  row.hidden = true;
+  let done = false;
+  const job = {};
+  const restore = () => { row.hidden = false; };
+  job.commit = async () => {
+    if (done) return;
+    done = true;
+    clearTimeout(job.timer);
+    olvPendingDeletes.delete(job);
+    try {
+      const { error } = await opts.run();
+      if (error) throw error;
+      if (opts.after) await opts.after();
+    } catch (err) {
+      restore();
+      olvToast((opts.failMsg || "ما انحذف") + ": " + ((err && err.message) || err), { type: "danger", icon: "warning", ms: 5000 });
+    }
+  };
+  job.timer = setTimeout(job.commit, ms);
+  olvPendingDeletes.add(job);
+  olvToast(opts.msg, {
+    type: "info", icon: "trash", ms,
+    action: { label: "تراجع", onClick: () => {
+      if (done) return;
+      done = true; clearTimeout(job.timer); olvPendingDeletes.delete(job);
+      restore();
+      olvToast("رجّعناه", { type: "ok", icon: "undo" });
+    } },
+  });
+}
+function olvFlushDeletes() { olvPendingDeletes.forEach((j) => j.commit()); }
+window.addEventListener("pagehide", olvFlushDeletes);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") olvFlushDeletes(); });
 
 // ضغط مطوّل للتأكيد (للإجراءات المدمّرة النادرة مثل إلغاء طلب): الزر بيتعبّى أثناء الضغط وبينفّذ لما يكتمل.
 // لو فلت الزر قبل الاكتمال بيرجع التعبئة، والضغطة السريعة بتطلع تلميح. بيشتغل كمان بالكيبورد (Enter/Space مضغوط).
