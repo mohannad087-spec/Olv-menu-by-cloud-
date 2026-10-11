@@ -213,12 +213,11 @@
         </tr>
       `).join("");
       body.querySelectorAll("button[data-del]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          if (!confirm("حذف هذه السلفة؟ (استخدم هذا فقط لو أُدخلت غلط)")) return;
-          const { error } = await window.supabaseClient.from("salary_advances").delete().eq("id", btn.dataset.del);
-          if (error) { olvShowError(document.getElementById("err"), error); return; }
-          await loadUnsettledAdvances();
-        });
+        btn.addEventListener("click", () => olvUndoDelete(btn, {
+          msg: "انحذفت السلفة",
+          run: () => window.supabaseClient.from("salary_advances").delete().eq("id", btn.dataset.del),
+          after: loadUnsettledAdvances,
+        }));
       });
     }
 

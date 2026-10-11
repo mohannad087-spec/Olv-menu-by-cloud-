@@ -292,13 +292,11 @@
           });
         });
         container.querySelectorAll("button[data-del]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("حذف هذا المستلزم؟")) return;
-            const { error } = await window.supabaseClient.from("supplies").delete().eq("id", btn.dataset.del);
-            if (error) { olvShowError(errBox, error); return; }
-            await loadSupplies();
-            olvToast("تم حذف المستلزم");
-          });
+          btn.addEventListener("click", () => olvUndoDelete(btn, {
+            msg: "انحذف المستلزم",
+            run: () => window.supabaseClient.from("supplies").delete().eq("id", btn.dataset.del),
+            after: loadSupplies,
+          }));
         });
       } catch (err) {
         olvShowError(errBox, err);
