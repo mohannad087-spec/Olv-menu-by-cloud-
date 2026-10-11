@@ -542,3 +542,36 @@ body.olv-glass::before{
 /* أشرطة النِّسَب (التقارير وغيرها) بنفس شريط طرق الدفع بالرئيسية: زيتوني سادة ومدوّر */
 .olv-glass .bar-row .bar-track{border-radius:999px;}
 .olv-glass .bar-row .bar-fill{background:var(--olive); border-radius:999px;}
+
+/* ===== تحميل وانتقالات ناعمة =====
+   1) التنقل بين الصفحات: المتصفحات الحديثة بتعمل تلاشي قصير بين الصفحة القديمة والجديدة
+      بدل الوميض الأبيض (View Transitions). المتصفح القديم بيتجاهلها وبيضل التنقل عادي.
+   2) «جاري التحميل...»: layout.js بيبدّلها بأشرطة رمادية بشكل المحتوى (skeleton) لحتى توصل البيانات.
+   3) أقسام الصفحة بتطلع ورا بعض بفرق بسيط بدل ما تطلع كلها مرة وحدة. */
+@view-transition{navigation:auto;}
+::view-transition-old(root){animation:olv-vt-out .14s var(--ease) both;}
+::view-transition-new(root){animation:olv-vt-in .22s var(--ease) both;}
+@keyframes olv-vt-out{to{opacity:0;}}
+@keyframes olv-vt-in{from{opacity:0; transform:translateY(6px);}}
+.wrap > .group:nth-child(2){animation-delay:.04s;}
+.wrap > .group:nth-child(3){animation-delay:.08s;}
+.wrap > .group:nth-child(4){animation-delay:.12s;}
+.wrap > .group:nth-child(n+5){animation-delay:.16s;}
+.olv-skel{display:flex; flex-direction:column; gap:10px; padding:6px 0;}
+td .olv-skel{padding:4px 2px;}
+.olv-skel i{
+  display:block; height:12px; border-radius:999px; max-width:100%;
+  background:linear-gradient(90deg, var(--hair-soft) 0%, var(--hair) 50%, var(--hair-soft) 100%);
+  background-size:200% 100%; animation:olv-shimmer 1.3s linear infinite;
+}
+.olv-skel i:nth-child(1){width:92%;}
+.olv-skel i:nth-child(2){width:74%;}
+.olv-skel i:nth-child(3){width:58%;}
+.olv-skel.one i{width:min(220px, 70%);}
+.olv-sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+@keyframes olv-shimmer{from{background-position:100% 0;} to{background-position:-100% 0;}}
+@media (prefers-reduced-motion: reduce){
+  ::view-transition-old(root), ::view-transition-new(root){animation:none;}
+  .wrap > .group{animation-delay:0s !important;}
+  .olv-skel i{animation:none;}
+}
