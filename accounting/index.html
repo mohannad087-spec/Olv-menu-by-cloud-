@@ -184,6 +184,7 @@
       </div>
       <div class="hello-acts">
         <span class="vs-chip" id="vs-chip" hidden></span>
+        <button class="btn small gold" id="share-day-btn"></button>
         <button class="btn small" id="pdf-btn"></button>
       </div>
     </div>
@@ -269,6 +270,7 @@
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="assets/day-report.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
@@ -282,6 +284,7 @@
     document.getElementById("recent-sales-body").closest(".group").querySelector("h2").innerHTML = olvIcon("receipt") + "<span>آخر مبيعات مسجّلة</span>";
     document.getElementById("recent-expenses-title").innerHTML = olvIcon("minusCircle") + "<span>آخر مصروفات مسجّلة</span>";
     document.getElementById("pdf-btn").innerHTML = olvIcon("download") + "<span>تصدير PDF</span>";
+    document.getElementById("share-day-btn").innerHTML = olvIcon("share") + "<span>صورة تقرير اليوم</span>";
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // الرقم بيعدّ من صفر لقيمته (حوالي ثانية) — بس أول ما تفتح الصفحة
@@ -408,6 +411,7 @@
         .then(({ data }) => { const first = data && data.full_name ? data.full_name.trim().split(/\s+/)[0] : ""; if (first) document.getElementById("hello-title").textContent = greet + " يا " + first; }, () => {});
       document.getElementById("today-label").textContent = new Date().toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long", numberingSystem: "latn" }) + " · ملخص اليوم";
       document.getElementById("pdf-btn").addEventListener("click", exportPdf);
+      document.getElementById("share-day-btn").addEventListener("click", () => olvOpenDayReport(olvToday()));
 
       try {
         const [

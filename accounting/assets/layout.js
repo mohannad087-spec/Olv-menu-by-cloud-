@@ -35,6 +35,7 @@ const OLV_ICON_PATHS = {
   banknote: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9v.01M18 15v.01"/>',
   creditCard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>',
   download: '<path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5l-6.8 4"/>',
   warning: '<path d="M12 3.5L22 20H2L12 3.5z"/><path d="M12 10v4.5M12 17.2v.01" style="stroke-linecap:round"/>',
   link: '<path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 115.6 5.6l-1 1"/><path d="M13 18l-1 1A4 4 0 016.4 13.4l1-1"/>',
   phone: '<path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 006 6l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.7a2 2 0 012-2.2z"/>',

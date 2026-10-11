@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
+<style>
+  .btn-row{display:flex; flex-wrap:wrap; gap:10px;}
+  .btn-row .btn{flex:1 1 180px; justify-content:center;}
+</style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f7f1e6">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
@@ -92,7 +96,10 @@
           <label>ملاحظات (اختياري)</label>
           <input type="text" id="notes" placeholder="سبب أي عجز أو زيادة">
         </div>
-        <button type="submit" class="btn gold" id="save-btn">حفظ التقفيل</button>
+        <div class="btn-row">
+          <button type="submit" class="btn gold" id="save-btn">حفظ التقفيل</button>
+          <button type="button" class="btn" id="share-day-btn"></button>
+        </div>
       </form>
     </div>
 
@@ -115,6 +122,7 @@
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="assets/day-report.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
@@ -124,6 +132,9 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("cash");
+    const shareBtn = document.getElementById("share-day-btn");
+    shareBtn.innerHTML = olvIcon("share") + "<span>صورة تقرير هاليوم</span>";
+    shareBtn.addEventListener("click", () => olvOpenDayReport(document.getElementById("closing_date").value || olvToday()));
     let session = null;
     // لو المستخدم عدّل حقل "المتوقع بالخزينة" يدويًا، نوقف الاقتراح
     // التلقائي عن الكتابة فوقه — وإلا ممكن نداء الشبكة غير المتزامن
@@ -206,6 +217,8 @@
         };
         const { error } = await window.supabaseClient.from("cash_closings").insert(payload);
         if (error) throw error;
+        // بعد التقفيل بتطلع صورة تقرير اليوم جاهزة للإرسال
+        olvOpenDayReport(payload.closing_date);
         document.getElementById("closing-form").reset();
         document.getElementById("closing_date").value = olvToday();
         await loadClosings();
