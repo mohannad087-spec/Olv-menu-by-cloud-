@@ -678,13 +678,29 @@ function olvCountUpStats(root) {
     })(t0);
   });
 }
+// «جاري التحميل...» → أشرطة رمادية بشكل المحتوى (skeleton). منبدّل بس العنصر اللي نصّه هيك
+// بالضبط وما فيه عناصر ثانية، والنص بيضل لقارئ الشاشة. لما الصفحة ترسم بياناتها بتمسح
+// المحتوى القديم لحالها، فما في شي لازم ينشال يدويًا
+const OLV_LOADING_TEXT = "جاري التحميل...";
+function olvSkeletons(root) {
+  (root || document).querySelectorAll(".empty-row td, .hint, .empty-state, p, .olv-cat-sub, .olv-rp-sub").forEach((el) => {
+    if (el.children.length || el.textContent.trim() !== OLV_LOADING_TEXT) return;
+    const one = el.tagName === "P" || el.id === "cov-text";
+    el.setAttribute("aria-busy", "true");
+    el.innerHTML = `<span class="olv-sr">${OLV_LOADING_TEXT}</span><span class="olv-skel${one ? " one" : ""}" aria-hidden="true">${one ? "<i></i>" : "<i></i><i></i><i></i>"}</span>`;
+    // الصفحة لما تكتب نتيجتها بـ textContent بتمسح الأشرطة؛ aria-busy منشيلها أول ما يتغيّر المحتوى
+    new MutationObserver((_, mo) => { if (!el.querySelector(".olv-skel")) { el.removeAttribute("aria-busy"); mo.disconnect(); } })
+      .observe(el, { childList: true });
+  });
+}
 document.addEventListener("DOMContentLoaded", () => {
+  olvSkeletons();
   olvLinkFieldLabels();
   olvCountUpStats();
   let pending = false;
   new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(() => { pending = false; olvLinkFieldLabels(); olvCountUpStats(); });
+    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvLinkFieldLabels(); olvCountUpStats(); });
   }).observe(document.body, { childList: true, subtree: true });
 });
