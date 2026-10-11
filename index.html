@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#050504">
+<meta name="theme-color" content="#17120d">
 <title>OLV — Luxury Café &amp; Restaurant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
   --ink:#050504;
@@ -279,6 +279,104 @@ footer{text-align:center;padding:46px 20px 20px;color:var(--muted);font-size:11.
 footer .mark{color:var(--gold);letter-spacing:6px;font-family:'Cormorant Garamond',serif;font-size:15px;}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+</style>
+<style id="olv-cream">
+/* ===== هوية OLV الجديدة (نفس تطبيق المحاسبة): كريمي دافي + ذهبي وزيتوني الشعار، خط Tajawal بس.
+   الشعار بيضل على شريط غامق فوق (ما بيتغيّر لونه)، والأصناف كروت فاتحة مقروءة. ===== */
+:root{
+  --ink:#f7f1e6; --ink-2:#fffdf8; --ink-3:#efe6d4;
+  --gold:#b08a3e; --gold-hi:#86631c; --gold-dp:#6b4c14;
+  --olive:#56692e; --olive-hi:#435324;
+  --spice:#a3471f; --spice-hi:#a3471f;
+  --paper:#2f2416; --muted:#7c6a50;
+  --hair:rgba(176,138,62,.30); --hair-soft:rgba(176,138,62,.16);
+  --dark:#17120d; --dark-2:#211a13; --dark-text:#d9cdb6;
+  --card-shadow:0 1px 2px rgba(47,36,22,.06), 0 8px 24px -14px rgba(47,36,22,.28);
+}
+body{background:var(--ink); color:var(--paper);}
+body::before{background:
+  radial-gradient(80% 40% at 50% 0%, rgba(176,138,62,.10), transparent 70%),
+  radial-gradient(60% 40% at 100% 100%, rgba(86,105,46,.08), transparent 70%);}
+body, body.lang-en .hero p, body.lang-en .group-head h2, body.lang-en .name, body.lang-en .desc,
+body.lang-en .modalbody h3, body.lang-en .modalbody p, .group-head h2, .group-head em, .price,
+.summary b, .cart-row .cp, .panel .total b, footer .mark{font-family:'Tajawal',system-ui,sans-serif; font-style:normal;}
+
+/* الشريط الغامق فوق: ساعات الدوام + اللغة + الشعار */
+.bar{background:var(--dark); padding:calc(14px + env(safe-area-inset-top)) 20px 0;}
+.hours{color:#b9ab90; letter-spacing:0;}
+.lang{border-color:rgba(201,162,75,.35); border-radius:999px;}
+.lang button{color:#b9ab90; letter-spacing:0; padding:8px 14px; min-height:36px;}
+.lang button.on{background:linear-gradient(180deg,#e6c983,#c9a24b); color:#1a1307;}
+.hero{background:var(--dark); padding:22px 24px 30px; border-radius:0 0 28px 28px; box-shadow:0 18px 40px -26px rgba(23,18,13,.8);}
+.hero img{filter:drop-shadow(0 10px 30px rgba(201,162,75,.22));}
+.hero p{color:var(--dark-text); font-size:14px;}
+body.lang-en .hero p{font-size:14.5px;}
+
+/* نوع الطلب */
+.otype{padding:20px 20px 4px;}
+.otype button{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px 16px; min-height:42px; font-size:13px; font-weight:500;}
+.otype button svg{color:var(--gold-dp);}
+.otype button.on{background:var(--paper); color:var(--ink-2); border-color:var(--paper); font-weight:700;}
+.otype button.on svg{color:#e6c983;}
+
+/* شريط الأقسام (زجاج فاتح، للتنقل بس) */
+.railwrap{background:rgba(247,241,230,.88); -webkit-backdrop-filter:blur(14px) saturate(1.2); backdrop-filter:blur(14px) saturate(1.2); border-bottom:1px solid var(--hair-soft);}
+.catbtn{color:var(--muted);}
+.catbtn .ring{background:var(--ink-2); border-color:var(--hair); color:var(--gold-dp); box-shadow:var(--card-shadow);}
+.catbtn.on .ring{background:var(--gold); border-color:var(--gold); color:#fffdf8; box-shadow:0 6px 16px -6px rgba(176,138,62,.7);}
+.catbtn.on{color:var(--paper); font-weight:700;}
+.catbtn .label{font-size:12.5px;}
+.subnav a{color:var(--muted); border-color:var(--hair); background:var(--ink-2); padding:8px 15px; font-size:13px;}
+.subnav a:hover,.subnav a:focus-visible{color:var(--paper); border-color:var(--gold);}
+
+/* الأقسام والأصناف: كروت معتمة */
+.group-head h2{font-weight:800; font-size:22px; color:var(--paper);}
+body.lang-en .group-head h2{font-size:22px; font-weight:800; letter-spacing:0;}
+.group-head em{color:var(--gold-dp); opacity:1; font-size:13px; font-weight:500;}
+.group-head i{background:var(--hair);}
+.row{background:var(--ink-2); border:1px solid var(--hair-soft); border-radius:18px; padding:12px; margin-top:10px; box-shadow:var(--card-shadow);}
+.row:last-child{border-bottom:1px solid var(--hair-soft);}
+.row .thumb{width:72px; height:72px; border-radius:14px; border-color:var(--hair-soft);}
+.thumb-icon{color:var(--gold-dp); background:linear-gradient(155deg,#f3ead9,#e9dcc3);}
+.name{font-size:16px; font-weight:700; color:var(--paper);}
+body.lang-en .name{font-size:16px; font-weight:700; letter-spacing:0;}
+.desc{color:var(--muted); font-size:12.5px;}
+body.lang-en .desc{font-size:12.5px;}
+.badge{letter-spacing:0; font-size:11px;}
+.badge.best{background:rgba(176,138,62,.14); color:var(--gold-dp); border-color:rgba(176,138,62,.45);}
+.badge.new{background:rgba(86,105,46,.12); color:var(--olive-hi); border-color:rgba(86,105,46,.4);}
+.badge.spicy{background:rgba(163,71,31,.10); color:var(--spice); border-color:rgba(163,71,31,.35);}
+.price{font-size:17px; font-weight:800; color:var(--gold-dp); font-variant-numeric:tabular-nums;}
+.price small{color:var(--muted); letter-spacing:0; font-weight:500;}
+.plus{width:38px; height:38px; background:var(--olive); border:0; color:#fff; font-size:20px; box-shadow:0 6px 14px -6px rgba(86,105,46,.7);}
+.plus:hover,.plus:focus-visible{background:var(--olive-hi); color:#fff;}
+.plus.pop{animation:pop-c .35s ease;}
+@keyframes pop-c{50%{transform:scale(1.18);}}
+.rowstep{background:var(--ink-3); border-color:var(--hair);}
+.rowstep button{width:32px; height:32px; color:var(--olive-hi); font-size:18px;}
+.rowstep span{font-weight:700; color:var(--paper);}
+
+/* السلة: معتمة دايمًا لأنها فوق المحتوى */
+.cartbar{background:var(--ink-2); border-top:1px solid var(--hair); box-shadow:0 -12px 30px -18px rgba(47,36,22,.45);}
+.summary{color:var(--muted); font-size:13px;}
+.summary b{color:var(--paper); font-weight:800; font-size:16px;}
+.summary .caret{color:var(--gold-dp);}
+.send{background:var(--olive); color:#fff; font-weight:700; font-size:14.5px; padding:13px 22px; min-height:46px; box-shadow:0 8px 20px -8px rgba(86,105,46,.75);}
+.send:active{transform:scale(.97);}
+.sheet .veil,.itemModal .veil{background:rgba(23,18,13,.45);}
+.sheet .panel,.modalcard{background:var(--ink-2); border-top:0; box-shadow:0 -20px 50px -20px rgba(23,18,13,.5);}
+.panel h3,.modalbody h3{font-weight:800; color:var(--paper);}
+.cart-row{border-bottom-color:var(--hair-soft);}
+.cart-row .cp{color:var(--gold-dp); font-weight:700; font-variant-numeric:tabular-nums;}
+.qty button,.qtybox button{width:34px; height:34px; color:var(--olive-hi); border-color:var(--hair);}
+.panel .total b{color:var(--paper); font-weight:800;}
+.modalimg{background:linear-gradient(155deg,#f3ead9,#e9dcc3); color:var(--gold-dp);}
+.modalclose{width:38px; height:38px; background:rgba(23,18,13,.6); border:0; color:#fff;}
+.modalbody p{color:var(--muted);}
+.qtybox{background:var(--ink-3); border-color:var(--hair);}
+footer{color:var(--muted);}
+footer .mark{color:var(--gold-dp); font-weight:800;}
+:focus-visible{outline-color:var(--olive);}
 </style>
 </head>
 <body class="lang-ar">
