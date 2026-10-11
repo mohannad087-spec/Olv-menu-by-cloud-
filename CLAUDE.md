@@ -9,6 +9,7 @@ The owner writes Levantine Arabic. All UI text, comments and README content are 
 - `supabase/functions/*` — Deno edge functions (Gemini AI features, employee management, menu proxy). Secrets come from `Deno.env` only.
 - `print-bridge/`, `attendance-bridge/`, `drive-backup/` — small Node programs that run on the restaurant's own PC / in Actions; each has its own README and `.env.example`.
 - `index.html` / `olv-menu.html` — the public customer menu (identical copies); `olv-admin.html` edits it.
+- `motion/` — animation for the customer menu only: vendored GSAP (+ScrollTrigger, SplitText) and Lenis in `motion/vendor/`, plain-JS ports of React Bits effects in `motion/react-bits.js` (the app has no React, don't add it), wiring in `motion/olv-motion.js`. Keep it off POS/kitchen.
 
 ## Deploy
 Every push to `main` deploys the **whole repo** to GitHub Pages (`.github/workflows/static.yml`). So: never commit secrets, service-role keys or `.env` files — anything in the repo is public.
