@@ -227,6 +227,8 @@ const OLV_HUBS = [
 // اليومية عالية التكرار تضل ظاهرة مباشرة، والباقي مجمّع تحت "المزيد"
 // بمجموعات منطقية، حتى ما يصير الشريط جدار عريض من 16 تبويب متراصين
 function olvRenderNav(active) {
+  // شكل 2026-10: هالة دافئة خلفية + شريط علوي زجاج على كل صفحات البرنامج (theme.css)
+  document.body.classList.add("olv-glass");
   const primaryLinks = [
     { id: "dashboard", href: "index.html", label: "الرئيسية", icon: "home" },
     { id: "pos", href: "pos.html", label: "بيع سريع", icon: "bolt" },
@@ -643,12 +645,39 @@ function olvLinkFieldLabels(root) {
     label.htmlFor = ctl.id;
   });
 }
+// أرقام بطاقات الملخّص (.stat .value) بتعدّ من صفر لقيمتها أول مرة بتظهر
+// (حوالي 0.8 ثانية). بتشتغل لحالها على كل الصفحات بدون ما نعدّل كود أي صفحة:
+// بس الأرقام الصافية (1,234.50 أو 12 أو -5.00)، ولو الصفحة كتبت رقم جديد
+// أثناء العدّ بنوقف ومنخلّي رقمها هي
+const olvReduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function olvCountUpStats(root) {
+  if (olvReduceMotion) return;
+  (root || document).querySelectorAll(".stat .value:not([data-olv-counted])").forEach((el) => {
+    const text = el.textContent.trim();
+    if (!/^-?[\d,]+(\.\d+)?$/.test(text) || el.children.length) return;
+    el.dataset.olvCounted = "1";
+    const to = Number(text.replace(/,/g, ""));
+    if (!to) return;
+    const decimals = (text.split(".")[1] || "").length;
+    const fmt = (v) => v.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: text.includes(",") });
+    const t0 = performance.now();
+    let written = "";
+    (function step(t) {
+      if (written && el.textContent !== written) return; // الصفحة غيّرت الرقم
+      const k = Math.min(1, (t - t0) / 800);
+      written = k < 1 ? fmt(to * (1 - Math.pow(1 - k, 3))) : text;
+      el.textContent = written;
+      if (k < 1) requestAnimationFrame(step);
+    })(t0);
+  });
+}
 document.addEventListener("DOMContentLoaded", () => {
   olvLinkFieldLabels();
+  olvCountUpStats();
   let pending = false;
   new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(() => { pending = false; olvLinkFieldLabels(); });
+    requestAnimationFrame(() => { pending = false; olvLinkFieldLabels(); olvCountUpStats(); });
   }).observe(document.body, { childList: true, subtree: true });
 });
