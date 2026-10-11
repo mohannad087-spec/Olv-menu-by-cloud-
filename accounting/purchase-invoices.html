@@ -388,7 +388,7 @@
           : `<option value="stock">اختر الصنف أولًا</option>`;
         return `<tr data-idx="${idx}">
           <td>
-            <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
+            <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="pi-ac-list" aria-label="الصنف" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
             ${line.unmatchedName && !it ? `<div class="pi-warn bad">ما انعرف "${olvEsc(line.unmatchedName)}" — اختر الصنف من القائمة</div>` : ""}
             <div data-warn>${priceWarning(line, it)}</div>
           </td>
@@ -439,7 +439,10 @@
     // ---------- قائمة اقتراحات بحث بالكلمات (بدل datalist اللي بيطابق نص متصل بس) ----------
     // "معس بطيخ" بتلاقي "معسل مزايا بطيخ". الاختيار بيحط نفس نص الخيار بالخانة وبيطلق نفس حدث الإدخال، فمنطق المطابقة تحته ما اتغيّر
     const ac = { box: null, input: null, opts: [], idx: -1 };
-    function acClose() { if (ac.box) { ac.box.remove(); ac.box = null; } ac.input = null; ac.opts = []; ac.idx = -1; }
+    function acClose() {
+      if (ac.input) { ac.input.setAttribute("aria-expanded", "false"); ac.input.removeAttribute("aria-activedescendant"); }
+      if (ac.box) { ac.box.remove(); ac.box = null; } ac.input = null; ac.opts = []; ac.idx = -1;
+    }
     function acOptions(q) {
       if (!String(q).trim()) return [];
       const mine = items.filter((it) => olvSearchMatch(itemLabel(it), q)).slice(0, 8).map((it) => ({ label: itemLabel(it), name: it.name, meta: it.kind === "ingredient" ? "مادة خام" : "مستلزم" }));
@@ -448,14 +451,17 @@
     }
     function acRender() {
       if (!ac.input) return;
-      if (!ac.opts.length) { if (ac.box) ac.box.hidden = true; return; }
-      if (!ac.box) { ac.box = document.createElement("div"); ac.box.className = "pi-ac"; ac.box.setAttribute("role", "listbox"); document.body.appendChild(ac.box); }
+      if (!ac.opts.length) { if (ac.box) ac.box.hidden = true; ac.input.setAttribute("aria-expanded", "false"); return; }
+      if (!ac.box) { ac.box = document.createElement("div"); ac.box.className = "pi-ac"; ac.box.id = "pi-ac-list"; ac.box.setAttribute("role", "listbox"); ac.box.setAttribute("aria-label", "أصناف مطابقة"); document.body.appendChild(ac.box); }
       ac.box.hidden = false;
+      // قارئ الشاشة: القائمة مفتوحة، والخيار المحدد بالأسهم
+      ac.input.setAttribute("aria-expanded", "true");
+      if (ac.idx >= 0) ac.input.setAttribute("aria-activedescendant", "pi-ac-" + ac.idx); else ac.input.removeAttribute("aria-activedescendant");
       const r = ac.input.getBoundingClientRect();
       ac.box.style.top = (window.scrollY + r.bottom + 4) + "px";
       ac.box.style.right = Math.max(8, document.documentElement.clientWidth - r.right - window.scrollX) + "px";
       ac.box.style.width = Math.max(300, r.width) + "px";
-      ac.box.innerHTML = ac.opts.map((o, i) => `<button type="button" role="option" data-i="${i}" class="${i === ac.idx ? "on" : ""}"><span>${olvEsc(o.name)}</span><span class="m">${olvEsc(o.meta)}</span></button>`).join("");
+      ac.box.innerHTML = ac.opts.map((o, i) => `<button type="button" role="option" id="pi-ac-${i}" aria-selected="${i === ac.idx}" tabindex="-1" data-i="${i}" class="${i === ac.idx ? "on" : ""}"><span>${olvEsc(o.name)}</span><span class="m">${olvEsc(o.meta)}</span></button>`).join("");
     }
     function acPick(i) {
       const o = ac.opts[i]; const inp = ac.input; if (!o || !inp) return;
