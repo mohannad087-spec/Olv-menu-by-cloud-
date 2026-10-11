@@ -199,6 +199,13 @@ function olvIcon(name, cls) {
 // أقسام بتجمع أكتر من صفحة تحت رابط واحد بالقائمة، وبتطلع كتبويبات بأعلى كل صفحة منها
 const OLV_HUBS = [
   {
+    navId: "settings",
+    tabs: [
+      { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
+      { id: "style-guide", href: "style-guide.html", label: "دليل التصميم", icon: "brand" },
+    ],
+  },
+  {
     navId: "inventory",
     tabs: [
       { id: "inventory", href: "inventory.html", label: "المواد الخام", icon: "box" },
