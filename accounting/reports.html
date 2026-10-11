@@ -118,6 +118,56 @@
     .bar-row .bar-track{order:3; flex-basis:100%;}
   }
   .bar-row .bar-value small{color:var(--muted); font-weight:400; margin-inline-start:6px; font-size:12px;}
+  /* خريطة الزحمة: أيام أعمدة × ساعات أسطر (بتناسب عرض الموبايل). اللون
+     درجات زيتوني واحد (فاتح = هادي، غامق = زحمة) والرقم مكتوب بالخانة
+     حتى ما نعتمد على اللون وحده */
+  .heat{display:grid; grid-template-columns:44px repeat(7, minmax(0,1fr)); gap:3px; font-variant-numeric:tabular-nums;}
+  .heat .hd{font-size:11.5px; color:var(--muted); text-align:center; padding-bottom:4px;}
+  .heat .hr{font-size:11px; color:var(--muted); display:flex; align-items:center; justify-content:flex-end; padding-inline-end:6px; white-space:nowrap;}
+  .heat .c{
+    height:26px; border:0; border-radius:6px; padding:0; font:inherit; font-size:11px; font-weight:700;
+    background:color-mix(in srgb, var(--olive) calc(var(--v, 0) * 100%), var(--hair-soft));
+    color:var(--paper); cursor:default;
+  }
+  .heat .c.hot{color:var(--on-olive);}
+  .heat .c.z{color:transparent;}
+  .heat .c:focus-visible{outline:2px solid var(--gold); outline-offset:1px;}
+  .heat-legend{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-top:10px;}
+  .heat-legend .ramp{width:110px; height:10px; border-radius:999px; background:linear-gradient(to left, var(--olive), var(--hair-soft));}
+  /* دائرة طرق الدفع: 3 أقسام بس (القاعدة: ≤5)، النسبة مكتوبة جنب كل لون
+     وتحتها قائمة بالمبالغ كبديل نصي */
+  .donut-wrap{display:flex; align-items:center; gap:22px; flex-wrap:wrap;}
+  .donut{width:170px; height:170px; flex:none; display:block;}
+  .donut .seg{fill:none; stroke-width:22; transition:stroke-width .15s var(--ease);}
+  .donut .seg:hover{stroke-width:26;}
+  .donut .mid{fill:var(--paper); font-family:'Tajawal',sans-serif; text-anchor:middle;}
+  .donut .mid.s{fill:var(--muted); font-size:11px;}
+  .donut .mid.b{font-size:17px; font-weight:800;}
+  .donut-legend{flex:1; min-width:180px; max-width:360px; display:flex; flex-direction:column; gap:10px;}
+  .donut-legend .row{display:flex; align-items:center; gap:10px; font-size:13.5px;}
+  .donut-legend .sw{width:12px; height:12px; border-radius:4px; flex:none;}
+  .donut-legend .nm{flex:1;}
+  .donut-legend .pc{font-weight:800; min-width:42px; text-align:end; font-variant-numeric:tabular-nums;}
+  .donut-legend .am{color:var(--muted); font-size:12.5px; min-width:92px; text-align:end; font-variant-numeric:tabular-nums;}
+  /* ترتيب الأصناف: شريط لكل صنف = الإيراد، مقسوم لربح (زيتوني) وتكلفة
+     (ذهبي فاتح). الصنف اللي ما إله وصفة شريطه مخطّط لأن ربحه مش معروف */
+  .rank{display:flex; flex-direction:column; gap:11px; margin-bottom:16px;}
+  .rank .r{display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:4px 10px; align-items:center;}
+  .rank .n{grid-row:span 2; width:22px; height:22px; border-radius:7px; background:var(--hair-soft); color:var(--muted); font-size:12px; font-weight:800; display:grid; place-items:center;}
+  .rank .r:nth-child(-n+3) .n{background:var(--gold); color:var(--on-gold);}
+  .rank .nm{font-size:13.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .rank .vl{font-size:12.5px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .rank .vl b{color:var(--paper);}
+  .rank .tr{grid-column:2 / 4; height:10px; border-radius:999px; background:var(--hair-soft); display:flex; overflow:hidden;}
+  .rank .tr i{display:block; height:100%; transform-origin:right; animation:olv-rank-grow .7s var(--ease) backwards;}
+  .rank .tr .m{background:var(--olive);}
+  .rank .tr .k{background:rgba(var(--gold-rgb),.45);}
+  .rank .tr .u{background:repeating-linear-gradient(-45deg, var(--olive) 0 5px, color-mix(in srgb, var(--olive) 45%, transparent) 5px 10px);}
+  .rank-legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--muted); margin-bottom:12px;}
+  .rank-legend span{display:inline-flex; align-items:center; gap:6px;}
+  .rank-legend i{width:14px; height:10px; border-radius:3px; display:inline-block;}
+  @keyframes olv-rank-grow{from{transform:scaleX(0);}}
+  @media (prefers-reduced-motion: reduce){ .rank .tr i{animation:none;} .donut .seg{transition:none;} }
 </style>
 </head>
 <body>
@@ -184,6 +234,14 @@
       <p class="trend-summary" id="trend-summary"></p>
     </div>
 
+    <div class="group">
+      <h2>أوقات الزحمة</h2>
+      <p class="hint" style="margin-bottom:12px;">عدد الطلبات بكل ساعة من كل يوم بالأسبوع، خلال الفترة المختارة. كل ما كانت الخانة أغمق كان الضغط أكثر.</p>
+      <div class="heat" id="heat"></div>
+      <div class="heat-legend" aria-hidden="true"><span>هادي</span><span class="ramp"></span><span>زحمة</span></div>
+      <p class="trend-summary" id="heat-summary"></p>
+    </div>
+
     <div class="group" id="insights-group" hidden>
       <h2>ملاحظات ذكية</h2>
       <div class="insights" id="insights-list"></div>
@@ -191,7 +249,8 @@
 
     <div class="group">
       <h2>المبيعات حسب طريقة الدفع</h2>
-      <div class="bars" id="payment-bars"></div>
+      <div class="donut-wrap" id="payment-donut"></div>
+      <p class="trend-summary" id="payment-summary"></p>
     </div>
 
     <div class="group">
@@ -201,6 +260,9 @@
 
     <div class="group">
       <h2>ربحية الأصناف</h2>
+      <div class="rank-legend" aria-hidden="true"><span><i style="background:var(--olive)"></i>الربح</span><span><i style="background:rgba(var(--gold-rgb),.45)"></i>تكلفة المكوّنات</span><span><i style="background:repeating-linear-gradient(-45deg,var(--olive) 0 4px,transparent 4px 8px)"></i>بدون وصفة (التكلفة مش معروفة)</span></div>
+      <div class="rank" id="profit-rank"></div>
+      <p class="trend-summary" id="rank-summary" style="margin-bottom:16px;"></p>
       <p class="hint" style="margin-bottom:14px;">
         الأكثر مبيعًا مو بالضرورة الأكثر ربحًا — هاد الجدول بيحسب هامش الربح
         الفعلي لكل صنف (الإيراد مطروح منه تكلفة المكوّنات التقديرية حسب آخر
@@ -345,6 +407,113 @@
     }
 
     let lastReport = null;
+
+    // خريطة الزحمة: الطلبات المكتملة مجمّعة حسب يوم الأسبوع × الساعة
+    // (بتوقيت الجهاز، من created_at). بتعرض بس الساعات اللي فيها شغل فعلاً
+    const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5]; // الأسبوع بيبلّش السبت
+    function hourName(h) {
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return h12 + (h < 12 ? " ص" : " م");
+    }
+    function renderHeatmap(sales) {
+      const box = document.getElementById("heat");
+      const summary = document.getElementById("heat-summary");
+      const grid = Array.from({ length: 7 }, () => new Array(24).fill(0));
+      let n = 0;
+      (sales || []).forEach((r) => {
+        if (!r.created_at) return;
+        const d = new Date(r.created_at);
+        grid[d.getDay()][d.getHours()] += 1;
+        n += 1;
+      });
+      if (!n) { box.innerHTML = `<div class="hint" style="grid-column:1/-1">لا يوجد بيانات في هذه الفترة</div>`; summary.textContent = ""; return; }
+      const active = [];
+      for (let h = 0; h < 24; h++) if (grid.some((row) => row[h])) active.push(h);
+      // نعرض مدى متصل من أول ساعة شغل لآخر ساعة (بدون فراغات بالنص)
+      const hours = [];
+      for (let h = active[0]; h <= active[active.length - 1]; h++) hours.push(h);
+      const max = Math.max(...grid.flat(), 1);
+      let html = `<div></div>` + DAY_ORDER.map((d) => `<div class="hd">${DAY_NAMES[d].replace("ال", "")}</div>`).join("");
+      hours.forEach((h) => {
+        html += `<div class="hr">${hourName(h)}</div>`;
+        DAY_ORDER.forEach((d) => {
+          const v = grid[d][h];
+          const t = v / max;
+          html += `<button type="button" class="c${v ? "" : " z"}${t > 0.55 ? " hot" : ""}" style="--v:${v ? (0.12 + t * 0.88).toFixed(2) : 0}" aria-label="${DAY_NAMES[d]} الساعة ${hourName(h)}: ${v} طلب">${v || ""}</button>`;
+        });
+      });
+      box.innerHTML = html;
+      let best = { d: 0, h: 0, v: -1 };
+      grid.forEach((row, d) => row.forEach((v, h) => { if (v > best.v) best = { d, h, v }; }));
+      const byDay = grid.map((row) => row.reduce((a, b) => a + b, 0));
+      const busyDay = byDay.indexOf(Math.max(...byDay));
+      const byHour = hours.map((h) => grid.reduce((s, row) => s + row[h], 0));
+      const busyHour = hours[byHour.indexOf(Math.max(...byHour))];
+      summary.innerHTML = `أزحم وقت: <b>${DAY_NAMES[best.d]} الساعة ${hourName(best.h)}</b> (${best.v} طلب). أزحم يوم بالأسبوع <b>${DAY_NAMES[busyDay]}</b>، وأزحم ساعة بشكل عام <b>${hourName(busyHour)}</b>.`;
+    }
+
+    // دائرة طرق الدفع: SVG بدون مكتبات. الأكبر بيبلّش من فوق (الساعة 12)،
+    // والنسبة والمبلغ مكتوبين بالقائمة جنبها
+    function renderPaymentDonut(items) {
+      const box = document.getElementById("payment-donut");
+      const summary = document.getElementById("payment-summary");
+      const total = items.reduce((s, i) => s + i.value, 0);
+      if (!total) { box.innerHTML = `<div class="hint">لا يوجد بيانات في هذه الفترة</div>`; summary.textContent = ""; return; }
+      const sorted = items.slice().sort((a, b) => b.value - a.value);
+      const R = 62, C = 2 * Math.PI * R, GAP = sorted.filter((i) => i.value > 0).length > 1 ? 3 : 0;
+      let off = 0;
+      const segs = sorted.map((i) => {
+        const len = (i.value / total) * C;
+        const seg = len > 0 ? `<circle class="seg" cx="85" cy="85" r="${R}" stroke="${i.color}" stroke-dasharray="${Math.max(0, len - GAP).toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 85 85)"><title>${olvEsc(i.label)}: ${olvFormatMoney(i.value)}</title></circle>` : "";
+        off += len;
+        return seg;
+      }).join("");
+      box.innerHTML = `
+        <svg class="donut" viewBox="0 0 170 170" role="img" aria-label="${sorted.map((i) => `${i.label} ${Math.round((i.value / total) * 100)}%`).join("، ")}">
+          <circle cx="85" cy="85" r="${R}" fill="none" stroke="var(--hair-soft)" stroke-width="22"/>
+          ${segs}
+          <text class="mid s" x="85" y="78">المجموع</text>
+          <text class="mid b" x="85" y="100">${olvFormatMoney(total)}</text>
+        </svg>
+        <div class="donut-legend">${sorted.map((i) => `
+          <div class="row"><span class="sw" style="background:${i.color}"></span><span class="nm">${olvEsc(i.label)}</span><span class="pc">${Math.round((i.value / total) * 100)}%</span><span class="am">${olvFormatMoney(i.value)}</span></div>`).join("")}
+        </div>`;
+      const top = sorted[0];
+      summary.innerHTML = `<b>${olvEsc(top.label)}</b> هو الأكثر استخداماً، ${Math.round((top.value / total) * 100)}% من المبيعات.`;
+    }
+
+    // ترتيب الأصناف حسب الإيراد (أعلى 8)، وكل شريط مقسوم لربح وتكلفة.
+    // الأصناف بدون وصفة شريطها مخطّط: ربحها مش معروف فما منقارنها بالربح
+    function renderProfitRank(sales) {
+      const box = document.getElementById("profit-rank");
+      const summary = document.getElementById("rank-summary");
+      const rows = computeProfitability(sales).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+      if (!rows.length) { box.innerHTML = ""; summary.textContent = ""; return; }
+      const max = Math.max(...rows.map((r) => r.revenue), 1);
+      box.innerHTML = rows.map((r, idx) => {
+        const w = (r.revenue / max) * 100;
+        let bar;
+        if (!r.hasRecipe) bar = `<i class="u" style="width:${w}%"></i>`;
+        else {
+          const m = Math.max(0, r.margin) / Math.max(r.revenue, 1) * w;
+          bar = `<i class="m" style="width:${m}%"></i><i class="k" style="width:${Math.max(0, w - m)}%;animation-delay:.1s"></i>`;
+        }
+        const val = r.hasRecipe
+          ? `ربح <b>${olvFormatMoney(r.margin)}</b> من ${olvFormatMoney(r.revenue)}`
+          : `إيراد <b>${olvFormatMoney(r.revenue)}</b>`;
+        return `<div class="r" aria-label="${idx + 1}. ${olvEsc(r.name)}: ${r.qty} قطعة، ${val.replace(/<\/?b>/g, "")}">
+          <span class="n">${idx + 1}</span><span class="nm">${olvEsc(r.name)} <small style="color:var(--muted);font-weight:400">× ${r.qty}</small></span><span class="vl">${val}</span>
+          <div class="tr">${bar}</div></div>`;
+      }).join("");
+      const withRecipe = computeProfitability(sales).filter((r) => r.hasRecipe && r.revenue > 0);
+      if (withRecipe.length) {
+        const best = withRecipe.sort((a, b) => b.margin - a.margin)[0];
+        summary.innerHTML = `أكثر صنف ربح (من الأصناف اللي إلها وصفة): <b>${olvEsc(best.name)}</b> بربح <b>${olvFormatMoney(best.margin)}</b>${best.marginPct != null ? ` (${best.marginPct.toFixed(0)}% من سعره)` : ""}.`;
+      } else {
+        summary.innerHTML = `الترتيب حسب الإيراد. لتعرف الربح الحقيقي لكل صنف، عبّي وصفته بصفحة «الأصناف والوصفات».`;
+      }
+    }
 
     // يلخّص أداء كل موظف بالفترة المحددة: عدد الفواتير المكتملة وإجماليها
     // ومتوسطها، وعدد العمليات اللي سجّلها هو وانلغت (مفيد لضبط الأخطاء)
@@ -593,12 +762,14 @@
 
         await loadInsights(from, to, sales, totalSales, net);
         renderProfitability(sales);
+        renderProfitRank(sales);
         renderTrend(from, to, sales, expenses);
+        renderHeatmap(sales);
 
-        renderBars("payment-bars", [
-          { label: "كاش", value: cash },
-          { label: "شبكة / فيزا", value: card },
-          { label: "توصيل / تطبيقات", value: delivery },
+        renderPaymentDonut([
+          { label: "كاش", value: cash, color: "var(--olive)" },
+          { label: "شبكة / فيزا", value: card, color: "var(--gold)" },
+          { label: "توصيل / تطبيقات", value: delivery, color: "#c9a993" },
         ]);
 
         const byCategory = {};
