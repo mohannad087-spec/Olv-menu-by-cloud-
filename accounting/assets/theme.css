@@ -467,7 +467,8 @@ tbody tr{transition:background .15s var(--ease);}
 }
 
 /* ---- زجاج سائل + هالة دافئة (2026-10، من مهارة ui-ux-pro-max) ----
-   بتشتغل بس على الصفحات اللي جسمها عليه class="olv-glass" (الرئيسية وشاشة البيع).
+   بتشتغل على كل صفحة جسمها عليه class="olv-glass": olvRenderNav بيضيفها لكل
+   صفحات البرنامج، وصفحة الدخول حاطّتها بإيدها.
    القاعدة: الزجاج للتنقل والأدوات بس (الشريط العلوي، التذكرة، شريط الموبايل)،
    والمحتوى (الأرقام والأصناف) على بلاطات معتمة حتى يضل مقروء. خلفها "هالة"
    من ألوان الشعار (ذهبي، زيتوني، خوخي) بتتحرك ببطء شديد */
@@ -508,3 +509,36 @@ body.olv-glass::before{
 @media (prefers-reduced-transparency: reduce){
   .olv-glass .top{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
 }
+
+/* ---- بطاقات بنتو على كل الصفحات ----
+   نفس روح لوحة الرئيسية: زوايا أنعم، حدود أخف، ورفعة خفيفة للبطاقات اللي
+   بتنضغط. البطاقات نفسها بتضل معتمة (المحتوى والجداول لازم تنقرا) */
+.olv-glass{--r-card:22px;}
+.olv-glass .group{border-color:var(--hair-soft); padding:22px;}
+.olv-glass .stats{gap:14px;}
+.olv-glass .stat{border-color:var(--hair-soft); padding:18px;}
+.olv-glass .stat .value{font-size:30px;}
+.olv-glass .stat .stat-icon{border-radius:14px;}
+.olv-glass .stats .stat:first-child .stat-icon{background:var(--olive); color:var(--on-olive);}
+.olv-glass .table-wrap{border-radius:14px;}
+.olv-glass .btn{border-radius:14px;}
+.olv-glass .field input, .olv-glass .field select, .olv-glass .field textarea{border-radius:14px;}
+.olv-glass .olv-modal-backdrop > *, .olv-glass .olv-failed-box{border-radius:22px;}
+/* صفحة الدخول: البطاقة زجاج فوق الهالة */
+.olv-glass .center-card{
+  border-radius:26px; background:var(--glass); border-color:var(--glass-line);
+  -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%);
+  box-shadow:var(--glass-shadow), inset 0 1px 0 var(--glass-line);
+}
+@media (hover:hover) and (pointer:fine){
+  .olv-glass .stat:hover{transform:translateY(-2px);}
+}
+@media (max-width:640px){
+  .olv-glass .group{padding:18px; border-radius:20px;}
+}
+@media (prefers-reduced-transparency: reduce){
+  .olv-glass .center-card{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
+}
+/* أشرطة النِّسَب (التقارير وغيرها) بنفس شريط طرق الدفع بالرئيسية: زيتوني سادة ومدوّر */
+.olv-glass .bar-row .bar-track{border-radius:999px;}
+.olv-glass .bar-row .bar-fill{background:var(--olive); border-radius:999px;}
