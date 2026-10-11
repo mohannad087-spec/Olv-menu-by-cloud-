@@ -128,7 +128,7 @@
   .cat-tab:active{transform:scale(.95); transition-duration:.08s;}
   .cat-tab .cat-tab-icon{font-size:26px; line-height:1;}
   .cat-tab .cat-tab-icon .icon{width:24px; height:24px;}
-  .cat-tab .cat-tab-label{font-weight:600;}
+  .cat-tab .cat-tab-label{font-weight:600; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; overflow-wrap:anywhere;}
   .cat-tab.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700; box-shadow:0 4px 14px rgba(var(--gold-rgb),.25);}
   @media (max-width:900px){
     .cat-tabs{flex-direction:row; overflow-x:auto; padding-bottom:2px;}
@@ -167,7 +167,7 @@
   .card .thumb-fallback .icon{width:36px; height:36px; color:var(--gold-dp); opacity:.8; stroke-width:1.6;}
   :root[data-theme="dark"] .card .thumb-fallback .icon{color:var(--gold);}
   .card .info{padding:9px 9px 12px; text-align:center;}
-  .card .name{font-size:15px; margin-bottom:3px; font-weight:800; line-height:1.3;}
+  .card .name{font-size:15px; margin-bottom:3px; font-weight:800; line-height:1.3; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; overflow-wrap:anywhere;}
   .card .desc{
     font-size:11px; color:var(--muted); line-height:1.35; margin-bottom:6px;
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
@@ -940,7 +940,7 @@
             : `<div class="thumb-fallback">${olvIcon(fallbackIcon)}</div>`
           }
           <div class="info">
-            <div class="name">${olvEsc(p.name)}</div>
+            <div class="name" title="${olvEsc(p.name)}">${olvEsc(p.name)}</div>
             ${p.description ? `<div class="desc">${olvEsc(p.description)}</div>` : ""}
             <div class="info-bottom">
               <span class="price">${olvFormatMoney(p.price)}</span>

@@ -503,7 +503,7 @@
           ? `ربح <b>${olvFormatMoney(r.margin)}</b> من ${olvFormatMoney(r.revenue)}`
           : `إيراد <b>${olvFormatMoney(r.revenue)}</b>`;
         return `<div class="r" aria-label="${idx + 1}. ${olvEsc(r.name)}: ${r.qty} قطعة، ${val.replace(/<\/?b>/g, "")}">
-          <span class="n">${idx + 1}</span><span class="nm">${olvEsc(r.name)} <small style="color:var(--muted);font-weight:400">× ${r.qty}</small></span><span class="vl">${val}</span>
+          <span class="n">${idx + 1}</span><span class="nm" title="${olvEsc(r.name)}">${olvEsc(r.name)}</span><span class="vl">× ${r.qty} · ${val}</span>
           <div class="tr">${bar}</div></div>`;
       }).join("");
       const withRecipe = computeProfitability(sales).filter((r) => r.hasRecipe && r.revenue > 0);

@@ -334,6 +334,10 @@ tbody tr{transition:background .15s var(--ease);}
   .top .actions .btn .icon{width:19px; height:19px;}
   .olv-user-badge{min-width:0; flex:0 1 auto; padding:7px 12px; font-size:12.5px;}
   .olv-user-badge > span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+}
+@media (max-width:379px){
+  .olv-user-badge > span{display:none;}
+  .olv-user-badge{padding:7px 10px;}
   .tabs{padding:10px 14px 4px; gap:6px; scrollbar-width:none;}
   .tabs::-webkit-scrollbar{display:none;}
   .tab-link{padding:10px 15px;}
