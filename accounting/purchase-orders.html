@@ -60,6 +60,16 @@
 </script>
 <style>
   .po-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+  /* الناقص بالمخزون: سطر لكل مورّد وزر بيعبّي الطلبية */
+  .low-card{border-color:var(--gold);}
+  .low-list{display:flex; flex-direction:column; gap:8px;}
+  .low-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--hair-soft); border-radius:12px; background:var(--ink-3);}
+  .low-row > div{min-width:0;}
+  .low-row b{display:block; font-size:14.5px;}
+  .low-row span{display:block; font-size:12.5px; color:var(--muted); overflow-wrap:anywhere;}
+  .low-row .btn{flex-shrink:0;}
+  .low-row.done{opacity:.55;}
+  .low-row.nosup{border-style:dashed;}
   .po-head h2{margin:0;}
   .po-ai-toggle{border-color:var(--gold); color:var(--gold-hi);}
   .po-ai-toggle[aria-expanded="true"]{background:rgba(var(--gold-rgb),.1);}
@@ -150,6 +160,12 @@
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
+
+    <div class="group low-card" id="low" hidden>
+      <h2>الناقص بالمخزون</h2>
+      <div class="hint" style="margin:0 0 10px;">مقسّم حسب المورّد. اضغط «جهّز الطلبية» وبتنعبّى بالكميات المقترحة، بتراجعها وبتبعتها.</div>
+      <div class="low-list" id="low-list"></div>
+    </div>
 
     <div class="group">
       <div class="po-head">
@@ -1095,11 +1111,85 @@
       olvToast(`جاهزة طلبية ${supplier.name} — راجعها وابعتها واتساب`);
     }
 
+    // ---------- الناقص بالمخزون → طلبية جاهزة ----------
+    // نفس low_stock_items تبع تنبيه المخزون (تحت الحد أو بيخلص خلال 3 أيام حسب البيع)
+    let lowByKey = new Map(); // key -> days_left
+    function lowQty(it, mode) {
+      const days = lowByKey.get(it.key);
+      const daily = days > 0 && it.stock > 0 ? it.stock / days : 0;
+      // لحد ضعف الحد، أو لحد ما يكفي أسبوع حسب البيع، أيهم أكبر
+      const need = Math.max(it.threshold * 2 - it.stock, daily * 7 - it.stock);
+      if (!(need > 0)) return "";
+      const f = mode === "purchase" && it.puFactor ? it.puFactor : 1;
+      const q = need / f;
+      return String(mode === "purchase" ? Math.ceil(q - 1e-9) : Math.ceil(q * 100 - 1e-9) / 100);
+    }
+    async function loadLow() {
+      const { data, error } = await window.supabaseClient.from("low_stock_items").select("item_type, id, days_left");
+      if (error || !(data || []).length) { $("low").hidden = true; return; }
+      lowByKey = new Map(data.map((r) => [r.item_type + ":" + r.id, r.days_left == null ? null : Number(r.days_left)]));
+      await loadSupplierGuesses();
+      renderLow();
+    }
+    const doneLow = new Set();
+    function renderLow() {
+      const groups = new Map();
+      lowByKey.forEach((_, key) => {
+        const it = itemByKey(key); if (!it) return;
+        const sup = guessSupplier(key);
+        if (!groups.has(sup)) groups.set(sup, []);
+        groups.get(sup).push(it);
+      });
+      if (!groups.size) { $("low").hidden = true; return; }
+      const names = (list) => list.slice(0, 4).map((i) => olvEsc(i.name)).join("، ") + (list.length > 4 ? ` و${list.length - 4} غيرهم` : "");
+      const rowsHtml = [...groups].filter(([sup]) => sup).sort((a, b) => b[1].length - a[1].length).map(([sup, list]) => {
+        const s = suppliers.find((x) => x.id === sup);
+        return `<div class="low-row${doneLow.has(sup) ? " done" : ""}"><div><b>${olvEsc(s.name)}</b><span>${names(list)}</span></div>
+          <button type="button" class="btn small gold" data-low-sup="${olvEsc(sup)}">${doneLow.has(sup) ? "جهّزتها" : "جهّز الطلبية"}</button></div>`;
+      });
+      const orphan = groups.get("");
+      if (orphan) rowsHtml.push(`<div class="low-row nosup"><div><b>ما إلها مورّد معروف</b><span>${names(orphan)}، اختار المورّد من تحت وضيفها لطلبيته، وبعدها بتنحفظ عليه</span></div></div>`);
+      $("low-list").innerHTML = rowsHtml.join("");
+      $("low").hidden = false;
+    }
+    $("low-list").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-low-sup]"); if (!b) return;
+      b.disabled = true;
+      try { await loadLowInto(b.dataset.lowSup); } catch (err) { olvShowError($("err"), err); } finally { b.disabled = false; }
+    });
+    async function loadLowInto(supId) {
+      if (!confirmDiscard()) return;
+      const sb = window.supabaseClient;
+      const keys = [...lowByKey.keys()].filter((k) => itemByKey(k) && guessSupplier(k) === supId);
+      supplier = suppliers.find((x) => x.id === supId) || null;
+      if (!supplier) throw new Error("المورّد مش موجود");
+      $("po-supplier").value = supId; shownSupplierId = supId;
+      orderId = null; $("po-notes").value = ""; $("po-text").hidden = true; $("po-filter").value = ""; $("po-only").checked = false;
+      await loadLinks();
+      // المادة اللي عرفنا مورّدها من آخر شراء بتنربط فيه للمرات الجاية
+      for (const k of keys) {
+        if (linked.has(k)) continue;
+        const it = itemByKey(k);
+        const { error } = await sb.from("supplier_items").insert({ supplier_id: supId, [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id });
+        if (error && error.code !== "23505") throw error;
+        linked.set(k, { auto: false });
+      }
+      buildRows();
+      rows.forEach((r) => { r.qty = lowByKey.has(r.key) ? lowQty(itemByKey(r.key), r.mode) : ""; });
+      rows.sort((a, b) => Number(Number(b.qty) > 0) - Number(Number(a.qty) > 0));
+      render();
+      doneLow.add(supId); renderLow();
+      $("po-editor").scrollIntoView({ behavior: "smooth", block: "start" });
+      const n = rows.filter((r) => Number(r.qty) > 0).length;
+      olvToast(n ? `جاهزة طلبية ${supplier.name} بالناقص (${n}) — راجعها وابعتها` : `ما قدرنا نحسب كمية، اكتبها بإيدك`);
+    }
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
       try {
         await loadAll(); await loadHistory();
+        try { await loadLow(); if (location.hash === "#low" && !$("low").hidden) $("low").scrollIntoView({ block: "start" }); } catch (_) {}
         const pre = new URLSearchParams(location.search).get("supplier");
         if (pre && suppliers.some((x) => x.id === pre)) { $("po-supplier").value = pre; $("po-supplier").dispatchEvent(new Event("change")); }
       } catch (err) { olvShowError($("err"), err); }

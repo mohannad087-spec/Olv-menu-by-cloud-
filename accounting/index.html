@@ -479,6 +479,8 @@
           : "<span>لسا ما في مبيعات اليوم</span>";
 
         loadExtras(sales, totalSales);
+        // المدير والمالك: «مخزون منخفض» بياخد على طلبية جاهزة بالناقص
+        if (window.olvRole !== "staff") document.getElementById("low-tile").href = "purchase-orders.html#low";
         if (window.olvRole !== "staff") loadMarginChip();
 
         const salesBody = document.getElementById("recent-sales-body");
