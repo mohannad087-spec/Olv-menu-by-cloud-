@@ -73,6 +73,28 @@
   .cov-bar > div{height:100%; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); border-radius:999px;}
   .cov-chip{background:var(--ink-3); border:1px solid var(--hair); color:var(--paper); padding:7px 12px; border-radius:999px; font-size:12.5px;}
   .cov-chip:hover, .cov-chip.on{border-color:var(--gold); color:var(--gold-hi);}
+  /* وصفات مقترحة بالذكاء الاصطناعي: كرت لكل صنف، أسطر قابلة للتعديل، وما بينحفظ شي إلا بـ «اعتماد» */
+  .ai-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:4px;}
+  .ai-status{font-size:13px; color:var(--muted);}
+  .ai-list{display:flex; flex-direction:column; gap:12px; margin-top:14px;}
+  .ai-card{border:1px solid var(--hair); border-radius:16px; padding:14px; background:var(--ink-2); animation:ai-in .35s var(--ease) backwards;}
+  .ai-card.saved{opacity:.55;}
+  .ai-card h3{font-size:15px; margin:0 0 4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .ai-conf{font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--hair-soft); color:var(--muted);}
+  .ai-conf.high{background:color-mix(in srgb, var(--olive) 18%, transparent); color:var(--olive);}
+  .ai-conf.low{background:color-mix(in srgb, var(--danger) 14%, transparent); color:var(--danger-hi);}
+  .ai-note{font-size:12.5px; color:var(--muted); margin-bottom:8px;}
+  .ai-line{display:grid; grid-template-columns:auto minmax(0,1fr) 92px auto; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid var(--hair-soft);}
+  .ai-line select, .ai-line input[type=number]{min-height:40px; padding:6px 8px; font-size:13.5px;}
+  .ai-line input[type=checkbox]{width:20px; height:20px; accent-color:var(--olive);}
+  .ai-line .u{font-size:12px; color:var(--muted); white-space:nowrap; min-width:30px;}
+  @media (max-width:640px){ .ai-line{grid-template-columns:auto minmax(0,1fr) 72px auto; gap:6px;} }
+  .ai-line.unsure input[type=number]{border-color:var(--gold); background:rgba(var(--gold-rgb),.08);}
+  .ai-line.off{opacity:.45;}
+  .ai-miss{font-size:12.5px; color:var(--gold-hi); margin-top:8px;}
+  .ai-actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  @keyframes ai-in{from{opacity:0; transform:translateY(6px);}}
+  @media (prefers-reduced-motion: reduce){ .ai-card{animation:none;} }
 </style>
 </head>
 <body>
@@ -90,6 +112,19 @@
       <div class="cov-bar"><div id="cov-fill" style="width:0%"></div></div>
       <div class="hint" style="margin-bottom:8px;">أصناف فعّالة بدون وصفة (اضغط على صنف لتبلّش وصفته):</div>
       <div class="recipe-suggest-chips" id="cov-missing"></div>
+    </div>
+
+    <div class="group" id="ai-recipes-group">
+      <h2>✨ وصفات مقترحة بالذكاء الاصطناعي</h2>
+      <p class="hint" style="margin-bottom:10px;">
+        بنقترحلك وصفة تقديرية لكل صنف ما إله وصفة، من المواد الموجودة بالمخزون. راجع الكميات وعدّلها
+        (الخانة الذهبية يعني تأكد منها منيح)، وبعدين اضغط «اعتماد». ما بينحفظ شي بدون موافقتك.
+      </p>
+      <div class="ai-head">
+        <button type="button" class="btn gold" id="ai-go"></button>
+        <span class="ai-status" id="ai-status" role="status"></span>
+      </div>
+      <div class="ai-list" id="ai-list"></div>
     </div>
 
     <div class="group" id="product-recipe-group">
@@ -308,6 +343,120 @@
       loadAddonRecipe();
     });
 
+    // ===== وصفات مقترحة بالذكاء الاصطناعي (supabase/functions/suggest-recipes) =====
+    // دفعات من 10 أصناف بدون وصفة. الاقتراح بيضل بالشاشة لحتى المستخدم يعتمده أو يتخطّاه
+    const AI_BATCH = 10;
+    let aiCards = [];           // [{ product, confidence, note, lines:[{on, ingredient_id, quantity, unsure}], missing, saved }]
+    const aiSkipped = new Set(); // أصناف تخطّاها المستخدم بهالجلسة
+    const ingById = () => new Map(ingredients.map((i) => [i.id, i]));
+    // وحدة مختصرة جنب الكمية حتى يضل اسم المادة مقروء على الموبايل
+    const UNIT_SHORT = { "كيلوغرام": "كغ", "غرام": "غ", "مليلتر": "مل" };
+    const unitOf = (id) => { const u = (ingById().get(id) || {}).unit || ""; return UNIT_SHORT[u] || u; };
+
+    function aiPending() {
+      const shown = new Set(aiCards.map((c) => c.product.id));
+      return products.filter((p) => p.is_active !== false && !withRecipe.has(p.id) && !shown.has(p.id) && !aiSkipped.has(p.id));
+    }
+    function renderAiButton() {
+      const n = aiPending().length;
+      const btn = document.getElementById("ai-go");
+      btn.disabled = n === 0;
+      btn.innerHTML = olvIcon("star") + `<span>${n === 0 ? "ما في أصناف بدون وصفة" : aiCards.length ? `اقترح للدفعة الجاية (${Math.min(n, AI_BATCH)} من ${n})` : `اقترح وصفات (${Math.min(n, AI_BATCH)} من ${n} صنف)`}</span>`;
+    }
+
+    function renderAiCards() {
+      const opts = (sel) => ingredients.map((i) => `<option value="${olvEsc(i.id)}"${i.id === sel ? " selected" : ""}>${olvEsc(i.name)}</option>`).join("");
+      const confText = { high: "واثق", medium: "تقديري", low: "مش متأكد" };
+      document.getElementById("ai-list").innerHTML = aiCards.map((c, ci) => `
+        <div class="ai-card${c.saved ? " saved" : ""}" data-card="${ci}">
+          <h3>${olvEsc(c.product.name)} <span class="ai-conf ${c.confidence}">${confText[c.confidence] || ""}</span>${c.saved ? ` <span class="ai-conf high">${olvIcon("check")} انحفظت</span>` : ""}</h3>
+          ${c.note ? `<div class="ai-note">${olvEsc(c.note)}</div>` : ""}
+          ${c.saved ? "" : `
+          ${c.lines.map((l, li) => `
+            <div class="ai-line${l.unsure ? " unsure" : ""}${l.on ? "" : " off"}" data-line="${li}">
+              <input type="checkbox" data-f="on" ${l.on ? "checked" : ""} aria-label="تضمين السطر">
+              <select data-f="ingredient_id" aria-label="المادة">${opts(l.ingredient_id)}</select>
+              <input type="number" data-f="quantity" step="0.001" min="0" inputmode="decimal" value="${l.quantity}" aria-label="الكمية">
+              <span class="u">${olvEsc(unitOf(l.ingredient_id))}</span>
+            </div>`).join("") || `<div class="hint">ما لقى مواد مناسبة بالمخزون لهالصنف.</div>`}
+          ${c.missing.length ? `<div class="ai-miss">${olvIcon("warning")} مواد ناقصة بالمخزون: ${c.missing.map(olvEsc).join("، ")}</div>` : ""}
+          <div class="ai-actions">
+            <button type="button" class="btn small gold" data-act="save"${c.lines.some((l) => l.on) ? "" : " disabled"}>${olvIcon("check")}<span>اعتماد الوصفة</span></button>
+            <button type="button" class="btn small" data-act="add">${olvIcon("plus")}<span>سطر</span></button>
+            <button type="button" class="btn small" data-act="skip">تخطّي</button>
+          </div>`}
+        </div>`).join("");
+      renderAiButton();
+    }
+
+    document.getElementById("ai-list").addEventListener("input", (e) => {
+      const lineEl = e.target.closest("[data-line]"), cardEl = e.target.closest("[data-card]");
+      if (!lineEl || !cardEl) return;
+      const c = aiCards[Number(cardEl.dataset.card)], l = c.lines[Number(lineEl.dataset.line)];
+      const f = e.target.dataset.f;
+      if (f === "on") { l.on = e.target.checked; lineEl.classList.toggle("off", !l.on); cardEl.querySelector('[data-act="save"]').disabled = !c.lines.some((x) => x.on); }
+      else if (f === "quantity") { l.quantity = e.target.value; l.unsure = false; lineEl.classList.remove("unsure"); }
+      else if (f === "ingredient_id") { l.ingredient_id = e.target.value; lineEl.querySelector(".u").textContent = unitOf(l.ingredient_id); }
+    });
+
+    document.getElementById("ai-list").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-act]"); if (!btn) return;
+      const ci = Number(btn.closest("[data-card]").dataset.card), c = aiCards[ci];
+      if (btn.dataset.act === "skip") { aiSkipped.add(c.product.id); aiCards.splice(ci, 1); renderAiCards(); return; }
+      if (btn.dataset.act === "add") { c.lines.push({ on: true, ingredient_id: ingredients[0] && ingredients[0].id, quantity: "", unsure: true }); renderAiCards(); return; }
+      // اعتماد: نفس الحفظ اليدوي (upsert على product_id + ingredient_id)
+      const rows = new Map();
+      for (const l of c.lines.filter((x) => x.on)) {
+        const q = Number(l.quantity);
+        if (!(q > 0)) { olvToast("في سطر كميته فاضية أو صفر — عدّلها أو شيل علامته", { type: "danger", icon: "warning", ms: 3500 }); return; }
+        rows.set(l.ingredient_id, { product_id: c.product.id, ingredient_id: l.ingredient_id, quantity: q });
+      }
+      btn.disabled = true;
+      const { error } = await window.supabaseClient.from("product_ingredients").upsert([...rows.values()], { onConflict: "product_id,ingredient_id" });
+      if (error) { btn.disabled = false; olvShowError(errBox(), error); return; }
+      c.saved = true;
+      olvToast(`انحفظت وصفة ${c.product.name}`, { icon: "checkCircle" });
+      await loadCoverage();
+      populateSelects();
+      renderAiCards();
+      if (document.getElementById("recipe-product").value === c.product.id) loadProductRecipe();
+    });
+
+    document.getElementById("ai-go").addEventListener("click", async () => {
+      const batch = aiPending().slice(0, AI_BATCH);
+      if (!batch.length) return;
+      if (!navigator.onLine) { olvToast("الاقتراح بيحتاج إنترنت", { type: "danger", icon: "warning" }); return; }
+      const btn = document.getElementById("ai-go"), status = document.getElementById("ai-status");
+      btn.disabled = true;
+      status.textContent = `عم يفكّر بوصفات ${batch.length} صنف... (10–40 ثانية)`;
+      try {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+        const res = await fetch(cfg.SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/suggest-recipes", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token, apikey: cfg.SUPABASE_ANON_KEY },
+          body: JSON.stringify({ product_ids: batch.map((p) => p.id) }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.ok) throw new Error(out.error || "فشل الاقتراح (" + res.status + ")");
+        const byId = new Map(batch.map((p) => [p.id, p]));
+        const got = (out.recipes || []).filter((r) => byId.has(r.product_id) && !withRecipe.has(r.product_id));
+        got.forEach((r) => aiCards.push({
+          product: byId.get(r.product_id), confidence: r.confidence, note: r.note, missing: r.missing || [],
+          lines: (r.lines || []).map((l) => ({ on: true, ingredient_id: l.ingredient_id, quantity: l.quantity, unsure: !!l.unsure })),
+          saved: false,
+        }));
+        // الأصناف اللي ما رجعلها اقتراح ما منعيد نبعتها بنفس الجلسة
+        batch.forEach((p) => { if (!got.some((r) => r.product_id === p.id)) aiSkipped.add(p.id); });
+        status.textContent = got.length ? `طلع ${got.length} اقتراح. راجعهم تحت.` : "ما طلع اقتراحات لهالدفعة — جرّب الدفعة الجاية.";
+        renderAiCards();
+      } catch (err) {
+        status.textContent = "";
+        olvToast(err.message || String(err), { type: "danger", icon: "warning", ms: 5000 });
+        renderAiButton();
+      }
+    });
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
@@ -331,6 +480,7 @@
         renderCoverage();
         await loadProductRecipe();
         await loadAddonRecipe();
+        renderAiButton();
       } catch (err) {
         olvShowError(errBox(), err);
       }
