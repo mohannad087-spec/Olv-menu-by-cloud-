@@ -198,6 +198,17 @@ function olvFlushDeletes() { olvPendingDeletes.forEach((j) => j.commit()); }
 window.addEventListener("pagehide", olvFlushDeletes);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") olvFlushDeletes(); });
 
+// الجداول العريضة بتنزاح لجنب (.table-wrap): لازم تقدر توصلها بالكيبورد (Tab ثم الأسهم)
+// وقارئ الشاشة يعرف شو هي، فبنعطيها tabindex واسم من عنوان القسم
+function olvA11yTables(root) {
+  (root || document).querySelectorAll(".table-wrap:not([tabindex])").forEach((w) => {
+    w.tabIndex = 0;
+    w.setAttribute("role", "region");
+    const h = w.closest(".group") && w.closest(".group").querySelector("h2, h3");
+    w.setAttribute("aria-label", (h && h.textContent.trim()) || "جدول");
+  });
+}
+
 // ضغط مطوّل للتأكيد (للإجراءات المدمّرة النادرة مثل إلغاء طلب): الزر بيتعبّى أثناء الضغط وبينفّذ لما يكتمل.
 // لو فلت الزر قبل الاكتمال بيرجع التعبئة، والضغطة السريعة بتطلع تلميح. بيشتغل كمان بالكيبورد (Enter/Space مضغوط).
 function olvHoldConfirm(btn, onConfirm, opts) {
@@ -801,6 +812,7 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("DOMContentLoaded", () => {
   olvSkeletons();
+  olvA11yTables();
   olvEmptyStates();
   olvLinkFieldLabels();
   olvCountUpStats();
@@ -808,6 +820,6 @@ document.addEventListener("DOMContentLoaded", () => {
   new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); });
+    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); olvA11yTables(); });
   }).observe(document.body, { childList: true, subtree: true });
 });
