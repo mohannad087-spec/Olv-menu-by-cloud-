@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دليل التصميم — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f1e6">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  /* صفحة حيّة بتعرض نظام التصميم (design-system/olv/MASTER.md) من نفس theme.css:
+     إذا تغيّر توكن هناك، بيتغيّر هون لحاله */
+  .sg-intro{color:var(--muted); font-size:14px; line-height:1.8; max-width:62ch;}
+  .sg-swatches{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px;}
+  .sg-sw{border:1px solid var(--hair-soft); border-radius:16px; overflow:hidden; background:var(--ink-2);}
+  .sg-sw .chip{height:64px;}
+  .sg-sw .meta{padding:10px 12px; font-size:12.5px;}
+  .sg-sw b{display:block; font-size:13.5px; margin-bottom:2px;}
+  .sg-sw code{color:var(--muted); font-size:11.5px; direction:ltr; display:inline-block;}
+  .sg-type > *{margin:0 0 10px;}
+  .sg-row{display:flex; flex-wrap:wrap; gap:10px; align-items:center;}
+  .sg-note{font-size:12.5px; color:var(--muted); margin-top:10px;}
+  .sg-icons{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px;}
+  .sg-icons div{display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 4px; border-radius:14px; background:var(--ink-3); font-size:11px; color:var(--muted); direction:ltr;}
+  .sg-icons .icon{width:22px; height:22px; color:var(--paper);}
+  .sg-bento{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-auto-rows:110px; gap:14px;}
+  .sg-bento > div{border-radius:22px; padding:16px; background:var(--ink-3); display:flex; align-items:flex-end; font-weight:800;}
+  .sg-bento .a{grid-column:span 2; grid-row:span 2; background:var(--ink-2); border:1px solid var(--hair-soft);}
+  .sg-bento .b{background:#211a13; color:#f3eadb;}
+  .sg-bento .c{background:var(--olive); color:var(--on-olive);}
+  .sg-bento .d{grid-column:span 2;}
+  .sg-bento .e{grid-row:span 2;}
+  @media (max-width:640px){ .sg-bento{grid-template-columns:repeat(2,minmax(0,1fr));} .sg-bento .a,.sg-bento .d{grid-column:span 2;} }
+  .sg-glass{position:relative; border-radius:22px; padding:28px; overflow:hidden; background:linear-gradient(135deg, rgba(var(--gold-rgb),.45), rgba(86,105,46,.4), rgba(222,160,120,.4));}
+  .sg-glass .pane{border-radius:20px; padding:18px; background:var(--glass); border:1px solid var(--glass-line); -webkit-backdrop-filter:blur(22px) saturate(180%); backdrop-filter:blur(22px) saturate(180%); box-shadow:var(--glass-shadow);}
+  .sg-motion{display:flex; gap:14px; flex-wrap:wrap; align-items:center;}
+  .sg-dot{width:56px; height:56px; border-radius:18px; background:var(--olive);}
+  .sg-dot.go{animation:sg-pop .5s var(--spring-bounce);}
+  @keyframes sg-pop{40%{transform:scale(1.25);}}
+  .sg-rules{margin:0; padding-inline-start:20px; line-height:2; font-size:14px;}
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="group">
+      <h2 id="h-intro"></h2>
+      <p class="sg-intro">هاي الصفحة بتعرض الألوان والخطوط والأزرار والبطاقات والحركة اللي بيمشي عليها البرنامج كله. أي صفحة جديدة لازم تطلع بنفس الشكل. القواعد مكتوبة بالتفصيل بملف <code dir="ltr">design-system/olv/MASTER.md</code>.</p>
+    </div>
+
+    <div class="group">
+      <h2 id="h-colors"></h2>
+      <div class="sg-swatches" id="swatches"></div>
+      <div class="sg-note">القيم بتتغيّر لحالها لما تكبس زر القمر فوق (فاتح ↔ ليلي).</div>
+    </div>
+
+    <div class="group sg-type">
+      <h2 id="h-type"></h2>
+      <div style="font-size:clamp(24px,4vw,34px); font-weight:800;">عنوان صفحة · Tajawal 800</div>
+      <div style="font-size:17px; font-weight:800;">عنوان بطاقة · 17px</div>
+      <div style="font-size:14px;">نص عادي 14px: مبيعات اليوم أعلى من السبت الماضي.</div>
+      <div style="font-size:12.5px; color:var(--muted);">نص ثانوي 12.5px: آخر تحديث قبل دقيقتين</div>
+      <div style="font-size:clamp(40px,6vw,64px); font-weight:800; font-variant-numeric:tabular-nums; line-height:1;">1,637.25</div>
+      <div class="sg-note">خط واحد بس (Tajawal)، والأرقام بنفس العرض. ممنوع تباعد الحروف بالعربي.</div>
+    </div>
+
+    <div class="group">
+      <h2 id="h-buttons"></h2>
+      <div class="sg-row">
+        <button class="btn gold" type="button">زر رئيسي</button>
+        <button class="btn gold pay" type="button" style="background:var(--olive); color:var(--on-olive);">الدفع</button>
+        <button class="btn" type="button">زر عادي</button>
+        <button class="btn small" type="button">صغير</button>
+        <button class="btn danger" type="button" id="hold-demo">اضغط مطوّل للحذف</button>
+        <button class="btn" type="button" disabled>معطّل</button>
+      </div>
+      <div class="sg-row" style="margin-top:14px;">
+        <span class="badge">شارة</span>
+        <button class="btn small" type="button" id="toast-ok">إشعار نجاح</button>
+        <button class="btn small" type="button" id="toast-danger">إشعار خطأ</button>
+        <button class="btn small" type="button" id="toast-gold">إشعار تنبيه</button>
+      </div>
+      <div class="sg-note">الزيتوني = «اعمل» (دفع، تأكيد). الذهبي = «اختار/نشط». الأحمر للخطر بس. كل زر 44px على الأقل.</div>
+    </div>
+
+    <div class="group">
+      <h2 id="h-fields"></h2>
+      <div class="row2">
+        <div class="field"><label>اسم الصنف</label><input type="text" placeholder="مثال: لاتيه"></div>
+        <div class="field"><label>التصنيف</label><select><option>قهوة</option><option>عصائر</option></select></div>
+      </div>
+      <div class="field"><label><input type="checkbox" checked> يظهر بالمنيو</label></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" data-icon="receipt"></div><div class="stat-body"><div class="label">بطاقة ملخّص</div><div class="value" id="demo-v1">—</div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" data-icon="minusCircle"></div><div class="stat-body"><div class="label">الرقم بيعدّ لحاله</div><div class="value" id="demo-v2">—</div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" data-icon="wallet"></div><div class="stat-body"><div class="label">أول ما يظهر</div><div class="value" id="demo-v3">—</div></div></div></div>
+    </div>
+
+    <div class="group">
+      <h2 id="h-bento"></h2>
+      <div class="sg-bento">
+        <div class="a">الأهم (مربع كبير)</div>
+        <div class="b">رقم مهم (غامق)</div>
+        <div>عادي</div>
+        <div class="c">الفعل الأهم</div>
+        <div class="e">طويل (صفّين)</div>
+        <div class="d">عريض (عمودين)</div>
+        <div>عادي</div>
+      </div>
+      <div class="sg-note">4 أعمدة على التابلت، 2 على التابلت الصغير، 1 على الموبايل. المهم أكبر، والبلاطات معتمة لأنها بتحمل المحتوى.</div>
+    </div>
+
+    <div class="group">
+      <h2 id="h-glass"></h2>
+      <div class="sg-glass"><div class="pane"><b>لوحة زجاج</b><div class="sg-note" style="color:var(--paper)">للشريط العلوي ولوحات شاشة البيع وبطاقة الدخول بس. المحتوى ما بيكون زجاج.</div></div></div>
+    </div>
+
+    <div class="group">
+      <h2 id="h-bars"></h2>
+      <div class="bars">
+        <div class="bar-row"><span class="bar-label">كاش</span><span class="bar-track"><span class="bar-fill" style="display:block; width:54%"></span></span><span class="bar-value">54%</span></div>
+        <div class="bar-row"><span class="bar-label">شبكة</span><span class="bar-track"><span class="bar-fill" style="display:block; width:32%"></span></span><span class="bar-value">32%</span></div>
+        <div class="bar-row"><span class="bar-label">توصيل</span><span class="bar-track"><span class="bar-fill" style="display:block; width:14%"></span></span><span class="bar-value">14%</span></div>
+      </div>
+      <div class="sg-note">بالرسوم: المبيعات خط زيتوني متصل، المصاريف خط أحمر متقطّع، وتحت كل رسم جملة بتلخّصه.</div>
+    </div>
+
+    <div class="group">
+      <h2 id="h-motion"></h2>
+      <div class="sg-motion">
+        <div class="sg-dot" id="dot"></div>
+        <button class="btn" type="button" id="dot-btn">جرّب «النطّة»</button>
+      </div>
+      <ul class="sg-rules">
+        <li>كل حركة إلها هدف: تأكيد ضغطة، أو توجيه العين، أو احتفال صغير بعد الدفع.</li>
+        <li>ضغطة 80ms، ظهور 180–300ms، والخروج أسرع من الدخول.</li>
+        <li>ولا حركة بتأخّر الكاشير.</li>
+        <li>إذا الجهاز طالب «حركة أقل»، بنلغي الحركات وبنخلّي تلاشي بس.</li>
+      </ul>
+    </div>
+
+    <div class="group">
+      <h2 id="h-icons"></h2>
+      <div class="sg-icons" id="icons"></div>
+      <div class="sg-note">مجموعة وحدة بخط واحد. ما في إيموجي بالواجهة.</div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      olvRenderNav("style-guide");
+      const session = await olvRequireAuth();
+      if (!session) return;
+
+      const heads = { "h-intro": ["brand", "دليل التصميم"], "h-colors": ["sun", "الألوان"], "h-type": ["note", "الخط"],
+        "h-buttons": ["check", "الأزرار والإشعارات"], "h-fields": ["clipboard", "الحقول"], "h-bento": ["grid", "لوحة البلاطات (بنتو)"],
+        "h-glass": ["moon", "الزجاج"], "h-bars": ["barChart", "الأشرطة والرسوم"], "h-motion": ["refresh", "الحركة"], "h-icons": ["star", "الأيقونات"] };
+      Object.entries(heads).forEach(([id, [ic, t]]) => { document.getElementById(id).innerHTML = olvIcon(ic) + `<span>${t}</span>`; });
+      document.querySelectorAll("[data-icon]").forEach((el) => { el.innerHTML = olvIcon(el.dataset.icon); });
+
+      // البطاقات بتقرا قيمة كل توكن من theme.css مباشرة، فبتضل صحيحة بالفاتح والليلي
+      const tokens = [
+        ["--ink", "خلفية الصفحة"], ["--ink-2", "سطح البطاقة"], ["--ink-3", "سطح ثانوي"], ["--paper", "النص"],
+        ["--muted", "نص ثانوي"], ["--gold", "ذهبي (اختيار/نشط)"], ["--gold-hi", "ذهبي للنص"], ["--olive", "زيتوني (اعمل)"],
+        ["--danger", "خطر/نقص"], ["--hair", "الحدود"],
+      ];
+      function paintSwatches() {
+        const cs = getComputedStyle(document.documentElement);
+        document.getElementById("swatches").innerHTML = tokens.map(([t, name]) =>
+          `<div class="sg-sw"><div class="chip" style="background:var(${t})"></div><div class="meta"><b>${name}</b><code>${t} ${olvEsc(cs.getPropertyValue(t).trim())}</code></div></div>`).join("");
+      }
+      paintSwatches();
+      new MutationObserver(paintSwatches).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "style"] });
+
+      document.getElementById("demo-v1").textContent = olvFormatMoney(1637.25);
+      document.getElementById("demo-v2").textContent = olvFormatMoney(261);
+      document.getElementById("demo-v3").textContent = "46";
+
+      document.getElementById("toast-ok").addEventListener("click", () => olvToast("انحفظ التعديل"));
+      document.getElementById("toast-danger").addEventListener("click", () => olvToast("صار خطأ، جرّب كمان مرة", { type: "danger" }));
+      document.getElementById("toast-gold").addEventListener("click", () => olvToast("المخزون قرّب يخلص", { type: "gold" }));
+      olvHoldConfirm(document.getElementById("hold-demo"), () => olvToast("هيك بيشتغل الضغط المطوّل", { type: "info" }));
+
+      const dot = document.getElementById("dot");
+      document.getElementById("dot-btn").addEventListener("click", () => { dot.classList.remove("go"); void dot.offsetWidth; dot.classList.add("go"); });
+
+      document.getElementById("icons").innerHTML = Object.keys(OLV_ICON_PATHS).map((n) => `<div>${olvIcon(n)}<span>${n}</span></div>`).join("");
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
