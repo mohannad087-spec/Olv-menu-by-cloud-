@@ -284,7 +284,7 @@
           p_notes: order.notes || null,
           p_items: items,
           p_order_type: MODE_LABELS[order.mode] || null,
-          p_table_number: order.table || null,
+          p_table_number: olvNormTable(order.table) || null,
           p_customer_phone: order.phone || null,
         });
         if (error) throw error;
