@@ -6,6 +6,7 @@
 // للمالك والمدير فقط. المواد والموردين الموجودين بينقروا من السيرفر حتى ما يتكرروا.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { norm, resolveItem } from "../_shared/match.ts";
+import { callGemini } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -156,40 +157,16 @@ Deno.serve(async (req) => {
   if (text) parts.push({ text: "النص:\n<<<\n" + text + "\n>>>" });
   if (data) parts.push({ inline_data: { mime_type: mime, data } });
 
-  const primary = Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest";
-  const models = [...new Set([primary, "gemini-flash-lite-latest"])];
-  const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-  let out: any = {};
-  let lastStatus = 0;
-  let lastMsg = "";
-  let success = false;
   try {
-    outer:
-    for (const model of models) {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_KEY },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA },
-          }),
-        });
-        out = await r.json().catch(() => ({}));
-        if (r.ok) { success = true; break outer; }
-        lastStatus = r.status;
-        lastMsg = out?.error?.message || `خطأ من Gemini (${r.status})`;
-        if (r.status === 429) break;
-        if ([500, 502, 503, 504].includes(r.status)) { if (attempt === 0) await sleep(1500); continue; }
-        return json({ ok: false, error: lastMsg }, 502);
-      }
+    const ai = await callGemini(GEMINI_KEY, parts, { temperature: 0, responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA }, { tag: "ai-assist" });
+    if (!ai.ok) {
+      if (ai.status === 429) return json({ ok: false, error: "وصلت الحد المجاني للذكاء الاصطناعي حاليًا — جرّب بعد دقيقة أو أضف يدويًا" }, 429);
+      if (ai.timedOut) return json({ ok: false, error: "خدمة جوجل طوّلت كتير وما ردّت — جرّب كمان مرة بعد شوي" }, 504);
+      if ([500, 502, 503, 504].includes(ai.status)) return json({ ok: false, error: "خدمة جوجل مضغوطة حاليًا — جرّب بعد دقيقة أو دقيقتين" }, 503);
+      if (ai.status === 422) return json({ ok: false, error: "ما قدر الذكاء الاصطناعي يطلع نتيجة — جرّب كمان مرة" }, 422);
+      return json({ ok: false, error: ai.message || "فشل التحليل" }, 502);
     }
-    if (!success) {
-      if (lastStatus === 429) return json({ ok: false, error: "وصلت الحد المجاني للذكاء الاصطناعي حاليًا — جرّب بعد دقيقة أو أضف يدويًا" }, 429);
-      if ([500, 502, 503, 504].includes(lastStatus)) return json({ ok: false, error: "خدمة جوجل مضغوطة حاليًا — جرّب بعد دقيقة أو دقيقتين" }, 503);
-      return json({ ok: false, error: lastMsg || "فشل التحليل" }, 502);
-    }
-    const outText = out?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const outText = ai.text;
     if (!outText) return json({ ok: false, error: "ما قدر النموذج يقرأ المحتوى — جرّب نص أوضح أو صورة أوضح" }, 422);
     let parsed: any;
     try {
