@@ -59,7 +59,7 @@
 })();
 </script>
 <style>
-  .sub-tabs{display:flex; gap:8px; margin-bottom:16px; align-items:center;}
+  .sub-tabs{display:flex; gap:8px; margin-bottom:16px; align-items:center; flex-wrap:wrap;}
   .sub-tab{
     display:inline-flex; align-items:center; gap:6px;
     background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
@@ -123,6 +123,30 @@
   .k-bar .btn{margin-inline-start:auto;}
   .k-sound{border-color:var(--gold); color:var(--gold-hi); font-weight:700; cursor:pointer; min-height:48px;}
   .k-sound .icon{width:18px; height:18px;}
+  /* شطب كل صنف لحاله: السطر كلّه زر */
+  .order-line.tap{cursor:pointer; border-radius:8px; margin-inline:-6px; padding-inline:6px; -webkit-tap-highlight-color:transparent; user-select:none;}
+  @media (hover:hover){ .order-line.tap:hover{background:rgba(var(--gold-rgb),.07);} }
+  .order-line.tap:active{background:rgba(var(--gold-rgb),.14);}
+  .order-line.done .item-name, .order-line.done .addons{text-decoration:line-through; opacity:.45;}
+  .order-line.done .note{opacity:.45;}
+  .order-line.done .order-qty-badge{background:var(--olive); color:#fff;}
+  .order-line.done .order-qty-badge .icon{width:14px; height:14px;}
+  .order-line.busy{opacity:.6; pointer-events:none;}
+  .order-other{font-size:13px; color:var(--muted); margin:-6px 0 12px; display:flex; align-items:center; gap:6px;}
+  .order-other .icon{width:14px; height:14px; flex:none;}
+  /* اختيار الشاشة: الكل / المطبخ / البار */
+  .k-station{display:inline-flex; border:1px solid var(--hair); border-radius:999px; padding:3px; background:var(--ink-2);}
+  .k-station button{
+    display:inline-flex; align-items:center; gap:5px; border:0; background:none; color:var(--muted);
+    padding:8px 14px; border-radius:999px; font:inherit; font-size:13px; min-height:38px; cursor:pointer;
+  }
+  .k-station button .icon{width:15px; height:15px;}
+  .k-station button.on{background:var(--paper); color:var(--ink-2); font-weight:700;}
+  .k-live{display:inline-flex; align-items:center; gap:6px;}
+  .k-live .dot{width:8px; height:8px; border-radius:999px; background:var(--muted);}
+  .k-live.on .dot{background:var(--olive); box-shadow:0 0 0 3px rgba(86,105,46,.18);}
+  .k-cat-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);}
+  .k-cat-row .k-station button{min-height:34px; padding:6px 12px;}
   .empty-state{color:var(--muted); text-align:center; padding:60px 0; grid-column:1/-1;}
 </style>
 </head>
@@ -135,7 +159,15 @@
       <button class="sub-tab on" data-tab="pending"><span id="sub-tab-icon-pending"></span> قيد التحضير <span id="k-count-pending"></span></button>
       <button class="sub-tab" data-tab="ready"><span id="sub-tab-icon-ready"></span> جاهز</button>
       <span class="hint" id="k-avg" hidden></span>
-      <span class="hint" id="k-updated" style="margin-inline-start:auto;">تحديث تلقائي كل 15 ثانية</span>
+      <span class="hint k-live" id="k-updated" style="margin-inline-start:auto;"><span class="dot"></span><span id="k-updated-t">جاري الاتصال...</span></span>
+    </div>
+    <div class="sub-tabs">
+      <div class="k-station" id="k-station" role="group" aria-label="أي شاشة">
+        <button type="button" data-st="all">الكل</button>
+        <button type="button" data-st="kitchen"><span data-ic="flame"></span> المطبخ</button>
+        <button type="button" data-st="bar"><span data-ic="coffee"></span> البار</button>
+      </div>
+      <button type="button" class="btn small" id="k-cats-btn" hidden>الأقسام</button>
     </div>
 
     <button type="button" class="k-bar k-sound" id="k-sound" hidden><span id="k-sound-icon"></span> اضغط هون لتشغيل صوت الطلبات الجديدة</button>
@@ -167,25 +199,37 @@
     document.getElementById("sub-tab-icon-pending").innerHTML = olvIcon("hourglass");
     document.getElementById("sub-tab-icon-ready").innerHTML = olvIcon("checkCircle");
     document.getElementById("k-sound-icon").innerHTML = olvIcon("bell");
+    document.querySelectorAll("[data-ic]").forEach((el) => { el.outerHTML = olvIcon(el.dataset.ic); });
 
+    const db = window.supabaseClient;
     const PENDING_STATUS = "قيد التحضير";
     const READY_STATUS = "جاهز";
     const WINDOW_HOURS = 12; // الشاشة بتعرض طلبات آخر 12 ساعة بس؛ الأقدم «عالقة» وبتنعرض كتنبيه لحالها
     const LATE_MIN = 10;    // ذهبي: انتبه
     const OVERDUE_MIN = 15; // أحمر: متأخر
+    const STATION_NAMES = { kitchen: "المطبخ", bar: "البار" };
     const errBox = document.getElementById("err");
     const grid = document.getElementById("orders-grid");
     let activeTab = "pending";
+    // كل جهاز بيتذكّر شاشته: تابلت المطبخ «المطبخ»، تابلت البار «البار»
+    let station = "all";
+    try { station = localStorage.getItem("olv_kitchen_station") || "all"; } catch (_) {}
+    let barCats = new Set(); // أقسام (products.category) أصنافها بتروح للبار — من app_settings.kitchen_bar_categories
     let knownPendingIds = null; // null = لسا ما انعمل الأساس (baseline) الأول
-    let pendingNos = new Map();  // id → رقم الطلب، حتى نعرف شو انلغى
     let pendingItems = new Map(); // id الطلب → Map(id الصنف → اسمه)، حتى ننبّه إذا انشال صنف من طلب عالشاشة
-    let staleIds = [];
+    let staleOrders = [];
+    let ordersById = new Map();
     let busy = false;
     let pollAgain = false; // طلب تحديث وصل والتحديث شغّال: منعيده بعد ما يخلص (حتى ما ترجع بطاقة انعلّمت جاهزة)
+    let live = false;      // البث الفوري شغّال؟ إذا لا، منضل نحدّث كل 15 ثانية
+    let lastPollAt = 0;
 
     const since = () => new Date(Date.now() - WINDOW_HOURS * 3600e3).toISOString();
     // الأصناف الملغاة (void_sale_item) ما بتنعرض للمطبخ، والطلب اللي كل أصنافه ملغاة بيختفي
     const liveItems = (o) => (o.sale_items || []).filter((it) => it.status !== "voided");
+    const itemStation = (it) => (barCats.has(it.products && it.products.category) ? "bar" : "kitchen");
+    const isMine = (it) => station === "all" || itemStation(it) === station;
+    const isDone = (it) => !!it.kitchen_done_at;
 
     function formatTime(ts) {
       const d = new Date(ts);
@@ -211,7 +255,19 @@
     }
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { keepAwake(); poll(); } });
 
-    // طلبات قيد التحضير (مستقل عن التبويب المفتوح): صوت للجديد، وتنبيه إذا طلب كان عالشاشة وانلغى
+    function renderLive() {
+      const box = document.getElementById("k-updated");
+      box.classList.toggle("on", live);
+      document.getElementById("k-updated-t").textContent = live
+        ? `مباشر · آخر تحديث ${formatTime(lastPollAt || Date.now())}`
+        : `آخر تحديث ${lastPollAt ? formatTime(lastPollAt) : "—"} · كل 15 ثانية`;
+    }
+
+    function renderStation() {
+      document.querySelectorAll("#k-station button").forEach((b) => b.classList.toggle("on", b.dataset.st === station));
+    }
+
+    // طلبات قيد التحضير (مستقل عن التبويب المفتوح): صوت للجديد، وتنبيه إذا طلب أو صنف كان عالشاشة وانلغى
     async function checkPending(rows) {
       const current = new Map(rows.map((o) => [o.id, o.order_no]));
       if (knownPendingIds !== null) {
@@ -220,15 +276,13 @@
         if (hasNew && typeof OlvSound !== "undefined") OlvSound.playNewOrder();
         const gone = [...knownPendingIds].filter((id) => !current.has(id));
         if (gone.length) {
-          const { data } = await window.supabaseClient.from("sales_entries").select("id, order_no").in("id", gone).eq("status", "voided");
+          const { data } = await db.from("sales_entries").select("id, order_no").in("id", gone).eq("status", "voided");
           (data || []).forEach((o) => {
             olvToast(`طلب ${o.order_no ? "#" + o.order_no : ""} انلغى — وقّف تحضيره`, { type: "danger", ms: 15000 });
             if (typeof OlvSound !== "undefined") OlvSound.playError();
           });
         }
-      }
-      // صنف انلغى (void_sale_item) من طلب لسا عالشاشة: بدون تنبيه كان يختفي بصمت والطبّاخ ممكن يكون بلّش فيه
-      if (knownPendingIds !== null) {
+        // صنف انلغى (void_sale_item) من طلب لسا عالشاشة: بدون تنبيه كان يختفي بصمت والطبّاخ ممكن يكون بلّش فيه
         rows.forEach((o) => {
           const before = pendingItems.get(o.id);
           if (!before) return;
@@ -243,7 +297,19 @@
       }
       pendingItems = new Map(rows.map((o) => [o.id, new Map(o.items.map((it) => [it.id, it.product_name]))]));
       knownPendingIds = new Set(current.keys());
-      pendingNos = current;
+    }
+
+    function lineHtml(o, it, pending) {
+      const done = isDone(it);
+      return `
+        <div class="order-line${pending ? " tap" : ""}${done ? " done" : ""}" ${pending ? `role="button" tabindex="0" aria-pressed="${done}" data-sale="${olvEsc(o.id)}" data-item="${olvEsc(it.id)}"` : ""}>
+          <div class="qty-line">
+            <span class="order-qty-badge">${done ? olvIcon("check") : `${olvEsc(it.qty)}×`}</span>
+            <span class="item-name">${done ? `${olvEsc(it.qty)}× ` : ""}${olvEsc(it.product_name)}</span>
+          </div>
+          ${it.addons_summary ? `<div class="addons">+ ${olvEsc(it.addons_summary)}</div>` : ""}
+          ${it.note ? `<div class="note">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
+        </div>`;
     }
 
     function cardHtml(o) {
@@ -253,6 +319,10 @@
       const late = pending && !overdue && ageMinutes >= LATE_MIN;
       const urgency = overdue ? " overdue" : late ? " late" : "";
       const isDelivery = o.order_type === "توصيل";
+      // باقي أصناف بالشاشة التانية (مثلًا المطبخ بيشوف إنو في عصير لسا بالبار) — حتى ما يطلع الطلب ناقص
+      const otherSt = station === "kitchen" ? "bar" : "kitchen";
+      const otherLeft = pending && station !== "all" ? o.others.filter((it) => !isDone(it)).length : 0;
+      const left = o.items.filter((it) => !isDone(it)).length;
       return `
         <div class="order-card${urgency}" data-row-id="${olvEsc(o.id)}">
           <div class="order-head">
@@ -267,19 +337,13 @@
           ${o.customer_name ? `<div class="order-route">${olvIcon("person")} ${olvEsc(o.customer_name)}</div>` : ""}
           ${o.table_number ? `<div class="order-route">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table_number)}</div>` : ""}
           <div class="order-items">
-            ${o.items.map((it) => `
-              <div class="order-line">
-                <div class="qty-line">
-                  <span class="order-qty-badge">${olvEsc(it.qty)}×</span>
-                  <span class="item-name">${olvEsc(it.product_name)}</span>
-                </div>
-                ${it.addons_summary ? `<div class="addons">+ ${olvEsc(it.addons_summary)}</div>` : ""}
-                ${it.note ? `<div class="note">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
-              </div>
-            `).join("")}
+            ${o.items.map((it) => lineHtml(o, it, pending)).join("")}
           </div>
-          <button class="btn ${pending ? "gold" : ""} k-btn" data-id="${olvEsc(o.id)}" data-next="${pending ? READY_STATUS : PENDING_STATUS}">
-            ${pending ? olvIcon("check") + " تم التجهيز" : olvIcon("undo") + " إرجاع لقيد التحضير"}
+          ${otherLeft ? `<div class="order-other">${olvIcon(otherSt === "bar" ? "coffee" : "flame")} باقي ${otherLeft} ${otherLeft === 1 ? "صنف" : "أصناف"} عند ${STATION_NAMES[otherSt]}</div>` : ""}
+          <button class="btn ${pending ? "gold" : ""} k-btn" data-id="${olvEsc(o.id)}" data-act="${pending ? "done" : "undo"}">
+            ${pending
+              ? olvIcon("check") + (left < o.items.length ? ` تم الباقي (${left})` : " تم التجهيز")
+              : olvIcon("undo") + " إرجاع لقيد التحضير"}
           </button>
         </div>
       `;
@@ -287,61 +351,66 @@
 
     // تتبّع التذاكر الجديدة لكل تبويب (بيتصفّر لما الكاشير يبدّل التبويب حتى ما تتحرك كل البطاقات)
     let kTracker = olvNewTracker(), kTrackerTab = null;
-    // «جاهز»: مع وقت الجاهزية (kitchen_ready_at من schema-kitchen-ready.sql) — وإذا العمود لسا مش موجود منكمّل بدونه
-    let hasReadyAt = true;
-    async function loadReady(sel) {
-      const q = (cols) => window.supabaseClient.from("sales_entries").select(cols)
-        .eq("kitchen_status", READY_STATUS).eq("status", "completed").gte("created_at", since())
-        .order("created_at", { ascending: false }).limit(60);
-      if (hasReadyAt) {
-        const r = await q(sel + ", kitchen_ready_at");
-        if (!r.error) return r;
-        if (r.error.code !== "42703" && !/kitchen_ready_at/.test(r.error.message || "")) return r;
-        hasReadyAt = false;
-      }
-      return q(sel);
-    }
+    const sel = "id, order_no, created_at, order_type, customer_name, table_number, kitchen_ready_at, sale_items(id, qty, product_name, addons_summary, note, status, kitchen_done_at, products(category))";
     const prepMinutes = (o) => (o.kitchen_ready_at ? Math.max(0, Math.round((new Date(o.kitchen_ready_at) - new Date(o.created_at)) / 60000)) : null);
+
+    async function loadBarCats() {
+      const { data } = await db.from("app_settings").select("value").eq("key", "kitchen_bar_categories").maybeSingle();
+      try { barCats = new Set(JSON.parse((data && data.value) || "[]")); } catch (_) { barCats = new Set(); }
+    }
+
+    // items = أصناف هالشاشة، others = أصناف الشاشة التانية من نفس الطلب
+    function shape(rows, needUndone) {
+      return (rows || []).map((o) => {
+        const all = liveItems(o);
+        return { ...o, items: all.filter(isMine), others: all.filter((it) => !isMine(it)) };
+      }).filter((o) => o.items.length && (!needUndone || o.items.some((it) => !isDone(it))));
+    }
 
     async function poll() {
       if (busy) { pollAgain = true; return; }
       busy = true;
       pollAgain = false;
       try {
-        const sel = "id, order_no, created_at, order_type, customer_name, table_number, sale_items(id, qty, product_name, addons_summary, note, status)";
         // قيد التحضير: دايمًا (للصوت والتنبيهات)، من الأقدم للأحدث ضمن آخر 12 ساعة — هيك الحد ما بيقص الطلبات الجديدة
         const [pRes, rRes, sRes] = await Promise.all([
-          window.supabaseClient.from("sales_entries").select(sel)
+          db.from("sales_entries").select(sel)
             .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").gte("created_at", since())
             .order("created_at", { ascending: true }).limit(100),
-          activeTab === "ready" ? loadReady(sel) : Promise.resolve({ data: null, error: null }),
-          window.supabaseClient.from("sales_entries").select("id")
+          activeTab === "ready"
+            ? db.from("sales_entries").select(sel)
+              .eq("kitchen_status", READY_STATUS).eq("status", "completed").gte("created_at", since())
+              .order("created_at", { ascending: false }).limit(60)
+            : Promise.resolve({ data: null, error: null }),
+          db.from("sales_entries").select("id, sale_items(id, status)")
             .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").lt("created_at", since()).limit(200),
         ]);
         if (pRes.error) throw pRes.error;
         if (rRes.error) throw rRes.error;
-        const shape = (rows) => (rows || []).map((o) => ({ ...o, items: liveItems(o) })).filter((o) => o.items.length);
-        const pending = shape(pRes.data);
+        const pending = shape(pRes.data, true);
         await checkPending(pending);
-        staleIds = (sRes.data || []).map((o) => o.id);
+        staleOrders = (sRes.data || []).map((o) => ({ id: o.id, items: liveItems(o).map((it) => it.id) }));
         const staleBar = document.getElementById("k-stale");
-        staleBar.hidden = !staleIds.length;
-        document.getElementById("k-stale-n").textContent = staleIds.length;
+        staleBar.hidden = !staleOrders.length;
+        document.getElementById("k-stale-n").textContent = staleOrders.length;
         document.getElementById("k-count-pending").textContent = pending.length ? `(${pending.length})` : "";
         errBox.textContent = "";
 
-        const orders = activeTab === "pending" ? pending : shape(rRes.data);
+        const orders = activeTab === "pending" ? pending : shape(rRes.data, false);
+        ordersById = new Map(orders.map((o) => [o.id, o]));
         const times = activeTab === "ready" ? orders.map(prepMinutes).filter((m) => m !== null) : [];
         const avgEl = document.getElementById("k-avg");
         avgEl.hidden = !times.length;
         if (times.length) avgEl.textContent = `متوسط التحضير: ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} د (${times.length} طلب)`;
-        if (kTrackerTab !== activeTab) { kTracker = olvNewTracker(); kTrackerTab = activeTab; }
+        if (kTrackerTab !== activeTab + station) { kTracker = olvNewTracker(); kTrackerTab = activeTab + station; }
         const freshTickets = kTracker.diff(orders.map((o) => o.id));
+        const where = station === "all" ? "" : ` عند ${STATION_NAMES[station]}`;
         grid.innerHTML = orders.length
           ? orders.map(cardHtml).join("")
-          : `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"} حاليًا</div>`;
+          : `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"}${where} حاليًا</div>`;
         olvMarkNew(grid, freshTickets);
-        document.getElementById("k-updated").textContent = `آخر تحديث ${formatTime(Date.now())} · كل 15 ثانية`;
+        lastPollAt = Date.now();
+        renderLive();
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
@@ -350,30 +419,65 @@
       }
     }
 
-    // زر واحد لكل البطاقات (بدل مستمع لكل زر مع كل تحديث)
+    async function setDone(saleId, itemIds, done) {
+      if (!itemIds.length) return true;
+      const { error } = await db.rpc("set_items_kitchen_done", { p_sale_id: saleId, p_item_ids: itemIds, p_done: done });
+      if (error) { olvShowError(errBox, error); return false; }
+      return true;
+    }
+
+    // شطب صنف واحد (لمسة عالسطر) — بيتلوّن فورًا وبعدين منأكّد من السيرفر
+    async function toggleLine(line) {
+      if (line.classList.contains("busy")) return;
+      const done = !line.classList.contains("done");
+      line.classList.add("busy");
+      line.classList.toggle("done", done);
+      const ok = await setDone(line.dataset.sale, [line.dataset.item], done);
+      line.classList.remove("busy");
+      if (!ok) { line.classList.toggle("done", !done); return; }
+      const o = ordersById.get(line.dataset.sale);
+      if (done && o && o.items.every((it) => it.id === line.dataset.item || isDone(it))) {
+        if (typeof OlvSound !== "undefined") OlvSound.playOrderReady();
+        knownPendingIds && knownPendingIds.delete(line.dataset.sale);
+        const card = line.closest(".order-card");
+        if (card) card.remove();
+      }
+      poll();
+    }
+
+    // مستمع واحد لكل البطاقات (بدل مستمع لكل زر مع كل تحديث)
     grid.addEventListener("click", async (e) => {
+      const line = e.target.closest(".order-line.tap");
+      if (line) { toggleLine(line); return; }
       const btn = e.target.closest("button[data-id]");
       if (!btn || btn.disabled) return;
+      const o = ordersById.get(btn.dataset.id);
+      if (!o) return;
       btn.disabled = true;
-      const { error } = await window.supabaseClient
-        .rpc("set_kitchen_status", { p_sale_id: btn.dataset.id, p_status: btn.dataset.next });
-      if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
-      if (btn.dataset.next === READY_STATUS) {
+      const finishing = btn.dataset.act === "done";
+      // «تم التجهيز» بيعلّم أصناف هالشاشة كلها؛ «إرجاع» بيرجّعهم — والسيرفر بيقرّر حالة الطلب كلّه
+      const ids = o.items.filter((it) => (finishing ? !isDone(it) : true)).map((it) => it.id);
+      const ok = await setDone(o.id, ids, finishing);
+      if (!ok) { btn.disabled = false; return; }
+      if (finishing) {
         if (typeof OlvSound !== "undefined") OlvSound.playOrderReady();
-        knownPendingIds && knownPendingIds.delete(btn.dataset.id); // مش إلغاء — ما في داعي لتنبيه
+        knownPendingIds && knownPendingIds.delete(o.id); // مش إلغاء — ما في داعي لتنبيه
       }
       const card = btn.closest(".order-card");
       if (card) card.remove();
       poll();
     });
+    grid.addEventListener("keydown", (e) => {
+      const line = e.target.closest && e.target.closest(".order-line.tap");
+      if (line && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleLine(line); }
+    });
 
     document.getElementById("k-stale-btn").addEventListener("click", async (e) => {
       const btn = e.currentTarget;
-      if (!staleIds.length || !confirm(`تعليم ${staleIds.length} طلب قديم (أقدم من ${WINDOW_HOURS} ساعة) كـ«جاهز»؟`)) return;
+      if (!staleOrders.length || !confirm(`تعليم ${staleOrders.length} طلب قديم (أقدم من ${WINDOW_HOURS} ساعة) كـ«جاهز»؟`)) return;
       btn.disabled = true;
-      for (const id of staleIds) {
-        const { error } = await window.supabaseClient.rpc("set_kitchen_status", { p_sale_id: id, p_status: READY_STATUS });
-        if (error) { olvShowError(errBox, error); break; }
+      for (const o of staleOrders) {
+        if (!(await setDone(o.id, o.items, true))) break;
       }
       btn.disabled = false;
       poll();
@@ -388,13 +492,93 @@
       });
     });
 
+    document.getElementById("k-station").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-st]");
+      if (!b || b.dataset.st === station) return;
+      station = b.dataset.st;
+      try { localStorage.setItem("olv_kitchen_station", station); } catch (_) {}
+      knownPendingIds = null; // شاشة جديدة = أساس جديد، بدون صوت لكل الطلبات الموجودة
+      renderStation();
+      poll();
+    });
+
+    // «الأقسام» (للمالك والمدير): أي قسم من المنيو بيروح للبار وأي واحد للمطبخ
+    document.getElementById("k-cats-btn").addEventListener("click", async () => {
+      const { data, error } = await db.from("products").select("category").eq("is_active", true);
+      if (error) { olvShowError(errBox, error); return; }
+      const cats = [...new Set((data || []).map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
+      const chosen = new Set(barCats);
+      const back = document.createElement("div");
+      back.className = "olv-failed-back";
+      back.innerHTML = `
+        <div class="olv-failed-box" role="dialog" aria-modal="true" aria-labelledby="k-cats-h">
+          <h3 id="k-cats-h">وين بيتحضّر كل قسم؟</h3>
+          <div class="hint" style="margin-bottom:8px;">أصناف كل قسم بتطلع على شاشته بس. «الكل» بيضل يعرض كل شي.</div>
+          ${cats.map((c) => `
+            <div class="k-cat-row"><span>${olvEsc(c)}</span>
+              <div class="k-station" data-cat="${olvEsc(c)}">
+                <button type="button" data-v="kitchen" class="${chosen.has(c) ? "" : "on"}">${olvIcon("flame")} المطبخ</button>
+                <button type="button" data-v="bar" class="${chosen.has(c) ? "on" : ""}">${olvIcon("coffee")} البار</button>
+              </div>
+            </div>`).join("")}
+          <div style="display:flex; gap:8px; margin-top:14px;">
+            <button type="button" class="btn gold" data-save>حفظ</button>
+            <button type="button" class="btn" data-close>إلغاء</button>
+          </div>
+        </div>`;
+      document.body.appendChild(back);
+      const close = () => back.remove();
+      back.addEventListener("click", async (ev) => {
+        if (ev.target === back || ev.target.closest("[data-close]")) { close(); return; }
+        const opt = ev.target.closest("[data-cat] button[data-v]");
+        if (opt) {
+          const row = opt.parentElement;
+          row.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === opt));
+          if (opt.dataset.v === "bar") chosen.add(row.dataset.cat); else chosen.delete(row.dataset.cat);
+          return;
+        }
+        const save = ev.target.closest("[data-save]");
+        if (save) {
+          save.disabled = true;
+          const { error: e2 } = await db.from("app_settings")
+            .upsert({ key: "kitchen_bar_categories", value: JSON.stringify([...chosen]) }, { onConflict: "key" });
+          if (e2) { save.disabled = false; olvShowError(errBox, e2); return; }
+          barCats = new Set(chosen);
+          close();
+          olvToast("انحفظت الأقسام", { type: "ok" });
+          poll();
+        }
+      });
+    });
+
+    // البث الفوري: أي تغيير بالطلبات أو الأصناف بيحدّث الشاشة بلحظتها. التحديث كل 15 ثانية بيضل احتياط لو انقطع البث
+    let kickT = null;
+    const kick = () => { clearTimeout(kickT); kickT = setTimeout(poll, 250); };
+    function subscribeLive() {
+      try {
+        db.channel("kitchen-live")
+          .on("postgres_changes", { event: "*", schema: "public", table: "sales_entries" }, kick)
+          .on("postgres_changes", { event: "*", schema: "public", table: "sale_items" }, kick)
+          .subscribe((status) => {
+            const was = live;
+            live = status === "SUBSCRIBED";
+            renderLive();
+            if (live && !was) kick(); // رجع البث: منلحق اللي فاتنا
+          });
+      } catch (_) { live = false; renderLive(); }
+    }
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
+      if (window.olvRole === "owner" || window.olvRole === "manager") document.getElementById("k-cats-btn").hidden = false;
+      renderStation();
       refreshSoundBar();
       keepAwake();
+      await loadBarCats();
       await poll();
-      setInterval(poll, 15000);
+      subscribeLive();
+      setInterval(() => { if (!live || Date.now() - lastPollAt > 60000) poll(); }, 15000);
     })();
     });
   </script>
