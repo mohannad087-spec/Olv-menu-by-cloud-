@@ -749,6 +749,10 @@
       if (!navigator.onLine) { olvShowError(errBox, new Error("قراءة الفاتورة بتحتاج اتصال بالإنترنت")); return; }
       aiBtn.disabled = true;
       aiStatus.textContent = "عم يقرأ الفاتورة... (10–30 ثانية)";
+      // السيرفر بيرد دايمًا خلال دقيقتين تقريبًا؛ هاد احتياط إذا النت نفسه علق، حتى ما يضل يلفّ عالفاضي
+      const ctrl = new AbortController();
+      const slowTimer = setTimeout(() => { aiStatus.textContent = "لسا عم يقرأ... الخدمة المجانية بطيئة هلق، استنى شوي"; }, 35000);
+      const abortTimer = setTimeout(() => ctrl.abort(), 140000);
       try {
         const payload = await fileToPayload(file);
         const { data: { session } } = await window.supabaseClient.auth.getSession();
@@ -757,14 +761,16 @@
           method: "POST",
           headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token, apikey: cfg.SUPABASE_ANON_KEY },
           body: JSON.stringify(payload),
+          signal: ctrl.signal,
         });
         const out = await res.json().catch(() => ({}));
         if (!res.ok || !out.ok) throw new Error(out.error || "فشلت قراءة الفاتورة (" + res.status + ")");
         applyAiInvoice(out.invoice);
       } catch (err) {
         aiStatus.textContent = "";
-        olvShowError(errBox, err);
+        olvShowError(errBox, err && err.name === "AbortError" ? new Error("قراءة الفاتورة طوّلت كتير وما وصل رد — تأكد من النت وجرّب كمان مرة") : err);
       } finally {
+        clearTimeout(slowTimer); clearTimeout(abortTimer);
         aiBtn.disabled = !document.getElementById("pi-file").files[0];
       }
     });
