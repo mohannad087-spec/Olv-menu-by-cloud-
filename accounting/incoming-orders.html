@@ -321,6 +321,22 @@
         lastOrders = orders;
         renderOrders();
       });
+      // لو الاتصال بموقع المنيو فشل نعرض السبب بدل "جاري التحميل" للأبد
+      let pollErrShown = false;
+      OlvIncomingPoll.onError((err) => {
+        if (err) {
+          olvShowError(errBox, err);
+          pollErrShown = true;
+          if (!lastOrders) {
+            document.getElementById("orders-list").innerHTML =
+              '<div class="hint" style="grid-column:1/-1;">ما قدرنا نجيب الطلبات من موقع المنيو — شوف السبب فوق. بنعيد المحاولة تلقائيًا.</div>';
+          }
+        } else if (pollErrShown) {
+          pollErrShown = false;
+          errBox.textContent = "";
+          errBox.style.display = "";
+        }
+      });
     })();
     });
   </script>

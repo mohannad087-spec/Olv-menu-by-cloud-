@@ -4,11 +4,22 @@
 // (مو أول تحميل للصفحة). صفحة incoming-orders.html نفسها تعيد استخدام
 // نفس الوحدة (subscribe/pollNow/callProxy) بدل ما تعمل استعلام مستقل،
 // حتى ما يصير نداء شبكة مضاعف ولا صوت مكرر وقت ما تكون هي الصفحة المفتوحة.
+//
+// ملاحظات موثوقية (إصلاح تأخر/ضياع الطلبات):
+// - رمز الدخول بينتهي كل ساعة؛ كنا نحفظه مرة وحدة للأبد، فبعد ساعة كل فحص يرجع 401 بصمت
+//   وما يوصل ولا طلب لحد ما حدا يحدّث الصفحة. هلق بناخد الرمز الحالي من Supabase مع كل نداء
+//   (بيتجدد لحاله)، ولو انرفض بنجدده ونعيد مرة.
+// - المتصفح بيبطّئ المؤقتات بالتبويب المخفي (لحد مرة بالدقيقة)، فبنفحص فورًا لما الصفحة ترجع
+//   تنعرض أو يرجع النت.
+// - الفشل ما عاد صامت: الصفحة بتعرض السبب (onError) والعداد بيصير "!".
 const OlvIncomingPoll = (function () {
-  let accessToken = null;
+  const POLL_MS = 10000;
   let knownNewIds = null; // null = لسا ما انعمل الأساس الأول (baseline)
   let lastOrders = null;
   const subscribers = [];
+  const errorSubscribers = [];
+  let lastError = null;
+  let inFlight = null;
   let started = false;
 
   function proxyUrl() {
@@ -16,20 +27,43 @@ const OlvIncomingPoll = (function () {
     return base.replace(/\/$/, "") + "/functions/v1/olv-menu-proxy";
   }
 
-  async function callProxy(payload) {
-    if (!accessToken) {
-      const { data } = await window.supabaseClient.auth.getSession();
-      accessToken = data && data.session && data.session.access_token;
+  async function currentToken(forceRefresh) {
+    const auth = window.supabaseClient.auth;
+    const { data } = forceRefresh ? await auth.refreshSession() : await auth.getSession();
+    return data && data.session && data.session.access_token;
+  }
+
+  // رسائل أوضح لأشهر الأعطال بدل نص السيرفر الخام
+  function friendlyError(status, msg) {
+    if (status === 403 && /Admin access required/i.test(msg || "")) {
+      return "موقع المنيو رفض مفتاح الإدارة — المفتاح OLV_ADMIN_KEY بأسرار Supabase لازم يكون نفسه بالضبط بأسرار Cloudflare Pages (مشروع olv-menu). لحد ما يتصلّح ما رح توصل طلبات المنيو هون.";
     }
-    if (!accessToken) throw new Error("لا توجد جلسة دخول");
-    const res = await fetch(proxyUrl(), {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify(payload),
-    });
-    const out = await res.json();
-    if (!res.ok || out.ok === false) throw new Error(out.error || "فشل الاتصال بموقع المنيو");
-    return out;
+    if (status === 429) return "موقع المنيو قفل الاتصال مؤقتًا بسبب محاولات مفتاح غلط كثيرة — بيرجع لحاله خلال ربع ساعة.";
+    return msg || "فشل الاتصال بموقع المنيو";
+  }
+
+  async function callProxy(payload) {
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const token = await currentToken(attempt > 0);
+      if (!token) throw new Error("لا توجد جلسة دخول — سجّل دخول من جديد");
+      let res, out;
+      try {
+        res = await fetch(proxyUrl(), {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload),
+        });
+        out = await res.json().catch(() => ({}));
+      } catch (e) {
+        throw new Error("ما في اتصال بالنت أو السيرفر ما رد");
+      }
+      if (res.ok && out.ok !== false) return out;
+      lastErr = new Error(friendlyError(res.status, out.error));
+      // 401 = رمز الدخول انتهى: نجدده ونعيد مرة وحدة
+      if (res.status !== 401) break;
+    }
+    throw lastErr;
   }
 
   function updateBadge(pendingCount) {
@@ -57,18 +91,40 @@ const OlvIncomingPoll = (function () {
     if (hasNew && typeof OlvSound !== "undefined") OlvSound.playNewOrder();
   }
 
-  async function poll() {
+  function setError(err) {
+    lastError = err;
+    errorSubscribers.forEach((fn) => fn(err));
+    if (err) {
+      const tab = document.querySelector('.tab-link[href="incoming-orders.html"]');
+      if (tab) {
+        let badge = tab.querySelector(".tab-badge");
+        if (!badge) { badge = document.createElement("span"); badge.className = "tab-badge"; tab.appendChild(badge); }
+        badge.textContent = "!";
+        badge.title = err.message;
+      }
+    }
+  }
+
+  async function doPoll() {
     try {
       const out = await callProxy({ action: "list" });
       const orders = out.orders || [];
       lastOrders = orders;
+      if (lastError) setError(null);
       updateBadge(orders.filter((o) => o.status === "new").length);
       checkForNew(orders);
       subscribers.forEach((fn) => fn(orders));
       return orders;
     } catch (e) {
+      setError(e);
       return null;
     }
+  }
+
+  // ما منخلي فحصين يشتغلوا بنفس الوقت (المؤقت + رجوع التبويب مثلًا)
+  function poll() {
+    if (!inFlight) inFlight = doPoll().finally(() => { inFlight = null; });
+    return inFlight;
   }
 
   function start() {
@@ -80,7 +136,10 @@ const OlvIncomingPoll = (function () {
     // بهالسلسلة اترجعت فورًا (متل بيئة الاختبار)، ممكن poll() يخلص كامل
     // (وصولًا لتحديث DOM شريط التنقل) قبل ما الشريط نفسه يترسم أصلًا.
     setTimeout(poll, 0);
-    setInterval(poll, 15000);
+    setInterval(poll, POLL_MS);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") poll(); });
+    window.addEventListener("focus", () => poll());
+    window.addEventListener("online", () => poll());
   }
 
   function subscribe(fn) {
@@ -88,7 +147,12 @@ const OlvIncomingPoll = (function () {
     if (lastOrders) fn(lastOrders);
   }
 
-  return { start, pollNow: poll, subscribe, callProxy };
+  function onError(fn) {
+    errorSubscribers.push(fn);
+    if (lastError) fn(lastError);
+  }
+
+  return { start, pollNow: poll, subscribe, onError, callProxy };
 })();
 
 OlvIncomingPoll.start();
