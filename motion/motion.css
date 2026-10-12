@@ -1,0 +1,44 @@
+/* ===== الحركة: Lenis + GSAP + تأثيرات React Bits (ملف مشترك) ===== */
+
+/* Lenis هو اللي بيعمل السكرول الناعم، فنطفي سلاسة المتصفح عشان ما يتعاركوا */
+html.lenis, html.lenis body { scroll-behavior: auto; }
+
+/* Aurora (React Bits) */
+.aurora-container { position: relative; overflow: hidden; isolation: isolate; }
+.aurora-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+
+/* StarBorder (React Bits): خط الحافة + canvas النجمة تحت محتوى الزر */
+.star-border { position: relative; isolation: isolate; }
+.star-border::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 var(--star-border-thickness, 1px) var(--star-border-track, rgba(255,255,255,.1));
+}
+.star-border__light {
+  position: absolute; top: -48px; left: -48px; z-index: -1;
+  width: calc(100% + 96px); height: calc(100% + 96px); pointer-events: none;
+}
+
+/* ShinyText (React Bits) */
+.shiny-text {
+  --shiny-pos: -50%;
+  background-image: linear-gradient(var(--shiny-angle, 120deg),
+    var(--shiny-base) 0%,
+    var(--shiny-base) calc(var(--shiny-pos) - var(--shiny-width, 40%) / 2),
+    var(--shiny-shine) var(--shiny-pos),
+    var(--shiny-base) calc(var(--shiny-pos) + var(--shiny-width, 40%) / 2),
+    var(--shiny-base) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  /* التنوين والحركات العربية بتطلع فوق صندوق السطر؛ لو الخلفية ما غطّتها بتختفي */
+  padding-block: .4em; margin-block: -.4em;
+}
+
+/* BlurText (React Bits) */
+.blur-text__seg { display: inline-block; will-change: transform, filter, opacity; }
+
+/* ClickSpark (React Bits): canvas واحد فوق الصفحة، ما بياخد ضغطات */
+.click-spark { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100; }
+
+/* SplitText: الكلمات inline-block عشان تتحرك لفوق، وبنضل نحافظ على وصل الحروف العربية بتقسيم الكلمات بس */
+.split-word, .split-char { will-change: transform, opacity; }
+

@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="motion/vendor/lenis.css">
+<link rel="stylesheet" href="motion/motion.css">
 <style>
 :root{
   --ink:#050504;
@@ -655,7 +657,8 @@ function showFam(id){
   document.getElementById('subnav').innerHTML = fam.groups.length>1
     ? fam.groups.map(g=>`<a href="#${g.id}"><span data-ar>${g.ar}</span><span data-en>${g.en}</span></a>`).join('')
     : '';
-  window.scrollTo({top:0,behavior:'smooth'});
+  if(window.OLVMotion) OLVMotion.familyShown(id);
+  else window.scrollTo({top:0,behavior:'smooth'});
 }
 
 /* ---------- cart ---------- */
@@ -811,10 +814,18 @@ function setLang(l){
   document.getElementById('b-en').classList.toggle('on',l==='en');
   document.getElementById('cur').textContent = l==='ar'?'د.أ':'JD';
   drawSheet();
+  if(window.OLVMotion) OLVMotion.langChanged();
 }
 
 render();
 renderOtype();
 </script>
+<!-- الحركة: GSAP + ScrollTrigger + SplitText، Lenis، ونسخ React Bits (motion/) -->
+<script defer src="motion/vendor/gsap.min.js"></script>
+<script defer src="motion/vendor/ScrollTrigger.min.js"></script>
+<script defer src="motion/vendor/SplitText.min.js"></script>
+<script defer src="motion/vendor/lenis.min.js"></script>
+<script defer src="motion/react-bits.js"></script>
+<script defer src="motion/olv-motion.js"></script>
 </body>
 </html>
