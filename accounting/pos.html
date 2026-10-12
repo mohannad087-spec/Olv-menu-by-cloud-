@@ -834,14 +834,14 @@
       } catch (e) { /* اقتراحات بس */ }
     }
 
-    // جاي من صفحة الطاولات («طلب جديد» / «زيد طلب»): صالة + رقم الطاولة (+ اسم الزبون) معبّايين
+    // جاي من صفحة الطاولات («طلب جديد» / «زيد طلب» / حجز «وصلوا»): صالة + رقم الطاولة و/أو اسم الزبون معبّايين
     function applyTableFromLink() {
       const q = new URLSearchParams(location.search);
       const table = olvNormTable(q.get("table"));
-      if (!table) return;
+      if (!table && !q.get("name")) return;
       document.getElementById("order-type").value = "صالة";
       updateOrderTypeFields();
-      document.getElementById("table-number").value = table.slice(0, 30);
+      if (table) document.getElementById("table-number").value = table.slice(0, 30);
       const name = (q.get("name") || "").trim();
       if (name && !document.getElementById("customer-name").value.trim()) document.getElementById("customer-name").value = name.slice(0, 60);
       history.replaceState(null, "", location.pathname);

@@ -59,7 +59,7 @@
 })();
 </script>
 <style>
-  /* صفحة الطاولات (2026-10): مين قاعد وين، من قديش، وشو طلب، والمطبخ خلّص ولا لأ.
+  /* صفحة الطاولات (2026-10): مين قاعد وين، شو طلب، أي طاولة بدها ترتيب، والحجوزات.
      القواعد بـ design-system/olv/pages/tables.md */
   .wrap.t-wrap{max-width:1180px;}
   .t-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
@@ -196,6 +196,90 @@
     .tc, .t-chip{transition:none;}
     .tc:active, .t-chip:active{transform:none;}
   }
+
+  /* ---- 2026-10: جهوزية الطاولة + الحجوزات ---- */
+  /* تبديل الخريطة / الحجوزات */
+  .t-seg{display:inline-flex; padding:4px; gap:4px; border-radius:999px; background:var(--ink-3); margin-bottom:14px; max-width:100%;}
+  .t-seg button{min-height:42px; padding:0 18px; border-radius:999px; border:none; background:transparent; color:var(--paper);
+    font:inherit; font-size:14.5px; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap;}
+  .t-seg button .icon{width:17px; height:17px;}
+  .t-seg button .n{font-size:12px; font-weight:800; min-width:20px; padding:1px 6px; border-radius:999px; background:var(--gold); color:var(--on-gold); font-variant-numeric:tabular-nums;}
+  .t-seg button .n:empty{display:none;}
+  .t-seg button[aria-selected="true"]{background:var(--ink-2); font-weight:700; box-shadow:var(--card-shadow);}
+  .t-seg button:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  [hidden]{display:none !important;}
+
+  /* فاضية وجاهزة: إطار متقطّع + نقطة زيتونية */
+  .tc.free .tc-free{display:inline-flex; align-items:center; gap:6px; color:var(--olive); font-weight:700;}
+  .tc.free .tc-free::before{content:""; width:8px; height:8px; border-radius:999px; background:var(--olive);}
+  /* بدها ترتيب: سطح ثانوي معتم + نص ذهبي وأيقونة (مش أحمر: مش خطر) */
+  .tc.dirty{background:var(--ink-3); border:1.5px dashed rgba(var(--gold-rgb),.55); align-items:center; justify-content:center; gap:4px;}
+  .tc.dirty .tc-num{color:var(--paper); font-size:30px;}
+  .tc.dirty .tc-num.small{font-size:17px; text-align:center; flex:none;}
+  .tc-state{display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:700;}
+  .tc-state .icon{width:15px; height:15px;}
+  .tc.dirty .tc-state{color:var(--gold-hi);}
+  .tc-sub{font-size:12px; color:var(--muted); text-align:center; font-variant-numeric:tabular-nums;}
+  /* محجوزة: بطاقة معتمة بإطار زيتوني والوقت كبير */
+  .tc.held{background:var(--ink-2); border:1.5px solid color-mix(in srgb, var(--olive) 55%, transparent); box-shadow:var(--card-shadow);}
+  .tc.held .tc-state{color:var(--olive);}
+  .tc.held .tc-when{font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--paper);}
+  .tc.held .tc-state.dirty-note{color:var(--gold-hi); margin-top:auto;}
+  .tc.held.late{border-color:var(--gold);}
+  .tc.held.late .tc-state{color:var(--gold-hi);}
+  /* وصلوا ولسا ما طلبوا */
+  .tc.seated{background:var(--ink-2); border:1px solid var(--hair); border-inline-start:5px solid var(--olive); box-shadow:var(--card-shadow);}
+  .tc.seated .tc-state{color:var(--olive);}
+  /* حجز جاي عطاولة لسا مشغولة */
+  .tc-res{display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; color:var(--olive);}
+  .tc-res .icon{width:13px; height:13px;}
+
+  /* قائمة الحجوزات */
+  .r-bar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+  .r-bar .btn{min-height:46px; display:inline-flex; align-items:center; gap:7px;}
+  .r-day{margin-bottom:18px;}
+  .r-day h3{font-size:14px; font-weight:800; color:var(--muted); margin:0 0 8px; display:flex; gap:8px; align-items:baseline;}
+  .r-day h3 .c{font-weight:500; font-size:12.5px;}
+  .r-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .r-row{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:4px 14px; align-items:center;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:16px; padding:12px 14px; box-shadow:var(--card-shadow);}
+  .r-row.done{opacity:.6; box-shadow:none;}
+  .r-time{font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .r-main{min-width:0; display:block;}
+  .r-name{display:block; font-size:15.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .r-meta{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:13px; color:var(--muted); margin-top:2px;}
+  .r-meta span{display:inline-flex; align-items:center; gap:4px; min-width:0;}
+  .r-meta .icon{width:14px; height:14px;}
+  .r-meta a{color:var(--gold-hi);}
+  .r-meta .tb{max-width:14ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;}
+  .r-note{grid-column:2 / -1; font-size:13px; color:var(--paper); background:var(--ink-3); border-radius:10px; padding:6px 10px; overflow-wrap:anywhere;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;} /* الملاحظة الطويلة كاملة بالتعديل */
+  .r-acts{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
+  .r-acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; padding-inline:12px;}
+  .r-acts .btn.go{background:var(--olive); border-color:var(--olive); color:var(--on-olive); font-weight:700;}
+  .r-st{display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap;
+    background:var(--ink-3); color:var(--muted);}
+  .r-st.late{background:rgba(var(--gold-rgb),.16); color:var(--gold-hi);}
+  .r-st.seated{background:color-mix(in srgb, var(--olive) 14%, transparent); color:var(--olive);}
+  .r-edit{border:none; background:none; padding:0; font:inherit; color:inherit; text-align:start; cursor:pointer; min-width:0; display:block; width:100%;}
+  .r-edit:focus-visible{outline:2px solid var(--gold); outline-offset:3px; border-radius:6px;}
+  @media (max-width:640px){
+    .r-row{grid-template-columns:auto minmax(0,1fr);}
+    .r-acts{grid-column:1 / -1; justify-content:stretch; order:3;}
+    .r-note{grid-column:1 / -1; order:2;}
+    .r-acts .btn{flex:1 1 0;}
+  }
+
+  /* نموذج الحجز */
+  .f-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;}
+  .f-grid .field{margin:0;}
+  .f-grid .full{grid-column:1 / -1;}
+  .f-warn{grid-column:1 / -1; font-size:13px; color:var(--gold-hi); background:rgba(var(--gold-rgb),.12); border-radius:10px; padding:8px 10px;}
+  .stepper{display:flex; align-items:center; gap:6px;}
+  .stepper button{flex:none; width:46px; height:46px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font:inherit; font-size:20px; font-weight:700; cursor:pointer;}
+  .stepper input{text-align:center; min-width:0;}
+  .sh-res{background:color-mix(in srgb, var(--olive) 10%, var(--ink-2)); border:1px solid color-mix(in srgb, var(--olive) 35%, transparent); border-radius:14px; padding:10px 12px; font-size:14px;}
+  .sh-res b{font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -214,28 +298,75 @@
       </div>
     </header>
 
-    <div class="stats t-stats" id="t-stats">
-      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-busy"></div>
-        <div class="stat-body"><div class="label">مشغولة</div><div class="value" id="k-busy">—</div></div></div></div>
-      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-prep"></div>
-        <div class="stat-body"><div class="label">طلبات بالتحضير</div><div class="value" id="k-prep">—</div></div></div></div>
-      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-sum"></div>
-        <div class="stat-body"><div class="label">مجموع الطاولات القاعدة</div><div class="value" id="k-sum">—</div></div></div></div>
-      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-long"></div>
-        <div class="stat-body"><div class="label">أطول قعدة</div><div class="value" id="k-long">—</div></div></div></div>
+    <div class="t-seg" role="tablist" aria-label="عرض">
+      <button type="button" role="tab" id="tab-map" aria-selected="true" aria-controls="view-map"></button>
+      <button type="button" role="tab" id="tab-res" aria-selected="false" aria-controls="view-res"></button>
     </div>
 
-    <div class="t-chips" id="t-filter" role="group" aria-label="عرض">
-      <button class="t-chip" type="button" data-f="all" aria-pressed="true">الكل <span class="n" id="n-all"></span></button>
-      <button class="t-chip" type="button" data-f="busy" aria-pressed="false">مشغولة <span class="n" id="n-busy"></span></button>
-      <button class="t-chip" type="button" data-f="free" aria-pressed="false">فاضية <span class="n" id="n-free"></span></button>
-    </div>
+    <section id="view-map" role="tabpanel" aria-labelledby="tab-map">
+      <div class="stats t-stats" id="t-stats">
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-busy"></div>
+          <div class="stat-body"><div class="label">مشغولة</div><div class="value" id="k-busy">—</div></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-dirty"></div>
+          <div class="stat-body"><div class="label">بدها ترتيب</div><div class="value" id="k-dirty">—</div></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-res"></div>
+          <div class="stat-body"><div class="label">حجوزات باقية اليوم</div><div class="value" id="k-res">—</div></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-sum"></div>
+          <div class="stat-body"><div class="label">مجموع الطاولات القاعدة</div><div class="value" id="k-sum">—</div></div></div></div>
+      </div>
 
-    <div class="t-grid" id="t-grid"><div class="empty-state" style="grid-column:1/-1">جاري التحميل...</div></div>
-    <p class="t-note" id="t-note">الطاولة بتصير مشغولة لحالها أول ما ينسجّل عليها طلب صالة (من الكاشير أو من QR المنيو)، وبترجع فاضية لما تحرّرها، أو بعد 12 ساعة من آخر طلب.</p>
+      <div class="t-chips" id="t-filter" role="group" aria-label="فلترة">
+        <button class="t-chip" type="button" data-f="all" aria-pressed="true">الكل <span class="n" id="n-all"></span></button>
+        <button class="t-chip" type="button" data-f="busy" aria-pressed="false">مشغولة <span class="n" id="n-busy"></span></button>
+        <button class="t-chip" type="button" data-f="dirty" aria-pressed="false">بدها ترتيب <span class="n" id="n-dirty"></span></button>
+        <button class="t-chip" type="button" data-f="held" aria-pressed="false">محجوزة <span class="n" id="n-held"></span></button>
+        <button class="t-chip" type="button" data-f="free" aria-pressed="false">جاهزة <span class="n" id="n-free"></span></button>
+      </div>
+
+      <div class="t-grid" id="t-grid"><div class="empty-state" style="grid-column:1/-1">جاري التحميل...</div></div>
+      <p class="t-note" id="t-note">الطاولة بتصير مشغولة لحالها أول ما ينسجّل عليها طلب صالة (من الكاشير أو QR المنيو). لما يقوموا: «حرّر الطاولة» بتخلّيها «بدها ترتيب»، وبعد ما تترتّب: «صارت جاهزة». الحجز بيبيّن عالطاولة قبل موعده بساعتين.</p>
+    </section>
+
+    <section id="view-res" role="tabpanel" aria-labelledby="tab-res" hidden>
+      <div class="r-bar">
+        <div class="t-chips" id="r-filter" role="group" aria-label="الحجوزات" style="margin:0">
+          <button class="t-chip" type="button" data-r="upcoming" aria-pressed="true">الجاية</button>
+          <button class="t-chip" type="button" data-r="today" aria-pressed="false">اليوم كله</button>
+          <button class="t-chip" type="button" data-r="past" aria-pressed="false">اللي فاتت</button>
+        </div>
+        <button class="btn gold" type="button" id="r-new"></button>
+      </div>
+      <div id="r-box"><div class="empty-state">جاري التحميل...</div></div>
+    </section>
   </div>
 
   <dialog class="t-sheet" id="sheet" aria-labelledby="sh-title"><div class="sh" id="sheet-in"></div></dialog>
+
+  <dialog class="t-sheet" id="rform" aria-labelledby="rf-title">
+    <form class="sh" id="rf" novalidate>
+      <div class="sh-head">
+        <div><h2 id="rf-title">حجز جديد</h2><div class="sh-sub" id="rf-sub">الاسم والوقت بس إجباريين</div></div>
+        <button class="sh-x" type="button" data-close aria-label="سكّر"></button>
+      </div>
+      <div class="sh-body">
+        <div class="f-grid">
+          <div class="field full"><label for="rf-name">اسم الزبون</label><input id="rf-name" type="text" maxlength="80" autocomplete="off" required></div>
+          <div class="field"><label for="rf-date">اليوم</label><input id="rf-date" type="date" required></div>
+          <div class="field"><label for="rf-time">الساعة</label><input id="rf-time" type="time" step="900" required></div>
+          <div class="field"><label for="rf-size">كم شخص</label>
+            <div class="stepper"><button type="button" data-step="-1" aria-label="أقل">−</button><input id="rf-size" type="number" inputmode="numeric" min="1" max="200" value="2"><button type="button" data-step="1" aria-label="أكتر">+</button></div></div>
+          <div class="field"><label for="rf-table">الطاولة</label><select id="rf-table"></select></div>
+          <div class="field full"><label for="rf-phone">رقم الهاتف</label><input id="rf-phone" type="tel" inputmode="tel" maxlength="30" autocomplete="off" placeholder="اختياري"></div>
+          <div class="field full"><label for="rf-notes">ملاحظة</label><input id="rf-notes" type="text" maxlength="300" autocomplete="off" placeholder="مثال: عيد ميلاد، كرسي أطفال"></div>
+          <div class="f-warn" id="rf-warn" hidden></div>
+        </div>
+      </div>
+      <div class="sh-foot">
+        <button class="btn danger" type="button" id="rf-del" hidden></button>
+        <button class="btn go" type="submit" id="rf-save"></button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog class="t-sheet" id="manage" aria-labelledby="m-title">
     <div class="sh">
@@ -284,63 +415,115 @@
     const grid = document.getElementById("t-grid");
     const sheet = document.getElementById("sheet");
     const manage = document.getElementById("manage");
+    const rform = document.getElementById("rform");
 
-    const WINDOW_H = 12;        // طلب أقدم من هيك ما بيخلّي الطاولة مشغولة (حدا نسي يحرّرها)
-    const LONG_MIN = 90;        // قعدة أطول من هيك بتتعلّم ذهبي (يمكن لازم تتحرّر أو تنسأل)
+    const WINDOW_H = 12;        // طلب أقدم من هيك ما بيخلّي الطاولة مشغولة (حدا نسي يحرّرها)، وكمان «بدها ترتيب» بتنتهي بعدها
+    const LONG_MIN = 90;        // قعدة أطول من هيك بتتعلّم ذهبي
+    const HOLD_BEFORE = 120;    // الحجز بيبيّن عالطاولة قبل موعده بساعتين
+    const HOLD_AFTER = 45;      // وبيضل محجوز 45 د بعد موعده لو ما وصلوا (بعدها «ما إجوا؟»)
+    const LATE_MIN = 15;        // بعد هيك الحجز «متأخرين»
     const PENDING = "قيد التحضير";
 
     let regTables = [];         // restaurant_tables
-    let freedAt = new Map();    // مفتاح الطاولة ← آخر تحرير
+    let occ = new Map();        // مفتاح الطاولة ← { freed_at, cleaned_at, raw }
     let sales = [];             // طلبات الطاولات بآخر 12 ساعة
+    let reservations = [];      // من بداية امبارح لـ 60 يوم لقدام
+    let resReady = true;        // جدول الحجوزات موجود؟
     let filter = "all";
+    let rFilter = "upcoming";
     let isAdmin = false;
-    let openKey = null;         // الطاولة المفتوحة باللوحة
+    let openKey = null;
     let live = false;
     let lastPollAt = 0;
     const tracker = olvNewTracker();
 
-    document.getElementById("ic-busy").innerHTML = olvIcon("grid");
-    document.getElementById("ic-prep").innerHTML = olvIcon("flame");
-    document.getElementById("ic-sum").innerHTML = olvIcon("banknote");
-    document.getElementById("ic-long").innerHTML = olvIcon("hourglass");
+    const setIcon = (id, ic) => { document.getElementById(id).innerHTML = olvIcon(ic); };
+    setIcon("ic-busy", "grid"); setIcon("ic-dirty", "sparkle"); setIcon("ic-res", "calendar"); setIcon("ic-sum", "banknote");
     document.getElementById("qr-btn").innerHTML = olvIcon("printer") + "<span>QR الطاولات</span>";
     document.getElementById("manage-btn").innerHTML = olvIcon("gear") + "<span>ترتيب الطاولات</span>";
-    manage.querySelector("[data-close]").innerHTML = olvIcon("x");
+    document.getElementById("r-new").innerHTML = olvIcon("plus") + "<span>حجز جديد</span>";
+    document.getElementById("rf-save").innerHTML = olvIcon("check") + "<span>احفظ الحجز</span>";
+    document.getElementById("rf-del").innerHTML = olvIcon("trash") + "<span>احذف</span>";
+    document.querySelectorAll("[data-close]").forEach((b) => { b.innerHTML = olvIcon("x"); });
 
     const key = (v) => olvNormTable(v).toLowerCase();
     const mins = (ts) => Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000));
+    const minsUntil = (ts) => Math.round((new Date(ts).getTime() - Date.now()) / 60000);
     const dur = (m) => (m < 60 ? `${m} د` : `${Math.floor(m / 60)}س ${String(m % 60).padStart(2, "0")}د`);
     const clock = (ts) => new Date(ts).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" });
     const saleTotal = (s) => Number(s.cash_amount || 0) + Number(s.card_amount || 0) + Number(s.delivery_amount || 0);
     const liveItems = (s) => (s.sale_items || []).filter((it) => it.status !== "voided");
+    const pad = (n) => String(n).padStart(2, "0");
+    const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const todayKey = () => dayKey(new Date());
+    function dayLabel(k) {
+      const t = new Date(); const y = new Date(t); y.setDate(t.getDate() - 1); const tm = new Date(t); tm.setDate(t.getDate() + 1);
+      if (k === dayKey(t)) return "اليوم";
+      if (k === dayKey(tm)) return "بكرا";
+      if (k === dayKey(y)) return "امبارح";
+      const [Y, M, D] = k.split("-").map(Number);
+      return new Date(Y, M - 1, D).toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long", numberingSystem: "latn" });
+    }
+    const resLate = (r) => r.status === "booked" && minsUntil(r.reserved_at) < -LATE_MIN;
+    const resWord = (n) => (n === 1 ? "شخص" : n === 2 ? "شخصين" : `${n} أشخاص`);
 
-    // كل طاولة: المسجّلة بترتيبها، وبعدها أي طاولة عليها طلب وهي مش بالقائمة
+    // ---------- حالة كل طاولة ----------
+    // مشغولة (طلبات) > وصلوا بدون طلب (حجز seated) > محجوزة (حجز قريب) > بدها ترتيب (انحرّرت وما انرتّبت) > جاهزة
     function buildTables() {
       const byKey = new Map();
-      regTables.forEach((t) => {
-        const k = key(t.table_number);
-        if (k && !byKey.has(k)) byKey.set(k, { key: k, label: olvNormTable(t.table_number), raw: t.table_number, registered: true, orders: [] });
-      });
+      const add = (label, raw, registered) => {
+        const k = key(label);
+        if (!k) return null;
+        if (!byKey.has(k)) byKey.set(k, { key: k, label: olvNormTable(label), raw, registered, orders: [] });
+        return byKey.get(k);
+      };
+      regTables.forEach((t) => add(t.table_number, t.table_number, true));
       sales.forEach((s) => {
         const k = key(s.table_number);
-        if (!k) return;
-        const f = freedAt.get(k);
-        if (f && new Date(s.created_at) <= new Date(f)) return; // قبل آخر تحرير
-        if (!byKey.has(k)) byKey.set(k, { key: k, label: olvNormTable(s.table_number), raw: olvNormTable(s.table_number), registered: false, orders: [] });
-        byKey.get(k).orders.push(s);
+        const o = occ.get(k);
+        if (o && o.freed_at && new Date(s.created_at) <= new Date(o.freed_at)) return; // قبل آخر تحرير
+        const t = add(s.table_number, olvNormTable(s.table_number), false);
+        if (t) t.orders.push(s);
+      });
+      reservations.forEach((r) => {
+        if (!r.table_number || r.status !== "booked" && r.status !== "seated") return;
+        const k = key(r.table_number);
+        if (!byKey.has(k)) return; // حجز على طاولة مش بالقائمة: بيضل بقائمة الحجوزات بس
+        const t = byKey.get(k);
+        const until = minsUntil(r.reserved_at);
+        if (r.status === "booked" && until <= HOLD_BEFORE && until >= -HOLD_AFTER) {
+          if (!t.res || new Date(r.reserved_at) < new Date(t.res.reserved_at)) t.res = r;
+        }
+        // وصلوا: الطاولة إلهم لحد ما ينسجّل طلب (أو ساعتين)
+        if (r.status === "seated" && r.updated_at && mins(r.updated_at) < 120) {
+          const o = occ.get(k);
+          if (!(o && o.freed_at && new Date(o.freed_at) > new Date(r.updated_at))) {
+            if (!t.seated || new Date(r.updated_at) > new Date(t.seated.updated_at)) t.seated = r;
+          }
+        }
       });
       const list = Array.from(byKey.values()).filter((t) => t.registered || t.orders.length);
       list.forEach((t) => {
-        t.busy = t.orders.length > 0;
-        if (!t.busy) return;
-        t.orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        t.since = t.orders[0].created_at;
-        t.minutes = mins(t.since);
-        t.total = t.orders.reduce((a, s) => a + saleTotal(s), 0);
-        t.pending = t.orders.filter((s) => s.kitchen_status === PENDING).length;
-        const names = [...new Set(t.orders.map((s) => (s.customer_name || "").trim()).filter(Boolean))];
-        t.names = names.join("، ");
-        t.lastName = names[names.length - 1] || "";
+        if (t.seated && t.orders.some((s) => new Date(s.created_at) >= new Date(t.seated.updated_at) - 60000)) t.seated = null;
+        if (t.orders.length) {
+          t.state = "busy";
+          t.orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          t.since = t.orders[0].created_at;
+          t.minutes = mins(t.since);
+          t.total = t.orders.reduce((a, s) => a + saleTotal(s), 0);
+          t.pending = t.orders.filter((s) => s.kitchen_status === PENDING).length;
+          const names = [...new Set(t.orders.map((s) => (s.customer_name || "").trim()).filter(Boolean))];
+          t.names = names.join("، ");
+          t.lastName = names[names.length - 1] || "";
+          t.seated = null;
+          return;
+        }
+        if (t.seated) { t.state = "seated"; t.lastName = t.seated.customer_name; return; }
+        const o = occ.get(t.key);
+        t.dirty = !!(o && o.freed_at && mins(o.freed_at) < WINDOW_H * 60 && !(o.cleaned_at && new Date(o.cleaned_at) >= new Date(o.freed_at)));
+        if (t.dirty) t.freedMin = mins(o.freed_at);
+        // محجوزة وبدها ترتيب: بتبيّن محجوزة، مع تنبيه إنها لسا ما انرتّبت
+        t.state = t.res ? "held" : t.dirty ? "dirty" : "free";
       });
       return list;
     }
@@ -348,19 +531,40 @@
     function card(t) {
       const tag = t.registered ? "" : `<span class="tc-tag">مش بالقائمة</span>`;
       const numCls = t.label.length > 4 ? "tc-num small" : "tc-num";
-      if (!t.busy) {
-        return `<button type="button" class="tc free" data-key="${olvEsc(t.key)}" data-row-id="${olvEsc(t.key)}" aria-label="طاولة ${olvEsc(t.label)}، فاضية">
-          <span class="${numCls}" title="${olvEsc(t.label)}">${olvEsc(t.label)}</span><span class="tc-free">فاضية</span></button>`;
+      const num = `<span class="${numCls}" title="${olvEsc(t.label)}">${olvEsc(t.label)}</span>`;
+      const attrs = `type="button" data-key="${olvEsc(t.key)}" data-row-id="${t.state}:${olvEsc(t.key)}"`;
+      if (t.state === "free") {
+        return `<button ${attrs} class="tc free" aria-label="طاولة ${olvEsc(t.label)}، جاهزة">${tag}${num}<span class="tc-free">جاهزة</span></button>`;
+      }
+      if (t.state === "dirty") {
+        return `<button ${attrs} class="tc dirty" aria-label="طاولة ${olvEsc(t.label)}، بدها ترتيب">${tag}${num}
+          <span class="tc-state">${olvIcon("sparkle")}بدها ترتيب</span><span class="tc-sub">قاموا من ${dur(t.freedMin)}</span></button>`;
+      }
+      if (t.state === "held") {
+        const r = t.res; const late = resLate(r);
+        return `<button ${attrs} class="tc held${late ? " late" : ""}" aria-label="طاولة ${olvEsc(t.label)}، محجوزة ${clock(r.reserved_at)} باسم ${olvEsc(r.customer_name)}">${tag}
+          <span class="tc-top">${num}<span class="tc-state">${olvIcon("calendar")}${late ? "متأخرين" : "محجوزة"}</span></span>
+          <span class="tc-when">${clock(r.reserved_at)}</span>
+          <span class="tc-name" title="${olvEsc(r.customer_name)}">${olvEsc(r.customer_name)} · ${resWord(r.party_size)}</span>
+          ${t.dirty ? `<span class="tc-state dirty-note">${olvIcon("sparkle")}بدها ترتيب</span>` : ""}</button>`;
+      }
+      if (t.state === "seated") {
+        const r = t.seated;
+        return `<button ${attrs} class="tc seated" aria-label="طاولة ${olvEsc(t.label)}، وصلوا ولسا ما طلبوا">${tag}
+          <span class="tc-top">${num}<span class="tc-time">${olvIcon("clock")}${dur(mins(r.updated_at))}</span></span>
+          <span class="tc-name" title="${olvEsc(r.customer_name)}">${olvEsc(r.customer_name)} · ${resWord(r.party_size)}</span>
+          <span class="tc-foot"><span class="tc-state">${olvIcon("people")}وصلوا، لسا ما طلبوا</span></span></button>`;
       }
       const k = t.pending
         ? `<span class="tc-k pending">${olvIcon("flame")}${t.pending} بالتحضير</span>`
         : `<span class="tc-k ready">${olvIcon("check")}كله جاهز</span>`;
-      return `<button type="button" class="tc busy${t.minutes >= LONG_MIN ? " long" : ""}" data-key="${olvEsc(t.key)}" data-row-id="busy:${olvEsc(t.key)}"
-          aria-label="طاولة ${olvEsc(t.label)}، مشغولة من ${dur(t.minutes)}، ${olvFormatMoney(t.total)}">
+      const resNote = t.res ? `<span class="tc-res">${olvIcon("calendar")}حجز ${clock(t.res.reserved_at)}</span>` : "";
+      return `<button ${attrs} class="tc busy${t.minutes >= LONG_MIN ? " long" : ""}"
+          aria-label="طاولة ${olvEsc(t.label)}، مشغولة من ${dur(t.minutes)}، ${olvFormatMoney(t.total)}${t.res ? "، عليها حجز " + clock(t.res.reserved_at) : ""}">
         ${tag}
-        <span class="tc-top"><span class="${numCls}" title="${olvEsc(t.label)}">${olvEsc(t.label)}</span>
-          <span class="tc-time">${olvIcon("clock")}${dur(t.minutes)}</span></span>
+        <span class="tc-top">${num}<span class="tc-time">${olvIcon("clock")}${dur(t.minutes)}</span></span>
         <span class="tc-name" title="${olvEsc(t.names)}">${olvEsc(t.names)}</span>
+        ${resNote}
         <span class="tc-foot"><span class="tc-total">${olvFormatMoney(t.total)}</span>${k}</span>
       </button>`;
     }
@@ -368,36 +572,40 @@
     let tables = [];
     function render() {
       tables = buildTables();
-      const busy = tables.filter((t) => t.busy);
-      const free = tables.filter((t) => !t.busy);
-      document.getElementById("n-all").textContent = tables.length;
-      document.getElementById("n-busy").textContent = busy.length;
-      document.getElementById("n-free").textContent = free.length;
+      const by = (s) => tables.filter((t) => t.state === s);
+      const busy = tables.filter((t) => t.state === "busy" || t.state === "seated");
+      const dirty = tables.filter((t) => t.dirty && (t.state === "dirty" || t.state === "held"));
+      const counts = { all: tables.length, busy: busy.length, dirty: dirty.length, held: by("held").length, free: by("free").length };
+      Object.keys(counts).forEach((k) => { document.getElementById("n-" + k).textContent = counts[k]; });
 
       const reg = tables.filter((t) => t.registered).length;
       document.getElementById("k-busy").innerHTML = reg ? `${busy.length}<small>من ${reg}</small>` : String(busy.length);
-      document.getElementById("k-prep").textContent = String(busy.reduce((a, t) => a + t.pending, 0));
-      document.getElementById("k-sum").textContent = olvFormatMoney(busy.reduce((a, t) => a + t.total, 0));
-      const longest = busy.reduce((m, t) => Math.max(m, t.minutes), -1);
-      const kl = document.getElementById("k-long");
-      kl.textContent = longest < 0 ? "—" : dur(longest);
-      kl.classList.toggle("warn", longest >= LONG_MIN);
+      const kd = document.getElementById("k-dirty");
+      kd.textContent = String(counts.dirty);
+      kd.classList.toggle("warn", counts.dirty > 0);
+      const tk = todayKey();
+      const leftToday = reservations.filter((r) => r.status === "booked" && dayKey(new Date(r.reserved_at)) === tk && minsUntil(r.reserved_at) >= -HOLD_AFTER);
+      document.getElementById("k-res").textContent = resReady ? String(leftToday.length) : "—";
+      document.getElementById("k-sum").textContent = olvFormatMoney(tables.filter((t) => t.state === "busy").reduce((a, t) => a + t.total, 0));
+      document.querySelector("#tab-res .n").textContent = leftToday.length || "";
 
       // ما في طاولات أبدًا: أرقام أصفار وحبوب فاضية ما بتفيد، بنخلّي الشاشة للخطوة الجاية بس
       ["t-stats", "t-filter", "t-note"].forEach((id) => { document.getElementById(id).hidden = !tables.length; });
-      const shown = filter === "busy" ? busy : filter === "free" ? free : tables;
+      const shown = filter === "all" ? tables : filter === "busy" ? busy : filter === "dirty" ? dirty : by(filter);
       if (!tables.length) {
         grid.innerHTML = `<div class="t-empty">${olvIcon("grid")}<div>ما في طاولات مضافة بعد. ضيف طاولات المحل مرة وحدة، وبعدها الشاشة بتشتغل لحالها.</div>
           ${isAdmin ? `<button type="button" class="btn gold" id="empty-add">${olvIcon("plus")}<span>ضيف الطاولات</span></button>` : `<div>اطلب من المدير يضيفها.</div>`}</div>`;
         const b = document.getElementById("empty-add");
         if (b) b.addEventListener("click", openManage);
       } else if (!shown.length) {
-        grid.innerHTML = `<div class="t-empty">${olvIcon(filter === "busy" ? "check" : "grid")}<div>${filter === "busy" ? "ما في ولا طاولة مشغولة هلق" : "كل الطاولات مشغولة"}</div></div>`;
+        const msg = { busy: "ما في ولا طاولة مشغولة هلق", dirty: "كل الطاولات مرتّبة", held: "ما في حجوزات بالساعتين الجايين", free: "ما في ولا طاولة جاهزة هلق" }[filter];
+        grid.innerHTML = `<div class="t-empty">${olvIcon("check")}<div>${msg}</div></div>`;
       } else {
         grid.innerHTML = shown.map(card).join("");
       }
-      olvMarkNew(grid, tracker.diff(busy.map((t) => "busy:" + t.key)));
+      olvMarkNew(grid, tracker.diff(tables.filter((t) => t.state !== "free").map((t) => t.state + ":" + t.key)));
       if (openKey && sheet.open) renderSheet(openKey);
+      renderRes();
     }
 
     grid.addEventListener("click", (e) => {
@@ -412,25 +620,44 @@
       render();
     });
 
+    // ---------- تبويب الخريطة / الحجوزات (الجهاز بيتذكّر) ----------
+    document.getElementById("tab-map").innerHTML = olvIcon("grid") + "<span>الطاولات</span>";
+    document.getElementById("tab-res").innerHTML = olvIcon("calendar") + `<span>الحجوزات</span><span class="n"></span>`;
+    function setTab(which) {
+      const res = which === "res";
+      document.getElementById("tab-map").setAttribute("aria-selected", String(!res));
+      document.getElementById("tab-res").setAttribute("aria-selected", String(res));
+      document.getElementById("view-map").hidden = res;
+      document.getElementById("view-res").hidden = !res;
+      try { localStorage.setItem("olv_tables_tab", which); } catch (_) {}
+    }
+    document.getElementById("tab-map").addEventListener("click", () => setTab("map"));
+    document.getElementById("tab-res").addEventListener("click", () => setTab("res"));
+    try { if (localStorage.getItem("olv_tables_tab") === "res") setTab("res"); } catch (_) {}
+
     // ---------- لوحة الطاولة ----------
-    function posLink(t) {
-      const q = new URLSearchParams({ table: t.label });
-      if (t.lastName) q.set("name", t.lastName);
+    function posLink(table, name) {
+      const q = new URLSearchParams();
+      if (table) q.set("table", table);
+      if (name) q.set("name", name);
       return "pos.html?" + q.toString();
     }
+    const resBox = (r, late) => `<div class="sh-res">${olvIcon("calendar")} حجز <b>${clock(r.reserved_at)}</b> باسم <b>${olvEsc(r.customer_name)}</b> · ${resWord(r.party_size)}${r.customer_phone ? ` · <a href="tel:${olvEsc(r.customer_phone)}">${olvEsc(r.customer_phone)}</a>` : ""}${late ? " · <b>متأخرين " + dur(-minsUntil(r.reserved_at)) + "</b>" : ""}${r.notes ? `<div style="margin-top:4px">${olvEsc(r.notes)}</div>` : ""}</div>`;
 
     function renderSheet(k) {
       const t = tables.find((x) => x.key === k);
       const box = document.getElementById("sheet-in");
       if (!t) { sheet.close(); return; }
-      let body = "";
-      if (t.busy) {
+      let body = "", sub = "", acts = "";
+      const newOrder = (label, primary) => `<a class="btn${primary ? " go" : ""}" href="${olvEsc(posLink(t.label, t.lastName))}">${olvIcon("plus")}<span>${label}</span></a>`;
+      if (t.state === "busy") {
         const agg = new Map();
         t.orders.forEach((s) => liveItems(s).forEach((it) => {
           const n = it.product_name + (it.addons_summary ? ` (${it.addons_summary})` : "");
           agg.set(n, (agg.get(n) || 0) + Number(it.qty || 0));
         }));
-        body = `
+        sub = `قاعدين من ${dur(t.minutes)} (من ${clock(t.since)})${t.names ? " · " + olvEsc(t.names) : ""}`;
+        body = `${t.res ? resBox(t.res, resLate(t.res)) : ""}
           <div class="sh-sum">
             <div><div class="l">المجموع</div><div class="v gold">${olvFormatMoney(t.total)}</div></div>
             <div><div class="l">طلبات</div><div class="v">${t.orders.length}</div></div>
@@ -442,24 +669,39 @@
             <li><span class="o-no">#${olvEsc(s.order_no ?? "")}</span><span class="o-t">${clock(s.created_at)}</span>
               ${s.kitchen_status === PENDING ? `<span class="tc-k pending">${olvIcon("flame")}بالتحضير</span>` : `<span class="tc-k ready">${olvIcon("check")}جاهز</span>`}
               <span class="o-amt">${olvFormatMoney(saleTotal(s))}</span></li>`).join("")}</ul></div>`;
+        acts = newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="free">${olvIcon("check")}<span>حرّر الطاولة</span></button>`;
+      } else if (t.state === "seated") {
+        sub = `وصلوا من ${dur(mins(t.seated.updated_at))}، لسا ما طلبوا`;
+        body = resBox(t.seated, false);
+        acts = newOrder("سجّل طلبهم", true) + `<button type="button" class="btn" data-act="free">${olvIcon("undo")}<span>فلّوا، حرّر الطاولة</span></button>`;
+      } else if (t.state === "held") {
+        const late = resLate(t.res);
+        sub = late ? "الحجز متأخر" : `محجوزة بعد ${dur(Math.max(0, minsUntil(t.res.reserved_at)))}`;
+        body = resBox(t.res, late);
+        acts = `<button type="button" class="btn go" data-act="arrive" data-id="${olvEsc(t.res.id)}">${olvIcon("people")}<span>وصلوا</span></button>`
+          + (t.dirty ? `<button type="button" class="btn" data-act="clean">${olvIcon("sparkle")}<span>صارت جاهزة</span></button>` : "")
+          + (late ? `<button type="button" class="btn" data-act="noshow" data-id="${olvEsc(t.res.id)}">${olvIcon("x")}<span>ما إجوا</span></button>` : "")
+          + newOrder("طلب لزبون تاني");
+      } else if (t.state === "dirty") {
+        sub = `قاموا من ${dur(t.freedMin)}`;
+        body = `<div class="sh-free">الطاولة فاضية بس لسا ما انرتّبت. لما تنضف وتتجهّز اكبس «صارت جاهزة» حتى تبيّن للكل إنها جاهزة.</div>`;
+        acts = `<button type="button" class="btn go" data-act="clean">${olvIcon("sparkle")}<span>صارت جاهزة</span></button>` + newOrder("طلب جديد");
       } else {
-        const f = freedAt.get(t.key);
-        body = `<div class="sh-free">الطاولة فاضية${f && mins(f) < WINDOW_H * 60 ? `، انحرّرت قبل ${dur(mins(f))}` : ""}. اضغط «طلب جديد» وبيفتحلك الكاشير ورقمها معبّى.</div>`;
+        sub = "جاهزة";
+        const next = reservations.filter((r) => r.status === "booked" && r.table_number && key(r.table_number) === t.key && minsUntil(r.reserved_at) > 0)
+          .sort((a, b) => new Date(a.reserved_at) - new Date(b.reserved_at))[0];
+        body = `<div class="sh-free">الطاولة جاهزة. «طلب جديد» بيفتحلك الكاشير ورقمها معبّى.${next ? `<br>أقرب حجز عليها: ${dayLabel(dayKey(new Date(next.reserved_at)))} ${clock(next.reserved_at)} (${olvEsc(next.customer_name)}).` : ""}</div>`;
+        acts = newOrder("طلب جديد", true) + `<button type="button" class="btn" data-act="book">${olvIcon("calendar")}<span>احجزها</span></button>`;
       }
       const addReg = !t.registered && isAdmin
         ? `<button type="button" class="btn" data-act="register">${olvIcon("plus")}<span>ضيفها للقائمة</span></button>` : "";
       box.innerHTML = `
         <div class="sh-head">
-          <div><h2 id="sh-title">طاولة ${olvEsc(t.label)}</h2>
-            <div class="sh-sub">${t.busy ? `قاعدين من ${dur(t.minutes)} (من ${clock(t.since)})${t.names ? " · " + olvEsc(t.names) : ""}` : "فاضية"}</div></div>
+          <div><h2 id="sh-title">طاولة ${olvEsc(t.label)}</h2><div class="sh-sub">${sub}</div></div>
           <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
         </div>
         <div class="sh-body">${body}</div>
-        <div class="sh-foot">
-          <a class="btn ${t.busy ? "" : "go"}" href="${olvEsc(posLink(t))}">${olvIcon("plus")}<span>${t.busy ? "زيد طلب" : "طلب جديد"}</span></a>
-          ${t.busy ? `<button type="button" class="btn go" data-act="free">${olvIcon("check")}<span>حرّر الطاولة</span></button>` : ""}
-          ${addReg}
-        </div>`;
+        <div class="sh-foot">${acts}${addReg}</div>`;
     }
 
     function openSheet(k) {
@@ -473,39 +715,269 @@
       const b = e.target.closest("[data-act]");
       if (!b) return;
       const t = tables.find((x) => x.key === openKey);
-      if (b.dataset.act === "close") sheet.close();
-      else if (b.dataset.act === "free" && t) { b.disabled = true; await freeTable(t); }
-      else if (b.dataset.act === "register" && t) { b.disabled = true; await addTables([t.label]); }
+      const act = b.dataset.act;
+      if (act === "close") { sheet.close(); return; }
+      if (!t) return;
+      if (act === "free") { b.disabled = true; await freeTable(t); }
+      else if (act === "clean") { b.disabled = true; await cleanTable(t); }
+      else if (act === "register") { b.disabled = true; await addTables([t.label]); }
+      else if (act === "book") { sheet.close(); openResForm(null, t.label); }
+      else if (act === "arrive") { b.disabled = true; await arrive(b.dataset.id, true); }
+      else if (act === "noshow") { b.disabled = true; await setResStatus(b.dataset.id, "no_show"); }
     });
 
-    // التحرير بيكتب «آخر تحرير» بس، فالتراجع بيرجّع القيمة القديمة
+    // ---------- جهوزية ----------
+    const writeOcc = (t, fields) => db.from("table_occupancy").upsert(
+      Object.assign({ table_number: t.raw, is_occupied: false }, fields), { onConflict: "table_number" });
+    const occErr = (error, verb) => (/foreign key|violates/i.test(error.message || "")
+      ? "هالطاولة مش بقائمة الطاولات، ضيفها أول"
+      : `ما ${verb}: ${error.message}`);
+    const occOf = (t) => occ.get(t.key) || { freed_at: null, cleaned_at: null };
+
+    // «حرّر الطاولة» بيكتب آخر تحرير، فالطاولة بتصير «بدها ترتيب». التراجع بيرجّع القيمة القديمة
     async function freeTable(t) {
-      const prev = freedAt.get(t.key) || null;
+      const prev = occOf(t);
       const now = new Date().toISOString();
-      const write = (val) => db.from("table_occupancy").upsert(
-        { table_number: t.raw, is_occupied: false, occupied_at: null, freed_at: val }, { onConflict: "table_number" });
-      const { error } = await write(now);
-      if (error) {
-        const msg = /foreign key|violates/i.test(error.message || "")
-          ? "هالطاولة مش بقائمة الطاولات، ضيفها أول وبعدين حرّرها"
-          : "ما تحرّرت: " + error.message;
-        olvToast(msg, { type: "danger", icon: "warning", ms: 5000 });
-        renderSheet(t.key);
-        return;
-      }
-      freedAt.set(t.key, now);
+      const { error } = await writeOcc(t, { freed_at: now, occupied_at: null });
+      if (error) { olvToast(occErr(error, "تحرّرت"), { type: "danger", icon: "warning", ms: 5000 }); renderSheet(t.key); return; }
+      occ.set(t.key, Object.assign({}, prev, { freed_at: now }));
       sheet.close();
       render();
-      olvToast(`طاولة ${t.label} صارت فاضية`, {
+      olvToast(`طاولة ${t.label}: بدها ترتيب`, {
         type: "ok", icon: "check", ms: 6000,
         action: { label: "تراجع", onClick: async () => {
-          const r = await write(prev);
+          const r = await writeOcc(t, { freed_at: prev.freed_at });
           if (r.error) { olvToast("ما رجعت: " + r.error.message, { type: "danger", icon: "warning" }); return; }
-          if (prev) freedAt.set(t.key, prev); else freedAt.delete(t.key);
+          occ.set(t.key, prev);
           render();
         } },
       });
     }
+    async function cleanTable(t) {
+      const prev = occOf(t);
+      const now = new Date().toISOString();
+      const { error } = await writeOcc(t, { cleaned_at: now });
+      if (error) {
+        const msg = /cleaned_at/.test(error.message || "") ? "ميزة الجهوزية لسا ما تفعّلت بقاعدة البيانات" : occErr(error, "انحفظت");
+        olvToast(msg, { type: "danger", icon: "warning", ms: 5000 }); renderSheet(t.key); return;
+      }
+      occ.set(t.key, Object.assign({}, prev, { cleaned_at: now }));
+      sheet.close();
+      render();
+      olvToast(`طاولة ${t.label} جاهزة`, {
+        type: "ok", icon: "sparkle", ms: 5000,
+        action: { label: "تراجع", onClick: async () => {
+          const r = await writeOcc(t, { cleaned_at: prev.cleaned_at });
+          if (r.error) return;
+          occ.set(t.key, prev); render();
+        } },
+      });
+    }
+
+    // ---------- الحجوزات ----------
+    function renderRes() {
+      const box = document.getElementById("r-box");
+      if (!resReady) {
+        box.innerHTML = `<div class="t-empty">${olvIcon("calendar")}<div>الحجوزات لسا ما تفعّلت بقاعدة البيانات. بس تتفعّل بتشتغل هون لحالها.</div></div>`;
+        return;
+      }
+      const now = Date.now();
+      const tk = todayKey();
+      let list = reservations.slice();
+      if (rFilter === "upcoming") list = list.filter((r) => r.status === "booked" && minsUntil(r.reserved_at) >= -HOLD_AFTER * 2);
+      else if (rFilter === "today") list = list.filter((r) => dayKey(new Date(r.reserved_at)) === tk);
+      else list = list.filter((r) => new Date(r.reserved_at).getTime() < now && (r.status !== "booked" || minsUntil(r.reserved_at) < -HOLD_AFTER * 2)).reverse();
+      if (!list.length) {
+        const msg = { upcoming: "ما في حجوزات جاية", today: "ما في حجوزات اليوم", past: "ما في حجوزات قديمة" }[rFilter];
+        box.innerHTML = `<div class="t-empty">${olvIcon("calendar")}<div>${msg}</div>
+          <button type="button" class="btn gold" data-new>${olvIcon("plus")}<span>حجز جديد</span></button></div>`;
+        return;
+      }
+      const groups = new Map();
+      list.forEach((r) => {
+        const k = dayKey(new Date(r.reserved_at));
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(r);
+      });
+      box.innerHTML = Array.from(groups).map(([k, rs]) => {
+        const people = rs.filter((r) => r.status !== "cancelled" && r.status !== "no_show").reduce((a, r) => a + Number(r.party_size || 0), 0);
+        return `<div class="r-day"><h3>${dayLabel(k)} <span class="c">${rs.length} حجز · ${people} شخص</span></h3>
+          <ul class="r-list">${rs.map(resRow).join("")}</ul></div>`;
+      }).join("");
+    }
+    function resRow(r) {
+      const late = resLate(r);
+      const st = r.status === "booked"
+        ? (late ? `<span class="r-st late">${olvIcon("clock")}متأخرين ${dur(-minsUntil(r.reserved_at))}</span>` : "")
+        : `<span class="r-st ${r.status === "seated" ? "seated" : ""}">${{ seated: "وصلوا", cancelled: "انلغى", no_show: "ما إجوا" }[r.status]}</span>`;
+      const acts = r.status === "booked"
+        ? `<button type="button" class="btn go" data-ract="arrive" data-id="${olvEsc(r.id)}">${olvIcon("people")}<span>وصلوا</span></button>
+           ${late ? `<button type="button" class="btn" data-ract="noshow" data-id="${olvEsc(r.id)}">ما إجوا</button>` : ""}
+           <button type="button" class="btn" data-ract="cancel" data-id="${olvEsc(r.id)}">إلغاء</button>`
+        : (r.status === "seated" ? "" : `<button type="button" class="btn" data-ract="rebook" data-id="${olvEsc(r.id)}">${olvIcon("undo")}<span>رجّعه</span></button>`);
+      return `<li class="r-row${r.status === "booked" || r.status === "seated" ? "" : " done"}" data-row-id="r:${olvEsc(r.id)}">
+        <span class="r-time">${clock(r.reserved_at)}</span>
+        <button type="button" class="r-edit" data-ract="edit" data-id="${olvEsc(r.id)}" aria-label="عدّل حجز ${olvEsc(r.customer_name)}">
+          <span class="r-main"><span class="r-name" title="${olvEsc(r.customer_name)}">${olvEsc(r.customer_name)}</span>
+          <span class="r-meta"><span>${olvIcon("people")}${resWord(r.party_size)}</span>
+            <span>${olvIcon("grid")}<span class="tb" title="${olvEsc(r.table_number || "")}">${r.table_number ? "طاولة " + olvEsc(r.table_number) : "بلا طاولة"}</span></span>
+            ${st}</span></span></button>
+        <span class="r-acts">${acts}</span>
+        ${r.customer_phone || r.notes ? `<div class="r-note">${r.customer_phone ? `<a href="tel:${olvEsc(r.customer_phone)}">${olvIcon("phone")} ${olvEsc(r.customer_phone)}</a>` : ""}${r.customer_phone && r.notes ? " · " : ""}${olvEsc(r.notes || "")}</div>` : ""}
+      </li>`;
+    }
+    document.getElementById("r-filter").addEventListener("click", (e) => {
+      const b = e.target.closest(".t-chip");
+      if (!b) return;
+      rFilter = b.dataset.r;
+      document.querySelectorAll("#r-filter .t-chip").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      renderRes();
+    });
+    document.getElementById("r-new").addEventListener("click", () => openResForm(null, ""));
+    document.getElementById("r-box").addEventListener("click", async (e) => {
+      if (e.target.closest("[data-new]")) { openResForm(null, ""); return; }
+      const b = e.target.closest("[data-ract]");
+      if (!b) return;
+      const id = b.dataset.id;
+      const act = b.dataset.ract;
+      if (act === "edit") { openResForm(reservations.find((r) => r.id === id), ""); return; }
+      b.disabled = true;
+      if (act === "arrive") await arrive(id, true);
+      else if (act === "noshow") await setResStatus(id, "no_show");
+      else if (act === "cancel") await setResStatus(id, "cancelled");
+      else if (act === "rebook") await setResStatus(id, "booked");
+      b.disabled = false;
+    });
+
+    const RES_MSG = { seated: "وصلوا", cancelled: "انلغى الحجز", no_show: "تعلّم: ما إجوا", booked: "رجع الحجز" };
+    async function setResStatus(id, status, quiet) {
+      const r = reservations.find((x) => x.id === id);
+      if (!r) return false;
+      const prev = r.status;
+      const { error } = await db.from("table_reservations").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) { olvToast("ما انحفظ: " + error.message, { type: "danger", icon: "warning", ms: 5000 }); return false; }
+      r.status = status; r.updated_at = new Date().toISOString();
+      if (sheet.open && status !== "booked") sheet.close();
+      render();
+      if (!quiet) olvToast(`${RES_MSG[status]} (${r.customer_name})`, {
+        type: status === "booked" || status === "seated" ? "ok" : "info", icon: "check", ms: 6000,
+        action: prev !== status ? { label: "تراجع", onClick: () => setResStatus(id, prev, true) } : undefined,
+      });
+      return true;
+    }
+    // «وصلوا»: الحجز بيتعلّم، والطاولة بتصير إلهم. إذا بدك تسجّل طلبهم: من لوحة الطاولة «سجّل طلبهم»
+    async function arrive(id) {
+      const r = reservations.find((x) => x.id === id);
+      if (!r) return;
+      if (!(await setResStatus(id, "seated", true))) return;
+      olvToast(r.table_number ? `${r.customer_name} وصلوا عطاولة ${olvNormTable(r.table_number)}` : `${r.customer_name} وصلوا`, {
+        type: "ok", icon: "people", ms: 7000,
+        action: { label: "سجّل طلبهم", onClick: () => { location.href = posLink(r.table_number ? olvNormTable(r.table_number) : "", r.customer_name); } },
+      });
+    }
+
+    // ---------- نموذج الحجز ----------
+    let editing = null;
+    const rf = document.getElementById("rf");
+    function fillTableSelect(selected) {
+      const sel = document.getElementById("rf-table");
+      const opts = regTables.map((t) => olvNormTable(t.table_number));
+      if (selected && !opts.some((o) => key(o) === key(selected))) opts.push(olvNormTable(selected));
+      sel.innerHTML = `<option value="">بلا تحديد (بتنحدد لما يوصلوا)</option>` +
+        opts.map((o) => `<option value="${olvEsc(o)}"${selected && key(o) === key(selected) ? " selected" : ""}>طاولة ${olvEsc(o)}</option>`).join("");
+    }
+    function openResForm(r, table) {
+      if (!resReady) { olvToast("الحجوزات لسا ما تفعّلت بقاعدة البيانات", { type: "info", icon: "warning" }); return; }
+      editing = r || null;
+      let d = new Date();
+      if (r) d = new Date(r.reserved_at);
+      else { d.setMinutes(Math.ceil((d.getMinutes() + 31) / 30) * 30, 0, 0); } // أقرب نص ساعة بعد نص ساعة
+      document.getElementById("rf-title").textContent = r ? "تعديل الحجز" : "حجز جديد";
+      document.getElementById("rf-name").value = r ? r.customer_name : "";
+      document.getElementById("rf-phone").value = r ? r.customer_phone || "" : "";
+      document.getElementById("rf-size").value = r ? r.party_size : 2;
+      document.getElementById("rf-notes").value = r ? r.notes || "" : "";
+      document.getElementById("rf-date").value = dayKey(d);
+      document.getElementById("rf-time").value = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      fillTableSelect(r ? r.table_number : table);
+      document.getElementById("rf-del").hidden = !(r && isAdmin);
+      checkClash();
+      rform.showModal();
+      if (!r) setTimeout(() => document.getElementById("rf-name").focus(), 50);
+    }
+    function formTime() {
+      const d = document.getElementById("rf-date").value, t = document.getElementById("rf-time").value;
+      if (!d || !t) return null;
+      const dt = new Date(`${d}T${t}`);
+      return isNaN(dt) ? null : dt;
+    }
+    // تنبيه (مش منع): نفس الطاولة محجوزة بفرق أقل من ساعتين، أو الوقت فات
+    function checkClash() {
+      const warn = document.getElementById("rf-warn");
+      const dt = formTime();
+      const table = document.getElementById("rf-table").value;
+      const msgs = [];
+      if (dt && dt.getTime() < Date.now() - 30 * 60000 && !editing) msgs.push("الوقت اللي اخترته فات.");
+      if (dt && table) {
+        const clash = reservations.find((r) => r.status === "booked" && (!editing || r.id !== editing.id) && r.table_number && key(r.table_number) === key(table)
+          && Math.abs(new Date(r.reserved_at) - dt) < 120 * 60000);
+        if (clash) msgs.push(`طاولة ${olvEsc(table)} عليها حجز تاني ${clock(clash.reserved_at)} (${olvEsc(clash.customer_name)}).`);
+      }
+      warn.innerHTML = msgs.join("<br>");
+      warn.hidden = !msgs.length;
+    }
+    ["rf-date", "rf-time", "rf-table"].forEach((id) => document.getElementById(id).addEventListener("change", checkClash));
+    rform.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => {
+      const inp = document.getElementById("rf-size");
+      inp.value = Math.min(200, Math.max(1, (Number(inp.value) || 0) + Number(b.dataset.step)));
+    }));
+    rform.addEventListener("click", (e) => {
+      if (e.target === rform || e.target.closest("[data-close]")) rform.close();
+    });
+    rf.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("rf-name").value.trim();
+      const dt = formTime();
+      if (!name) { olvToast("اكتب اسم الزبون", { type: "info", icon: "warning" }); document.getElementById("rf-name").focus(); return; }
+      if (!dt) { olvToast("اختار اليوم والساعة", { type: "info", icon: "warning" }); document.getElementById("rf-time").focus(); return; }
+      const phone = document.getElementById("rf-phone").value.trim();
+      const pp = olvPhoneProblem(phone);
+      if (pp) { olvToast(pp, { type: "info", icon: "warning" }); document.getElementById("rf-phone").focus(); return; }
+      const row = {
+        customer_name: name.slice(0, 80),
+        customer_phone: phone || null,
+        party_size: Math.min(200, Math.max(1, Math.floor(Number(document.getElementById("rf-size").value) || 1))),
+        reserved_at: dt.toISOString(),
+        table_number: olvNormTable(document.getElementById("rf-table").value) || null,
+        notes: document.getElementById("rf-notes").value.trim().slice(0, 300) || null,
+        updated_at: new Date().toISOString(),
+      };
+      const btn = document.getElementById("rf-save");
+      btn.disabled = true;
+      const { error } = editing
+        ? await db.from("table_reservations").update(row).eq("id", editing.id)
+        : await db.from("table_reservations").insert(row);
+      btn.disabled = false;
+      if (error) {
+        const msg = /row-level security|permission/i.test(error.message || "") ? "الحجوزات لسا ما تفعّلت بقاعدة البيانات (الصلاحيات)" : "ما انحفظ: " + error.message;
+        olvToast(msg, { type: "danger", icon: "warning", ms: 6000 });
+        return;
+      }
+      rform.close();
+      olvToast(editing ? "انحفظ التعديل" : `انحجز لـ ${name} ${dayLabel(dayKey(dt))} ${clock(dt)}`, { type: "ok", icon: "calendar" });
+      await load();
+    });
+    document.getElementById("rf-del").addEventListener("click", (e) => {
+      if (!editing) return;
+      const id = editing.id;
+      rform.close();
+      const li = document.querySelector(`[data-row-id="r:${CSS.escape(id)}"]`);
+      olvUndoDelete(li ? li.querySelector(".r-acts") || li : e.currentTarget, {
+        msg: "انحذف الحجز",
+        run: () => db.from("table_reservations").delete().eq("id", id),
+        after: load,
+      });
+    });
 
     // ---------- ترتيب الطاولات (المالك والمدير) ----------
     function renderManage() {
@@ -572,21 +1044,29 @@
       loading = true; again = false;
       try {
         const since = new Date(Date.now() - WINDOW_H * 3600000).toISOString();
-        const [tRes, oRes, sRes] = await Promise.all([
+        const resFrom = new Date(); resFrom.setHours(0, 0, 0, 0); resFrom.setDate(resFrom.getDate() - 1);
+        const resTo = new Date(Date.now() + 60 * 86400000);
+        const [tRes, oRes, sRes, rRes] = await Promise.all([
           db.from("restaurant_tables").select("id, table_number, sort_order").order("sort_order").order("created_at"),
-          db.from("table_occupancy").select("table_number, freed_at"),
+          db.from("table_occupancy").select("*"),
           db.from("sales_entries")
             .select("id, order_no, created_at, table_number, customer_name, kitchen_status, cash_amount, card_amount, delivery_amount, sale_items(id, qty, product_name, addons_summary, status)")
             .eq("status", "completed").not("table_number", "is", null).gte("created_at", since)
             .order("created_at", { ascending: true }).limit(400),
+          db.from("table_reservations").select("*")
+            .gte("reserved_at", resFrom.toISOString()).lt("reserved_at", resTo.toISOString())
+            .order("reserved_at", { ascending: true }).limit(500),
         ]);
         if (tRes.error) throw tRes.error;
         if (oRes.error) throw oRes.error;
         if (sRes.error) throw sRes.error;
         regTables = tRes.data || [];
-        freedAt = new Map();
-        (oRes.data || []).forEach((o) => { if (o.freed_at) freedAt.set(key(o.table_number), o.freed_at); });
+        occ = new Map();
+        (oRes.data || []).forEach((o) => occ.set(key(o.table_number), { freed_at: o.freed_at, cleaned_at: o.cleaned_at || null }));
         sales = sRes.data || [];
+        // الحجوزات ميزة لحالها: لو جدولها مش موجود، باقي الصفحة بتشتغل
+        resReady = !rRes.error;
+        reservations = rRes.error ? [] : (rRes.data || []);
         lastPollAt = Date.now();
         errBox.style.display = "none";
         render();
@@ -612,6 +1092,8 @@
         db.channel("tables-live")
           .on("postgres_changes", { event: "*", schema: "public", table: "sales_entries" }, kick)
           .on("postgres_changes", { event: "*", schema: "public", table: "table_occupancy" }, kick)
+          .on("postgres_changes", { event: "*", schema: "public", table: "table_reservations" }, kick)
+          .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_tables" }, kick)
           .subscribe((status) => {
             const was = live;
             live = status === "SUBSCRIBED";
@@ -628,7 +1110,7 @@
       document.getElementById("manage-btn").hidden = !isAdmin;
       await load();
       subscribeLive();
-      // احتياط لو البث انقطع، والوقت عالبطاقات بيمشي كل دقيقة
+      // احتياط لو البث انقطع، والوقت عالبطاقات بيمشي كل 30 ثانية
       setInterval(() => { if (!live || Date.now() - lastPollAt > 60000) load(); else render(); }, 30000);
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
     })();
