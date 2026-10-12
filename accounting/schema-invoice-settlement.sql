@@ -3,7 +3,7 @@
 -- تضل مكتوب عليها «آجل» مع إنها اندفعت. هالعرض بيوزّع دفعات المورّد الحرّة على ديونه
 -- من الأقدم للأحدث (FIFO) وبيطلع لكل فاتورة قديش ضايل عليها.
 -- ما بيغيّر ولا رقم مخزّن، والدين الكلي للمورّد هو نفسه (supplier_balances).
--- آمن للتشغيل أكثر من مرة.
+-- آمن للتشغيل أكثر من مرة. (العرض صار محدّث بـ schema-invoice-pay-button.sql)
 
 create or replace view public.purchase_invoice_settlement
 with (security_invoker = true) as

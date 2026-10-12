@@ -1140,6 +1140,7 @@
 
     // ---------- السجل ----------
     const PAY_LABELS = { cash: "كاش", credit: "آجل", partial: "جزئي" };
+    let payable = {}; // الفواتير اللي عليها باقي وبينفع تتسدّد من هون: id → { supplierId, no, remaining }
     async function loadHistory() {
       const errBox = document.getElementById("err");
       const body = document.getElementById("pi-history");
@@ -1160,9 +1161,13 @@
         }
         const taxSum = data.filter((i) => i.status === "active").reduce((s, i) => s + Number(i.tax_amount || 0), 0);
         document.getElementById("pi-tax-summary").textContent = taxSum > 0 ? `إجمالي ضريبة المشتريات بالفواتير الفعّالة المعروضة: ${money(taxSum)}` : "";
+        const canPay = ["owner", "manager"].includes(window.olvRole);
+        payable = {};
         body.innerHTML = data.map((i) => {
           const voided = i.status === "voided";
           const remaining = i.id in settle ? settle[i.id] : Number(i.total_amount) - Number(i.paid_amount);
+          const showPay = canPay && !voided && i.supplier_id && remaining >= 0.005;
+          if (showPay) payable[i.id] = { supplierId: i.supplier_id, no: i.invoice_no, remaining };
           const settledLater = i.payment_type !== "cash" && remaining < 0.005;
           const payBadge = settledLater
             ? `<span class="pi-badge cash">مدفوعة</span> <small>(اندفعت لاحقًا)</small>`
@@ -1174,6 +1179,7 @@
             <td>${money(i.total_amount)}</td>
             <td>${Number(i.tax_amount) > 0 && !voided ? `<small style="display:block; color:var(--muted);">شامل ضريبة ${money(i.tax_amount)}</small>` : ""}${voided ? `<span class="pi-badge credit">ملغاة</span>` : payBadge}</td>
             <td><div class="row-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
+              ${showPay ? `<button class="btn small gold" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
               <button class="btn small" data-detail="${i.id}">الأصناف</button>
               ${i.attachment_path ? `<button class="btn small" data-file="${olvEsc(i.attachment_path)}">الصورة</button>` : ""}
               ${!voided && isOwner ? `<button class="btn small danger" data-void="${i.id}">إلغاء</button>` : ""}
@@ -1208,6 +1214,31 @@
         const { data, error } = await window.supabaseClient.storage.from("purchase-invoices").createSignedUrl(file.dataset.file, 120);
         if (error || !data) { olvShowError(errBox, error || new Error("تعذّر فتح الصورة")); return; }
         window.open(data.signedUrl, "_blank", "noopener");
+        return;
+      }
+      // تسديد فاتورة: دفعة عادية للمورّد (بتنقّص دينه) موجّهة لهالفاتورة بالذات
+      const payBtn = e.target.closest("[data-pay]");
+      if (payBtn) {
+        const inv = payable[payBtn.dataset.pay];
+        if (!inv) return;
+        const label = inv.no ? `الفاتورة #${inv.no}` : "هالفاتورة";
+        const raw = prompt(`قديش دفعت على ${label}؟ الباقي عليها ${money(inv.remaining)}`, inv.remaining.toFixed(2));
+        if (raw === null) return;
+        const amount = Math.round(Number(String(raw).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[,،\s]/g, "")) * 100) / 100;
+        if (!(amount > 0)) { olvShowError(errBox, new Error("اكتب مبلغ صحيح أكبر من صفر")); return; }
+        if (amount > inv.remaining + 0.004) { olvShowError(errBox, new Error(`المبلغ أكبر من الباقي على الفاتورة (${money(inv.remaining)}). الزيادة سجّلها من صفحة الموردين.`)); return; }
+        payBtn.disabled = true;
+        const { error } = await window.supabaseClient.from("supplier_transactions").insert({
+          supplier_id: inv.supplierId,
+          type: "payment",
+          amount,
+          description: "تسديد " + (inv.no ? "فاتورة #" + inv.no : "فاتورة مشتريات"),
+          transaction_date: olvToday(),
+          applies_to_invoice: payBtn.dataset.pay,
+        });
+        if (error) { payBtn.disabled = false; olvShowError(errBox, error); return; }
+        if (window.olvToast) olvToast(amount >= inv.remaining - 0.004 ? "انسدّت الفاتورة" : "انسجلت الدفعة", { type: "ok" });
+        await loadHistory();
         return;
       }
       const v = e.target.closest("[data-void]");
