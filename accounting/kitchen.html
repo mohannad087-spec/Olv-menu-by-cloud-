@@ -217,7 +217,12 @@
   .empty-state{color:var(--muted); text-align:center; padding:60px 0; grid-column:1/-1;}
 
   .k-cat-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);}
-  .k-cat-row .k-seg button{min-height:36px; padding:6px 12px;}
+  .k-cat-row select{
+    min-height:44px; font:inherit; font-size:16px; padding:6px 12px; border-radius:12px;
+    border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); max-width:60%;
+  }
+  #k-station{flex-wrap:wrap;}
+  @media (max-width:640px){ #k-station{border-radius:18px;} }
 
   /* وضع ملء الشاشة لتابلت المطبخ: بلا قائمة ولا فوتر، كل المساحة للتذاكر */
   body.k-focus #olv-nav, body.k-focus .olv-footer, body.k-focus .olv-bnav{display:none !important;}
@@ -245,9 +250,7 @@
         <button class="sub-tab" role="tab" data-tab="ready"><span data-ic="checkCircle"></span> جاهز</button>
       </div>
       <div class="k-seg" id="k-station" role="group" aria-label="أي شاشة">
-        <button type="button" data-st="all">الكل</button>
-        <button type="button" data-st="kitchen"><span data-ic="flame"></span> المطبخ</button>
-        <button type="button" data-st="bar"><span data-ic="coffee"></span> البار</button>
+        <button type="button" data-st="all" class="on">الكل</button>
       </div>
       <div class="k-end">
         <span class="k-live" id="k-updated" role="status"><span class="dot"></span><span id="k-updated-t">جاري الاتصال...</span></span>
@@ -300,14 +303,16 @@
     const WINDOW_HOURS = 12; // الشاشة بتعرض طلبات آخر 12 ساعة بس؛ الأقدم «عالقة» وبتنعرض كتنبيه لحالها
     const LATE_MIN = 10;    // ذهبي: انتبه
     const OVERDUE_MIN = 15; // أحمر: متأخر
-    const STATION_NAMES = { kitchen: "المطبخ", bar: "البار" };
+    // المحطات (من app_settings.kitchen_stations): كل وحدة إلها اسم وأيقونة وأقسام المنيو (products.category) تبعها.
+    // أي قسم مش محطوط بمحطة بيروح لأول محطة (المطبخ). البديل القديم: kitchen_bar_categories (مطبخ + بار بس)
+    let stations = [{ id: "kitchen", name: "المطبخ", icon: "flame", categories: [] }];
+    let catStation = new Map(); // قسم → id المحطة
     const errBox = document.getElementById("err");
     const grid = document.getElementById("orders-grid");
     let activeTab = "pending";
     // كل جهاز بيتذكّر شاشته: تابلت المطبخ «المطبخ»، تابلت البار «البار»
     let station = "all";
     try { station = localStorage.getItem("olv_kitchen_station") || "all"; } catch (_) {}
-    let barCats = new Set(); // أقسام (products.category) أصنافها بتروح للبار — من app_settings.kitchen_bar_categories
     let knownPendingIds = null; // null = لسا ما انعمل الأساس (baseline) الأول
     let pendingItems = new Map(); // id الطلب → Map(id الصنف → اسمه)، حتى ننبّه إذا انشال صنف من طلب عالشاشة
     let staleOrders = [];
@@ -320,7 +325,8 @@
     const since = () => new Date(Date.now() - WINDOW_HOURS * 3600e3).toISOString();
     // الأصناف الملغاة (void_sale_item) ما بتنعرض للمطبخ، والطلب اللي كل أصنافه ملغاة بيختفي
     const liveItems = (o) => (o.sale_items || []).filter((it) => it.status !== "voided");
-    const itemStation = (it) => (barCats.has(it.products && it.products.category) ? "bar" : "kitchen");
+    const itemStation = (it) => catStation.get(it.products && it.products.category) || stations[0].id;
+    const stationById = (id) => stations.find((x) => x.id === id) || stations[0];
     const isMine = (it) => station === "all" || itemStation(it) === station;
     const isDone = (it) => !!it.kitchen_done_at;
 
@@ -357,7 +363,10 @@
     }
 
     function renderStation() {
-      document.querySelectorAll("#k-station button").forEach((b) => b.classList.toggle("on", b.dataset.st === station));
+      const box = document.getElementById("k-station");
+      box.innerHTML = `<button type="button" data-st="all">الكل</button>` +
+        stations.map((x) => `<button type="button" data-st="${olvEsc(x.id)}">${olvIcon(x.icon || "flame")} ${olvEsc(x.name)}</button>`).join("");
+      box.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.st === station));
     }
 
     // طلبات قيد التحضير (مستقل عن التبويب المفتوح): صوت للجديد، وتنبيه إذا طلب أو صنف كان عالشاشة وانلغى
@@ -423,8 +432,9 @@
       const isDelivery = o.order_type === "توصيل";
       const isNew = pending && minutesSince(o.created_at) < 1;
       // باقي أصناف بالشاشة التانية (مثلًا المطبخ بيشوف إنو في عصير لسا بالبار) — حتى ما يطلع الطلب ناقص
-      const otherSt = station === "kitchen" ? "bar" : "kitchen";
-      const otherLeft = pending && station !== "all" ? o.others.filter((it) => !isDone(it)).length : 0;
+      // باقي الأصناف عند المحطات التانية، مجمّعة: «باقي: 2 بار الصالة، 1 الأرجيلة»
+      const otherLeft = new Map();
+      if (pending && station !== "all") o.others.filter((it) => !isDone(it)).forEach((it) => { const k = itemStation(it); otherLeft.set(k, (otherLeft.get(k) || 0) + 1); });
       const doneN = o.items.filter(isDone).length;
       const left = o.items.length - doneN;
       const typeIcon = isDelivery ? "mapPin" : o.order_type === "سفري" ? "cart" : "dineIn";
@@ -450,7 +460,7 @@
             <div class="order-items">
               ${o.items.map((it) => lineHtml(o, it, pending)).join("")}
             </div>
-            ${otherLeft ? `<div class="order-other">${olvIcon(otherSt === "bar" ? "coffee" : "flame")} باقي ${otherLeft} ${otherLeft === 1 ? "صنف" : "أصناف"} عند ${STATION_NAMES[otherSt]}</div>` : ""}
+            ${otherLeft.size ? `<div class="order-other">${olvIcon("clock")} باقي: ${[...otherLeft].map(([k, n]) => `${n} عند ${olvEsc(stationById(k).name)}`).join("، ")}</div>` : ""}
             <button class="btn ${pending ? "pay" : ""} k-btn" data-id="${olvEsc(o.id)}" data-act="${pending ? "done" : "undo"}">
               ${pending
                 ? olvIcon("check") + (left < o.items.length ? ` تم الباقي (${left})` : " تم التجهيز")
@@ -507,9 +517,19 @@
     const sel = "id, order_no, created_at, order_type, customer_name, table_number, kitchen_ready_at, sale_items(id, qty, product_name, addons_summary, note, status, kitchen_done_at, products(category))";
     const prepMinutes = (o) => (o.kitchen_ready_at ? Math.max(0, Math.round((new Date(o.kitchen_ready_at) - new Date(o.created_at)) / 60000)) : null);
 
-    async function loadBarCats() {
-      const { data } = await db.from("app_settings").select("value").eq("key", "kitchen_bar_categories").maybeSingle();
-      try { barCats = new Set(JSON.parse((data && data.value) || "[]")); } catch (_) { barCats = new Set(); }
+    async function loadStations() {
+      const { data } = await db.from("app_settings").select("key, value").in("key", ["kitchen_stations", "kitchen_bar_categories"]);
+      const val = (k) => { const row = (data || []).find((x) => x.key === k); try { return row ? JSON.parse(row.value) : null; } catch (_) { return null; } };
+      const list = val("kitchen_stations");
+      if (Array.isArray(list) && list.length) stations = list;
+      else {
+        const bar = val("kitchen_bar_categories") || [];
+        stations = [{ id: "kitchen", name: "المطبخ", icon: "flame", categories: [] }, { id: "bar", name: "البار", icon: "coffee", categories: bar }];
+      }
+      catStation = new Map();
+      stations.forEach((x) => (x.categories || []).forEach((c) => catStation.set(c, x.id)));
+      if (station !== "all" && !stations.some((x) => x.id === station)) station = "all";
+      renderStation();
     }
 
     // items = أصناف هالشاشة، others = أصناف الشاشة التانية من نفس الطلب
@@ -560,7 +580,7 @@
         ordersById = new Map(orders.map((o) => [o.id, o]));
         if (kTrackerTab !== activeTab + station) { kTracker = olvNewTracker(); kTrackerTab = activeTab + station; }
         const freshTickets = kTracker.diff(orders.map((o) => o.id));
-        const where = station === "all" ? "" : ` عند ${STATION_NAMES[station]}`;
+        const where = station === "all" ? "" : ` عند ${stationById(station).name}`;
         grid.innerHTML = orders.length
           ? orders.map(cardHtml).join("")
           : `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"}${where} حاليًا</div>`;
@@ -664,25 +684,23 @@
       poll();
     });
 
-    // «الأقسام» (للمالك والمدير): أي قسم من المنيو بيروح للبار وأي واحد للمطبخ
+    // «الأقسام» (للمالك والمدير): كل قسم من المنيو بأي محطة بيتحضّر
     document.getElementById("k-cats-btn").addEventListener("click", async () => {
       const { data, error } = await db.from("products").select("category").eq("is_active", true);
       if (error) { olvShowError(errBox, error); return; }
       const cats = [...new Set((data || []).map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
-      const chosen = new Set(barCats);
       const back = document.createElement("div");
       back.className = "olv-failed-back";
       back.innerHTML = `
         <div class="olv-failed-box" role="dialog" aria-modal="true" aria-labelledby="k-cats-h">
           <h3 id="k-cats-h">وين بيتحضّر كل قسم؟</h3>
-          <div class="hint" style="margin-bottom:8px;">أصناف كل قسم بتطلع على شاشته بس. «الكل» بيضل يعرض كل شي.</div>
+          <div class="hint" style="margin-bottom:8px;">أصناف كل قسم بتطلع على شاشة محطته بس. «الكل» بيضل يعرض كل شي.</div>
           ${cats.map((c) => `
-            <div class="k-cat-row"><span>${olvEsc(c)}</span>
-              <div class="k-seg" data-cat="${olvEsc(c)}">
-                <button type="button" data-v="kitchen" class="${chosen.has(c) ? "" : "on"}">${olvIcon("flame")} المطبخ</button>
-                <button type="button" data-v="bar" class="${chosen.has(c) ? "on" : ""}">${olvIcon("coffee")} البار</button>
-              </div>
-            </div>`).join("")}
+            <label class="k-cat-row"><span>${olvEsc(c)}</span>
+              <select data-cat="${olvEsc(c)}">
+                ${stations.map((x) => `<option value="${olvEsc(x.id)}"${itemStation({ products: { category: c } }) === x.id ? " selected" : ""}>${olvEsc(x.name)}</option>`).join("")}
+              </select>
+            </label>`).join("")}
           <div style="display:flex; gap:8px; margin-top:14px;">
             <button type="button" class="btn gold" data-save>حفظ</button>
             <button type="button" class="btn" data-close>إلغاء</button>
@@ -692,24 +710,21 @@
       const close = () => back.remove();
       back.addEventListener("click", async (ev) => {
         if (ev.target === back || ev.target.closest("[data-close]")) { close(); return; }
-        const opt = ev.target.closest("[data-cat] button[data-v]");
-        if (opt) {
-          const row = opt.parentElement;
-          row.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === opt));
-          if (opt.dataset.v === "bar") chosen.add(row.dataset.cat); else chosen.delete(row.dataset.cat);
-          return;
-        }
         const save = ev.target.closest("[data-save]");
-        if (save) {
-          save.disabled = true;
-          const { error: e2 } = await db.from("app_settings")
-            .upsert({ key: "kitchen_bar_categories", value: JSON.stringify([...chosen]) }, { onConflict: "key" });
-          if (e2) { save.disabled = false; olvShowError(errBox, e2); return; }
-          barCats = new Set(chosen);
-          close();
-          olvToast("انحفظت الأقسام", { type: "ok" });
-          poll();
-        }
+        if (!save) return;
+        save.disabled = true;
+        const next = stations.map((x) => ({ ...x, categories: [] }));
+        back.querySelectorAll("select[data-cat]").forEach((sel) => {
+          const st = next.find((x) => x.id === sel.value);
+          if (st) st.categories.push(sel.dataset.cat);
+        });
+        const { error: e2 } = await db.from("app_settings")
+          .upsert({ key: "kitchen_stations", value: JSON.stringify(next) }, { onConflict: "key" });
+        if (e2) { save.disabled = false; olvShowError(errBox, e2); return; }
+        close();
+        await loadStations();
+        olvToast("انحفظت الأقسام", { type: "ok" });
+        poll();
       });
     });
 
@@ -753,7 +768,7 @@
       renderStation();
       refreshSoundBar();
       keepAwake();
-      await loadBarCats();
+      await loadStations();
       await poll();
       subscribeLive();
       setInterval(() => { if (!live || Date.now() - lastPollAt > 60000) poll(); }, 15000);

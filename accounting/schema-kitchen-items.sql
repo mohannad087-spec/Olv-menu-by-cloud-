@@ -72,3 +72,8 @@ create or replace trigger sales_entries_audit after update or delete on public.s
 insert into public.app_settings (key, value) values ('kitchen_bar_categories',
   '["عصائر","عصائر وموكتيلات","كوكتيل","مشروبات باردة","مشروبات ساخنة","ميلك شيك","بوظة","أرجيلة"]')
 on conflict (key) do nothing;
+
+-- 4) (بدل kitchen_bar_categories) محطات متعددة: كل محطة إلها أقسامها. أول محطة بتاخد أي قسم مش محطوط.
+insert into public.app_settings (key, value) values ('kitchen_stations',
+  '[{"id":"kitchen","name":"المطبخ","icon":"flame","categories":["برغر","باستا","ساندويشات","سلطات","سناكات"]},{"id":"hall","name":"بار الصالة","icon":"coffee","categories":["مشروبات ساخنة","مشروبات باردة","كوكتيل","عصائر وموكتيلات"]},{"id":"reception","name":"بار الاستقبال","icon":"cup","categories":["عصائر","ميلك شيك","بوظة","حلويات","دونات"]},{"id":"shisha","name":"الأرجيلة","icon":"shisha","categories":["أرجيلة"]}]')
+on conflict (key) do nothing;
