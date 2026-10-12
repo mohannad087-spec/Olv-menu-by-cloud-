@@ -1007,17 +1007,28 @@
         tpl.innerHTML = `<option value="">نسخ من فاتورة سابقة…</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
           .map((i) => `<option value="${i.id}">${olvEsc(i.invoice_date)} — ${olvEsc(i.suppliers ? i.suppliers.name : "بدون مورّد")}${i.invoice_no ? " #" + olvEsc(i.invoice_no) : ""} (${money(i.total_amount)})</option>`).join("");
         if (!data || !data.length) { body.innerHTML = `<tr class="empty-row"><td colspan="6">ما في فواتير مسجّلة بعد</td></tr>`; return; }
+        // الدفعات اللاحقة للمورّد (من صفحة الموردين) بتتوزّع على فواتيره من الأقدم — فشلها ما بيوقف السجل
+        const settle = {};
+        const openIds = data.filter((i) => i.status === "active" && i.supplier_id && i.payment_type !== "cash").map((i) => i.id);
+        if (openIds.length) {
+          const st = await window.supabaseClient.from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", openIds);
+          (st.data || []).forEach((r) => { settle[r.invoice_id] = Number(r.remaining); });
+        }
         const taxSum = data.filter((i) => i.status === "active").reduce((s, i) => s + Number(i.tax_amount || 0), 0);
         document.getElementById("pi-tax-summary").textContent = taxSum > 0 ? `إجمالي ضريبة المشتريات بالفواتير الفعّالة المعروضة: ${money(taxSum)}` : "";
         body.innerHTML = data.map((i) => {
           const voided = i.status === "voided";
-          const remaining = Number(i.total_amount) - Number(i.paid_amount);
+          const remaining = i.id in settle ? settle[i.id] : Number(i.total_amount) - Number(i.paid_amount);
+          const settledLater = i.payment_type !== "cash" && remaining < 0.005;
+          const payBadge = settledLater
+            ? `<span class="pi-badge cash">مدفوعة</span> <small>(اندفعت لاحقًا)</small>`
+            : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${remaining > 0 ? ` <small>(متبقي ${money(remaining)})</small>` : ""}`;
           return `<tr class="${voided ? "pi-void" : ""}">
             <td>${olvEsc(i.invoice_date)}</td>
             <td>${olvEsc(i.invoice_no) || "—"}</td>
             <td>${i.suppliers ? olvEsc(i.suppliers.name) : "—"}</td>
             <td>${money(i.total_amount)}</td>
-            <td>${Number(i.tax_amount) > 0 && !voided ? `<small style="display:block; color:var(--muted);">شامل ضريبة ${money(i.tax_amount)}</small>` : ""}${voided ? `<span class="pi-badge credit">ملغاة</span>` : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${remaining > 0 ? ` <small>(متبقي ${money(remaining)})</small>` : ""}`}</td>
+            <td>${Number(i.tax_amount) > 0 && !voided ? `<small style="display:block; color:var(--muted);">شامل ضريبة ${money(i.tax_amount)}</small>` : ""}${voided ? `<span class="pi-badge credit">ملغاة</span>` : payBadge}</td>
             <td><div class="row-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
               <button class="btn small" data-detail="${i.id}">الأصناف</button>
               ${i.attachment_path ? `<button class="btn small" data-file="${olvEsc(i.attachment_path)}">الصورة</button>` : ""}

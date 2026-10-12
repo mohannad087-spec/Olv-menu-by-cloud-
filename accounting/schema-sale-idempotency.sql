@@ -5,6 +5,7 @@
 -- يُطبّق مرة وحدة بـ SQL Editor (آمن للتكرار).
 -- ملاحظة: schema-cashier-hardening.sql القديم بيحذف أي نسخة من record_sale مش 12 وسيط —
 -- إذا انعاد تطبيقه لازم يرجع ينطبّق هالملف بعده. وأي تعديل على منطق البيع لازم ينعمل بالنسختين.
+-- تحديث: النسخة الحالية من record_sale (مع حد المبلغ الزايد) صارت بـ schema-sale-overpay-guard.sql — طبّقه بعد هالملف.
 
 alter table public.sales_entries add column if not exists client_ref uuid;
 create unique index if not exists sales_entries_client_ref_key on public.sales_entries (client_ref) where client_ref is not null;
