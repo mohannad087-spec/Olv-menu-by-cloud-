@@ -88,6 +88,29 @@
   .pi-snap-ic{font-size:28px; line-height:1;}
   .pi-snap b{display:block; font-size:16px; color:var(--gold-hi);}
   .pi-snap small{display:block; font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .pi-snaps{display:grid; grid-template-columns:1fr; gap:10px;}
+  @media(min-width:700px){ .pi-snaps{grid-template-columns:1fr 1fr;} }
+  button.pi-snap{width:100%; font:inherit; color:inherit; text-align:right;}
+  .pi-snap.scan{border-color:var(--olive); background:rgba(86,105,46,.07);}
+  .pi-snap.scan b{color:var(--olive);}
+  tr.pi-hit td{animation:piHit .9s ease-out;}
+  @keyframes piHit{from{background:rgba(var(--gold-rgb),.28);} to{background:transparent;}}
+  @media (prefers-reduced-motion: reduce){ tr.pi-hit td{animation:none;} }
+  /* شاشة الكاميرا (زجاج للأزرار بس، الفيديو كامل) */
+  .olv-scan{position:fixed; inset:0; z-index:400; background:#000; display:flex; flex-direction:column;}
+  .olv-scan video{flex:1; width:100%; min-height:0; object-fit:cover;}
+  .olv-scan-frame{position:absolute; inset:0; bottom:120px; display:flex; align-items:center; justify-content:center; pointer-events:none;}
+  .olv-scan-frame i{width:min(78vw,340px); height:min(40vw,170px); border:3px solid rgba(255,255,255,.85); border-radius:16px; box-shadow:0 0 0 100vmax rgba(0,0,0,.35); transition:border-color .2s;}
+  .olv-scan.hit .olv-scan-frame i{border-color:#8fa055;}
+  .olv-scan-bar{position:absolute; inset-inline:0; bottom:0; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); display:flex; gap:12px; align-items:center;
+    background:var(--glass,rgba(255,253,248,.62)); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); color:var(--paper);}
+  .olv-scan-msg{flex:1; font-size:15px; font-weight:700; min-height:22px;}
+  .olv-scan-done{min-height:48px; min-width:96px;}
+  .bl-list[hidden]{display:none;}
+  .bl-list{display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow:auto; margin:8px 0;}
+  .bl-list button{display:flex; justify-content:space-between; gap:10px; text-align:right; padding:11px 12px; min-height:46px; border-radius:10px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font:inherit; font-size:14px;}
+  .bl-list button .m{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .bl-list button:active{transform:scale(.98);}
   .pi-addline{width:100%; margin-top:8px; padding:12px; border:1px dashed var(--hair); border-radius:10px; background:none; color:var(--paper); font-size:15px; font-family:inherit; cursor:pointer;}
   .pi-addline:hover{border-color:var(--gold);}
   .pi-links{display:flex; gap:6px 16px; flex-wrap:wrap; align-items:center; margin-top:8px;}
@@ -136,10 +159,16 @@
 
     <div class="group">
       <h2>فاتورة مشتريات</h2>
-      <label class="pi-snap" for="pi-file">
-        <span class="pi-snap-ic">📷</span>
-        <span><b>صوّر الفاتورة</b><small>بيقرأها ويعبّي الأصناف والأسعار، وأنت بتراجع قبل الحفظ</small></span>
-      </label>
+      <div class="pi-snaps">
+        <label class="pi-snap" for="pi-file">
+          <span class="pi-snap-ic">📷</span>
+          <span><b>صوّر الفاتورة</b><small>بيقرأها ويعبّي الأصناف والأسعار، وأنت بتراجع قبل الحفظ</small></span>
+        </label>
+        <button type="button" class="pi-snap scan" id="pi-scan">
+          <span class="pi-snap-ic" aria-hidden="true">▥</span>
+          <span><b>امسح الباركود</b><small>بكاميرا التلفون، أو امسح بجهاز الماسح مباشرة بأي وقت. كل مسحة = حبة</small></span>
+        </button>
+      </div>
       <input type="file" id="pi-file" accept="image/*,application/pdf" hidden>
       <button type="button" id="pi-ai-btn" hidden disabled></button>
       <div class="hint" id="pi-ai-status" style="margin:8px 0 0;"></div>
@@ -275,6 +304,7 @@
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/catalog.js"></script>
   <script defer src="assets/search.js"></script>
+  <script defer src="assets/barcode-scan.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("purchase-invoices");
@@ -284,6 +314,7 @@
     let lines = [];              // سطور الفاتورة الحالية
     let payMode = "cash";
     let isOwner = false;
+    let barcodes = new Map();    // الكود → { item_kind, item_id, unit_mode }
     const HISTORY_LIMIT = 60;
 
     // ---------- أدوات ----------
@@ -339,6 +370,9 @@
         ...(sup || []).map((i) => ({ ...i, kind: "supply" })),
       ];
       await refreshCatalogHints();
+      // الباركودات (لو الجدول لسا مش موجود بالسيرفر منكمّل بدونها)
+      const { data: bc } = await window.supabaseClient.from("item_barcodes").select("code, item_kind, item_id, unit_mode").then((r) => r, () => ({ data: null }));
+      barcodes = new Map((bc || []).map((b) => [b.code, b]));
     }
     const catLabel = (e) => `${e.name} — ${e.unit} · من الكتالوج`;
     async function refreshCatalogHints() {
@@ -689,6 +723,116 @@
         setTimeout(() => nameEl.focus(), 50);
       });
     }
+
+    // ---------- الباركود ----------
+    // كل مسحة بتزيد حبة على سطر الصنف (أو بتفتح سطر جديد)، والسعر = آخر سعر لحد ما تغيّره
+    function addScanned(it, unitMode) {
+      const key = it.kind + ":" + it.id;
+      const mode = unitMode === "purchase" && it.purchase_unit && it.purchase_unit_factor ? "purchase" : "stock";
+      let idx = lines.findIndex((l) => l.itemKey === key && l.unitMode === mode);
+      if (idx >= 0) {
+        lines[idx].qty = String(round2((Number(lines[idx].qty) || 0) + 1));
+      } else {
+        const price = it.unit_price ? String(round2(Number(it.unit_price) * (mode === "purchase" ? Number(it.purchase_unit_factor) : 1))) : "";
+        const l = newLine({ itemKey: key, unitMode: mode, qty: "1", price });
+        const blank = lines.findIndex((x) => !x.itemKey && !x.typed && !x.qty && !x.price);
+        if (blank >= 0) { lines[blank] = l; idx = blank; } else { lines.push(l); idx = lines.length - 1; }
+      }
+      renderLines();
+      const tr = document.querySelector(`#pi-lines tr[data-idx="${idx}"]`);
+      if (tr) { tr.classList.add("pi-hit"); tr.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+      const unit = mode === "purchase" ? it.purchase_unit : it.unit;
+      return `＋ ${it.name} — صاروا ${lines[idx].qty} ${unit}`;
+    }
+
+    // كود أول مرة: نسأل شو هالصنف ومنحفظ الربط، فالمرة الجاية بينعرف لحاله
+    function openBarcodeLink(code) {
+      return new Promise((resolve) => {
+        const back = document.createElement("div");
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:500; display:flex; align-items:flex-end; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "ربط باركود جديد");
+        box.style.cssText = "width:100%; max-width:460px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:18px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 4px; font-size:17px;">باركود جديد</h3>
+          <div class="hint" style="margin-bottom:10px;">الكود <b dir="ltr">${olvEsc(code)}</b> مش مربوط بصنف. اختار شو هو، وبعدها كل ما تمسحه بينعرف لحاله.</div>
+          <input type="search" id="bl-q" placeholder="اكتب اسم الصنف..." autocomplete="off" aria-label="اسم الصنف">
+          <div class="bl-list" id="bl-list"></div>
+          <div id="bl-unit" hidden></div>
+          <div class="pi-warn bad" id="bl-err"></div>
+          <div style="display:flex; gap:8px; margin-top:8px;"><button type="button" class="btn" id="bl-cancel" style="flex:1;">تجاهل هالكود</button></div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const q = box.querySelector("#bl-q"), list = box.querySelector("#bl-list"), err = box.querySelector("#bl-err");
+        const done = (v) => { back.remove(); resolve(v); };
+        async function link(it, mode) {
+          err.textContent = "";
+          const row = { code, item_kind: it.kind, item_id: it.id, unit_mode: mode };
+          const { error } = await window.supabaseClient.from("item_barcodes").upsert(row);
+          if (error) olvToast("انضاف للفاتورة بس الكود ما انحفظ: " + (error.message || error), { type: "danger", icon: "warning", ms: 5000 });
+          else barcodes.set(code, row);
+          done({ it, unitMode: mode });
+        }
+        function choose(it) {
+          if (!(it.purchase_unit && it.purchase_unit_factor)) { link(it, "stock"); return; }
+          list.hidden = true; q.hidden = true;
+          const u = box.querySelector("#bl-unit"); u.hidden = false;
+          u.innerHTML = `<div style="font-weight:700; margin-bottom:8px;">${olvEsc(it.name)}: هاد الكود على شو؟</div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="btn gold" data-m="stock" style="flex:1;">الحبة (${olvEsc(it.unit)})</button>
+              <button type="button" class="btn gold" data-m="purchase" style="flex:1;">${olvEsc(it.purchase_unit)} (${Number(it.purchase_unit_factor)} ${olvEsc(it.unit)})</button>
+            </div>`;
+          u.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => link(it, b.dataset.m)));
+        }
+        function draw() {
+          const t = q.value.trim(), n = norm(t);
+          let found = [];
+          if (n) {
+            const inc = items.filter((i) => norm(i.name).includes(n));
+            const sim = candidatesFor(t).map((x) => x.it).filter((i) => !inc.includes(i));
+            found = inc.concat(sim).slice(0, 8);
+          }
+          list.innerHTML = found.map((it, i) => `<button type="button" data-i="${i}"><span>${olvEsc(it.name)}</span><span class="m">${olvEsc(it.unit)} · ${it.kind === "ingredient" ? "مادة خام" : "مستلزم"}</span></button>`).join("")
+            + (t ? `<div class="pi-sugg"><button type="button" class="new" data-new="ingredient">＋ "${olvEsc(t)}" مادة خام جديدة</button><button type="button" class="new" data-new="supply">＋ "${olvEsc(t)}" مستلزم جديد</button></div>`
+                 : `<div class="hint">اكتب أول حرفين من الاسم</div>`);
+          list.querySelectorAll("[data-i]").forEach((b) => b.addEventListener("click", () => choose(found[Number(b.dataset.i)])));
+          list.querySelectorAll("[data-new]").forEach((b) => b.addEventListener("click", async () => {
+            b.disabled = true; err.textContent = "";
+            const kind = b.dataset.new;
+            const { data, error } = await window.supabaseClient.from(kind === "ingredient" ? "ingredients" : "supplies").insert({ name: t.slice(0, 120), unit: "قطعة" }).select("id").single();
+            if (error) { b.disabled = false; err.textContent = error.message || String(error); return; }
+            await loadItems();
+            const it = items.find((i) => i.kind === kind && i.id === data.id);
+            if (it) link(it, "stock"); else done(null);
+          }));
+        }
+        q.addEventListener("input", draw);
+        box.querySelector("#bl-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        box.addEventListener("keydown", (e) => { if (e.key === "Escape") done(null); });
+        draw();
+        setTimeout(() => q.focus(), 50);
+      });
+    }
+
+    let linking = false;
+    async function handleCode(code) {
+      code = String(code).trim();
+      if (!code || linking) return "";
+      const b = barcodes.get(code);
+      const known = b && items.find((i) => i.kind === b.item_kind && i.id === b.item_id);
+      if (known) return addScanned(known, b.unit_mode);
+      linking = true;
+      try {
+        const r = await openBarcodeLink(code);
+        return r ? addScanned(r.it, r.unitMode) : "تجاهلنا الكود " + code;
+      } finally { linking = false; }
+    }
+    document.getElementById("pi-scan").addEventListener("click", () => olvBarcodeCamera(handleCode));
+    // جهاز الماسح: بيشتغل من أي مكان بالصفحة
+    olvBarcodeListen((code) => {
+      if (document.querySelector(".olv-scan")) return; // الكاميرا مفتوحة، هي بتتعامل
+      handleCode(code).then((m) => { if (m) olvToast(m, { type: "ok", ms: 1800 }); });
+    });
 
     document.getElementById("pi-catalog").addEventListener("click", () => {
       olvOpenCatalog({ onDone: async () => { await loadItems(); renderLines(); } });
