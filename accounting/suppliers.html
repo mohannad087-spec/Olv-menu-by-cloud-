@@ -263,7 +263,7 @@
         <h3 class="sec-title">آخر فواتير المشتريات</h3>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>التاريخ</th><th>الرقم</th><th>المجموع</th><th>المدفوع عندها</th></tr></thead>
+            <thead><tr><th>التاريخ</th><th>الرقم</th><th>المجموع</th><th>الحالة</th></tr></thead>
             <tbody id="invoices-body"></tbody>
           </table>
         </div>
@@ -441,6 +441,18 @@
       $("items-chips").innerHTML = [...names].sort((a, b) => a.localeCompare(b, "ar")).map((n) => `<span class="chip">${olvEsc(n)}</span>`).join("");
 
       const list = (invs.data || []).filter((i) => i.status !== "voided").slice(0, 5);
+      // المتبقي على كل فاتورة بعد توزيع دفعات المورّد عليها من الأقدم
+      const settle = {};
+      if (list.length) {
+        const st = await sb().from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", list.map((i) => i.id));
+        if (id !== selectedSupplier) return;
+        (st.data || []).forEach((r) => { settle[r.invoice_id] = Number(r.remaining); });
+      }
+      const invStatus = (i) => {
+        const rem = i.id in settle ? settle[i.id] : Number(i.total_amount) - Number(i.paid_amount);
+        if (rem < 0.005) return "مدفوعة";
+        return rem < Number(i.total_amount) - 0.005 ? `متبقي ${olvFormatMoney(rem)}` : "آجل";
+      };
       hasInvoices = list.length > 0;
       $("invoices-sec").hidden = !list.length;
       $("invoices-body").innerHTML = list.map((i) => `
@@ -448,7 +460,7 @@
           <td>${olvEsc(i.invoice_date)}</td>
           <td>${olvEsc(i.invoice_no) || "—"}</td>
           <td>${olvFormatMoney(i.total_amount)}</td>
-          <td>${olvFormatMoney(i.paid_amount)}</td>
+          <td>${olvEsc(invStatus(i))}</td>
         </tr>`).join("");
       updateDeleteHint();
     }
