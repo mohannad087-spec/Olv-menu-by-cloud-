@@ -69,6 +69,10 @@
   .pi-line-total{font-weight:700; white-space:nowrap; padding-top:12px; display:block;}
   .pi-warn{font-size:11.5px; color:var(--gold-hi); margin-top:3px; line-height:1.4;}
   .pi-warn.bad{color:var(--danger-hi);}
+  .pi-sugg{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+  .pi-sugg button{font:inherit; font-size:12px; padding:5px 10px; border-radius:999px; border:1px solid var(--gold-hi); background:var(--surface,#fff); color:var(--text); cursor:pointer; min-height:32px;}
+  .pi-sugg button.new{border-style:dashed; color:var(--olive,var(--gold-hi));}
+  .pi-sugg button:disabled{opacity:.5;}
   .pi-mini{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:8px; padding:8px 10px; font-size:13px; transition:transform .16s var(--spring); -webkit-tap-highlight-color:transparent;}
   .pi-mini:active{transform:scale(.96); transition-duration:.08s;}
   .pi-total-box{background:var(--ink-3); border:1px solid var(--hair); border-radius:12px; padding:14px 16px;}
@@ -300,7 +304,8 @@
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
-    const subtotalOf = () => round2(lines.reduce((s, l) => s + (itemOf(l) ? lineTotal(l) : 0), 0));
+    // كل سطر فيه كمية وسعر بينحسب، حتى لو لسا مش مربوط بصنف — هيك الإجمالي بيطابق الورقة من أول ما تنقرا
+    const subtotalOf = () => round2(lines.reduce((s, l) => s + lineTotal(l), 0));
     // نفس حساب السيرفر بالضبط (record_purchase_invoice): الخصم ثم الضريبة، والسيرفر هو المرجع
     function discountInputs() {
       const v = Number(document.getElementById("pi-discount").value) || 0;
@@ -376,6 +381,59 @@
       return `<div class="pi-warn ${diff > 0 || isJump(line, it) ? "bad" : ""}">${diff > 0 ? "⚠ أغلى" : (isJump(line, it) ? "⚠ أرخص" : "أرخص")} ${Math.abs(Math.round(diff))}% من آخر سعر (${money(last)} / ${olvEsc(it.unit)})${menu}</div>`;
     }
 
+    // ---------- سطر ما انعرف: اقتراحات بضغطة، أو إضافته كصنف جديد بضغطة ----------
+    // تشابه بالكلمات (نفس فكرة مطابقة السيرفر): "حمالة فحم" بتلاقي "حمالة فحم ستانلس"، والوحدات والأرقام ما بتحسب
+    const STOP = new Set(["من", "مع", "و", "في", "على", "عدد", "حبه", "قطعه", "قطع", "كيلو", "كغ", "كغم", "غرام", "غم", "لتر", "مل", "كرتونه", "علبه", "كيس", "باكيت", "صندوق", "kg", "g", "x"]);
+    const toks = (s) => norm(s).replace(/[^\p{L}\p{N}.]+/gu, " ").split(" ")
+      .map((t) => (t.length > 3 && t.startsWith("ال") ? t.slice(2) : t))
+      .filter((t) => t && !STOP.has(t) && !/^\d+([.]\d+)?$/.test(t));
+    // خطأ بحرف واحد (نعنع ↔ نعناع) بينحسب نفس الكلمة
+    function oneEdit(a, b) {
+      if (Math.abs(a.length - b.length) > 1) return false;
+      let i = 0; while (i < a.length && a[i] === b[i]) i++;
+      return a.slice(i + (a.length >= b.length ? 1 : 0)) === b.slice(i + (b.length >= a.length ? 1 : 0));
+    }
+    const sameTok = (a, b) => a === b || (Math.min(a.length, b.length) >= 3 && (a.startsWith(b) || b.startsWith(a)) && Math.abs(a.length - b.length) <= 2)
+      || (Math.min(a.length, b.length) >= 4 && oneEdit(a, b));
+    function simScore(text, name) {
+      const q = toks(text), n = toks(name);
+      if (!q.length || !n.length) return 0;
+      const nHit = n.filter((w) => q.some((x) => sameTok(w, x))).length;
+      const qHit = q.filter((w) => n.some((x) => sameTok(w, x))).length;
+      if (!nHit || !qHit) return 0;
+      const r = nHit / n.length, pr = qHit / q.length;
+      return (2 * pr * r) / (pr + r);
+    }
+    function candidatesFor(name) {
+      return items.map((it) => ({ it, score: simScore(name, it.name) })).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+    }
+    // وحدة الفاتورة → وحدة مخزون معروفة (للصنف الجديد)
+    function unitFromInvoice(u) {
+      const n = norm(u);
+      if (/كيلو|كغ|kg/.test(n)) return "كيلوغرام";
+      if (/غرام|غم|\bg\b/.test(n)) return "غرام";
+      if (/لتر|ليتر/.test(n)) return "لتر";
+      if (/علب/.test(n)) return "علبة";
+      if (/كيس/.test(n)) return "كيس";
+      return "قطعة";
+    }
+    function unmatchedHelp(line) {
+      const c = candidatesFor(line.unmatchedName);
+      const top = c.length ? c[0].score : 0;
+      const close = c.filter((x) => x.score >= top - 0.05 && x.score >= 0.4);
+      const unit = unitFromInvoice(line.rawUnit || line.unmatchedName);
+      let sugg = "";
+      if (close.length && close.length <= 4) {
+        sugg = close.map((x) => `<button type="button" data-act="pick" data-key="${x.it.kind}:${x.it.id}">تقصد: ${olvEsc(x.it.name)}؟</button>`).join("");
+      }
+      const many = close.length > 4 ? `<div class="pi-warn">في ${close.length} صنف مشابه بالمخزون (نكهات أو أحجام) والفاتورة ما حددت أي واحد — اكتب النوع بالخانة واختاره</div>` : "";
+      return `<div class="pi-warn bad">ما لقيت "${olvEsc(line.unmatchedName)}" بالمخزون</div>${many}
+        <div class="pi-sugg">${sugg}
+          <button type="button" class="new" data-act="new" data-kind="ingredient" data-unit="${olvEsc(unit)}">＋ أضفه مادة خام (${olvEsc(unit)})</button>
+          <button type="button" class="new" data-act="new" data-kind="supply" data-unit="${olvEsc(unit)}">＋ أضفه مستلزم (${olvEsc(unit)})</button>
+        </div>`;
+    }
+
     function renderLines() {
       const body = document.getElementById("pi-lines");
       body.innerHTML = lines.map((line, idx) => {
@@ -389,13 +447,14 @@
         return `<tr data-idx="${idx}">
           <td>
             <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="pi-ac-list" aria-label="الصنف" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
-            ${line.unmatchedName && !it ? `<div class="pi-warn bad">ما انعرف "${olvEsc(line.unmatchedName)}" — اختر الصنف من القائمة</div>` : ""}
+            ${line.unmatchedName && !it ? unmatchedHelp(line) : ""}
+            ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
             <div data-warn>${priceWarning(line, it)}</div>
           </td>
           <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
           <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}" placeholder="الكمية" aria-label="الكمية"></td>
           <td><input type="number" data-f="price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.price)}" placeholder="السعر" aria-label="سعر الوحدة"></td>
-          <td><span class="pi-line-total" data-total>${money(it ? lineTotal(line) : 0)}</span></td>
+          <td><span class="pi-line-total" data-total>${money(lineTotal(line))}</span></td>
           <td><button type="button" class="btn small danger" data-act="del" aria-label="حذف">✕</button></td>
         </tr>`;
       }).join("");
@@ -406,7 +465,7 @@
       const T = computeTotals();
       const total = T.total;
       let paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
-      document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l)).length;
+      document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l) || lineTotal(l) > 0).length;
       document.getElementById("pi-subtotal").textContent = money(T.subtotal);
       document.getElementById("pi-row-discount").hidden = !(T.discount > 0);
       document.getElementById("pi-discount-val").textContent = "- " + money(T.discount);
@@ -508,12 +567,12 @@
           return;
         }
         const hit = labelToItem().get(e.target.value);
-        if (hit) { line.itemKey = hit.kind + ":" + hit.id; line.unmatchedName = ""; line.unitMode = "stock"; if (!line.price && hit.unit_price) line.price = String(hit.unit_price); renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus(); return; }
+        if (hit) { line.itemKey = hit.kind + ":" + hit.id; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock"; if (!line.price && hit.unit_price) line.price = String(hit.unit_price); renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus(); return; }
         line.itemKey = null;
       } else if (f === "qty") line.qty = e.target.value;
       else if (f === "price") line.price = e.target.value;
       const it = itemOf(line);
-      tr.querySelector("[data-total]").textContent = money(it ? lineTotal(line) : 0);
+      tr.querySelector("[data-total]").textContent = money(lineTotal(line));
       tr.querySelector("[data-warn]").innerHTML = priceWarning(line, it);
       updateTotals();
     });
@@ -557,6 +616,24 @@
       const btn = e.target.closest("[data-act]"); if (!btn) return;
       const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
       if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
+      if (btn.dataset.act === "pick") {
+        const it = items.find((i) => i.kind + ":" + i.id === btn.dataset.key); if (!it) return;
+        line.itemKey = btn.dataset.key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock";
+        if (!line.price && it.unit_price) line.price = String(it.unit_price);
+        renderLines(); return;
+      }
+      if (btn.dataset.act === "new") {
+        const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
+        if (!name) return;
+        btn.disabled = true;
+        const kind = btn.dataset.kind;
+        const row = { name, unit: btn.dataset.unit || "قطعة" };
+        const { data, error } = await window.supabaseClient.from(kind === "ingredient" ? "ingredients" : "supplies").insert(row).select("id").single();
+        if (error) { btn.disabled = false; olvShowError(document.getElementById("err"), error); return; }
+        await loadItems();
+        line.itemKey = kind + ":" + data.id; line.unmatchedName = ""; line.unitMode = "stock";
+        renderLines(); return;
+      }
     });
     document.getElementById("pi-lines").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && e.target.dataset.f === "price") {
@@ -663,7 +740,11 @@
       const exact = items.filter((i) => norm(i.name) === n);
       if (exact.length === 1) return exact[0];
       const part = items.filter((i) => norm(i.name).includes(n) || n.includes(norm(i.name)));
-      return part.length === 1 ? part[0] : null;
+      if (part.length === 1) return part[0];
+      // تطابق بالكلمات: بنقبل بس إذا في صنف واحد واضح (غير هيك بنعرض اقتراحات وما بنخمّن)
+      const c = candidatesFor(name);
+      if (c.length && c[0].score >= 0.85 && (!c[1] || c[0].score - c[1].score >= 0.15)) return c[0].it;
+      return null;
     }
     // سطر → { name, qty, price }: الاسم = النص قبل أول رقم، الكمية = أول رقم، السعر = آخر رقم
     // (لو في 3 أرقام والأول×الثاني = الثالث فالثالث هو الإجمالي ونتجاهله)
@@ -692,11 +773,18 @@
     function addParsedLines(parsed) {
       const existing = lines.filter((l) => itemOf(l) || l.qty || l.price);
       lines = existing.concat(parsed.map((p) => {
-        const it = findItem(p.name);
+        let it = findItem(p.name);
+        let guess = false;
+        if (!it) {
+          // الأقرب: إذا في صنف واحد متقدم بوضوح على الباقي منربطه وبنعلّمه «تأكد»؛ إذا في تعادل (نكهات كتير) ما منخمّن
+          const c = candidatesFor(p.name);
+          if (c.length && c[0].score >= 0.6 && (!c[1] || c[0].score - c[1].score >= 0.1)) { it = c[0].it; guess = true; }
+        }
         // لو الوحدة بالفاتورة = وحدة الشراء المضبوطة للصنف (كرتونة)، السعر المقروء هو سعر الكرتونة
         const purchaseUnit = it && p.unit && it.purchase_unit && it.purchase_unit_factor && norm(p.unit) === norm(it.purchase_unit);
         return newLine({
-          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name,
+          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "",
+          guessFrom: guess ? p.name : "",
           unitMode: purchaseUnit ? "purchase" : "stock",
           qty: p.qty === "" || p.qty == null ? "" : String(p.qty),
           price: p.price === "" || p.price == null ? (it && it.unit_price ? String(it.unit_price) : "") : String(p.price),
@@ -795,7 +883,8 @@
       });
       addParsedLines(parsed);
       const unmatched = lines.filter((l) => !itemOf(l) && l.unmatchedName).length;
-      aiStatus.textContent = `تمت القراءة: ${parsed.length} صنف${unmatched ? ` (${unmatched} ما انعرف — بالأحمر، اختره من القائمة)` : ""}${supplierNote}. راجع كل سطر قبل الحفظ.`;
+      const guessed = lines.filter((l) => itemOf(l) && l.guessFrom).length;
+      aiStatus.textContent = `تمت القراءة: ${parsed.length} صنف${guessed ? ` (${guessed} انربط بالأقرب — تأكد منه)` : ""}${unmatched ? ` (${unmatched} مش موجود بالمخزون — بالأحمر، اختر أو أضفه بضغطة)` : ""}${supplierNote}. راجع كل سطر قبل الحفظ.`;
     }
 
     // ---------- نسخ من فاتورة سابقة ----------
@@ -834,6 +923,8 @@
       const active = lines.filter((l) => itemOf(l) || Number(l.qty) || Number(l.price));
       if (!active.length) { olvShowError(errBox, new Error("أضف صنف واحد على الأقل")); return; }
       const bad = active.find((l) => !itemOf(l) || !(Number(l.qty) > 0) || !(Number(l.price) >= 0) || l.price === "");
+      const unlinked = active.filter((l) => !itemOf(l)).length;
+      if (unlinked) { olvShowError(errBox, new Error(`في ${unlinked} سطر لسا مش مربوط بصنف من المخزون — اضغط «تقصد...» أو «＋ أضفه» تحت كل سطر أحمر`)); return; }
       if (bad) { olvShowError(errBox, new Error("في سطر ناقص: لازم صنف من القائمة + كمية أكبر من صفر + سعر")); return; }
       const supplierId = document.getElementById("pi-supplier").value || null;
       const T = computeTotals();
