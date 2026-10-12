@@ -59,35 +59,211 @@
 })();
 </script>
 <style>
+  /* صفحة المبيعات (2026-10): فترة ← أرقام ← رسم ← طرق الدفع والأكثر مبيعًا ← قائمة الطلبات.
+     القواعد بـ design-system/olv/pages/sales.md */
+  .wrap.sales-wrap{max-width:1120px;}
+  .s-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .s-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .s-head .s-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .s-head-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .s-head-actions .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+
+  /* اختيار الفترة: حبوب بتنلف لسطر تاني بدل ما تنقص (ui-ux-pro-max: Chip Collection Reflow) */
+  .s-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
+  .s-chip{
+    min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; transition:background .15s var(--ease), border-color .15s var(--ease);
+  }
+  .s-chip .n{color:var(--muted); font-size:12px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .s-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .s-chip[aria-pressed="true"] .n{color:var(--on-gold);}
+  .s-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .s-chip:active{transform:scale(.97);}
+  .s-chip[hidden]{display:none;}
+  @media (max-width:640px){
+    #period-chips{gap:6px;}
+    #period-chips .s-chip{padding:0 11px; font-size:13.5px;}
+    .s-head-actions .btn{padding-inline:12px;}
+  }
+  .s-custom{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin:-4px 0 14px;}
+  .s-custom .field{margin:0; min-width:150px;}
+  .s-custom[hidden]{display:none;}
+
+  .stats.s-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.s-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.s-stats{gap:10px;}
+    .s-stats .stat{padding:13px;}
+    .s-stats .stat .stat-icon{display:none;}
+    .olv-glass .s-stats .stat .value{font-size:22px;}
+  }
+  .s-stats .vs{display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:12px; font-weight:700; color:var(--ok);}
+  .s-stats .vs.down{color:var(--danger-hi);}
+  .s-stats .vs .icon{width:13px; height:13px;}
+  .s-stats .vs[hidden]{display:none;}
+  .s-stats .value small{font-size:13px; font-weight:500; color:var(--muted); margin-inline-start:4px;}
+  .s-stats .value.bad small{color:var(--danger-hi);}
+
+  .s-grid{display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:14px; margin-bottom:14px;}
+  .s-grid > .group{margin-bottom:0;}
+  @media (max-width:900px){ .s-grid{grid-template-columns:1fr;} }
+  .s-side{display:flex; flex-direction:column; gap:22px;}
+  .s-side h3{font-size:14px; font-weight:700; margin:0 0 10px; color:var(--paper);}
+
+  /* أعمدة المبيعات: زيتوني واحد، والأعلى رقمه مكتوب فوقه. لمس/ماوس/Tab بيبيّن القيمة */
+  .s-bars-wrap{position:relative;}
+  .s-bars{width:100%; height:auto; display:block; direction:ltr; overflow:visible;}
+  .s-bars .grid{stroke:var(--hair); stroke-width:1;}
+  .s-bars .axis{fill:var(--muted); font-size:11px; font-family:'Tajawal',sans-serif;}
+  .s-bars .bar{fill:var(--olive); opacity:.85; transition:opacity .12s var(--ease);}
+  .s-bars .bar.top{opacity:1;}
+  .s-bars .zero{fill:var(--hair-soft);}
+  .s-bars .peak{fill:var(--gold-hi); font-size:12px; font-weight:700; font-family:'Tajawal',sans-serif;}
+  .s-bars .hit{fill:transparent; cursor:pointer;}
+  .s-bars .hit:focus{outline:none;}
+  .s-bars g.on .bar, .s-bars g:hover .bar{opacity:1; fill:var(--olive);}
+  .s-bars g.on .hit, .s-bars g:focus-within .hit{fill:var(--hair-soft);}
+  .s-tip{
+    position:absolute; top:0; transform:translateX(-50%); pointer-events:none; white-space:nowrap; z-index:2;
+    background:var(--paper); color:var(--ink-2); border-radius:10px; padding:7px 11px; font-size:12.5px; line-height:1.5;
+    box-shadow:0 8px 20px -8px rgba(0,0,0,.4); opacity:0; transition:opacity .12s var(--ease);
+  }
+  .s-tip.show{opacity:1;}
+  .s-summary{font-size:13.5px; color:var(--muted); margin-top:10px; line-height:1.7;}
+  .s-summary b{color:var(--paper);}
+
+  /* طرق الدفع: شريط واحد مقسوم + قائمة بالمبلغ والنسبة (ما منعتمد على اللون وحده) */
+  .pay-stack{display:flex; height:14px; border-radius:999px; overflow:hidden; background:var(--ink-3); gap:2px;}
+  .pay-stack i{display:block; height:100%;}
+  .pay-cash{background:var(--olive);} .pay-card{background:var(--gold);} .pay-delivery{background:var(--pay-delivery,#c9a993);}
+  .pay-list{list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .pay-list li{display:flex; align-items:center; gap:9px; font-size:13.5px;}
+  .pay-list .dot{width:10px; height:10px; border-radius:3px; flex:none;}
+  .pay-list .nm{flex:1; color:var(--muted);}
+  .pay-list .amt{font-weight:700; font-variant-numeric:tabular-nums;}
+  .pay-list .pc{width:42px; text-align:left; color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+
+  .top-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px;}
+  .top-list li{font-size:13.5px;}
+  .top-list .tl-row{display:flex; align-items:baseline; gap:8px; margin-bottom:5px;}
+  .top-list .rk{width:18px; flex:none; color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums;}
+  .top-list li:nth-child(-n+3) .rk{color:var(--gold-hi);}
+  .top-list .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .top-list .q{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .top-list .amt{font-weight:700; font-variant-numeric:tabular-nums;}
+  .top-list .tr{height:6px; border-radius:999px; background:var(--ink-3); margin-inline-start:26px; overflow:hidden;}
+  .top-list .tr i{display:block; height:100%; border-radius:999px; background:var(--olive);}
+  .s-more-link{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--gold-hi); text-decoration:none; margin-top:2px;}
+  .s-more-link .icon{width:14px; height:14px;}
+
+  /* قائمة الطلبات: سطر واحد لكل طلب بيفتح تفاصيله، مجمّعة حسب اليوم */
+  .s-orders-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;}
+  .s-orders-head h2{margin:0;}
+  .s-orders-head h2 .n{color:var(--muted); font-weight:500; font-size:14px;}
+  .s-search{position:relative; flex:1; max-width:340px; min-width:200px;}
+  .s-search[hidden], .s-chips[hidden]{display:none;}
+  .s-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--muted); pointer-events:none;}
+  .s-search input{width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; padding-inline-start:38px; font-size:16px;
+    border-radius:14px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font-family:inherit;}
+  .s-search input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .s-orders .s-chips{margin-bottom:6px;}
+  .s-orders .s-chip{min-height:38px; padding:0 13px; font-size:13px;}
+
+  .day-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:16px 2px 8px;
+    border-bottom:1px solid var(--hair); font-size:13px; color:var(--muted);}
+  .day-head b{color:var(--paper); font-size:14px; font-weight:700;}
+  .day-head .dt{font-weight:700; color:var(--paper); font-variant-numeric:tabular-nums;}
+  .order{border-bottom:1px solid var(--hair-soft);}
+  .order-row{
+    width:100%; display:grid; grid-template-columns:62px minmax(0,1fr) auto 18px; align-items:center; gap:12px;
+    min-height:60px; padding:10px 4px; background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer;
+    border-radius:12px; transition:background .15s var(--ease);
+  }
+  .order-row:hover{background:rgba(var(--gold-rgb),.06);}
+  .order-row:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .order-row .tm{font-weight:700; font-size:14px; font-variant-numeric:tabular-nums; line-height:1.2;}
+  .order-row .no{display:block; color:var(--muted); font-size:12px; font-weight:500;}
+  .order-row .it{min-width:0;}
+  .order-row .it-names{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px;}
+  .order-row .it-meta{display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:3px; color:var(--muted); font-size:12px;}
+  .order-row .it-meta span{display:inline-flex; align-items:center; gap:4px;}
+  .order-row .it-meta .icon{width:12px; height:12px;}
+  .order-row .am{text-align:left; white-space:nowrap;}
+  .order-row .am b{display:block; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .order-row .am .pm{display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:12px;}
+  .order-row .am .pm i{width:8px; height:8px; border-radius:2px; display:inline-block;}
+  .order-row .chev{width:18px; height:18px; color:var(--muted); transition:transform .2s var(--spring);}
+  .order.open .order-row .chev{transform:rotate(180deg);}
+  .order.voided .order-row .it-names, .order.voided .order-row .am b{text-decoration:line-through; color:var(--muted);}
+  .tag-void{display:inline-flex; align-items:center; gap:3px; color:var(--danger-hi); font-weight:700;}
+  .tag-disc{color:var(--danger-hi);}
+
+  .order-detail{padding:4px 4px 16px; padding-inline-start:78px;}
+  @media (max-width:640px){
+    .order-row{grid-template-columns:52px minmax(0,1fr) auto; gap:10px;}
+    .order-row .chev{display:none;}
+    .order-detail{padding-inline-start:4px;}
+  }
+  .od-box{background:var(--ink-3); border-radius:14px; padding:6px 14px;}
+  .od-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--hair-soft); font-size:13.5px;}
+  .od-item:last-child{border-bottom:0;}
+  .od-item .nm{flex:1; min-width:0;}
+  .od-item .meta{color:var(--muted); font-size:12px; margin-top:2px;}
+  .od-item .meta .icon{width:12px; height:12px; vertical-align:-1px;}
+  .od-item .r{display:flex; align-items:center; gap:10px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .od-item.voided .nm{opacity:.55; text-decoration:line-through;}
+  .od-facts{display:flex; flex-wrap:wrap; gap:6px 16px; margin:10px 2px 0; font-size:12.5px; color:var(--muted);}
+  .od-facts b{color:var(--paper); font-weight:700; font-variant-numeric:tabular-nums;}
+  .od-facts .bad, .od-facts .bad b{color:var(--danger-hi);}
+  .od-reprints{margin:10px 2px 0; font-size:12px; color:var(--muted); line-height:1.7;}
+  .od-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
+  .od-actions .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px;}
+  .s-list-more{display:flex; justify-content:center; padding-top:14px;}
+  .s-list-more .btn{min-height:44px;}
+  .s-list-more[hidden]{display:none;}
+  .s-empty{padding:28px 8px; text-align:center; color:var(--muted);}
+
+  /* بيع يدوي (للمالك والمدير): مخفي ورا زر بأعلى الصفحة، لأنه للتسجيل بتاريخ سابق بس — البيع اليومي من «بيع سريع» */
+  #manual-sale-group[hidden], #cart-group[hidden]{display:none;}
+  .manual-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;}
+  .manual-head h2{margin:0;}
+  .manual-note{color:var(--muted); font-size:13px; margin:0 0 14px; line-height:1.6;}
   .addon-row{display:flex; align-items:center; gap:10px; padding:12px 0; cursor:pointer; width:100%;}
   .addon-row .addon-name{flex:1; font-size:13.5px;}
   .addon-row .a-price{color:var(--muted); font-size:12.5px;}
   .cart-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); font-size:13.5px;}
   .cart-item .meta{color:var(--muted); font-size:12px;}
   .meta .icon{width:12px; height:12px; vertical-align:-1px;}
-  .row-voided{opacity:.55;}
-  .status-voided{color:var(--danger-hi); font-weight:700; font-size:12.5px;}
-  .status-completed{color:var(--ok); font-size:12.5px;}
-  .status-voided .icon, .status-completed .icon{width:12px; height:12px; vertical-align:-1px;}
-  .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
-  .items-detail{background:var(--ink-3); border-radius:10px; padding:10px 14px;}
-  .item-detail-row{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); font-size:13px;
+
+  @media (prefers-reduced-motion: reduce){
+    .order-row .chev, .s-chip, .s-bars .bar{transition:none;}
+    .s-chip:active{transform:none;}
   }
-  .item-detail-row:last-child{border-bottom:none;}
-  .item-detail-row .name{flex:1;}
-  .item-detail-row .meta{color:var(--muted); font-size:12px; margin-top:2px;}
-  .item-voided{opacity:.5; text-decoration:line-through;}
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap sales-wrap">
     <div class="err" id="err"></div>
 
-    <div class="group" id="manual-sale-group">
-      <h2>إضافة أصناف مباعة</h2>
+    <header class="s-head">
+      <div>
+        <h1>المبيعات</h1>
+        <div class="s-sub" id="s-sub">&nbsp;</div>
+      </div>
+      <div class="s-head-actions">
+        <button class="btn small" id="manual-toggle" type="button" hidden aria-expanded="false" aria-controls="manual-sale-group"></button>
+        <a class="btn small" id="reports-link" href="reports.html" hidden></a>
+      </div>
+    </header>
+
+    <div class="group" id="manual-sale-group" hidden>
+      <div class="manual-head">
+        <h2 id="manual-title"></h2>
+        <button class="btn small" id="manual-close" type="button">إغلاق</button>
+      </div>
+      <p class="manual-note">لتسجيل مبيعات يوم سابق أو بيعة ما انسجّلت. البيع اليومي من «بيع سريع».</p>
       <div class="row2">
         <div class="field">
           <label>الصنف</label>
@@ -95,7 +271,7 @@
         </div>
         <div class="field">
           <label>الكمية</label>
-          <input type="number" id="qty-input" min="1" value="1">
+          <input type="number" id="qty-input" min="1" value="1" inputmode="numeric">
         </div>
       </div>
       <div id="addon-picker"></div>
@@ -104,52 +280,109 @@
         <input type="text" id="item-note-input" placeholder="مثال: بدون بصل">
       </div>
       <button class="btn gold" id="add-line-btn">إضافة للسلة</button>
-    </div>
 
-    <div class="group" id="cart-group" hidden>
-      <h2>السلة</h2>
-      <div id="cart-list"></div>
-      <div class="row2" style="margin-top:14px;">
-        <div class="field">
-          <label>التاريخ</label>
-          <input type="date" id="entry_date">
+      <div id="cart-group" hidden style="margin-top:20px;">
+        <h2>السلة</h2>
+        <div id="cart-list"></div>
+        <div class="row3" style="margin-top:14px;">
+          <div class="field">
+            <label>التاريخ</label>
+            <input type="date" id="entry_date">
+          </div>
+          <div class="field">
+            <label>نوع الطلب</label>
+            <select id="order-type">
+              <option value="صالة">صالة</option>
+              <option value="سفري">سفري</option>
+              <option value="توصيل">توصيل</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>طريقة الدفع</label>
+            <select id="pay-method">
+              <option value="cash">كاش</option>
+              <option value="card">شبكة / فيزا</option>
+              <option value="delivery">توصيل / تطبيقات</option>
+            </select>
+          </div>
         </div>
-        <div class="field">
-          <label>نوع الطلب</label>
-          <select id="order-type">
-            <option value="صالة">صالة</option>
-            <option value="سفري">سفري</option>
-            <option value="توصيل">توصيل</option>
-          </select>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div>الإجمالي: <b id="cart-total">0.00</b></div>
+          <button class="btn pay" id="save-btn">حفظ المبيعات</button>
         </div>
-      </div>
-      <div class="row2">
-        <div class="field">
-          <label>طريقة الدفع</label>
-          <select id="pay-method">
-            <option value="cash">كاش</option>
-            <option value="card">شبكة / فيزا</option>
-            <option value="delivery">توصيل / تطبيقات</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:flex; align-items:center; justify-content:space-between;">
-        <div>الإجمالي: <b id="cart-total">0.00</b></div>
-        <button class="btn gold" id="save-btn">حفظ المبيعات</button>
       </div>
     </div>
 
-    <div class="group">
-      <h2>سجل المبيعات</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>التاريخ</th><th>كاش</th><th>شبكة</th><th>توصيل</th><th>الإجمالي</th><th>ملاحظات</th><th>الحالة</th><th></th></tr></thead>
-          <tbody id="sales-body">
-            <tr class="empty-row"><td colspan="8">جاري التحميل...</td></tr>
-          </tbody>
-        </table>
+    <div class="s-chips" id="period-chips" role="group" aria-label="الفترة">
+      <button class="s-chip" type="button" data-period="today" aria-pressed="true">اليوم</button>
+      <button class="s-chip" type="button" data-period="yesterday" aria-pressed="false">أمس</button>
+      <button class="s-chip" type="button" data-period="week" aria-pressed="false">7 أيام</button>
+      <button class="s-chip" type="button" data-period="month" aria-pressed="false">هالشهر</button>
+      <button class="s-chip" type="button" data-period="custom" aria-pressed="false" id="custom-chip"></button>
+    </div>
+    <div class="s-custom" id="custom-range" hidden>
+      <div class="field"><label>من</label><input type="date" id="from-date"></div>
+      <div class="field"><label>إلى</label><input type="date" id="to-date"></div>
+      <button class="btn gold" type="button" id="custom-apply">عرض</button>
+    </div>
+
+    <div class="stats s-stats">
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-total"></div>
+          <div class="stat-body"><div class="label">إجمالي المبيعات</div><div class="value" id="k-total">—</div>
+            <span class="vs" id="k-vs" hidden></span></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-count"></div>
+          <div class="stat-body"><div class="label">عدد الطلبات</div><div class="value" id="k-count">—</div></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-avg"></div>
+          <div class="stat-body"><div class="label">متوسط الفاتورة</div><div class="value" id="k-avg">—</div></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-void"></div>
+          <div class="stat-body"><div class="label">الملغى</div><div class="value" id="k-void">—</div></div></div>
       </div>
     </div>
+
+    <div class="s-grid">
+      <section class="group">
+        <h2 id="chart-title"></h2>
+        <div class="s-bars-wrap" id="chart"></div>
+        <p class="s-summary" id="chart-summary"></p>
+      </section>
+      <section class="group s-side">
+        <div>
+          <h3>طرق الدفع</h3>
+          <div id="pay-split"></div>
+        </div>
+        <div>
+          <h3>الأكثر مبيعًا</h3>
+          <ol class="top-list" id="top-items"></ol>
+        </div>
+        <a class="s-more-link" id="reports-more" href="reports.html" hidden></a>
+      </section>
+    </div>
+
+    <section class="group s-orders">
+      <div class="s-orders-head">
+        <h2 id="orders-title"></h2>
+        <label class="s-search" id="search-wrap">
+          <span class="olv-sr">بحث بالطلبات</span>
+          <input type="search" id="order-search" placeholder="رقم الطلب، صنف، زبون، طاولة" autocomplete="off">
+        </label>
+      </div>
+      <div class="s-chips" id="filter-chips" hidden role="group" aria-label="تصفية الطلبات">
+        <button class="s-chip" type="button" data-filter="all" aria-pressed="true">الكل</button>
+        <button class="s-chip" type="button" data-filter="cash" aria-pressed="false">كاش <span class="n" data-n="cash"></span></button>
+        <button class="s-chip" type="button" data-filter="card" aria-pressed="false">شبكة <span class="n" data-n="card"></span></button>
+        <button class="s-chip" type="button" data-filter="delivery" aria-pressed="false">توصيل <span class="n" data-n="delivery"></span></button>
+        <button class="s-chip" type="button" data-filter="voided" aria-pressed="false">الملغاة <span class="n" data-n="voided"></span></button>
+      </div>
+      <div id="orders"><p class="empty-state">جاري التحميل...</p></div>
+      <div class="s-list-more" id="list-more" hidden><button class="btn" type="button" id="list-more-btn">عرض المزيد</button></div>
+    </section>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -170,11 +403,520 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("sales");
 
+    const $ = (id) => document.getElementById(id);
+    const errBox = $("err");
+    const PAY = {
+      cash: { label: "كاش", cls: "pay-cash" },
+      card: { label: "شبكة", cls: "pay-card" },
+      delivery: { label: "توصيل", cls: "pay-delivery" },
+    };
+    const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const LIST_STEP = 40;
+
+    // أيقونات وأزرار ثابتة
+    $("ic-total").innerHTML = olvIcon("banknote");
+    $("ic-count").innerHTML = olvIcon("receipt");
+    $("ic-avg").innerHTML = olvIcon("barChart");
+    $("ic-void").innerHTML = olvIcon("x");
+    $("custom-chip").innerHTML = olvIcon("clock") + "<span>فترة…</span>";
+    $("manual-toggle").innerHTML = olvIcon("plus") + "<span>بيع يدوي</span>";
+    $("manual-title").innerHTML = olvIcon("plus") + " بيع يدوي";
+    $("reports-link").innerHTML = olvIcon("barChart") + "<span>التقارير</span>";
+    $("reports-more").innerHTML = "تحليل أعمق بالتقارير " + olvIcon("externalLink");
+    $("orders-title").innerHTML = olvIcon("receipt") + ' الطلبات <span class="n" id="orders-count"></span>';
+    $("search-wrap").insertAdjacentHTML("afterbegin", olvIcon("search"));
+
+    // ---------------------------------------------------------------
+    // التواريخ بتوقيت الجهاز (toISOString بيرجع UTC وبالليل بيزيح يوم)
+    // ---------------------------------------------------------------
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const parse = (s) => new Date(s + "T00:00:00");
+    const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+    const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+    const todayIso = () => iso(new Date());
+    const shortDate = (s) => Number(s.slice(8, 10)) + "/" + Number(s.slice(5, 7));
+    function dayTitle(s) {
+      const t = todayIso();
+      if (s === t) return "اليوم";
+      if (s === addDays(t, -1)) return "أمس";
+      return DAY_NAMES[parse(s).getDay()];
+    }
+    function hourName(h) {
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return h12 + (h < 12 ? " ص" : " م");
+    }
+    function timeOf(r) {
+      if (!r.created_at) return "—";
+      const d = new Date(r.created_at);
+      const h = d.getHours(), m = String(d.getMinutes()).padStart(2, "0");
+      return `${h % 12 === 0 ? 12 : h % 12}:${m}`;
+    }
+    function ampm(r) { return r.created_at ? (new Date(r.created_at).getHours() < 12 ? "ص" : "م") : ""; }
+
+    const saleTotal = (r) => Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+    function payOf(r) {
+      const parts = ["cash", "card", "delivery"].filter((k) => Number(r[k + "_amount"]) > 0);
+      return parts.length === 1 ? parts[0] : parts.length ? "mixed" : "cash";
+    }
+
+    // ---------------------------------------------------------------
+    // الفترة
+    // ---------------------------------------------------------------
+    let period = "today";
+    let range = null;
+    function rangeFor(p) {
+      const t = todayIso();
+      if (p === "today") return { from: t, to: t, label: "اليوم" };
+      if (p === "yesterday") { const y = addDays(t, -1); return { from: y, to: y, label: "أمس" }; }
+      if (p === "week") return { from: addDays(t, -6), to: t, label: "آخر 7 أيام" };
+      if (p === "month") return { from: t.slice(0, 8) + "01", to: t, label: "هالشهر" };
+      let from = $("from-date").value || addDays(t, -29), to = $("to-date").value || t;
+      if (from > to) [from, to] = [to, from];
+      if (daysBetween(from, to) > 366) from = addDays(to, -366);
+      return { from, to, label: `من ${shortDate(from)} لـ ${shortDate(to)}` };
+    }
+    // الفترة اللي منقارن فيها: يوم واحد ← نفس اليوم الأسبوع الماضي (أعدل من «أمس»)،
+    // الشهر ← نفس الأيام من الشهر الماضي، وغير هيك ← نفس الطول قبلها مباشرة
+    function prevRange(r, p) {
+      const len = daysBetween(r.from, r.to);
+      if (len === 0) return { from: addDays(r.from, -7), to: addDays(r.to, -7), label: DAY_NAMES[parse(r.from).getDay()] + " الماضي" };
+      if (p === "month") {
+        const d = parse(r.from); d.setMonth(d.getMonth() - 1);
+        const from = iso(d); return { from, to: addDays(from, len), label: "نفس الأيام من الشهر الماضي" };
+      }
+      return { from: addDays(r.from, -(len + 1)), to: addDays(r.from, -1), label: "الفترة اللي قبلها" };
+    }
+
+    function setPressed(groupId, attr, value) {
+      document.querySelectorAll(`#${groupId} .s-chip`).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset[attr] === value)));
+    }
+    $("period-chips").addEventListener("click", (e) => {
+      const b = e.target.closest(".s-chip");
+      if (!b) return;
+      period = b.dataset.period;
+      setPressed("period-chips", "period", period);
+      $("custom-range").hidden = period !== "custom";
+      if (period === "custom") {
+        if (!$("from-date").value) $("from-date").value = addDays(todayIso(), -29);
+        if (!$("to-date").value) $("to-date").value = todayIso();
+      }
+      load();
+    });
+    $("custom-apply").addEventListener("click", load);
+
+    // ---------------------------------------------------------------
+    // تحميل البيانات
+    // ---------------------------------------------------------------
+    let rows = [];
+    let loadSeq = 0;
+    async function load() {
+      const seq = ++loadSeq;
+      range = rangeFor(period);
+      const prev = prevRange(range, period);
+      errBox.style.display = "none";
+      try {
+        const [cur, old] = await Promise.all([
+          window.supabaseClient.from("sales_entries").select("*, sale_items(*)")
+            .gte("entry_date", range.from).lte("entry_date", range.to)
+            .order("created_at", { ascending: false }).limit(3000),
+          window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, status")
+            .gte("entry_date", prev.from).lte("entry_date", prev.to).limit(5000),
+        ]);
+        if (cur.error) throw cur.error;
+        if (seq !== loadSeq) return;
+        rows = cur.data || [];
+        const prevTotal = old.error ? null : (old.data || []).filter((r) => r.status !== "voided").reduce((s, r) => s + saleTotal(r), 0);
+        renderAll(prevTotal, prev);
+      } catch (err) {
+        if (seq === loadSeq) olvShowError(errBox, err);
+      }
+    }
+
+    function renderAll(prevTotal, prev) {
+      const done = rows.filter((r) => r.status !== "voided");
+      const voided = rows.filter((r) => r.status === "voided");
+      const total = done.reduce((s, r) => s + saleTotal(r), 0);
+      const single = range.from === range.to;
+
+      const dn = (d) => DAY_NAMES[parse(d).getDay()];
+      $("s-sub").textContent = single
+        ? (dayTitle(range.from) === dn(range.from) ? `${dn(range.from)} ${shortDate(range.from)}` : `${dayTitle(range.from)} · ${dn(range.from)} ${shortDate(range.from)}`)
+        : `${range.label}${period === "custom" ? "" : ` (${shortDate(range.from)} – ${shortDate(range.to)})`}`;
+
+      // الأرقام — منمسح علامة العدّ حتى يعدّ من جديد لما تتغيّر الفترة
+      const setVal = (id, html) => { const el = $(id); delete el.dataset.olvCounted; el.innerHTML = html; };
+      setVal("k-total", olvFormatMoney(total));
+      setVal("k-count", String(done.length));
+      setVal("k-avg", olvFormatMoney(done.length ? total / done.length : 0));
+      const voidAmt = voided.reduce((s, r) => s + saleTotal(r), 0);
+      const kv = $("k-void");
+      setVal("k-void", voided.length ? `${voided.length}<small>بقيمة ${olvFormatMoney(voidAmt)}</small>` : "0");
+      kv.classList.toggle("bad", voided.length > 0);
+      const vs = $("k-vs");
+      if (prevTotal != null && prevTotal > 0) {
+        const pct = Math.round(((total - prevTotal) / prevTotal) * 100);
+        vs.innerHTML = olvIcon(pct >= 0 ? "chevronUp" : "chevronDown") + `<span>${Math.abs(pct)}% عن ${prev.label}</span>`;
+        vs.classList.toggle("down", pct < 0);
+        vs.hidden = false;
+      } else {
+        vs.hidden = true;
+      }
+
+      renderChart(done, single);
+      renderPaySplit(done, total);
+      renderTopItems(done);
+      renderOrders(true);
+    }
+
+    // ---------------------------------------------------------------
+    // الرسم: يوم واحد ← ساعة بساعة، أكتر ← يوم بيوم (أعمدة، لأن القيم منفصلة)
+    // ---------------------------------------------------------------
+    function renderChart(done, single) {
+      const box = $("chart"), summary = $("chart-summary");
+      let keys, vals, counts, label, tipLabel;
+      if (single) {
+        $("chart-title").innerHTML = olvIcon("clock") + " المبيعات ساعة بساعة";
+        const byH = {}, cnt = {};
+        done.forEach((r) => {
+          if (!r.created_at) return;
+          const h = new Date(r.created_at).getHours();
+          byH[h] = (byH[h] || 0) + saleTotal(r); cnt[h] = (cnt[h] || 0) + 1;
+        });
+        const hs = Object.keys(byH).map(Number);
+        const lo = hs.length ? Math.min(9, ...hs) : 9, hi = hs.length ? Math.max(23, ...hs) : 23;
+        keys = []; for (let h = lo; h <= hi; h++) keys.push(h);
+        vals = keys.map((h) => byH[h] || 0); counts = keys.map((h) => cnt[h] || 0);
+        label = (h) => hourName(h); tipLabel = (h) => "الساعة " + hourName(h);
+      } else {
+        $("chart-title").innerHTML = olvIcon("barChart") + " المبيعات يوم بيوم";
+        const byD = {}, cnt = {};
+        done.forEach((r) => { byD[r.entry_date] = (byD[r.entry_date] || 0) + saleTotal(r); cnt[r.entry_date] = (cnt[r.entry_date] || 0) + 1; });
+        keys = []; for (let d = range.from; d <= range.to && keys.length < 400; d = addDays(d, 1)) keys.push(d);
+        vals = keys.map((d) => byD[d] || 0); counts = keys.map((d) => cnt[d] || 0);
+        label = shortDate; tipLabel = (d) => `${DAY_NAMES[parse(d).getDay()]} ${shortDate(d)}`;
+      }
+      const sum = vals.reduce((a, b) => a + b, 0);
+      if (!sum) {
+        box.innerHTML = `<p class="s-empty">ما في مبيعات بهالفترة</p>`;
+        summary.textContent = "";
+        return;
+      }
+      const max = Math.max(...vals);
+      const best = vals.indexOf(max);
+      const W = Math.max(300, Math.round(box.clientWidth || 640)), H = W < 500 ? 190 : 230, L = 40, R = 6, T = 22, B = 24;
+      const n = keys.length, slot = (W - L - R) / n, bw = Math.max(2, Math.min(34, slot * 0.66));
+      const x = (i) => L + slot * i + slot / 2;
+      const y = (v) => T + (H - T - B) * (1 - v / max);
+      const ticks = [0, max / 2, max];
+      const step = Math.max(1, Math.ceil(n / (W < 500 ? 5 : 10)));
+      box.innerHTML = `
+        <svg class="s-bars" viewBox="0 0 ${W} ${H}" role="group" aria-label="${olvEsc($("chart-title").textContent.trim())}">
+          ${ticks.map((t) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis" x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${Math.round(t)}</text>`).join("")}
+          ${keys.map((k, i) => (i % step === 0 || i === n - 1) && (i === n - 1 ? (n - 1) % step === 0 || n - 1 - Math.floor((n - 1) / step) * step > step / 2 : true)
+            ? `<text class="axis" x="${x(i)}" y="${H - 6}" text-anchor="middle">${label(k)}</text>` : "").join("")}
+          ${keys.map((k, i) => {
+            const v = vals[i], top = y(v), h = (H - B) - top;
+            return `<g data-i="${i}">
+              <rect class="hit" role="button" tabindex="0" x="${L + slot * i}" y="${T - 18}" width="${slot}" height="${H - B - T + 18}" rx="6"
+                aria-label="${olvEsc(tipLabel(k))}: ${olvFormatMoney(v)}، ${counts[i]} طلب"/>
+              ${v > 0 ? `<rect class="bar${i === best ? " top" : ""}" x="${x(i) - bw / 2}" y="${top}" width="${bw}" height="${Math.max(h, 2)}" rx="${Math.min(5, bw / 2)}"/>`
+                : `<rect class="zero" x="${x(i) - bw / 2}" y="${H - B - 2}" width="${bw}" height="2" rx="1"/>`}
+            </g>`;
+          }).join("")}
+          <text class="peak" x="${x(best)}" y="${y(max) - 6}" text-anchor="middle">${Math.round(max)}</text>
+        </svg>
+        <div class="s-tip" id="s-tip"></div>`;
+      const tip = $("s-tip"), svg = box.querySelector("svg");
+      const show = (g) => {
+        const i = Number(g.dataset.i);
+        box.querySelectorAll("g.on").forEach((e) => e.classList.remove("on"));
+        g.classList.add("on");
+        tip.innerHTML = `<b>${olvEsc(tipLabel(keys[i]))}</b><br>${olvFormatMoney(vals[i])} · ${counts[i]} طلب`;
+        tip.style.left = Math.min(Math.max((x(i) / W) * svg.getBoundingClientRect().width, 70), svg.getBoundingClientRect().width - 70) + "px";
+        tip.classList.add("show");
+      };
+      const hide = () => { tip.classList.remove("show"); box.querySelectorAll("g.on").forEach((e) => e.classList.remove("on")); };
+      box.querySelectorAll("g[data-i]").forEach((g) => {
+        g.addEventListener("pointerenter", () => show(g));
+        g.addEventListener("click", () => show(g));
+        g.addEventListener("focusin", () => show(g));
+      });
+      svg.addEventListener("pointerleave", hide);
+      svg.addEventListener("focusout", hide);
+      const active = vals.filter((v) => v > 0).length;
+      summary.innerHTML = single
+        ? `أزحم ساعة <b>${hourName(keys[best])}</b> بـ <b>${olvFormatMoney(max)}</b> (${counts[best]} طلب).`
+        : `أفضل يوم <b>${DAY_NAMES[parse(keys[best]).getDay()]} ${shortDate(keys[best])}</b> بـ <b>${olvFormatMoney(max)}</b>. متوسط اليوم <b>${olvFormatMoney(sum / Math.max(active, 1))}</b> على ${active} ${active === 1 ? "يوم" : "أيام"} فيها بيع.`;
+    }
+
+    function renderPaySplit(done, total) {
+      const box = $("pay-split");
+      const sums = { cash: 0, card: 0, delivery: 0 };
+      done.forEach((r) => { sums.cash += Number(r.cash_amount); sums.card += Number(r.card_amount); sums.delivery += Number(r.delivery_amount); });
+      if (!total) { box.innerHTML = `<p class="s-empty" style="padding:8px 0; text-align:right;">ما في مبيعات بهالفترة</p>`; return; }
+      const order = Object.keys(sums).sort((a, b) => sums[b] - sums[a]);
+      const pct = (k) => Math.round((sums[k] / total) * 100);
+      box.innerHTML = `
+        <div class="pay-stack" role="img" aria-label="${order.map((k) => `${PAY[k].label} ${pct(k)}%`).join("، ")}">
+          ${order.filter((k) => sums[k] > 0).map((k) => `<i class="${PAY[k].cls}" style="flex:${sums[k]}"></i>`).join("")}
+        </div>
+        <ul class="pay-list">
+          ${order.map((k) => `<li><i class="dot ${PAY[k].cls}"></i><span class="nm">${PAY[k].label}</span>
+            <span class="amt">${olvFormatMoney(sums[k])}</span><span class="pc">${pct(k)}%</span></li>`).join("")}
+        </ul>`;
+    }
+
+    function renderTopItems(done) {
+      const box = $("top-items");
+      const by = {};
+      done.forEach((r) => (r.sale_items || []).forEach((it) => {
+        if (it.status === "voided") return;
+        const k = it.product_name || "—";
+        const o = by[k] = by[k] || { name: k, qty: 0, amt: 0 };
+        o.qty += Number(it.qty);
+        o.amt += (Number(it.unit_price) + Number(it.addons_total || 0)) * Number(it.qty);
+      }));
+      const list = Object.values(by).sort((a, b) => b.qty - a.qty || b.amt - a.amt).slice(0, 5);
+      if (!list.length) { box.innerHTML = `<li class="s-empty" style="padding:8px 0; text-align:right;">ما في أصناف مبيوعة بهالفترة</li>`; return; }
+      const max = list[0].qty;
+      box.innerHTML = list.map((o, i) => `<li>
+        <div class="tl-row"><span class="rk">${i + 1}</span><span class="nm">${olvEsc(o.name)}</span>
+          <span class="q">${o.qty}×</span><span class="amt">${olvFormatMoney(o.amt)}</span></div>
+        <div class="tr" aria-hidden="true"><i style="width:${Math.max(4, (o.qty / max) * 100)}%"></i></div>
+      </li>`).join("");
+    }
+
+    // ---------------------------------------------------------------
+    // قائمة الطلبات
+    // ---------------------------------------------------------------
+    let filter = "all";
+    let query = "";
+    let shown = LIST_STEP;
+    let openId = null;
+    const reprintCache = {};
+
+    function itemsText(r) {
+      const items = (r.sale_items || []);
+      if (items.length) return items.map((it) => `${it.qty}× ${it.product_name}`).join("، ");
+      return r.notes || "بيعة بدون أصناف";
+    }
+    function matches(r) {
+      if (filter === "voided" && r.status !== "voided") return false;
+      if (["cash", "card", "delivery"].includes(filter) && (r.status === "voided" || Number(r[filter + "_amount"]) <= 0)) return false;
+      if (!query) return true;
+      const q = query.replace(/^#/, "");
+      if (/^\d+$/.test(q) && String(r.order_no || "") === q) return true;
+      return [itemsText(r), r.customer_name, r.table_number, r.customer_phone, r.notes]
+        .some((v) => v && String(v).toLowerCase().includes(q.toLowerCase()));
+    }
+
+    $("filter-chips").addEventListener("click", (e) => {
+      const b = e.target.closest(".s-chip");
+      if (!b) return;
+      filter = b.dataset.filter;
+      setPressed("filter-chips", "filter", filter);
+      renderOrders(true);
+    });
+    let searchTimer = null;
+    $("order-search").addEventListener("input", (e) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { query = e.target.value.trim(); renderOrders(true); }, 150);
+    });
+    $("list-more-btn").addEventListener("click", () => { shown += LIST_STEP; renderOrders(false); });
+
+    function orderRowHtml(r) {
+      const voided = r.status === "voided";
+      const pay = payOf(r);
+      const meta = [];
+      if (voided) meta.push(`<span class="tag-void">${olvIcon("x")} ملغى</span>`);
+      if (r.order_type) meta.push(`<span>${olvIcon(r.order_type === "توصيل" ? "truck" : r.order_type === "سفري" ? "cart" : "dineIn")}${olvEsc(r.order_type)}</span>`);
+      if (r.table_number) meta.push(`<span>طاولة ${olvEsc(r.table_number)}</span>`);
+      if (r.customer_name) meta.push(`<span>${olvIcon("person")}${olvEsc(r.customer_name)}</span>`);
+      if (Number(r.discount_amount) > 0) meta.push(`<span class="tag-disc">خصم ${olvFormatMoney(r.discount_amount)}</span>`);
+      const payHtml = pay === "mixed"
+        ? `<span class="pm">مقسوم</span>`
+        : `<span class="pm"><i class="${PAY[pay].cls}"></i>${PAY[pay].label}</span>`;
+      return `<div class="order${voided ? " voided" : ""}${openId === r.id ? " open" : ""}" data-id="${r.id}">
+        <button class="order-row" type="button" aria-expanded="${openId === r.id}" aria-controls="od-${r.id}">
+          <span class="tm">${timeOf(r)} <small style="font-weight:500; color:var(--muted); font-size:11px;">${ampm(r)}</small>${r.order_no ? `<span class="no">#${olvEsc(r.order_no)}</span>` : ""}</span>
+          <span class="it"><span class="it-names">${olvEsc(itemsText(r))}</span>${meta.length ? `<span class="it-meta">${meta.join("")}</span>` : ""}</span>
+          <span class="am"><b>${olvFormatMoney(saleTotal(r))}</b>${payHtml}</span>
+          ${olvIcon("chevronDown", "chev")}
+        </button>
+        <div class="order-detail" id="od-${r.id}" ${openId === r.id ? "" : "hidden"}>${openId === r.id ? detailHtml(r) : ""}</div>
+      </div>`;
+    }
+
+    function renderOrders(reset) {
+      if (reset) shown = LIST_STEP;
+      // عدّادات حبوب التصفية
+      const cnt = { cash: 0, card: 0, delivery: 0, voided: 0 };
+      rows.forEach((r) => {
+        if (r.status === "voided") { cnt.voided++; return; }
+        ["cash", "card", "delivery"].forEach((k) => { if (Number(r[k + "_amount"]) > 0) cnt[k]++; });
+      });
+      document.querySelectorAll("#filter-chips [data-n]").forEach((el) => { el.textContent = cnt[el.dataset.n] || ""; });
+      document.querySelector('#filter-chips [data-filter="voided"]').hidden = !cnt.voided && filter !== "voided";
+
+      $("filter-chips").hidden = !rows.length;
+      $("search-wrap").hidden = !rows.length;
+      const list = rows.filter(matches);
+      $("orders-count").textContent = list.length ? `(${list.length})` : "";
+      const box = $("orders");
+      if (!rows.length) { box.innerHTML = `<p class="empty-state">لا يوجد مبيعات بهالفترة</p>`; $("list-more").hidden = true; return; }
+      if (!list.length) { box.innerHTML = `<p class="empty-state">ما لقى طلبات مطابقة</p>`; $("list-more").hidden = true; return; }
+
+      // تجميع حسب اليوم مع مجموع كل يوم (من كل الطلبات المطابقة، مش بس الظاهرة)
+      const dayTotals = {};
+      list.forEach((r) => {
+        const d = dayTotals[r.entry_date] = dayTotals[r.entry_date] || { sum: 0, n: 0 };
+        if (r.status !== "voided") { d.sum += saleTotal(r); d.n++; }
+      });
+      const sorted = list.slice().sort((a, b) => (a.entry_date === b.entry_date
+        ? String(b.created_at).localeCompare(String(a.created_at)) : b.entry_date.localeCompare(a.entry_date)));
+      const visible = sorted.slice(0, shown);
+      const multiDay = range.from !== range.to;
+      let html = "", lastDay = null;
+      visible.forEach((r) => {
+        if (multiDay && r.entry_date !== lastDay) {
+          lastDay = r.entry_date;
+          const t = dayTotals[r.entry_date];
+          html += `<div class="day-head"><span><b>${dayTitle(r.entry_date)}</b> <span class="dt">${shortDate(r.entry_date)}</span></span>
+            <span>${t.n} طلب · <span class="dt">${olvFormatMoney(t.sum)}</span></span></div>`;
+        }
+        html += orderRowHtml(r);
+      });
+      box.innerHTML = html;
+      $("list-more").hidden = sorted.length <= shown;
+      $("list-more-btn").textContent = `عرض المزيد (${sorted.length - shown} باقي)`;
+      if (openId) { const r = rows.find((x) => x.id === openId); if (r) wireDetail(r); }
+    }
+
+    // ---------------------------------------------------------------
+    // تفاصيل الطلب: الأصناف + إلغاء صنف، معلومات الدفع، إعادات الطباعة، الأزرار
+    // ---------------------------------------------------------------
+    function detailHtml(r) {
+      const voided = r.status === "voided";
+      const items = r.sale_items || [];
+      const itemsHtml = items.length ? items.map((it) => {
+        const itVoided = it.status === "voided";
+        const line = (Number(it.unit_price) + Number(it.addons_total || 0)) * Number(it.qty);
+        return `<div class="od-item${itVoided ? " voided" : ""}">
+          <div class="nm"><div>${it.qty}× ${olvEsc(it.product_name)}</div>
+            ${it.addons_summary ? `<div class="meta">+ ${olvEsc(it.addons_summary)}</div>` : ""}
+            ${it.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}</div>
+          <div class="r"><span>${olvFormatMoney(line)}</span>
+            ${itVoided ? `<span class="tag-void">ملغى</span>` : (voided ? "" : `<button class="btn small danger" data-void-item="${it.id}">إلغاء الصنف</button>`)}</div>
+        </div>`;
+      }).join("") : `<div class="od-item"><div class="nm">${olvEsc(r.notes || "لا توجد أصناف مسجّلة لهذا الطلب")}</div></div>`;
+
+      const facts = [];
+      if (Number(r.discount_amount) > 0) facts.push(`<span class="bad">خصم <b>${olvFormatMoney(r.discount_amount)}</b></span>`);
+      if (r.cash_received != null && Number(r.cash_received) > 0) facts.push(`<span>استلمنا <b>${olvFormatMoney(r.cash_received)}</b></span>`);
+      if (r.change_due != null && Number(r.change_due) > 0) facts.push(`<span>الباقي للزبون <b>${olvFormatMoney(r.change_due)}</b></span>`);
+      if (r.customer_phone) facts.push(`<span>${olvIcon("phone")} <b dir="ltr">${olvEsc(r.customer_phone)}</b></span>`);
+      if (payOf(r) === "mixed") ["cash", "card", "delivery"].forEach((k) => { if (Number(r[k + "_amount"]) > 0) facts.push(`<span>${PAY[k].label} <b>${olvFormatMoney(r[k + "_amount"])}</b></span>`); });
+      if (voided && r.void_reason) facts.push(`<span class="bad">سبب الإلغاء: <b>${olvEsc(r.void_reason)}</b></span>`);
+
+      const rp = reprintCache[r.id];
+      const rpHtml = rp && rp.length
+        ? `<div class="od-reprints">${olvIcon("printer")} انطبعت كمان ${rp.length} ${rp.length === 1 ? "مرة" : "مرات"}:<br>${rp.map((x) =>
+            `نسخة ${olvEsc(x.reprint_no)} · ${olvEsc(new Date(x.created_at).toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" }))} · ${olvEsc(x.printed_by_name || "—")} · ${olvEsc(x.reason)}`).join("<br>")}</div>`
+        : "";
+      const label = `${r.order_no ? "طلب " + r.order_no : r.entry_date} — ${olvFormatMoney(saleTotal(r))}`;
+      const actions = voided ? "" : `<div class="od-actions">
+          <button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(label)}">${olvIcon("printer")} إعادة طباعة</button>
+          <button class="btn small danger" data-void="${r.id}">${olvIcon("x")} إلغاء الطلب</button>
+        </div>`;
+      return `<div class="od-box">${itemsHtml}</div>${facts.length ? `<div class="od-facts">${facts.join("")}</div>` : ""}${rpHtml}${actions}`;
+    }
+
+    // السيرفر بيرفض الإلغاء بدون سبب واضح (3 أحرف على الأقل) — نسأل هون لحد ما
+    // يكتب سبب أو يتراجع
+    function askVoidReason() {
+      for (;;) {
+        const r = prompt("سبب الإلغاء (إلزامي، 3 أحرف على الأقل):");
+        if (r === null) return null;
+        if (r.trim().length >= 3) return r.trim();
+        alert("لازم تكتب سبب واضح للإلغاء");
+      }
+    }
+
+    function wireDetail(r) {
+      const wrap = document.querySelector(`.order[data-id="${r.id}"] .order-detail`);
+      if (!wrap) return;
+      const rp = wrap.querySelector("[data-reprint]");
+      if (rp) rp.addEventListener("click", async () => {
+        const done = await olvReprintSale(r.id, rp.dataset.label);
+        if (done) { delete reprintCache[r.id]; await loadReprints(r); }
+      });
+      const v = wrap.querySelector("[data-void]");
+      if (v) olvHoldConfirm(v, async () => {
+        const reason = askVoidReason();
+        if (!reason) return;
+        v.disabled = true;
+        const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: r.id, p_reason: reason });
+        if (error) { olvShowError(errBox, error); v.disabled = false; return; }
+        olvToast("انلغى الطلب ورجعت مواده للمخزون", { type: "info" });
+        await load();
+      }, { hint: "اضغط مطوّلاً على «إلغاء الطلب» للتأكيد — بيرجع المواد الخام للمخزون ولن يُحتسب ضمن المبيعات أو التقارير" });
+      wrap.querySelectorAll("[data-void-item]").forEach((btn) => {
+        olvHoldConfirm(btn, async () => {
+          const reason = askVoidReason();
+          if (!reason) return;
+          btn.disabled = true;
+          const { error } = await window.supabaseClient.rpc("void_sale_item", { p_sale_item_id: btn.dataset.voidItem, p_reason: reason });
+          if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+          olvToast("انلغى الصنف ونقص من الطلب", { type: "info" });
+          await load();
+        }, { hint: "اضغط مطوّلاً على «إلغاء الصنف» للتأكيد — بيرجع للمخزون وبينقص من إجمالي الطلب، وباقي الأصناف تضل كما هي" });
+      });
+    }
+
+    // إعادات الطباعة منجيبها بس لما ينفتح الطلب (بدل ما نحمّلها لكل القائمة)
+    async function loadReprints(r) {
+      if (!reprintCache[r.id]) {
+        const { data } = await window.supabaseClient.from("receipt_reprints").select("*").eq("sale_id", r.id).order("created_at");
+        reprintCache[r.id] = data || [];
+      }
+      if (openId !== r.id) return;
+      const el = document.querySelector(`.order[data-id="${r.id}"] .order-detail`);
+      if (el) { el.innerHTML = detailHtml(r); wireDetail(r); }
+    }
+
+    $("orders").addEventListener("click", (e) => {
+      const btn = e.target.closest(".order-row");
+      if (!btn) return;
+      const card = btn.closest(".order");
+      const id = card.dataset.id;
+      const r = rows.find((x) => x.id === id);
+      if (!r) return;
+      // طلب واحد مفتوح بالمرة: أوضح بالقائمة الطويلة
+      document.querySelectorAll(".order.open").forEach((o) => {
+        if (o === card) return;
+        o.classList.remove("open");
+        o.querySelector(".order-row").setAttribute("aria-expanded", "false");
+        const d = o.querySelector(".order-detail"); d.hidden = true; d.innerHTML = "";
+      });
+      const opening = !card.classList.contains("open");
+      card.classList.toggle("open", opening);
+      btn.setAttribute("aria-expanded", String(opening));
+      const det = card.querySelector(".order-detail");
+      openId = opening ? id : null;
+      det.hidden = !opening;
+      det.innerHTML = opening ? detailHtml(r) : "";
+      if (opening) { wireDetail(r); loadReprints(r); }
+    });
+
+    // ---------------------------------------------------------------
+    // بيع يدوي (للمالك والمدير بس) — نفس منطق السلة والدالة المحروسة بالسيرفر
+    // ---------------------------------------------------------------
     let products = [];
     let addons = [];
+    let manualLoaded = false;
 
     function renderAddonPicker() {
-      const el = document.getElementById("addon-picker");
+      const el = $("addon-picker");
       if (!addons.length) { el.innerHTML = ""; return; }
       el.innerHTML = addons.map((a) => `
         <label class="addon-row" for="sa-${a.id}">
@@ -191,8 +933,8 @@
 
     function renderCart() {
       const cart = OlvCart.all();
-      const group = document.getElementById("cart-group");
-      const list = document.getElementById("cart-list");
+      const group = $("cart-group");
+      const list = $("cart-list");
       if (!cart.length) { group.hidden = true; return; }
       group.hidden = false;
       list.innerHTML = cart.map((item, idx) => `
@@ -211,188 +953,13 @@
       list.querySelectorAll("button[data-idx]").forEach((btn) => {
         btn.addEventListener("click", () => { OlvCart.removeAt(Number(btn.dataset.idx)); renderCart(); });
       });
-      document.getElementById("cart-total").textContent = olvFormatMoney(OlvCart.total());
+      $("cart-total").textContent = olvFormatMoney(OlvCart.total());
     }
 
-    document.getElementById("add-line-btn").addEventListener("click", () => {
-      const productId = document.getElementById("product-select").value;
-      const product = products.find((p) => p.id === productId);
-      if (!product) return;
-      const qty = Math.max(1, Number(document.getElementById("qty-input").value || 1));
-      const note = document.getElementById("item-note-input").value.trim();
-      OlvCart.add(product, selectedAddons(), qty, note);
-      document.getElementById("qty-input").value = 1;
-      document.getElementById("item-note-input").value = "";
-      addons.forEach((a) => { const cb = document.getElementById(`sa-${a.id}`); if (cb) cb.checked = false; });
-      renderCart();
-    });
-
-    document.getElementById("save-btn").addEventListener("click", async () => {
-      const errBox = document.getElementById("err");
-      errBox.style.display = "none";
-      const btn = document.getElementById("save-btn");
-      btn.disabled = true;
-      try {
-        const method = document.getElementById("pay-method").value;
-        const entryDate = document.getElementById("entry_date").value || olvToday();
-        const orderType = document.getElementById("order-type").value;
-        await OlvCart.checkout({ paymentMethod: method, entryDate, orderType });
-        renderCart();
-        await loadSales();
-      } catch (err) {
-        olvShowError(errBox, err);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
-    let expandedSaleId = null;
-
-    // السيرفر بيرفض الإلغاء بدون سبب واضح (3 أحرف على الأقل) — نسأل هون لحد ما
-    // يكتب سبب أو يتراجع
-    function askVoidReason() {
-      for (;;) {
-        const r = prompt("سبب الإلغاء (إلزامي، 3 أحرف على الأقل):");
-        if (r === null) return null;
-        if (r.trim().length >= 3) return r.trim();
-        alert("لازم تكتب سبب واضح للإلغاء");
-      }
-    }
-
-    // سجل إعادات طباعة الفاتورة (مين، ليش، ومتى) — ما بيتعدّل ولا بيتمسح
-    function renderReprintHistory(sale) {
-      const list = sale.reprints || [];
-      if (!list.length) return "";
-      return `<div class="item-detail-row" style="flex-direction:column; align-items:stretch; gap:4px;">
-        <div><b>${olvIcon("printer")} إعادات الطباعة (${list.length})</b></div>
-        ${list.map((rp) => `<div class="meta">نسخة ${olvEsc(rp.reprint_no)} — ${olvEsc(new Date(rp.created_at).toLocaleString("ar-EG", { numberingSystem: "latn" }))}
-          — ${olvEsc(rp.printed_by_name || "—")} — السبب: ${olvEsc(rp.reason)}</div>`).join("")}
-      </div>`;
-    }
-
-    function renderItemsDetail(sale) {
-      const items = sale.sale_items || [];
-      if (!items.length) return `<div class="hint">لا توجد أصناف مسجّلة لهذا الطلب</div>` + renderReprintHistory(sale);
-      const saleVoided = sale.status === "voided";
-      return items.map((it) => {
-        const itemVoided = it.status === "voided";
-        const lineTotal = (Number(it.unit_price) + Number(it.addons_total || 0)) * Number(it.qty);
-        return `
-          <div class="item-detail-row">
-            <div class="name ${itemVoided ? "item-voided" : ""}">
-              <div>${it.qty}× ${olvEsc(it.product_name)}</div>
-              ${it.addons_summary ? `<div class="meta">+ ${olvEsc(it.addons_summary)}</div>` : ""}
-              ${it.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
-            </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-              <span>${olvFormatMoney(lineTotal)}</span>
-              ${itemVoided
-                ? `<span class="status-voided">ملغى</span>`
-                : (saleVoided ? "" : `<button class="btn small danger" data-void-item="${it.id}">إلغاء الصنف</button>`)
-              }
-            </div>
-          </div>
-        `;
-      }).join("") + renderReprintHistory(sale);
-    }
-
-    async function loadSales() {
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("sales-body");
-      try {
-        const { data, error } = await window.supabaseClient
-          .from("sales_entries").select("*, sale_items(*)").order("entry_date", { ascending: false }).limit(60);
-        if (error) throw error;
-        if (!data || !data.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="8">لا يوجد مبيعات مسجّلة بعد</td></tr>`;
-          return;
-        }
-        // إعادات الطباعة (لو schema-reprint.sql لسا ما انشغّل، بنكمّل بدونها)
-        const { data: reprints } = await window.supabaseClient
-          .from("receipt_reprints").select("*").in("sale_id", data.map((r) => r.id)).order("created_at");
-        const reprintsBySale = {};
-        (reprints || []).forEach((rp) => { (reprintsBySale[rp.sale_id] = reprintsBySale[rp.sale_id] || []).push(rp); });
-        data.forEach((r) => { r.reprints = reprintsBySale[r.id] || []; });
-        body.innerHTML = data.map((r) => {
-          const total = Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
-          const voided = r.status === "voided";
-          const itemCount = (r.sale_items || []).length;
-          const rows = [`<tr class="${voided ? "row-voided" : ""}">
-            <td>${r.entry_date}</td>
-            <td>${olvFormatMoney(r.cash_amount)}</td>
-            <td>${olvFormatMoney(r.card_amount)}</td>
-            <td>${olvFormatMoney(r.delivery_amount)}</td>
-            <td>${olvFormatMoney(total)}</td>
-            <td>${olvEsc(r.notes) || "—"}${Number(r.discount_amount) > 0 ? ` <b style="color:var(--danger-hi);">[خصم مسجَّل ${olvFormatMoney(r.discount_amount)}]</b>` : ""}${voided && r.void_reason ? ` — سبب الإلغاء: ${olvEsc(r.void_reason)}` : ""}</td>
-            <td>${voided ? `<span class="status-voided">${olvIcon("x")} ملغى</span>` : `<span class="status-completed">${olvIcon("check")} مكتمل</span>`}</td>
-            <td>
-              <div class="row-actions">
-                <button class="btn small" data-toggle="${r.id}">الأصناف (${itemCount})</button>
-                ${voided ? "" : `<button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(r.order_no ? "طلب " + r.order_no : r.entry_date)} — ${olvFormatMoney(total)}">${olvIcon("printer")} إعادة طباعة${r.reprints.length ? ` (${r.reprints.length})` : ""}</button>`}
-                ${voided ? "" : `<button class="btn small danger" data-void="${r.id}">إلغاء الطلب</button>`}
-              </div>
-            </td>
-          </tr>`];
-          rows.push(`<tr id="items-${r.id}" ${expandedSaleId === r.id ? "" : "hidden"}>
-            <td colspan="8"><div class="items-detail">${renderItemsDetail(r)}</div></td>
-          </tr>`);
-          return rows.join("");
-        }).join("");
-
-        body.querySelectorAll("button[data-toggle]").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const id = btn.dataset.toggle;
-            const row = document.getElementById(`items-${id}`);
-            const nowHidden = !row.hidden;
-            row.hidden = nowHidden;
-            expandedSaleId = nowHidden ? null : id;
-          });
-        });
-        body.querySelectorAll("button[data-reprint]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            const done = await olvReprintSale(btn.dataset.reprint, btn.dataset.label);
-            if (done) { expandedSaleId = btn.dataset.reprint; await loadSales(); }
-          });
-        });
-        body.querySelectorAll("button[data-void]").forEach((btn) => {
-          olvHoldConfirm(btn, async () => {
-            const reason = askVoidReason();
-            if (!reason) return;
-            btn.disabled = true;
-            const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: btn.dataset.void, p_reason: reason });
-            if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
-            await loadSales();
-          }, { hint: "اضغط مطوّلاً على «إلغاء الطلب» للتأكيد — بيرجع المواد الخام للمخزون ولن يُحتسب ضمن المبيعات أو التقارير" });
-        });
-        body.querySelectorAll("button[data-void-item]").forEach((btn) => {
-          olvHoldConfirm(btn, async () => {
-            const reason = askVoidReason();
-            if (!reason) return;
-            btn.disabled = true;
-            const { error } = await window.supabaseClient.rpc("void_sale_item", { p_sale_item_id: btn.dataset.voidItem, p_reason: reason });
-            if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
-            expandedSaleId = btn.closest("tr").id.replace("items-", "");
-            await loadSales();
-          }, { hint: "اضغط مطوّلاً على «إلغاء الصنف» للتأكيد — بيرجع للمخزون وبينقص من إجمالي الطلب، وباقي الأصناف تضل كما هي" });
-        });
-      } catch (err) {
-        olvShowError(errBox, err);
-      }
-    }
-
-    (async () => {
-      const session = await olvRequireAuth();
-      if (!session) return;
-      // إضافة مبيعات يدويًا من هون للمالك والمدير بس؛ الكاشير يبيع من "بيع سريع"
-      // فقط (واجهة فقط — البيع كله بيمرّ بنفس الدالة المحروسة بالسيرفر)
-      if (window.olvRole === "staff") {
-        ["manual-sale-group", "cart-group"].forEach((id) => {
-          const el = document.getElementById(id);
-          if (el) el.style.setProperty("display", "none", "important");
-        });
-      }
-      document.getElementById("entry_date").value = olvToday();
-      const errBox = document.getElementById("err");
+    async function loadManual() {
+      if (manualLoaded) return;
+      manualLoaded = true;
+      $("entry_date").value = todayIso();
       try {
         const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }] = await Promise.all([
           window.supabaseClient.from("products").select("*").eq("is_active", true).order("category").order("sort_order"),
@@ -407,16 +974,85 @@
           const cat = p.category || "عام";
           (byCategory[cat] = byCategory[cat] || []).push(p);
         });
-        document.getElementById("product-select").innerHTML = Object.keys(byCategory).map((cat) => `
+        $("product-select").innerHTML = Object.keys(byCategory).map((cat) => `
           <optgroup label="${olvEsc(cat)}">
             ${byCategory[cat].map((p) => `<option value="${p.id}">${olvEsc(p.name)} — ${olvFormatMoney(p.price)}</option>`).join("")}
           </optgroup>
         `).join("");
         renderAddonPicker();
+        renderCart();
       } catch (err) {
+        manualLoaded = false;
         olvShowError(errBox, err);
       }
-      await loadSales();
+    }
+
+    function toggleManual(open) {
+      $("manual-sale-group").hidden = !open;
+      $("manual-toggle").setAttribute("aria-expanded", String(open));
+      if (open) { loadManual(); $("manual-sale-group").scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "start" }); }
+    }
+    $("manual-toggle").addEventListener("click", () => toggleManual($("manual-sale-group").hidden));
+    $("manual-close").addEventListener("click", () => toggleManual(false));
+
+    $("add-line-btn").addEventListener("click", () => {
+      const productId = $("product-select").value;
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+      const qty = Math.max(1, Number($("qty-input").value || 1));
+      const note = $("item-note-input").value.trim();
+      OlvCart.add(product, selectedAddons(), qty, note);
+      $("qty-input").value = 1;
+      $("item-note-input").value = "";
+      addons.forEach((a) => { const cb = document.getElementById(`sa-${a.id}`); if (cb) cb.checked = false; });
+      renderCart();
+    });
+
+    $("save-btn").addEventListener("click", async () => {
+      errBox.style.display = "none";
+      const btn = $("save-btn");
+      btn.disabled = true;
+      try {
+        const method = $("pay-method").value;
+        const entryDate = $("entry_date").value || todayIso();
+        const orderType = $("order-type").value;
+        await OlvCart.checkout({ paymentMethod: method, entryDate, orderType });
+        renderCart();
+        olvToast("انحفظت المبيعات", { type: "gold" });
+        await load();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // الرسم بيتبع عرض الشاشة (تدوير التابلت مثلاً)
+    let resizeTimer = null, lastW = window.innerWidth;
+    window.addEventListener("resize", () => {
+      if (window.innerWidth === lastW) return;
+      lastW = window.innerWidth;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => renderChart(rows.filter((r) => r.status !== "voided"), range.from === range.to), 200);
+    });
+    // رجعت للصفحة بعد شوي؟ منحدّث الأرقام لحالها
+    let hiddenAt = 0;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 60000 && !openId) load();
+    });
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      // البيع اليدوي والتقارير للمالك والمدير بس؛ الكاشير بيبيع من «بيع سريع»
+      // (واجهة فقط — البيع كله بيمرّ بنفس الدالة المحروسة بالسيرفر)
+      if (window.olvRole !== "staff") {
+        $("manual-toggle").hidden = false;
+        $("reports-link").hidden = false;
+        $("reports-more").hidden = false;
+      }
+      await load();
     })();
     });
   </script>
