@@ -1,0 +1,14 @@
+{
+  "name": "olv-local-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "سيرفر المحل: بيخلي طلبات الكاشير توصل لشاشات المطبخ والبارات حتى لو النت مقطوع",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  }
+}

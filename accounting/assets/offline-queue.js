@@ -66,6 +66,17 @@
   // الـfetch المخصَّص المُمرَّر لعميل Supabase (global.fetch) — شفّاف
   // بالكامل لأي طلب غير كتابة (قراءة، مصادقة...)، ويتدخّل فقط لما تفشل
   // كتابة فعلية على /rest/v1/ بسبب انقطاع شبكة حقيقي
+  // انقطاع معروف: آخر فشل شبكة صار من شوي. مكتبة Supabase بتعيد كل قراءة فاشلة 3 مرات
+  // بفواصل (حوالي 7 ثواني للقراءة الوحدة)، فوقت الانقطاع المعروف منرجّع الفشل فورًا باسم
+  // AbortError (المكتبة ما بتعيد المحاولة عليه) حتى الصفحات ما تعلّق
+  let lastNetFail = window.OLV_LOCAL_OFFLINE ? Date.now() : 0;
+  const knownOffline = () => Date.now() - lastNetFail < 20000;
+  function fastFail(err) {
+    const e = new Error((err && err.message) || "Failed to fetch");
+    e.name = "AbortError";
+    return e;
+  }
+
   async function offlineAwareFetch(url, opts) {
     opts = opts || {};
     const method = (opts.method || "GET").toUpperCase();
@@ -74,12 +85,18 @@
     const isSupabaseWrite = WRITE_METHODS.has(method) && /\/rest\/v1\//.test(urlStr)
       && !/\/rpc\/reprint_receipt/.test(urlStr);
     try {
-      return await fetch(url, opts);
+      const res = await fetch(url, opts);
+      lastNetFail = 0;
+      return res;
     } catch (err) {
-      if (isSupabaseWrite && isNetworkFailure(err)) {
+      if (!isNetworkFailure(err)) throw err;
+      const wasKnown = knownOffline();
+      lastNetFail = Date.now();
+      if (isSupabaseWrite) {
         enqueue(urlStr, method, opts.headers, opts.body);
         return fakeQueuedResponse();
       }
+      if (wasKnown && /\/rest\/v1\//.test(urlStr)) throw fastFail(err);
       throw err;
     }
   }
@@ -159,6 +176,7 @@
   }
 
   window.olvOfflineFetch = offlineAwareFetch;
+  window.olvMarkOffline = () => { lastNetFail = Date.now(); };
   window.olvFlushOfflineQueue = flushQueue;
   window.olvGetOfflineQueueCount = function () { return loadQueue().length; };
   // العمليات اللي رفضها السيرفر بعد رجوع النت (بتعرضها connection-status.js)
