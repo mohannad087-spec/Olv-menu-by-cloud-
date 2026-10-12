@@ -32,7 +32,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
 
-  const adminKey = Deno.env.get("OLV_ADMIN_KEY");
+  // trim: لو انلزق مع المفتاح مسافة أو سطر جديد أو علامة اتجاه مخفية (من الكيبورد العربي) وقت اللصق بأسرار Supabase، fetch بيرفضه بـ "Invalid header value"
+  const adminKey = (Deno.env.get("OLV_ADMIN_KEY") || "").replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, "").trim();
   if (!adminKey) {
     return json({ ok: false, error: "OLV_ADMIN_KEY غير مضبوط بأسرار Supabase (Edge Functions → Secrets)" }, 500);
   }
