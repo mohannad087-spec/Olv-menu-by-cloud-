@@ -59,115 +59,210 @@
 })();
 </script>
 <style>
-  .sub-tabs{display:flex; gap:8px; margin-bottom:16px; align-items:center; flex-wrap:wrap;}
-  .sub-tab{
-    display:inline-flex; align-items:center; gap:6px;
-    background:var(--ink-2); border:1px solid var(--hair); color:var(--muted);
-    padding:10px 18px; border-radius:999px; font-size:13px; min-height:44px;
+  /* شاشة المطبخ: تذاكر مطبخ حقيقية بتنقرى من بعيد. الهيدر بيتلوّن حسب الوقت (زيتوني ← ذهبي ← أحمر)
+     ومعه أيقونة ونص، فاللون مش لحاله اللي بيحكي. */
+  .wrap.k-wrap{max-width:1440px;}
+  /* --- شريط الأدوات: زجاج لأنه تنقّل، ولازق فوق --- */
+  .k-tools{
+    position:sticky; top:8px; z-index:20; display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    padding:10px; margin-bottom:14px; border-radius:20px;
+    background:var(--glass, var(--ink-2)); border:1px solid var(--glass-line, var(--hair));
+    -webkit-backdrop-filter:blur(22px) saturate(180%); backdrop-filter:blur(22px) saturate(180%);
+    box-shadow:0 10px 30px -18px rgba(0,0,0,.35);
   }
-  .sub-tab.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
-  .orders-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;}
-  .order-card{
-    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px;
-    display:flex; flex-direction:column; box-shadow:var(--card-shadow); transition:.15s;
+  @media (prefers-reduced-transparency: reduce){ .k-tools{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;} }
+  .k-seg{display:inline-flex; border:1px solid var(--hair); border-radius:999px; padding:3px; background:var(--ink-2); gap:2px;}
+  .k-seg button{
+    display:inline-flex; align-items:center; gap:6px; border:0; background:none; color:var(--muted);
+    padding:8px 15px; border-radius:999px; font:inherit; font-size:14px; min-height:40px; cursor:pointer;
+    transition:background .16s var(--spring), color .16s var(--spring), transform .12s var(--spring);
   }
-  @media (hover:hover){ .order-card:hover{border-color:var(--gold); transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.12);} }
-  /* تدرّج الاستعجال: ذهبي من 10 د، أحمر بعد 15 د */
-  .order-card.late{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold);}
-  .order-card.overdue{border-color:var(--danger); box-shadow:0 0 0 1px var(--danger), 0 8px 24px rgba(193,88,63,.15);}
-  @media (hover:hover){ .order-card.overdue:hover{border-color:var(--danger);} }
-  .order-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px;}
-  .order-time-wrap{display:flex; align-items:baseline; gap:2px 8px; flex-wrap:wrap; min-width:0;}
-  .order-time-wrap > span{white-space:nowrap;}
-  .order-no{font-weight:800; font-size:26px; line-height:1.1; color:var(--paper);}
-  .order-time{font-weight:700; font-size:15px; color:var(--gold-hi);}
-  .order-age{font-size:11.5px; color:var(--muted);}
-  .order-age.late{color:var(--gold-hi); font-weight:700;}
-  .order-age.overdue{color:var(--danger-hi); font-weight:700;}
-  .order-age .icon{width:12px; height:12px; vertical-align:-1px;}
-  .order-type-badge{
-    font-size:12px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px; color:var(--muted);
-    display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  .k-seg button:active{transform:scale(.97);}
+  .k-seg button .icon{width:16px; height:16px;}
+  .k-seg button.on{background:var(--paper); color:var(--ink-2); font-weight:700;}
+  .k-seg.tabs button.on{background:var(--gold); color:var(--on-gold);}
+  .k-seg .cnt{
+    min-width:22px; height:22px; padding:0 6px; border-radius:999px; font-size:12px; font-weight:800;
+    display:inline-flex; align-items:center; justify-content:center; background:rgba(var(--gold-rgb),.18); color:inherit;
+    font-variant-numeric:tabular-nums;
   }
-  .order-type-badge .icon{width:13px; height:13px;}
-  .order-route{
-    font-size:13.5px; font-weight:700; color:var(--gold-hi); margin-bottom:8px;
-    display:flex; align-items:center; gap:6px;
+  .k-seg button.on .cnt{background:rgba(0,0,0,.14);}
+  .k-tools .k-end{margin-inline-start:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .k-live{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); white-space:nowrap;}
+  .k-live .dot{width:9px; height:9px; border-radius:999px; background:var(--muted);}
+  .k-live.on .dot{background:var(--olive); box-shadow:0 0 0 3px color-mix(in srgb, var(--olive) 22%, transparent);}
+  .k-icon-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:44px; min-height:44px; padding:0 12px;
+    border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:13px; cursor:pointer;
+    transition:transform .12s var(--spring), border-color .16s ease;
   }
-  .order-route .icon{width:14px; height:14px; flex:none;}
-  .order-items{flex:1; margin-bottom:14px;}
-  .order-line{padding:9px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); font-size:16px;}
-  .order-line:last-child{border-bottom:none;}
-  .order-line .qty-line{display:flex; align-items:center; gap:8px;}
-  .order-line .order-qty-badge{
-    flex:none; background:var(--gold); color:var(--on-gold);
-    font-weight:800; font-size:14px; min-width:30px; height:26px; border-radius:8px;
-    display:flex; align-items:center; justify-content:center; padding:0 4px;
+  .k-icon-btn:active{transform:scale(.96);}
+  .k-icon-btn .icon{width:18px; height:18px;}
+  .k-icon-btn[aria-pressed="true"]{border-color:var(--gold); color:var(--gold-hi);}
+
+  /* --- شريط الأرقام --- */
+  .k-stats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px;}
+  .k-stat{
+    background:var(--ink-2); border:1px solid var(--hair-soft); border-radius:18px; padding:12px 14px;
+    display:flex; align-items:center; gap:12px; min-width:0;
   }
-  .order-line .item-name{font-weight:700;}
-  .order-line .addons{color:var(--olive-hi,#9dab63); font-size:14px; font-weight:600; margin-top:3px; margin-inline-start:38px;}
-  /* الملاحظة («بدون بصل») أهم شي ما يفوت الطبّاخ: مربع ملوّن مش سطر صغير */
-  .order-line .note{
-    color:var(--danger-hi); font-size:14px; font-weight:700; margin-top:5px; margin-inline-start:38px;
-    background:rgba(179,65,42,.08); border:1px solid rgba(179,65,42,.25); border-radius:8px; padding:4px 8px;
+  .k-stat .ic{
+    flex:none; width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:var(--ink-3); color:var(--gold-hi);
   }
-  .order-line .note .icon{width:14px; height:14px; vertical-align:-2px;}
-  .sub-tab .icon{width:15px; height:15px;}
-  .k-btn{min-height:52px; font-size:16px; width:100%;}
+  .k-stat .ic .icon{width:20px; height:20px;}
+  .k-stat.main .ic{background:var(--olive); color:var(--on-olive);}
+  .k-stat.alert .ic{background:var(--danger); color:#fff;}
+  .k-stat > div{min-width:0;}
+  .k-stat .lb{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .k-stat .vl{font-size:26px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; color:var(--paper);}
+  .k-stat .vl small{font-size:13px; font-weight:700; color:var(--muted); margin-inline-start:3px;}
+  .k-stat.alert .vl{color:var(--danger-hi);}
+  @media (max-width:760px){ .k-stats{grid-template-columns:repeat(2,minmax(0,1fr));} .k-stat .vl{font-size:22px;} }
+
   .k-bar{
     display:flex; align-items:center; gap:10px; flex-wrap:wrap; width:100%; margin-bottom:14px;
-    background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; padding:12px 14px;
+    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:12px 14px;
     font:inherit; font-size:14px; color:var(--paper); text-align:start;
   }
   .k-bar[hidden]{display:none;}
   .k-bar .btn{margin-inline-start:auto;}
   .k-sound{border-color:var(--gold); color:var(--gold-hi); font-weight:700; cursor:pointer; min-height:48px;}
   .k-sound .icon{width:18px; height:18px;}
-  /* شطب كل صنف لحاله: السطر كلّه زر */
-  .order-line.tap{cursor:pointer; border-radius:8px; margin-inline:-6px; padding-inline:6px; -webkit-tap-highlight-color:transparent; user-select:none;}
-  @media (hover:hover){ .order-line.tap:hover{background:rgba(var(--gold-rgb),.07);} }
-  .order-line.tap:active{background:rgba(var(--gold-rgb),.14);}
-  .order-line.done .item-name, .order-line.done .addons{text-decoration:line-through; opacity:.45;}
-  .order-line.done .note{opacity:.45;}
-  .order-line.done .order-qty-badge{background:var(--olive); color:#fff;}
-  .order-line.done .order-qty-badge .icon{width:14px; height:14px;}
-  .order-line.busy{opacity:.6; pointer-events:none;}
-  .order-other{font-size:13px; color:var(--muted); margin:-6px 0 12px; display:flex; align-items:center; gap:6px;}
-  .order-other .icon{width:14px; height:14px; flex:none;}
-  /* اختيار الشاشة: الكل / المطبخ / البار */
-  .k-station{display:inline-flex; border:1px solid var(--hair); border-radius:999px; padding:3px; background:var(--ink-2);}
-  .k-station button{
-    display:inline-flex; align-items:center; gap:5px; border:0; background:none; color:var(--muted);
-    padding:8px 14px; border-radius:999px; font:inherit; font-size:13px; min-height:38px; cursor:pointer;
+
+  /* --- التذاكر --- */
+  .orders-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:16px; align-items:start;}
+  .order-card{
+    --tk:var(--olive); --tk-ink:var(--on-olive);
+    position:relative; background:var(--ink-2); border:1px solid var(--hair); border-radius:20px;
+    display:flex; flex-direction:column; box-shadow:var(--card-shadow); overflow:hidden;
+    transition:opacity .16s ease, transform .18s var(--spring);
   }
-  .k-station button .icon{width:15px; height:15px;}
-  .k-station button.on{background:var(--paper); color:var(--ink-2); font-weight:700;}
-  .k-live{display:inline-flex; align-items:center; gap:6px;}
-  .k-live .dot{width:8px; height:8px; border-radius:999px; background:var(--muted);}
-  .k-live.on .dot{background:var(--olive); box-shadow:0 0 0 3px rgba(86,105,46,.18);}
-  .k-cat-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);}
-  .k-cat-row .k-station button{min-height:34px; padding:6px 12px;}
+  .order-card.late{--tk:var(--gold); --tk-ink:var(--on-gold);}
+  .order-card.overdue{--tk:var(--danger); --tk-ink:#fff; border-color:var(--danger);}
+  .order-card.ready{--tk:var(--ink-3); --tk-ink:var(--paper);}
+  /* متأخر: حلقة بتنبض بهدوء (opacity بس، على طبقة لحالها) */
+  .order-card.overdue::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    box-shadow:inset 0 0 0 2px var(--danger); animation:k-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes k-pulse{0%,100%{opacity:.25} 50%{opacity:1}}
+  /* خروج التذكرة لما تخلص: أسرع من الدخول */
+  .order-card.leaving{opacity:0; transform:scale(.96);}
+
+  .tk-head{background:var(--tk); color:var(--tk-ink); padding:12px 16px 14px; position:relative;}
+  /* ثقوب التذكرة بين الرأس والجسم */
+  .tk-head::after{
+    content:""; position:absolute; inset-inline:0; bottom:-6px; height:12px;
+    background:radial-gradient(circle at 6px 6px, var(--ink-2) 4.5px, transparent 5px) 0 0/16px 12px repeat-x;
+  }
+  .tk-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .tk-no{display:flex; align-items:baseline; gap:10px; font-size:34px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums;}
+  .tk-no small{font-size:14px; font-weight:700; opacity:.8; unicode-bidi:isolate; white-space:nowrap;}
+  .tk-timer{
+    display:inline-flex; align-items:center; gap:6px; font-size:22px; font-weight:800; font-variant-numeric:tabular-nums;
+    background:rgba(0,0,0,.14); border-radius:12px; padding:4px 10px; direction:ltr;
+  }
+  .tk-timer .icon{width:18px; height:18px;}
+  .tk-meta{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:8px; font-size:13.5px; font-weight:700;}
+  .tk-meta span{display:inline-flex; align-items:center; gap:5px;}
+  .tk-meta .icon{width:15px; height:15px;}
+  .tk-meta .muted{opacity:.85; font-weight:500;}
+  .tk-new{
+    font-size:12px; font-weight:800; padding:2px 9px; border-radius:999px;
+    background:var(--ink-2); color:var(--gold-hi);
+  }
+  /* تقدّم الأصناف (كم خلص من كم) */
+  .tk-prog{height:5px; background:var(--ink-3); margin:6px 16px 0; border-radius:999px; overflow:hidden;}
+  .tk-prog i{display:block; height:100%; width:0; background:var(--olive); border-radius:inherit; transition:width .3s var(--spring);}
+  .tk-body{padding:8px 16px 16px; display:flex; flex-direction:column; flex:1;}
+  .order-items{margin-bottom:12px;}
+  .order-line{padding:10px 0; border-bottom:1px dashed var(--hair); font-size:17px;}
+  .order-line:last-child{border-bottom:none;}
+  .order-line .qty-line{display:flex; align-items:flex-start; gap:10px;}
+  .order-line .order-qty-badge{
+    flex:none; background:var(--paper); color:var(--ink-2);
+    font-weight:800; font-size:15px; min-width:34px; height:30px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center; padding:0 5px; font-variant-numeric:tabular-nums;
+    transition:background .14s ease, color .14s ease;
+  }
+  .order-line .item-name{font-weight:700; line-height:1.4; padding-top:2px;}
+  .order-line .addons{color:var(--olive-hi,#9dab63); font-size:14.5px; font-weight:700; margin-top:3px; margin-inline-start:44px;}
+  .order-line .addons .icon{width:13px; height:13px; vertical-align:-2px;}
+  /* الملاحظة («بدون بصل») أهم شي ما يفوت الطبّاخ */
+  .order-line .note{
+    color:var(--danger-hi); font-size:14.5px; font-weight:800; margin-top:6px; margin-inline-start:44px;
+    background:color-mix(in srgb, var(--danger) 9%, transparent); border-inline-start:3px solid var(--danger);
+    border-radius:6px; padding:5px 9px;
+  }
+  .order-line .note .icon{width:15px; height:15px; vertical-align:-3px;}
+  /* شطب كل صنف لحاله: السطر كلّه زر. ما في حركة كبيرة لأنه بيتكرر عشرات المرات بالساعة */
+  .order-line.tap{cursor:pointer; border-radius:10px; margin-inline:-8px; padding-inline:8px; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;}
+  @media (hover:hover){ .order-line.tap:hover{background:rgba(var(--gold-rgb),.07);} }
+  .order-line.tap:active{background:rgba(var(--gold-rgb),.15);}
+  .order-line.tap:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .order-line.done .item-name, .order-line.done .addons{text-decoration:line-through; text-decoration-thickness:2px; opacity:.4;}
+  .order-line.done .note{opacity:.4;}
+  .order-line.done .order-qty-badge{background:var(--olive); color:var(--on-olive);}
+  .order-line.done .order-qty-badge .icon{width:16px; height:16px;}
+  .order-line.busy{opacity:.6; pointer-events:none;}
+  .order-other{
+    font-size:13px; color:var(--muted); margin:0 0 12px; display:flex; align-items:center; gap:6px;
+    background:var(--ink-3); border-radius:10px; padding:7px 10px;
+  }
+  .order-other .icon{width:15px; height:15px; flex:none;}
+  .k-btn{min-height:56px; font-size:17px; font-weight:800; width:100%; border-radius:14px;}
+  .k-btn.pay{background:var(--olive); border-color:var(--olive); color:var(--on-olive);}
+  .k-btn:active{transform:scale(.98);}
   .empty-state{color:var(--muted); text-align:center; padding:60px 0; grid-column:1/-1;}
+
+  .k-cat-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);}
+  .k-cat-row .k-seg button{min-height:36px; padding:6px 12px;}
+
+  /* وضع ملء الشاشة لتابلت المطبخ: بلا قائمة ولا فوتر، كل المساحة للتذاكر */
+  body.k-focus #olv-nav, body.k-focus .olv-footer, body.k-focus .olv-bnav{display:none !important;}
+  body.k-focus .wrap.k-wrap{max-width:none; padding-top:12px;}
+  @media (max-width:640px){
+    .k-tools{top:4px; border-radius:16px;}
+    .k-tools .k-end{width:100%; justify-content:space-between; margin-inline-start:0;}
+    .tk-no{font-size:30px;}
+    .orders-grid{grid-template-columns:1fr;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .order-card.overdue::after{animation:none; opacity:1;}
+    .order-card, .tk-prog i{transition:opacity .12s ease;}
+  }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap k-wrap">
     <div class="err" id="err"></div>
 
-    <div class="sub-tabs">
-      <button class="sub-tab on" data-tab="pending"><span id="sub-tab-icon-pending"></span> قيد التحضير <span id="k-count-pending"></span></button>
-      <button class="sub-tab" data-tab="ready"><span id="sub-tab-icon-ready"></span> جاهز</button>
-      <span class="hint" id="k-avg" hidden></span>
-      <span class="hint k-live" id="k-updated" style="margin-inline-start:auto;"><span class="dot"></span><span id="k-updated-t">جاري الاتصال...</span></span>
-    </div>
-    <div class="sub-tabs">
-      <div class="k-station" id="k-station" role="group" aria-label="أي شاشة">
+    <div class="k-tools">
+      <div class="k-seg tabs" role="tablist" aria-label="حالة الطلبات">
+        <button class="sub-tab on" role="tab" data-tab="pending"><span data-ic="hourglass"></span> قيد التحضير <span class="cnt" id="k-count-pending">0</span></button>
+        <button class="sub-tab" role="tab" data-tab="ready"><span data-ic="checkCircle"></span> جاهز</button>
+      </div>
+      <div class="k-seg" id="k-station" role="group" aria-label="أي شاشة">
         <button type="button" data-st="all">الكل</button>
         <button type="button" data-st="kitchen"><span data-ic="flame"></span> المطبخ</button>
         <button type="button" data-st="bar"><span data-ic="coffee"></span> البار</button>
       </div>
-      <button type="button" class="btn small" id="k-cats-btn" hidden>الأقسام</button>
+      <div class="k-end">
+        <span class="k-live" id="k-updated" role="status"><span class="dot"></span><span id="k-updated-t">جاري الاتصال...</span></span>
+        <button type="button" class="k-icon-btn" id="k-cats-btn" hidden><span data-ic="gear"></span> الأقسام</button>
+        <button type="button" class="k-icon-btn" id="k-focus-btn" aria-pressed="false" aria-label="ملء الشاشة" title="ملء الشاشة">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="k-stats" aria-label="ملخّص المطبخ">
+      <div class="k-stat main"><span class="ic"><span data-ic="hourglass"></span></span><div><div class="lb">قيد التحضير</div><div class="vl" id="ks-pending">0</div></div></div>
+      <div class="k-stat" id="ks-late-box"><span class="ic"><span data-ic="clock"></span></span><div><div class="lb">متأخر (+15 د)</div><div class="vl" id="ks-late">0</div></div></div>
+      <div class="k-stat"><span class="ic"><span data-ic="warning"></span></span><div><div class="lb">أقدم طلب</div><div class="vl" id="ks-oldest">—</div></div></div>
+      <div class="k-stat"><span class="ic"><span data-ic="checkCircle"></span></span><div><div class="lb" id="ks-avg-lb">متوسط التحضير اليوم</div><div class="vl" id="ks-avg">—</div></div></div>
     </div>
 
     <button type="button" class="k-bar k-sound" id="k-sound" hidden><span id="k-sound-icon"></span> اضغط هون لتشغيل صوت الطلبات الجديدة</button>
@@ -196,8 +291,6 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("kitchen");
-    document.getElementById("sub-tab-icon-pending").innerHTML = olvIcon("hourglass");
-    document.getElementById("sub-tab-icon-ready").innerHTML = olvIcon("checkCircle");
     document.getElementById("k-sound-icon").innerHTML = olvIcon("bell");
     document.querySelectorAll("[data-ic]").forEach((el) => { el.outerHTML = olvIcon(el.dataset.ic); });
 
@@ -307,46 +400,106 @@
             <span class="order-qty-badge">${done ? olvIcon("check") : `${olvEsc(it.qty)}×`}</span>
             <span class="item-name">${done ? `${olvEsc(it.qty)}× ` : ""}${olvEsc(it.product_name)}</span>
           </div>
-          ${it.addons_summary ? `<div class="addons">+ ${olvEsc(it.addons_summary)}</div>` : ""}
+          ${it.addons_summary ? `<div class="addons">${olvIcon("plus")} ${olvEsc(it.addons_summary)}</div>` : ""}
           ${it.note ? `<div class="note">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}
         </div>`;
     }
 
+    // مؤقّت التذكرة mm:ss (بيمشي كل ثانية بدون ما نعيد رسم البطاقات)
+    function clock(ts) {
+      const sec = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 1000));
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), ss = sec % 60;
+      return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(ss).padStart(2, "0");
+    }
+    function urgencyOf(ts) {
+      const m = minutesSince(ts);
+      return m > OVERDUE_MIN ? "overdue" : m >= LATE_MIN ? "late" : "";
+    }
+    const URGENCY_TEXT = { overdue: "متأخر", late: "انتبه", "": "" };
+
     function cardHtml(o) {
       const pending = activeTab === "pending";
-      const ageMinutes = Math.floor(minutesSince(o.created_at));
-      const overdue = pending && ageMinutes > OVERDUE_MIN;
-      const late = pending && !overdue && ageMinutes >= LATE_MIN;
-      const urgency = overdue ? " overdue" : late ? " late" : "";
+      const urgency = pending ? urgencyOf(o.created_at) : "ready";
       const isDelivery = o.order_type === "توصيل";
+      const isNew = pending && minutesSince(o.created_at) < 1;
       // باقي أصناف بالشاشة التانية (مثلًا المطبخ بيشوف إنو في عصير لسا بالبار) — حتى ما يطلع الطلب ناقص
       const otherSt = station === "kitchen" ? "bar" : "kitchen";
       const otherLeft = pending && station !== "all" ? o.others.filter((it) => !isDone(it)).length : 0;
-      const left = o.items.filter((it) => !isDone(it)).length;
+      const doneN = o.items.filter(isDone).length;
+      const left = o.items.length - doneN;
+      const typeIcon = isDelivery ? "mapPin" : o.order_type === "سفري" ? "cart" : "dineIn";
       return `
-        <div class="order-card${urgency}" data-row-id="${olvEsc(o.id)}">
-          <div class="order-head">
-            <div class="order-time-wrap">
-              ${o.order_no ? `<span class="order-no">#${olvEsc(o.order_no)}</span>` : ""}
-              <span class="order-time">${formatTime(o.created_at)}</span>
-              ${!pending && prepMinutes(o) !== null ? `<span class="order-age">تحضّر بـ ${prepMinutes(o)} د</span>` : ""}
-              ${pending ? `<span class="order-age${urgency}">${urgency ? olvIcon("clock") + " " : ""}قبل ${ageMinutes} د</span>` : ""}
+        <article class="order-card ${urgency}" data-row-id="${olvEsc(o.id)}" data-since="${olvEsc(o.created_at)}" aria-label="طلب ${o.order_no ? olvEsc(o.order_no) : ""}">
+          <header class="tk-head">
+            <div class="tk-row">
+              <div class="tk-no"><span>${o.order_no ? `#${olvEsc(o.order_no)}` : olvIcon("receipt")}</span><small>${formatTime(o.created_at)}</small></div>
+              ${pending
+                ? `<div class="tk-timer" title="من وقت الطلب">${olvIcon("clock")}<span data-clock>${clock(o.created_at)}</span></div>`
+                : (prepMinutes(o) !== null ? `<div class="tk-timer" title="مدة التحضير">${olvIcon("check")}<span>${prepMinutes(o)} د</span></div>` : "")}
             </div>
-            ${o.order_type ? `<span class="order-type-badge">${isDelivery ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(o.order_type)}</span>` : ""}
+            <div class="tk-meta">
+              ${o.order_type ? `<span>${olvIcon(typeIcon)} ${olvEsc(o.order_type)}</span>` : ""}
+              ${o.table_number ? `<span>${olvIcon("grid")} طاولة ${olvEsc(o.table_number)}</span>` : ""}
+              ${o.customer_name ? `<span class="muted">${olvIcon("person")} ${olvEsc(o.customer_name)}</span>` : ""}
+              ${isNew ? `<span class="tk-new" data-new>جديد</span>` : ""}
+              ${pending ? `<span data-urgency>${urgency ? olvIcon("warning") + " " + URGENCY_TEXT[urgency] : ""}</span>` : ""}
+            </div>
+          </header>
+          ${pending && o.items.length > 1 ? `<div class="tk-prog" role="progressbar" aria-label="الأصناف الجاهزة" aria-valuemin="0" aria-valuemax="${o.items.length}" aria-valuenow="${doneN}"><i style="width:${Math.round((doneN / o.items.length) * 100)}%"></i></div>` : ""}
+          <div class="tk-body">
+            <div class="order-items">
+              ${o.items.map((it) => lineHtml(o, it, pending)).join("")}
+            </div>
+            ${otherLeft ? `<div class="order-other">${olvIcon(otherSt === "bar" ? "coffee" : "flame")} باقي ${otherLeft} ${otherLeft === 1 ? "صنف" : "أصناف"} عند ${STATION_NAMES[otherSt]}</div>` : ""}
+            <button class="btn ${pending ? "pay" : ""} k-btn" data-id="${olvEsc(o.id)}" data-act="${pending ? "done" : "undo"}">
+              ${pending
+                ? olvIcon("check") + (left < o.items.length ? ` تم الباقي (${left})` : " تم التجهيز")
+                : olvIcon("undo") + " إرجاع لقيد التحضير"}
+            </button>
           </div>
-          ${o.customer_name ? `<div class="order-route">${olvIcon("person")} ${olvEsc(o.customer_name)}</div>` : ""}
-          ${o.table_number ? `<div class="order-route">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table_number)}</div>` : ""}
-          <div class="order-items">
-            ${o.items.map((it) => lineHtml(o, it, pending)).join("")}
-          </div>
-          ${otherLeft ? `<div class="order-other">${olvIcon(otherSt === "bar" ? "coffee" : "flame")} باقي ${otherLeft} ${otherLeft === 1 ? "صنف" : "أصناف"} عند ${STATION_NAMES[otherSt]}</div>` : ""}
-          <button class="btn ${pending ? "gold" : ""} k-btn" data-id="${olvEsc(o.id)}" data-act="${pending ? "done" : "undo"}">
-            ${pending
-              ? olvIcon("check") + (left < o.items.length ? ` تم الباقي (${left})` : " تم التجهيز")
-              : olvIcon("undo") + " إرجاع لقيد التحضير"}
-          </button>
-        </div>
+        </article>
       `;
+    }
+
+    // كل ثانية: المؤقّتات + لون الاستعجال + شريط الأرقام، بدون ما نلمس باقي البطاقة
+    function tick() {
+      if (activeTab !== "pending") return;
+      grid.querySelectorAll(".order-card[data-since]").forEach((card) => {
+        const ts = card.dataset.since;
+        const c = card.querySelector("[data-clock]");
+        if (c) c.textContent = clock(ts);
+        const u = urgencyOf(ts);
+        const cur = card.classList.contains("overdue") ? "overdue" : card.classList.contains("late") ? "late" : "";
+        if (cur !== u) {
+          card.classList.remove("late", "overdue");
+          if (u) card.classList.add(u);
+          const ue = card.querySelector("[data-urgency]");
+          if (ue) ue.innerHTML = u ? olvIcon("warning") + " " + URGENCY_TEXT[u] : "";
+        }
+        const nw = card.querySelector("[data-new]");
+        if (nw && minutesSince(ts) >= 1) nw.remove();
+      });
+      renderStats();
+    }
+
+    let lastPending = [];
+    let todayAvg = null;
+    function renderStats() {
+      const late = lastPending.filter((o) => minutesSince(o.created_at) > OVERDUE_MIN).length;
+      document.getElementById("ks-pending").textContent = lastPending.length;
+      document.getElementById("ks-late").textContent = late;
+      document.getElementById("ks-late-box").classList.toggle("alert", late > 0);
+      const oldest = lastPending.length ? Math.floor(minutesSince(lastPending[0].created_at)) : null;
+      document.getElementById("ks-oldest").innerHTML = oldest === null ? "—" : `${oldest}<small>د</small>`;
+      document.getElementById("ks-avg").innerHTML = todayAvg === null ? "—" : `${todayAvg}<small>د</small>`;
+    }
+
+    // تذكرة خلصت: بتطلع بسرعة (160ms) بدل ما تختفي فجأة
+    function leaveCard(card) {
+      if (!card) return;
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      card.classList.add("leaving");
+      setTimeout(() => card.remove(), reduce ? 0 : 170);
     }
 
     // تتبّع التذاكر الجديدة لكل تبويب (بيتصفّر لما الكاشير يبدّل التبويب حتى ما تتحرك كل البطاقات)
@@ -373,7 +526,8 @@
       pollAgain = false;
       try {
         // قيد التحضير: دايمًا (للصوت والتنبيهات)، من الأقدم للأحدث ضمن آخر 12 ساعة — هيك الحد ما بيقص الطلبات الجديدة
-        const [pRes, rRes, sRes] = await Promise.all([
+        const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+        const [pRes, rRes, sRes, aRes] = await Promise.all([
           db.from("sales_entries").select(sel)
             .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").gte("created_at", since())
             .order("created_at", { ascending: true }).limit(100),
@@ -384,6 +538,8 @@
             : Promise.resolve({ data: null, error: null }),
           db.from("sales_entries").select("id, sale_items(id, status)")
             .eq("kitchen_status", PENDING_STATUS).eq("status", "completed").lt("created_at", since()).limit(200),
+          db.from("sales_entries").select("created_at, kitchen_ready_at")
+            .eq("status", "completed").gte("kitchen_ready_at", dayStart.toISOString()).limit(300),
         ]);
         if (pRes.error) throw pRes.error;
         if (rRes.error) throw rRes.error;
@@ -393,15 +549,15 @@
         const staleBar = document.getElementById("k-stale");
         staleBar.hidden = !staleOrders.length;
         document.getElementById("k-stale-n").textContent = staleOrders.length;
-        document.getElementById("k-count-pending").textContent = pending.length ? `(${pending.length})` : "";
+        document.getElementById("k-count-pending").textContent = pending.length;
+        lastPending = pending;
+        const mins = (aRes.data || []).map(prepMinutes).filter((m) => m !== null && m < 180);
+        todayAvg = mins.length ? Math.round(mins.reduce((a, b2) => a + b2, 0) / mins.length) : null;
+        renderStats();
         errBox.textContent = "";
 
         const orders = activeTab === "pending" ? pending : shape(rRes.data, false);
         ordersById = new Map(orders.map((o) => [o.id, o]));
-        const times = activeTab === "ready" ? orders.map(prepMinutes).filter((m) => m !== null) : [];
-        const avgEl = document.getElementById("k-avg");
-        avgEl.hidden = !times.length;
-        if (times.length) avgEl.textContent = `متوسط التحضير: ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} د (${times.length} طلب)`;
         if (kTrackerTab !== activeTab + station) { kTracker = olvNewTracker(); kTrackerTab = activeTab + station; }
         const freshTickets = kTracker.diff(orders.map((o) => o.id));
         const where = station === "all" ? "" : ` عند ${STATION_NAMES[station]}`;
@@ -436,11 +592,17 @@
       line.classList.remove("busy");
       if (!ok) { line.classList.toggle("done", !done); return; }
       const o = ordersById.get(line.dataset.sale);
-      if (done && o && o.items.every((it) => it.id === line.dataset.item || isDone(it))) {
-        if (typeof OlvSound !== "undefined") OlvSound.playOrderReady();
-        knownPendingIds && knownPendingIds.delete(line.dataset.sale);
+      if (o) {
+        const it = o.items.find((x) => x.id === line.dataset.item);
+        if (it) it.kitchen_done_at = done ? new Date().toISOString() : null;
         const card = line.closest(".order-card");
-        if (card) card.remove();
+        const bar = card && card.querySelector(".tk-prog i");
+        if (bar) bar.style.width = Math.round((o.items.filter(isDone).length / o.items.length) * 100) + "%";
+        if (done && o.items.every(isDone)) {
+          if (typeof OlvSound !== "undefined") OlvSound.playOrderReady();
+          knownPendingIds && knownPendingIds.delete(line.dataset.sale);
+          leaveCard(card);
+        }
       }
       poll();
     }
@@ -463,9 +625,8 @@
         if (typeof OlvSound !== "undefined") OlvSound.playOrderReady();
         knownPendingIds && knownPendingIds.delete(o.id); // مش إلغاء — ما في داعي لتنبيه
       }
-      const card = btn.closest(".order-card");
-      if (card) card.remove();
-      poll();
+      leaveCard(btn.closest(".order-card"));
+      setTimeout(poll, 180);
     });
     grid.addEventListener("keydown", (e) => {
       const line = e.target.closest && e.target.closest(".order-line.tap");
@@ -485,8 +646,9 @@
 
     document.querySelectorAll(".sub-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll(".sub-tab").forEach((b) => b.classList.remove("on"));
+        document.querySelectorAll(".sub-tab").forEach((b) => { b.classList.remove("on"); b.setAttribute("aria-selected", "false"); });
         btn.classList.add("on");
+        btn.setAttribute("aria-selected", "true");
         activeTab = btn.dataset.tab;
         poll();
       });
@@ -516,7 +678,7 @@
           <div class="hint" style="margin-bottom:8px;">أصناف كل قسم بتطلع على شاشته بس. «الكل» بيضل يعرض كل شي.</div>
           ${cats.map((c) => `
             <div class="k-cat-row"><span>${olvEsc(c)}</span>
-              <div class="k-station" data-cat="${olvEsc(c)}">
+              <div class="k-seg" data-cat="${olvEsc(c)}">
                 <button type="button" data-v="kitchen" class="${chosen.has(c) ? "" : "on"}">${olvIcon("flame")} المطبخ</button>
                 <button type="button" data-v="bar" class="${chosen.has(c) ? "on" : ""}">${olvIcon("coffee")} البار</button>
               </div>
@@ -551,6 +713,22 @@
       });
     });
 
+    // ملء الشاشة لتابلت المطبخ (بيتذكّره الجهاز)
+    const focusBtn = document.getElementById("k-focus-btn");
+    function setFocus(on, fromUser) {
+      document.body.classList.toggle("k-focus", on);
+      focusBtn.setAttribute("aria-pressed", String(on));
+      try { localStorage.setItem("olv_kitchen_focus", on ? "1" : "0"); } catch (_) {}
+      if (fromUser) {
+        try {
+          if (on && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+          if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        } catch (_) {}
+      }
+    }
+    focusBtn.addEventListener("click", () => setFocus(!document.body.classList.contains("k-focus"), true));
+    try { if (localStorage.getItem("olv_kitchen_focus") === "1") setFocus(true, false); } catch (_) {}
+
     // البث الفوري: أي تغيير بالطلبات أو الأصناف بيحدّث الشاشة بلحظتها. التحديث كل 15 ثانية بيضل احتياط لو انقطع البث
     let kickT = null;
     const kick = () => { clearTimeout(kickT); kickT = setTimeout(poll, 250); };
@@ -579,6 +757,7 @@
       await poll();
       subscribeLive();
       setInterval(() => { if (!live || Date.now() - lastPollAt > 60000) poll(); }, 15000);
+      setInterval(tick, 1000);
     })();
     });
   </script>
