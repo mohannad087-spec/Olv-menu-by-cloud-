@@ -131,6 +131,10 @@
       const wasOffline = isOffline;
       const reachable = await probe();
       isOffline = !reachable;
+      // جلسة الدخول وقت الانقطاع (راجع olvAuthHold بـauth-guard.js): منثبّتها، ولما يرجع النت منجدّدها قبل رفع المحفوظ
+      if (!reachable && typeof olvAuthHold === "function") olvAuthHold();
+      if (!reachable && window.olvMarkOffline) window.olvMarkOffline();
+      if (reachable && typeof olvAuthRelease === "function") await olvAuthRelease();
       if (reachable && window.olvFlushOfflineQueue) await window.olvFlushOfflineQueue();
       if (wasOffline && reachable && queueCount() === 0) flashBackOnline();
       else render();

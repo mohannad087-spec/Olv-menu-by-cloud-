@@ -16,6 +16,7 @@ const OlvCart = (function () {
     items.push({
       productId: product.id,
       name: product.name,
+      category: product.category || null, // لشاشة المطبخ المحلية وقت انقطاع النت (أي محطة بتحضّره)
       unitBase: Number(product.price),
       addons: addons.map((a) => ({ id: a.id, name: a.name, price: Number(a.price) })),
       qty,
@@ -106,15 +107,45 @@ const OlvCart = (function () {
       p_customer_phone: customerPhone ?? null,
       p_customer_name: customerName ?? null,
     };
+    const queuedBefore = window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0;
+    const ref = saleRef;
+    const sentItems = items.slice();
     let { data, error } = await window.supabaseClient.rpc("record_sale", refSupported ? { ...args, p_client_ref: saleRef } : args);
     if (error && refSupported && (error.code === "PGRST202" || /p_client_ref/.test(error.message || ""))) {
       refSupported = false;
       ({ data, error } = await window.supabaseClient.rpc("record_sale", args));
     }
     if (error) throw error;
+    // النت مقطوع والبيع انحفظ بطابور الكاشير: منبعت نسخة لكمبيوتر المحل حتى توصل للمطبخ والبارات هلق
+    const queued = !!(window.olvGetOfflineQueueCount && window.olvGetOfflineQueueCount() > queuedBefore);
+    lastOffline = { queued, sentToKitchen: false, orderNo: null };
+    if (queued && window.OlvLocal && window.OlvLocal.enabled) {
+      try {
+        const r = await window.OlvLocal.post("orders", {
+          client_ref: ref,
+          created_at: new Date().toISOString(),
+          order_type: orderType || null,
+          table_number: tableNumber ?? null,
+          customer_name: customerName ?? null,
+          items: sentItems.map((item) => ({
+            product_name: item.name,
+            qty: item.qty,
+            addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
+            note: item.note || null,
+            category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+          })),
+        });
+        lastOffline = { queued, sentToKitchen: true, orderNo: r.order_no || null };
+      } catch (e) {
+        console.error("olv-local: الطلب ما وصل لكمبيوتر المحل", e);
+      }
+    }
     clear();
     return data;
   }
 
-  return { add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout };
+  // آخر بيع: انحفظ بدون نت؟ ووصل للمطبخ عن طريق كمبيوتر المحل؟ (بتقرأها شاشة الكاشير)
+  let lastOffline = { queued: false, sentToKitchen: false, orderNo: null };
+
+  return { add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout, lastOffline: () => lastOffline };
 })();

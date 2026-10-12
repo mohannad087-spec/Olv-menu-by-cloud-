@@ -20,7 +20,19 @@ window.OLV_STAFF_PAGES = OLV_STAFF_PAGES;
 // يتحقق من وجود جلسة دخول؛ وفي حال عدم وجودها يُعاد توجيه المستخدم إلى صفحة تسجيل الدخول
 async function olvRequireAuth() {
   if (!window.supabaseClient) return null;
-  const { data: { session } } = await window.supabaseClient.auth.getSession();
+  // الجلسة لازمها تجديد: إذا النت مقطوع منثبّتها مؤقتًا (بدل ما يعلّق كل شي 30 ثانية)،
+  // وإذا كانت مثبّتة والنت رجع منجدّدها هلق
+  const stored = typeof olvAuthHold === "function" ? olvStoredSessionWhileOffline() : null;
+  if (stored && (localStorage.getItem(OLV_AUTH_HOLD_KEY) || stored.expires_at * 1000 - Date.now() < 5 * 60e3)) {
+    const reachable = await olvProbeCloud();
+    if (!reachable) olvAuthHold();
+    else await olvAuthRelease();
+  }
+  let { data: { session } } = await window.supabaseClient.auth.getSession();
+  // النت مقطوع والجلسة ما قدرت تتجدد: Supabase بيرجّع null، بس الجلسة لسا محفوظة عالجهاز
+  // (بتنمسح بس عند الخروج أو إذا السيرفر رفضها). منكمّل فيها حتى ما ترجع شاشة الكاشير أو
+  // المطبخ لصفحة الدخول وقت الانقطاع؛ أول ما يرجع النت بتتجدد لحالها
+  if (!session) session = olvStoredSessionWhileOffline();
   if (!session) {
     window.location.href = "login.html";
     return null;
@@ -44,6 +56,57 @@ async function olvRequireAuth() {
     }
   }
   return session;
+}
+
+// ---- تسجيل الدخول وقت انقطاع النت ----
+// توكن الدخول بينتهي كل ساعة وبيتجدد من السيرفر. إذا النت مقطوع، مكتبة Supabase بتضل تحاول
+// تجدّده قبل كل طلب (لحد 30 ثانية)، فالكاشير بيستنى كتير قبل ما ينحفظ البيع محليًا.
+// الحل: وقت الانقطاع منأجّل موعد انتهاء الجلسة المحفوظة (التوكن نفسه ما بيتغيّر وما بيصير
+// صالح أكتر عند السيرفر)، وأول ما يرجع النت منجدّدها فعليًا.
+async function olvProbeCloud() {
+  const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+  if (!cfg.SUPABASE_URL) return navigator.onLine;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 2500);
+  try {
+    await fetch(cfg.SUPABASE_URL, { method: "HEAD", mode: "no-cors", cache: "no-store", signal: controller.signal });
+    return true;
+  } catch (_) {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// رجع النت: منجدّد الجلسة فعليًا. إذا السيرفر رفض التجديد (مش مشكلة نت) منرجّع الموعد الأصلي
+// حتى المكتبة تتصرف عادي (تطلب تسجيل دخول)
+async function olvAuthRelease() {
+  if (typeof OLV_AUTH_HOLD_KEY === "undefined") return;
+  let orig;
+  try { orig = localStorage.getItem(OLV_AUTH_HOLD_KEY); } catch (_) { return; }
+  if (!orig || !window.supabaseClient) return;
+  const { error } = await window.supabaseClient.auth.refreshSession();
+  if (error && olvIsNetworkError(error)) return; // لسا ما في نت فعليًا
+  try {
+    if (error) {
+      const k = olvAuthStorageKey();
+      const s = k && JSON.parse(localStorage.getItem(k) || "null");
+      if (s) { s.expires_at = Number(orig); localStorage.setItem(k, JSON.stringify(s)); }
+    }
+    localStorage.removeItem(OLV_AUTH_HOLD_KEY);
+  } catch (_) { /* ما في خزنة */ }
+}
+
+function olvStoredSessionWhileOffline() {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!/^sb-.*-auth-token$/.test(k)) continue;
+      const s = JSON.parse(localStorage.getItem(k) || "null");
+      if (s && s.user && s.refresh_token) return s;
+    }
+  } catch (_) { /* ما في خزنة */ }
+  return null;
 }
 
 async function olvLogout() {

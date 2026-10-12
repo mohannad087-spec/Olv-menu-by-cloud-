@@ -91,6 +91,8 @@
   .k-live{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); white-space:nowrap;}
   .k-live .dot{width:9px; height:9px; border-radius:999px; background:var(--muted);}
   .k-live.on .dot{background:var(--olive); box-shadow:0 0 0 3px color-mix(in srgb, var(--olive) 22%, transparent);}
+  .k-live.local{color:var(--gold-dp); font-weight:700;}
+  .k-live.local .dot{background:var(--gold); box-shadow:0 0 0 3px color-mix(in srgb, var(--gold) 25%, transparent);}
   .k-icon-btn{
     display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:44px; min-height:44px; padding:0 12px;
     border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:13px; cursor:pointer;
@@ -282,6 +284,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/local-server.js"></script>
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
@@ -320,6 +323,9 @@
     let busy = false;
     let pollAgain = false; // طلب تحديث وصل والتحديث شغّال: منعيده بعد ما يخلص (حتى ما ترجع بطاقة انعلّمت جاهزة)
     let live = false;      // البث الفوري شغّال؟ إذا لا، منضل نحدّث كل 15 ثانية
+    // النت مقطوع والصفحة مفتوحة من كمبيوتر المحل (local-server/): منقرا الطلبات منه كل 4 ثواني،
+    // والشطب بينحفظ عنده لحد ما يرجع النت
+    let localMode = false;
     let lastPollAt = 0;
 
     const since = () => new Date(Date.now() - WINDOW_HOURS * 3600e3).toISOString();
@@ -356,8 +362,11 @@
 
     function renderLive() {
       const box = document.getElementById("k-updated");
-      box.classList.toggle("on", live);
-      document.getElementById("k-updated-t").textContent = live
+      box.classList.toggle("on", live && !localMode);
+      box.classList.toggle("local", localMode);
+      document.getElementById("k-updated-t").textContent = localMode
+        ? `بدون نت · من كمبيوتر المحل · ${formatTime(lastPollAt || Date.now())}`
+        : live
         ? `مباشر · آخر تحديث ${formatTime(lastPollAt || Date.now())}`
         : `آخر تحديث ${lastPollAt ? formatTime(lastPollAt) : "—"} · كل 15 ثانية`;
     }
@@ -377,7 +386,7 @@
         current.forEach((_, id) => { if (!knownPendingIds.has(id)) hasNew = true; });
         if (hasNew && typeof OlvSound !== "undefined") OlvSound.playNewOrder();
         const gone = [...knownPendingIds].filter((id) => !current.has(id));
-        if (gone.length) {
+        if (gone.length && !localMode) {
           const { data } = await db.from("sales_entries").select("id, order_no").in("id", gone).eq("status", "voided");
           (data || []).forEach((o) => {
             olvToast(`طلب ${o.order_no ? "#" + o.order_no : ""} انلغى — وقّف تحضيره`, { type: "danger", ms: 15000 });
@@ -451,6 +460,7 @@
               ${o.order_type ? `<span>${olvIcon(typeIcon)} ${olvEsc(o.order_type)}</span>` : ""}
               ${o.table_number ? `<span>${olvIcon("grid")} طاولة ${olvEsc(o.table_number)}</span>` : ""}
               ${o.customer_name ? `<span class="muted">${olvIcon("person")} ${olvEsc(o.customer_name)}</span>` : ""}
+              ${o.local ? `<span class="tk-new" title="طلب انعمل والنت مقطوع، بيرتفع للسحابة لما يرجع">بدون نت</span>` : ""}
               ${isNew ? `<span class="tk-new" data-new>جديد</span>` : ""}
               ${pending ? `<span data-urgency>${urgency ? olvIcon("warning") + " " + URGENCY_TEXT[urgency] : ""}</span>` : ""}
             </div>
@@ -514,11 +524,16 @@
 
     // تتبّع التذاكر الجديدة لكل تبويب (بيتصفّر لما الكاشير يبدّل التبويب حتى ما تتحرك كل البطاقات)
     let kTracker = olvNewTracker(), kTrackerTab = null;
-    const sel = "id, order_no, created_at, order_type, customer_name, table_number, kitchen_ready_at, sale_items(id, qty, product_name, addons_summary, note, status, kitchen_done_at, products(category))";
+    const sel = "id, order_no, client_ref, created_at, order_type, customer_name, table_number, kitchen_ready_at, sale_items(id, qty, product_name, addons_summary, note, status, kitchen_done_at, products(category))";
     const prepMinutes = (o) => (o.kitchen_ready_at ? Math.max(0, Math.round((new Date(o.kitchen_ready_at) - new Date(o.created_at)) / 60000)) : null);
 
     async function loadStations() {
-      const { data } = await db.from("app_settings").select("key, value").in("key", ["kitchen_stations", "kitchen_bar_categories"]);
+      let { data, error } = await db.from("app_settings").select("key, value").in("key", ["kitchen_stations", "kitchen_bar_categories"]);
+      // نسخة عالجهاز: إذا انفتحت الشاشة والنت مقطوع، كل تابلت بيضل عارف محطته وأقسامها
+      try {
+        if (!error && data) localStorage.setItem("olv_kitchen_stations_cache", JSON.stringify(data));
+        else data = JSON.parse(localStorage.getItem("olv_kitchen_stations_cache") || "null");
+      } catch (_) { /* ما في خزنة */ }
       const val = (k) => { const row = (data || []).find((x) => x.key === k); try { return row ? JSON.parse(row.value) : null; } catch (_) { return null; } };
       const list = val("kitchen_stations");
       if (Array.isArray(list) && list.length) stations = list;
@@ -540,11 +555,78 @@
       }).filter((o) => o.items.length && (!needUndone || o.items.some((it) => !isDone(it))));
     }
 
+    // يرسم قائمة الطلبات (من السحابة أو من كمبيوتر المحل)
+    async function renderOrders(pending, readyRows) {
+      await checkPending(pending);
+      document.getElementById("k-count-pending").textContent = pending.length;
+      lastPending = pending;
+      renderStats();
+      errBox.textContent = "";
+      const orders = activeTab === "pending" ? pending : shape(readyRows, false);
+      ordersById = new Map(orders.map((o) => [o.id, o]));
+      if (kTrackerTab !== activeTab + station) { kTracker = olvNewTracker(); kTrackerTab = activeTab + station; }
+      const freshTickets = kTracker.diff(orders.map((o) => o.id));
+      const where = station === "all" ? "" : ` عند ${stationById(station).name}`;
+      grid.innerHTML = orders.length
+        ? orders.map(cardHtml).join("")
+        : `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"}${where} حاليًا</div>`;
+      olvMarkNew(grid, freshTickets);
+      lastPollAt = Date.now();
+      renderLive();
+    }
+
+    async function pollLocal() {
+      const data = await OlvLocal.get("kitchen");
+      const wasLocal = localMode;
+      localMode = true;
+      if (!wasLocal) knownPendingIds = null; // مصدر جديد: بدون صوت لكل الطلبات الموجودة
+      document.getElementById("k-stale").hidden = true;
+      await renderOrders(shape(data.pending, true), data.ready);
+    }
+
+    // رجع النت: شطب انعمل وقت الانقطاع منرفعه للسحابة. الطلب المحلي منلاقيه بالسحابة برقمه المرجعي
+    // (client_ref) بعد ما يرفعه الكاشير (وبعدها كمبيوتر المحل بينساه)؛ إذا لسا ما وصل منجرّب بالتحديث الجاي
+    async function syncLocalMarks() {
+      if (!window.OlvLocal || !OlvLocal.enabled) return;
+      const { orders } = await OlvLocal.get("dirty");
+      for (const o of orders || []) {
+        let saleId = o.id;
+        let mapId = (id) => id;
+        if (o.source === "local") {
+          const { data, error } = await db.from("sales_entries").select("id, sale_items(id, product_name, qty, status)")
+            .eq("client_ref", o.client_ref).maybeSingle();
+          if (error) throw error;
+          if (!data) continue;
+          saleId = data.id;
+          // نفس الصنف ونفس الكمية، بالترتيب
+          const pool = (data.sale_items || []).filter((it) => it.status !== "voided");
+          const map = new Map();
+          o.items.forEach((li) => {
+            const i = pool.findIndex((ci) => ci.product_name === li.product_name && Number(ci.qty) === Number(li.qty));
+            if (i >= 0) { map.set(li.id, pool[i].id); pool.splice(i, 1); }
+          });
+          mapId = (id) => map.get(id);
+        }
+        const done = [], undone = [];
+        Object.entries(o.dirty).forEach(([id, v]) => { const cid = mapId(id); if (cid) (v ? done : undone).push(cid); });
+        for (const [ids, flag] of [[undone, false], [done, true]]) {
+          if (!ids.length) continue;
+          const { error } = await db.rpc("set_items_kitchen_done", { p_sale_id: saleId, p_item_ids: ids, p_done: flag });
+          if (error) throw error;
+        }
+        await OlvLocal.post("synced", { order_id: o.id, synced: o.dirty, uploaded: o.source === "local" });
+      }
+    }
+
     async function poll() {
       if (busy) { pollAgain = true; return; }
       busy = true;
       pollAgain = false;
+      let renderedLocal = false;
       try {
+        // بدون نت: منرسم من كمبيوتر المحل فورًا، وبعدين منجرّب السحابة (إذا رجع النت منرجعلها)
+        if (localMode) { try { await pollLocal(); renderedLocal = true; } catch (_) { /* كمبيوتر المحل ما ردّ */ } }
+        if (localMode) await syncLocalMarks();
         // قيد التحضير: دايمًا (للصوت والتنبيهات)، من الأقدم للأحدث ضمن آخر 12 ساعة — هيك الحد ما بيقص الطلبات الجديدة
         const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
         const [pRes, rRes, sRes, aRes] = await Promise.all([
@@ -563,32 +645,27 @@
         ]);
         if (pRes.error) throw pRes.error;
         if (rRes.error) throw rRes.error;
+        if (localMode) { localMode = false; knownPendingIds = null; olvToast("رجع النت", { type: "ok" }); }
         const pending = shape(pRes.data, true);
-        await checkPending(pending);
+        // نسخة لكمبيوتر المحل: إذا انقطع النت، الطلبات اللي عالشاشة بتضل
+        if (window.OlvLocal && OlvLocal.enabled) {
+          syncLocalMarks().catch(() => {})
+            .then(() => OlvLocal.post("snapshot", { orders: pRes.data || [] })).catch(() => {});
+        }
         staleOrders = (sRes.data || []).map((o) => ({ id: o.id, items: liveItems(o).map((it) => it.id) }));
         const staleBar = document.getElementById("k-stale");
         staleBar.hidden = !staleOrders.length;
         document.getElementById("k-stale-n").textContent = staleOrders.length;
-        document.getElementById("k-count-pending").textContent = pending.length;
-        lastPending = pending;
         const mins = (aRes.data || []).map(prepMinutes).filter((m) => m !== null && m < 180);
         todayAvg = mins.length ? Math.round(mins.reduce((a, b2) => a + b2, 0) / mins.length) : null;
-        renderStats();
-        errBox.textContent = "";
-
-        const orders = activeTab === "pending" ? pending : shape(rRes.data, false);
-        ordersById = new Map(orders.map((o) => [o.id, o]));
-        if (kTrackerTab !== activeTab + station) { kTracker = olvNewTracker(); kTrackerTab = activeTab + station; }
-        const freshTickets = kTracker.diff(orders.map((o) => o.id));
-        const where = station === "all" ? "" : ` عند ${stationById(station).name}`;
-        grid.innerHTML = orders.length
-          ? orders.map(cardHtml).join("")
-          : `<div class="empty-state">لا يوجد طلبات ${activeTab === "pending" ? "قيد التحضير" : "جاهزة"}${where} حاليًا</div>`;
-        olvMarkNew(grid, freshTickets);
-        lastPollAt = Date.now();
-        renderLive();
+        await renderOrders(pending, rRes.data);
       } catch (err) {
-        olvShowError(errBox, err);
+        let shown = false;
+        if (olvIsNetworkError(err) && window.OlvLocal && OlvLocal.enabled) {
+          if (renderedLocal) shown = true;
+          else try { await pollLocal(); shown = true; } catch (e2) { console.error(e2); }
+        }
+        if (!shown) olvShowError(errBox, err);
       } finally {
         busy = false;
         if (pollAgain) poll();
@@ -597,6 +674,9 @@
 
     async function setDone(saleId, itemIds, done) {
       if (!itemIds.length) return true;
+      if (localMode) {
+        try { await OlvLocal.post("done", { order_id: saleId, item_ids: itemIds, done }); return true; } catch (e) { olvShowError(errBox, e); return false; }
+      }
       const { error } = await db.rpc("set_items_kitchen_done", { p_sale_id: saleId, p_item_ids: itemIds, p_done: done });
       if (error) { olvShowError(errBox, error); return false; }
       return true;
@@ -772,6 +852,7 @@
       await poll();
       subscribeLive();
       setInterval(() => { if (!live || Date.now() - lastPollAt > 60000) poll(); }, 15000);
+      setInterval(() => { if (localMode) poll(); }, 4000);
       setInterval(tick, 1000);
     })();
     });

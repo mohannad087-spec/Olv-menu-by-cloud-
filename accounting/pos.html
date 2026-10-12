@@ -654,6 +654,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/local-server.js"></script>
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
@@ -1417,7 +1418,16 @@
           // البيانات — فما رح ينطبع للمطبخ/البار قبل رجوع النت. لازم الكاشير يعرف
           // بوضوح ويبلّغ المطبخ شفهيًا، مو يفكر إن كل شي تمام
           const queued = window.olvGetOfflineQueueCount && window.olvGetOfflineQueueCount() > queuedBefore;
-          if (queued) {
+          const viaLocal = queued && OlvCart.lastOffline().sentToKitchen;
+          if (viaLocal) {
+            // كمبيوتر المحل استلم الطلب: وصل لشاشات المطبخ والبارات، بس الطابعة بتستنى النت
+            const no = OlvCart.lastOffline().orderNo;
+            const msgEl = modal.querySelector("#checkout-success .msg");
+            msgEl.innerHTML = `بدون نت: الطلب ${no ? `<b>${olvEsc(no)}</b> ` : ""}وصل لشاشات المطبخ والبار<br>بيرتفع للسحابة وبينطبع لما يرجع النت`;
+            msgEl.style.color = "var(--gold-dp)";
+            msgEl.style.textAlign = "center";
+            msgEl.style.lineHeight = "1.7";
+          } else if (queued) {
             const msgEl = modal.querySelector("#checkout-success .msg");
             msgEl.innerHTML = "الطلب محفوظ محليًا <b>ولم يُرسل للمطبخ/البار بعد</b><br>بلّغهم شفهيًا — بينطبع لما يرجع النت";
             msgEl.style.color = "var(--danger-hi)";
@@ -1427,10 +1437,11 @@
           modal.querySelector("#checkout-success").classList.add("show");
           // الكاشير ما لازم يستنى: لمسة على شاشة النجاح بتسكّرها فورًا (ومؤقت 650ms للحالة العادية)
           modal.querySelector("#checkout-success").addEventListener("click", close);
-          if (typeof OlvSound !== "undefined") queued ? OlvSound.playError() : OlvSound.playSuccess();
+          const warn = queued && !viaLocal;
+          if (typeof OlvSound !== "undefined") warn ? OlvSound.playError() : OlvSound.playSuccess();
           if (!queued) leafBurst();
           isSubmitting = false;
-          setTimeout(close, queued ? 6000 : 650);
+          setTimeout(close, warn ? 6000 : queued ? 2500 : 650);
         } catch (err) {
           olvShowError(errBox, err);
           confirmBtn.disabled = false;
@@ -1476,6 +1487,23 @@
       if (gone.length) showToast(`انتبه: ${gone.join("، ")} مش موجود بالمنيو هلأ`, "var(--danger)", "warning");
       if (changed || gone.length) renderCart();
     }
+    // آخر منيو انقرا من السيرفر، حتى الكاشير يقدر يبيع إذا انفتحت الصفحة والنت مقطوع
+    const MENU_CACHE_KEY = "olv_pos_menu_cache_v1";
+    function saveMenuCache() {
+      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
+    }
+    function loadMenuCache() {
+      try {
+        const c = JSON.parse(localStorage.getItem(MENU_CACHE_KEY) || "null");
+        if (!c || !Array.isArray(c.products) || !c.products.length) return false;
+        products = c.products;
+        addons = c.addons || [];
+        return true;
+      } catch (_) { return false; }
+    }
+    // قسم الصنف (لشاشة المطبخ المحلية): بيستعمله sale-cart.js لأصناف مسودة محفوظة قبل ما نضيف القسم للسلة
+    window.olvCategoryOf = (id) => { const p = products.find((x) => x.id === id); return p ? p.category : null; };
+
     async function refreshMenu() {
       const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }] = await Promise.all([
         window.supabaseClient.from("products").select("*").eq("is_active", true).order("category").order("sort_order"),
@@ -1484,6 +1512,7 @@
       if (e1 || e2 || !prodData) return;
       products = prodData;
       addons = addonData || [];
+      saveMenuCache();
       renderCategoryTabs();
       renderGrid();
       syncCartPrices();
@@ -1527,12 +1556,20 @@
         if (e2) throw e2;
         products = prodData || [];
         addons = addonData || [];
+        saveMenuCache();
         popularity = {};
         (salesData || []).forEach((r) => { popularity[r.product_id] = Number(r.total_qty); });
         renderCategoryTabs();
         renderGrid();
       } catch (err) {
-        olvShowError(errBox, err);
+        // النت مقطوع والصفحة انفتحت من جديد: منبيع من آخر منيو محفوظ على هالجهاز
+        if (olvIsNetworkError(err) && loadMenuCache()) {
+          renderCategoryTabs();
+          renderGrid();
+          showToast("بدون نت: المنيو من آخر نسخة محفوظة على هالجهاز", "var(--gold-dp)", "warning");
+        } else {
+          olvShowError(errBox, err);
+        }
       }
       updateOrderTypeFields();
       restoreDraftIfAny();
