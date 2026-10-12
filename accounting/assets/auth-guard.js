@@ -124,6 +124,17 @@ function olvFormatMoney(n) {
   return v.toLocaleString("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2, numberingSystem: "latn" });
 }
 
+// رقم الطاولة بشكل واحد: «٤» و«4» و« طاولة 4 » كلهم «4» — حتى الكاشير والمنيو وصفحة الطاولات
+// يحكوا عن نفس الطاولة مهما انكتب
+function olvNormTable(v) {
+  return String(v == null ? "" : v)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0))
+    .replace(/^\s*طاول[ةه]\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function olvToday() {
   return new Date().toISOString().slice(0, 10);
 }

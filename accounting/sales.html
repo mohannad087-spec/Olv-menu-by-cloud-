@@ -107,7 +107,8 @@
 
   .s-grid{display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:14px; margin-bottom:14px;}
   .s-grid > .group{margin-bottom:0;}
-  @media (max-width:900px){ .s-grid{grid-template-columns:1fr;} }
+  @media (max-width:900px){ .s-grid{grid-template-columns:minmax(0,1fr);} }
+  .s-grid > *{min-width:0;}
   .s-side{display:flex; flex-direction:column; gap:22px;}
   .s-side h3{font-size:14px; font-weight:700; margin:0 0 10px; color:var(--paper);}
 
@@ -151,6 +152,7 @@
   .top-list li:nth-child(-n+3) .rk{color:var(--gold-hi);}
   .top-list .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .top-list .q{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .top-list .q, .top-list .amt{flex:none;}
   .top-list .amt{font-weight:700; font-variant-numeric:tabular-nums;}
   .top-list .tr{height:6px; border-radius:999px; background:var(--ink-3); margin-inline-start:26px; overflow:hidden;}
   .top-list .tr i{display:block; height:100%; border-radius:999px; background:var(--olive);}
@@ -187,9 +189,10 @@
   .order-row .it{min-width:0;}
   .order-row .it-names{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px;}
   .order-row .it-meta{display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:3px; color:var(--muted); font-size:12px;}
-  .order-row .it-meta span{display:inline-flex; align-items:center; gap:4px;}
+  .order-row .it-meta span{display:inline-flex; align-items:center; gap:4px; max-width:100%; min-width:0;}
+  .order-row .it-meta .clip{display:inline-block; max-width:16ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;}
   .order-row .it-meta .icon{width:12px; height:12px;}
-  .order-row .am{text-align:left; white-space:nowrap;}
+  .order-row .am{text-align:left; white-space:nowrap; flex-shrink:0;}
   .order-row .am b{display:block; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;}
   .order-row .am .pm{display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:12px;}
   .order-row .am .pm i{width:8px; height:8px; border-radius:2px; display:inline-block;}
@@ -205,15 +208,18 @@
     .order-row .chev{display:none;}
     .order-detail{padding-inline-start:4px;}
   }
+  /* التفاصيل بتنزل بهدوء (180ms) حتى العين تعرف من وين إجت */
+  .order-detail:not([hidden]){animation:od-in .18s var(--spring) both;}
+  @keyframes od-in{from{opacity:0; transform:translateY(-4px);}}
   .od-box{background:var(--ink-3); border-radius:14px; padding:6px 14px;}
   .od-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--hair-soft); font-size:13.5px;}
   .od-item:last-child{border-bottom:0;}
-  .od-item .nm{flex:1; min-width:0;}
+  .od-item .nm{flex:1; min-width:0; overflow-wrap:anywhere;}
   .od-item .meta{color:var(--muted); font-size:12px; margin-top:2px;}
   .od-item .meta .icon{width:12px; height:12px; vertical-align:-1px;}
   .od-item .r{display:flex; align-items:center; gap:10px; white-space:nowrap; font-variant-numeric:tabular-nums;}
   .od-item.voided .nm{opacity:.55; text-decoration:line-through;}
-  .od-facts{display:flex; flex-wrap:wrap; gap:6px 16px; margin:10px 2px 0; font-size:12.5px; color:var(--muted);}
+  .od-facts{overflow-wrap:anywhere; display:flex; flex-wrap:wrap; gap:6px 16px; margin:10px 2px 0; font-size:12.5px; color:var(--muted);}
   .od-facts b{color:var(--paper); font-weight:700; font-variant-numeric:tabular-nums;}
   .od-facts .bad, .od-facts .bad b{color:var(--danger-hi);}
   .od-reprints{margin:10px 2px 0; font-size:12px; color:var(--muted); line-height:1.7;}
@@ -238,6 +244,7 @@
 
   @media (prefers-reduced-motion: reduce){
     .order-row .chev, .s-chip, .s-bars .bar{transition:none;}
+    .order-detail:not([hidden]){animation:none;}
     .s-chip:active{transform:none;}
   }
 </style>
@@ -254,6 +261,7 @@
       </div>
       <div class="s-head-actions">
         <button class="btn small" id="manual-toggle" type="button" hidden aria-expanded="false" aria-controls="manual-sale-group"></button>
+        <button class="btn small" id="share-day" type="button" hidden></button>
         <a class="btn small" id="reports-link" href="reports.html" hidden></a>
       </div>
     </header>
@@ -400,6 +408,7 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/sale-cart.js"></script>
+  <script defer src="assets/day-report.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("sales");
@@ -413,6 +422,8 @@
     };
     const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
     const LIST_STEP = 40;
+    // أرقام المحور مختصرة (1.3M بدل 1284562) حتى ما تطلع برّا الرسم
+    const compact = (v) => Math.round(v).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
     // أيقونات وأزرار ثابتة
     $("ic-total").innerHTML = olvIcon("banknote");
@@ -422,6 +433,8 @@
     $("custom-chip").innerHTML = olvIcon("clock") + "<span>فترة…</span>";
     $("manual-toggle").innerHTML = olvIcon("plus") + "<span>بيع يدوي</span>";
     $("manual-title").innerHTML = olvIcon("plus") + " بيع يدوي";
+    $("share-day").innerHTML = olvIcon("share") + "<span>شارك تقرير اليوم</span>";
+    $("share-day").addEventListener("click", () => olvOpenDayReport(range.from));
     $("reports-link").innerHTML = olvIcon("barChart") + "<span>التقارير</span>";
     $("reports-more").innerHTML = "تحليل أعمق بالتقارير " + olvIcon("externalLink");
     $("orders-title").innerHTML = olvIcon("receipt") + ' الطلبات <span class="n" id="orders-count"></span>';
@@ -447,7 +460,7 @@
       return h12 + (h < 12 ? " ص" : " م");
     }
     function timeOf(r) {
-      if (!r.created_at) return "—";
+      if (!r.created_at) return "يدوي";
       const d = new Date(r.created_at);
       const h = d.getHours(), m = String(d.getMinutes()).padStart(2, "0");
       return `${h % 12 === 0 ? 12 : h % 12}:${m}`;
@@ -538,6 +551,9 @@
       const voided = rows.filter((r) => r.status === "voided");
       const total = done.reduce((s, r) => s + saleTotal(r), 0);
       const single = range.from === range.to;
+      // صورة تقرير اليوم (نفس زر الرئيسية والخزينة) بتطلع بس لما الفترة يوم واحد
+      $("share-day").hidden = !(single && window.olvRole && window.olvRole !== "staff" && typeof olvOpenDayReport === "function");
+      if (single) $("share-day").querySelector("span").textContent = range.from === todayIso() ? "شارك تقرير اليوم" : "شارك تقرير " + dayTitle(range.from);
 
       const dn = (d) => DAY_NAMES[parse(d).getDay()];
       $("s-sub").textContent = single
@@ -556,7 +572,7 @@
       const vs = $("k-vs");
       if (prevTotal != null && prevTotal > 0) {
         const pct = Math.round(((total - prevTotal) / prevTotal) * 100);
-        vs.innerHTML = olvIcon(pct >= 0 ? "chevronUp" : "chevronDown") + `<span>${Math.abs(pct)}% عن ${prev.label}</span>`;
+        vs.innerHTML = olvIcon(pct >= 0 ? "chevronUp" : "chevronDown") + `<span>${Math.abs(pct) > 999 ? "+999" : Math.abs(pct)}% عن ${prev.label}</span>`;
         vs.classList.toggle("down", pct < 0);
         vs.hidden = false;
       } else {
@@ -612,7 +628,7 @@
       const step = Math.max(1, Math.ceil(n / (W < 500 ? 5 : 10)));
       box.innerHTML = `
         <svg class="s-bars" viewBox="0 0 ${W} ${H}" role="group" aria-label="${olvEsc($("chart-title").textContent.trim())}">
-          ${ticks.map((t) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis" x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${Math.round(t)}</text>`).join("")}
+          ${ticks.map((t) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis" x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${compact(t)}</text>`).join("")}
           ${keys.map((k, i) => (i % step === 0 || i === n - 1) && (i === n - 1 ? (n - 1) % step === 0 || n - 1 - Math.floor((n - 1) / step) * step > step / 2 : true)
             ? `<text class="axis" x="${x(i)}" y="${H - 6}" text-anchor="middle">${label(k)}</text>` : "").join("")}
           ${keys.map((k, i) => {
@@ -624,7 +640,7 @@
                 : `<rect class="zero" x="${x(i) - bw / 2}" y="${H - B - 2}" width="${bw}" height="2" rx="1"/>`}
             </g>`;
           }).join("")}
-          <text class="peak" x="${x(best)}" y="${y(max) - 6}" text-anchor="middle">${Math.round(max)}</text>
+          <text class="peak" x="${x(best)}" y="${y(max) - 6}" text-anchor="middle">${compact(max)}</text>
         </svg>
         <div class="s-tip" id="s-tip"></div>`;
       const tip = $("s-tip"), svg = box.querySelector("svg");
@@ -681,7 +697,7 @@
       if (!list.length) { box.innerHTML = `<li class="s-empty" style="padding:8px 0; text-align:right;">ما في أصناف مبيوعة بهالفترة</li>`; return; }
       const max = list[0].qty;
       box.innerHTML = list.map((o, i) => `<li>
-        <div class="tl-row"><span class="rk">${i + 1}</span><span class="nm">${olvEsc(o.name)}</span>
+        <div class="tl-row"><span class="rk">${i + 1}</span><span class="nm" title="${olvEsc(o.name)}">${olvEsc(o.name)}</span>
           <span class="q">${o.qty}×</span><span class="amt">${olvFormatMoney(o.amt)}</span></div>
         <div class="tr" aria-hidden="true"><i style="width:${Math.max(4, (o.qty / max) * 100)}%"></i></div>
       </li>`).join("");
@@ -731,8 +747,8 @@
       const meta = [];
       if (voided) meta.push(`<span class="tag-void">${olvIcon("x")} ملغى</span>`);
       if (r.order_type) meta.push(`<span>${olvIcon(r.order_type === "توصيل" ? "truck" : r.order_type === "سفري" ? "cart" : "dineIn")}${olvEsc(r.order_type)}</span>`);
-      if (r.table_number) meta.push(`<span>طاولة ${olvEsc(r.table_number)}</span>`);
-      if (r.customer_name) meta.push(`<span>${olvIcon("person")}${olvEsc(r.customer_name)}</span>`);
+      if (r.table_number) meta.push(`<span title="طاولة ${olvEsc(r.table_number)}">طاولة <span class="clip">${olvEsc(r.table_number)}</span></span>`);
+      if (r.customer_name) meta.push(`<span title="${olvEsc(r.customer_name)}">${olvIcon("person")}<span class="clip">${olvEsc(r.customer_name)}</span></span>`);
       if (Number(r.discount_amount) > 0) meta.push(`<span class="tag-disc">خصم ${olvFormatMoney(r.discount_amount)}</span>`);
       const payHtml = pay === "mixed"
         ? `<span class="pm">مقسوم</span>`
@@ -740,7 +756,7 @@
       return `<div class="order${voided ? " voided" : ""}${openId === r.id ? " open" : ""}" data-id="${r.id}">
         <button class="order-row" type="button" aria-expanded="${openId === r.id}" aria-controls="od-${r.id}">
           <span class="tm">${timeOf(r)} <small style="font-weight:500; color:var(--muted); font-size:11px;">${ampm(r)}</small>${r.order_no ? `<span class="no">#${olvEsc(r.order_no)}</span>` : ""}</span>
-          <span class="it"><span class="it-names">${olvEsc(itemsText(r))}</span>${meta.length ? `<span class="it-meta">${meta.join("")}</span>` : ""}</span>
+          <span class="it"><span class="it-names" title="${olvEsc(itemsText(r))}">${olvEsc(itemsText(r))}</span>${meta.length ? `<span class="it-meta">${meta.join("")}</span>` : ""}</span>
           <span class="am"><b>${olvFormatMoney(saleTotal(r))}</b>${payHtml}</span>
           ${olvIcon("chevronDown", "chev")}
         </button>

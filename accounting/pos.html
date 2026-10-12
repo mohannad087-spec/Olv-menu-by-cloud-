@@ -605,7 +605,8 @@
           </div>
           <div class="field" id="table-number-field" style="margin-bottom:12px;" hidden>
             <label>رقم الطاولة</label>
-            <input type="text" id="table-number" placeholder="مثال: 5">
+            <input type="text" id="table-number" placeholder="مثال: 5" list="table-options" autocomplete="off">
+            <datalist id="table-options"></datalist>
           </div>
           <div class="field" id="customer-name-field" style="margin-bottom:12px;" hidden>
             <label>اسم الزبون</label>
@@ -823,16 +824,27 @@
       return Math.round(Math.max(0, Math.min(raw, subtotal)) * 100) / 100;
     }
 
-    // يعلّم الطاولة "مشغولة" بخريطة الطاولات تلقائيًا بعد نجاح طلب صالة —
-    // ميزة إضافية بس، فما بنوقف عملية البيع لو فشلت (مثلاً الطاولة مش
-    // مضافة أصلًا بالإعدادات)
-    async function markTableOccupied(tableNumber) {
+    // اقتراحات رقم الطاولة من قائمة الطاولات (الكاشير بيقدر يكتب غيرها). صفحة الطاولات بتعرف إنها
+    // مشغولة من الطلب نفسه، فما في داعي نعلّمها من هون
+    async function loadTableOptions() {
       try {
-        await window.supabaseClient.from("table_occupancy").upsert(
-          { table_number: tableNumber, is_occupied: true, occupied_at: new Date().toISOString(), freed_at: null },
-          { onConflict: "table_number" }
-        );
-      } catch (e) { /* تجاهل — الطاولة قد لا تكون مضافة بالإعدادات بعد */ }
+        const { data } = await window.supabaseClient.from("restaurant_tables").select("table_number").order("sort_order");
+        document.getElementById("table-options").innerHTML = (data || [])
+          .map((t) => `<option value="${olvEsc(olvNormTable(t.table_number))}"></option>`).join("");
+      } catch (e) { /* اقتراحات بس */ }
+    }
+
+    // جاي من صفحة الطاولات («طلب جديد» / «زيد طلب»): صالة + رقم الطاولة (+ اسم الزبون) معبّايين
+    function applyTableFromLink() {
+      const q = new URLSearchParams(location.search);
+      const table = olvNormTable(q.get("table"));
+      if (!table) return;
+      document.getElementById("order-type").value = "صالة";
+      updateOrderTypeFields();
+      document.getElementById("table-number").value = table.slice(0, 30);
+      const name = (q.get("name") || "").trim();
+      if (name && !document.getElementById("customer-name").value.trim()) document.getElementById("customer-name").value = name.slice(0, 60);
+      history.replaceState(null, "", location.pathname);
     }
 
     function resetDiscount() {
@@ -1269,7 +1281,7 @@
     function openCheckoutSheet() {
       const errBox = document.getElementById("err");
       const orderType = document.getElementById("order-type").value;
-      const tableNumber = document.getElementById("table-number").value.trim();
+      const tableNumber = olvNormTable(document.getElementById("table-number").value);
       const customerPhone = document.getElementById("customer-phone").value.trim();
       const customerName = document.getElementById("customer-name").value.trim();
       if (orderType === "صالة" && !tableNumber) {
@@ -1409,7 +1421,6 @@
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
             discountAmount,
           });
-          if (orderType === "صالة" && tableNumber) markTableOccupied(tableNumber);
           clearDraft();
           resetDiscount();
           renderCart();
@@ -1573,6 +1584,8 @@
       }
       updateOrderTypeFields();
       restoreDraftIfAny();
+      applyTableFromLink();
+      loadTableOptions();
       renderCart();
       document.getElementById("order-type").addEventListener("change", updateOrderTypeFields);
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
