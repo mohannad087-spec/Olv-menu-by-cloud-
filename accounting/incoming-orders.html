@@ -264,6 +264,13 @@
       });
     }
 
+    // UUID ثابت مشتق من رقم الطلب (SHA-256) حتى يكون نفس الطلب دايمًا بنفس المرجع
+    async function orderRef(id) {
+      const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("olv-online-order:" + id)));
+      const h = Array.from(d.slice(0, 16), (b) => b.toString(16).padStart(2, "0")).join("");
+      return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+    }
+
     async function approveOrder(orderId, method) {
       const errBox = document.getElementById("err");
       const order = lastOrders.find((o) => o.id === orderId);
@@ -276,7 +283,7 @@
           const note = buildCustomNote(it.custom);
           return { product_id: product.id, qty: it.qty, note: note || null };
         });
-        const { error } = await window.supabaseClient.rpc("record_sale", {
+        const args = {
           p_entry_date: olvToday(),
           p_cash: method === "cash" ? order.total : 0,
           p_card: method === "card" ? order.total : 0,
@@ -286,7 +293,13 @@
           p_order_type: MODE_LABELS[order.mode] || null,
           p_table_number: olvNormTable(order.table) || null,
           p_customer_phone: order.phone || null,
-        });
+        };
+        // رقم مرجعي ثابت لكل طلب أونلاين: لو انضغط «قبول» مرتين (أو فشل تحديث الحالة بعد تسجيل البيع)
+        // السيرفر بيرجّع نفس البيع بدل ما يسجّل بيع تاني
+        let { error } = await window.supabaseClient.rpc("record_sale", { ...args, p_client_ref: await orderRef(order.id) });
+        if (error && (error.code === "PGRST202" || /p_client_ref/.test(error.message || ""))) {
+          ({ error } = await window.supabaseClient.rpc("record_sale", args));
+        }
         if (error) throw error;
         if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
         await OlvIncomingPoll.callProxy({ action: "update", id: order.id, status: "preparing" });
