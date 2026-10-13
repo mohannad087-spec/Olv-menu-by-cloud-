@@ -59,136 +59,156 @@
 })();
 </script>
 <style>
-  .role-badge{
-    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 10px;
-    font-size:11.5px; font-weight:700; border:1px solid var(--hair);
+  /* صفحة الموظفين (2026-10): أرقام ← بطاقات موظفين مرتّبة حسب الدور ← إضافة/تعديل مخفية ورا زر.
+     القواعد بـ design-system/olv/pages/employees.md */
+  .wrap.em-wrap{max-width:1120px;}
+  .em-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .em-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .em-head .em-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .em-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .btn.go:disabled{opacity:.6;}
+  .stats.em-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.em-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.em-stats{gap:10px;}
+    .em-stats .stat{padding:13px;}
+    .em-stats .stat .stat-icon{display:none;}
+    .olv-glass .em-stats .stat .value{font-size:22px;}
   }
-  .role-badge.owner{background:rgba(var(--gold-rgb),.18); color:var(--gold-hi); border-color:var(--gold);}
-  .role-badge.manager{background:rgba(124,138,74,.15); color:var(--ok); border-color:rgba(124,138,74,.35);}
-  .role-badge.staff{color:var(--muted);}
-  .status-badge{
-    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 10px; font-size:11.5px; font-weight:700;
-  }
-  .status-badge.active{background:rgba(124,138,74,.15); color:var(--ok);}
-  .status-badge.inactive{background:rgba(193,88,63,.15); color:var(--danger-hi);}
-  .temp-pass-box{
-    background:var(--ink-3); border:1px solid var(--gold); border-radius:10px; padding:14px;
-    margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
-  }
-  .temp-pass-box code{font-size:18px; font-weight:700; color:var(--gold-hi); letter-spacing:1px; direction:ltr;}
-  .employee-row.inactive{opacity:.55;}
+  .em-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
   .no-access{padding:40px 20px; text-align:center; color:var(--muted);}
+  #form-group[hidden], #edit-group[hidden], #temp-pass-box[hidden]{display:none;}
+  .em-form-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
+  .em-form-head h2{margin:0;}
+  .em-roles{display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 14px;}
+  .em-chip{
+    min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);
+  }
+  .em-chip[aria-checked="true"], .em-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .em-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .em-chip:active{transform:scale(.97);}
+  .em-label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
+  .em-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .em-actions .btn{min-height:48px; min-width:140px;}
+  .em-note{color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.7;}
+  /* كلمة السر المؤقتة: بارزة لأنها بتطلع مرة وحدة */
+  .temp-pass-box{
+    background:var(--ink-2); border:2px solid var(--gold); border-radius:var(--r-card,16px); padding:16px 18px; margin-bottom:14px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  .temp-pass-box small{display:block; color:var(--muted); font-size:12.5px; margin-bottom:4px;}
+  .temp-pass-box code{font-size:24px; font-weight:800; color:var(--gold-hi); letter-spacing:1px; direction:ltr; unicode-bidi:isolate;}
+  .em-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px;}
+  .em-sec{font-size:13.5px; font-weight:800; color:var(--muted); margin:18px 0 8px; display:flex; align-items:center; gap:8px;}
+  .em-sec:first-child{margin-top:0;}
+  .em-sec .n{font-weight:500;}
+  .em-card{border-radius:18px; background:var(--ink-3); padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0;}
+  .em-card.off{opacity:.65;}
+  .em-top{display:flex; align-items:center; gap:12px;}
+  .av{width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:17px; background:var(--ink-2); color:var(--muted); flex:none;}
+  .av.owner{background:var(--olive); color:var(--on-olive);}
+  .av.manager{background:var(--gold); color:var(--on-gold);}
+  .em-top .t{flex:1; min-width:0;}
+  .em-top .t b{display:block; font-size:15.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .em-top .t small{display:flex; gap:6px; flex-wrap:wrap; margin-top:3px; align-items:center;}
+  .role-badge{display:inline-flex; align-items:center; border-radius:999px; padding:2px 10px; font-size:11.5px; font-weight:700; background:var(--ink-2); color:var(--muted);}
+  .role-badge.owner{background:rgba(var(--gold-rgb),.18); color:var(--gold-hi);}
+  .role-badge.manager{background:rgba(var(--gold-rgb),.12); color:var(--gold-hi);}
+  .role-badge.off{background:rgba(193,88,63,.15); color:var(--danger-hi);}
+  .em-facts{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;}
+  .em-facts div{background:var(--ink-2); border-radius:12px; padding:8px 10px; min-width:0;}
+  .em-facts span{display:block; font-size:11.5px; color:var(--muted);}
+  .em-facts b{display:block; font-size:14px; font-weight:800; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:ltr; text-align:right;}
+  .em-card-acts{display:flex; gap:6px; flex-wrap:wrap;}
+  .em-card-acts .btn{min-height:44px; padding:6px 12px; font-size:13px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;}
+  .em-empty{padding:26px 8px; text-align:center; color:var(--muted);}
+  @media (prefers-reduced-motion: reduce){ .em-chip{transition:none;} .em-chip:active{transform:none;} }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap em-wrap">
     <div class="err" id="err"></div>
-
     <div id="no-access" class="group" hidden>
       <div class="no-access">هذه الصفحة لصاحب المطعم والمدير فقط.</div>
     </div>
-
     <div id="employees-content" hidden>
-      <div class="group">
-        <h2>إضافة موظف جديد</h2>
-        <p class="hint" style="margin-bottom:14px;">
-          بينعمل حساب دخول فعلي مباشرة (بدون الحاجة لـSupabase Dashboard) — بعد الإضافة رح
-          تطلع كلمة سر مؤقتة مرة وحدة بس، سلّمها للموظف وخلّيه يسجّل دخول فيها.
-        </p>
+      <header class="em-head">
+        <div>
+          <h1>الموظفون</h1>
+          <div class="em-sub">حسابات الدخول والأدوار والأجر بالساعة.</div>
+        </div>
+        <button class="btn go" type="button" id="add-toggle" aria-expanded="false" aria-controls="form-group"></button>
+      </header>
+
+      <div class="temp-pass-box" id="temp-pass-box" hidden>
+        <div><small id="temp-pass-who">كلمة السر المؤقتة (بتظهر مرة وحدة، سلّمها للموظف)</small><code id="temp-pass-value"></code></div>
+        <button type="button" class="btn" id="copy-pass-btn">نسخ</button>
+      </div>
+
+      <section class="group" id="form-group" hidden>
+        <div class="em-form-head"><h2>موظف جديد</h2><button class="btn small" type="button" id="add-close">إغلاق</button></div>
+        <p class="em-note">بينعمل حساب دخول مباشرة. بعد الإضافة بتطلع كلمة سر مؤقتة مرة وحدة بس، سلّمها للموظف وخلّيه يدخل فيها.</p>
         <form id="add-form">
           <div class="row2">
-            <div class="field">
-              <label>الاسم الكامل</label>
-              <input type="text" id="f-name" required>
-            </div>
-            <div class="field">
-              <label>البريد الإلكتروني (لتسجيل الدخول)</label>
-              <input type="email" id="f-email" required dir="ltr">
-            </div>
+            <div class="field"><label for="f-name">الاسم الكامل</label><input type="text" id="f-name" required></div>
+            <div class="field"><label for="f-email">البريد الإلكتروني (لتسجيل الدخول)</label><input type="email" id="f-email" required dir="ltr"></div>
           </div>
           <div class="row2">
-            <div class="field">
-              <label>رقم الهاتف (اختياري)</label>
-              <input type="tel" id="f-phone" dir="ltr">
-            </div>
-            <div class="field">
-              <label>الأجر بالساعة (اختياري)</label>
-              <input type="number" id="f-wage" step="0.01" min="0">
-            </div>
+            <div class="field"><label for="f-phone">رقم الهاتف (اختياري)</label><input type="tel" id="f-phone" dir="ltr"></div>
+            <div class="field"><label for="f-wage">الأجر بالساعة (اختياري)</label><input type="number" id="f-wage" step="0.01" min="0" inputmode="decimal"></div>
           </div>
-          <div class="field">
-            <label>الدور</label>
-            <select id="f-role">
-              <option value="staff">كاشير (staff)</option>
-              <option value="manager">مدير (manager)</option>
-              <option value="owner">صاحب المطعم (owner)</option>
-            </select>
+          <span class="em-label" id="f-role-label">الدور</span>
+          <div class="em-roles" id="f-roles" role="radiogroup" aria-labelledby="f-role-label"></div>
+          <div class="em-actions">
+            <button type="submit" class="btn go" id="add-btn">إضافة الموظف</button>
+            <button type="button" class="btn" id="add-cancel">إلغاء</button>
           </div>
-          <button type="submit" class="btn gold" id="add-btn">إضافة الموظف</button>
         </form>
-        <div class="temp-pass-box" id="temp-pass-box" hidden>
-          <span>كلمة السر المؤقتة: <code id="temp-pass-value"></code></span>
-          <button type="button" class="btn small" id="copy-pass-btn">نسخ</button>
-        </div>
-      </div>
+      </section>
 
-      <div class="group">
-        <h2>الموظفون الحاليون</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>الاسم</th><th>الهاتف</th><th>الدور</th><th>الأجر/ساعة</th><th>الحالة</th><th>رقم البصمة</th><th></th></tr></thead>
-            <tbody id="employees-body">
-              <tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="group" id="edit-group" hidden>
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-          <h2 style="margin:0;">تعديل بيانات <span id="edit-name-label"></span></h2>
-          <button type="button" class="btn small" id="close-edit-btn">إغلاق</button>
-        </div>
+      <section class="group" id="edit-group" hidden>
+        <div class="em-form-head"><h2>تعديل <span id="edit-name-label"></span></h2><button class="btn small" type="button" id="close-edit-btn">إغلاق</button></div>
         <form id="edit-form">
           <div class="row2">
-            <div class="field">
-              <label>الاسم الكامل</label>
-              <input type="text" id="e-name" required>
-            </div>
-            <div class="field">
-              <label>رقم الهاتف</label>
-              <input type="tel" id="e-phone" dir="ltr">
-            </div>
+            <div class="field"><label for="e-name">الاسم الكامل</label><input type="text" id="e-name" required></div>
+            <div class="field"><label for="e-phone">رقم الهاتف</label><input type="tel" id="e-phone" dir="ltr"></div>
           </div>
           <div class="row2">
-            <div class="field">
-              <label>الأجر بالساعة</label>
-              <input type="number" id="e-wage" step="0.01" min="0">
-            </div>
-            <div class="field">
-              <label>الدور</label>
-              <select id="e-role">
-                <option value="staff">كاشير (staff)</option>
-                <option value="manager">مدير (manager)</option>
-                <option value="owner">صاحب المطعم (owner)</option>
-              </select>
-            </div>
+            <div class="field"><label for="e-wage">الأجر بالساعة</label><input type="number" id="e-wage" step="0.01" min="0" inputmode="decimal"></div>
+            <div class="field"><label for="e-device-id">رقم الموظف على جهاز البصمة (اختياري)</label>
+              <input type="text" id="e-device-id" dir="ltr" placeholder="مثال: 3"></div>
           </div>
-          <div class="field">
-            <label>رقم الموظف على جهاز البصمة (اختياري)</label>
-            <input type="text" id="e-device-id" dir="ltr" placeholder="مثال: 3">
-            <p class="hint" style="margin-top:6px;">
-              الرقم الداخلي يلي أعطاه جهاز البصمة لهذا الموظف عند تسجيل بصمته (راجع دليل
-              attendance-bridge). لازم يكون هذا الرقم مختلف لكل موظف.
-            </p>
+          <span class="em-label" id="e-role-label">الدور</span>
+          <div class="em-roles" id="e-roles" role="radiogroup" aria-labelledby="e-role-label"></div>
+          <p class="em-note">رقم البصمة هو الرقم الداخلي اللي أعطاه الجهاز للموظف وقت تسجيل بصمته (راجع دليل attendance-bridge)، ولازم يكون مختلف لكل موظف.</p>
+          <div class="em-actions">
+            <button type="submit" class="btn go">حفظ التعديلات</button>
+            <button type="button" class="btn" id="edit-cancel">إلغاء</button>
           </div>
-          <button type="submit" class="btn gold">حفظ التعديلات</button>
         </form>
+      </section>
+
+      <div class="stats em-stats">
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-all"></div>
+          <div class="stat-body"><div class="label">الموظفون</div><div class="value" id="k-all">—</div><span class="note" id="k-all-note">&nbsp;</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-staff"></div>
+          <div class="stat-body"><div class="label">كاشير</div><div class="value" id="k-staff">—</div><span class="note">فعّالين</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-mgr"></div>
+          <div class="stat-body"><div class="label">مدراء وأصحاب</div><div class="value" id="k-mgr">—</div><span class="note">فعّالين</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-off"></div>
+          <div class="stat-body"><div class="label">موقوفين</div><div class="value" id="k-off">—</div><span class="note">ما بيقدروا يدخلوا</span></div></div></div>
       </div>
+
+      <section class="group">
+        <h2 id="list-title"></h2>
+        <div id="employees-box"><div class="em-empty">جاري التحميل...</div></div>
+      </section>
     </div>
   </div>
-
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
@@ -205,10 +225,31 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("employees");
 
+    const $ = (id) => document.getElementById(id);
     const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "كاشير" };
     let employees = [];
     let myRole = null;
     let myId = null;
+
+    $("add-toggle").innerHTML = olvIcon("plus") + "<span>موظف جديد</span>";
+    $("ic-all").innerHTML = olvIcon("people");
+    $("ic-staff").innerHTML = olvIcon("wallet");
+    $("ic-mgr").innerHTML = olvIcon("star");
+    $("ic-off").innerHTML = olvIcon("clock");
+    $("list-title").innerHTML = olvIcon("person") + " الفريق";
+
+    // اختيار الدور بحبوب (بدل القائمة المنسدلة). المدير بيضيف كاشير بس (نفس القيد بالوسيط)
+    function rolesFor(group, selected) {
+      const roles = myRole === "manager" ? ["staff"] : ["staff", "manager", "owner"];
+      if (!roles.includes(selected)) roles.push(selected);
+      group.innerHTML = roles.map((r) =>
+        `<button class="em-chip" type="button" role="radio" data-role="${r}" aria-checked="${r === selected}">${ROLE_LABELS[r]}</button>`).join("");
+      group.dataset.value = selected;
+      group.querySelectorAll("[data-role]").forEach((b) => b.addEventListener("click", () => {
+        group.dataset.value = b.dataset.role;
+        group.querySelectorAll("[data-role]").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+      }));
+    }
 
     function proxyUrl() {
       const base = (window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "";
@@ -231,86 +272,108 @@
       return out;
     }
 
-    function showTempPassword(pass) {
-      document.getElementById("temp-pass-value").textContent = pass;
-      document.getElementById("temp-pass-box").hidden = false;
+    function showTempPassword(pass, who) {
+      $("temp-pass-value").textContent = pass;
+      $("temp-pass-who").textContent = (who ? `كلمة سر ${who} المؤقتة` : "كلمة السر المؤقتة") + " (بتظهر مرة وحدة، سلّمها للموظف)";
+      $("temp-pass-box").hidden = false;
+      $("temp-pass-box").scrollIntoView({ behavior: "smooth", block: "center" });
     }
-
-    document.getElementById("copy-pass-btn").addEventListener("click", async () => {
-      const val = document.getElementById("temp-pass-value").textContent;
-      try { await navigator.clipboard.writeText(val); showToastMsg("تم نسخ كلمة السر"); } catch (e) {}
+    $("copy-pass-btn").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText($("temp-pass-value").textContent); olvToast("نسخنا كلمة السر", { type: "ok", icon: "check", ms: 2200 }); } catch (e) {}
     });
 
-    function showToastMsg(msg) {
-      olvToast(msg, { type: "ok", ms: 2200 });
+    function openAdd(open) {
+      $("form-group").hidden = !open;
+      $("add-toggle").setAttribute("aria-expanded", String(open));
+      if (open) { rolesFor($("f-roles"), "staff"); $("edit-group").hidden = true; $("f-name").focus(); }
+    }
+    $("add-toggle").addEventListener("click", () => openAdd($("form-group").hidden));
+    $("add-close").addEventListener("click", () => openAdd(false));
+    $("add-cancel").addEventListener("click", () => openAdd(false));
+
+    // ---------------------------------------------------------------
+    // الأرقام والبطاقات (مرتّبة: أصحاب، مدراء، كاشير، الموقوفين آخر شي)
+    // ---------------------------------------------------------------
+    function renderEmployees() {
+      const active = employees.filter((e) => e.is_active);
+      const off = employees.filter((e) => !e.is_active);
+      $("k-all").textContent = employees.length;
+      $("k-all-note").textContent = `${active.length} فعّال`;
+      $("k-staff").textContent = active.filter((e) => e.role === "staff").length;
+      $("k-mgr").textContent = active.filter((e) => e.role !== "staff").length;
+      $("k-off").textContent = off.length;
+      if (!employees.length) { $("employees-box").innerHTML = `<div class="em-empty">ما في موظفين لسا. اكبس «موظف جديد» لإضافة أول حساب.</div>`; return; }
+      const byName = (a, b) => String(a.full_name || "").localeCompare(String(b.full_name || ""), "ar");
+      const groups = [
+        ["owner", "أصحاب المطعم", active.filter((e) => e.role === "owner").sort(byName)],
+        ["manager", "المدراء", active.filter((e) => e.role === "manager").sort(byName)],
+        ["staff", "الكاشير", active.filter((e) => e.role === "staff").sort(byName)],
+        ["off", "موقوفين", off.sort(byName)],
+      ].filter((g) => g[2].length);
+      $("employees-box").innerHTML = groups.map(([id, label, list]) => `
+        <h3 class="em-sec">${label} <span class="n">${list.length}</span></h3>
+        <ul class="em-list">${list.map(cardHtml).join("")}</ul>`).join("");
+      const box = $("employees-box");
+      box.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openEdit(b.dataset.edit)));
+      box.querySelectorAll("[data-toggle]").forEach((b) => b.addEventListener("click", () => toggleActive(b.dataset.toggle, b.dataset.active === "true")));
+      box.querySelectorAll("[data-reset]").forEach((b) => b.addEventListener("click", () => resetPassword(b.dataset.reset)));
     }
 
-    function renderEmployees() {
-      const body = document.getElementById("employees-body");
-      if (!employees.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد موظفون بعد</td></tr>`;
-        return;
-      }
-      body.innerHTML = employees.map((e) => `
-        <tr class="employee-row${e.is_active ? "" : " inactive"}" data-id="${e.id}">
-          <td>${olvEsc(e.full_name) || "—"}</td>
-          <td dir="ltr" style="text-align:right;">${olvEsc(e.phone) || "—"}</td>
-          <td><span class="role-badge ${e.role}">${ROLE_LABELS[e.role] || e.role}</span></td>
-          <td>${e.hourly_wage != null ? olvFormatMoney(e.hourly_wage) : "—"}</td>
-          <td><span class="status-badge ${e.is_active ? "active" : "inactive"}">${e.is_active ? "فعّال" : "موقوف"}</span></td>
-          <td dir="ltr" style="text-align:right;">${e.device_user_id || "—"}</td>
-          <td>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button type="button" class="btn small" data-edit="${e.id}">تعديل</button>
-              ${e.id !== myId ? `<button type="button" class="btn small ${e.is_active ? "danger" : ""}" data-toggle="${e.id}" data-active="${e.is_active}">${e.is_active ? "إيقاف" : "تفعيل"}</button>` : ""}
-              <button type="button" class="btn small" data-reset="${e.id}">كلمة سر جديدة</button>
-            </div>
-          </td>
-        </tr>
-      `).join("");
-
-      body.querySelectorAll("[data-edit]").forEach((btn) => {
-        btn.addEventListener("click", () => openEdit(btn.dataset.edit));
-      });
-      body.querySelectorAll("[data-toggle]").forEach((btn) => {
-        btn.addEventListener("click", () => toggleActive(btn.dataset.toggle, btn.dataset.active === "true"));
-      });
-      body.querySelectorAll("[data-reset]").forEach((btn) => {
-        btn.addEventListener("click", () => resetPassword(btn.dataset.reset));
-      });
+    function cardHtml(e) {
+      const ini = (e.full_name || "").trim().charAt(0);
+      const tel = String(e.phone || "").replace(/[^\d+]/g, "");
+      return `
+        <li class="em-card${e.is_active ? "" : " off"}">
+          <div class="em-top">
+            <span class="av ${e.is_active ? e.role : ""}" aria-hidden="true">${ini ? olvEsc(ini) : olvIcon("person")}</span>
+            <span class="t"><b>${olvEsc(e.full_name) || "بدون اسم"}</b>
+              <small><span class="role-badge ${e.role}">${ROLE_LABELS[e.role] || olvEsc(e.role)}</span>${e.is_active ? "" : '<span class="role-badge off">موقوف</span>'}${e.id === myId ? '<span class="role-badge">إنت</span>' : ""}</small></span>
+          </div>
+          <div class="em-facts">
+            <div><span>الأجر/ساعة</span><b>${e.hourly_wage != null ? olvFormatMoney(e.hourly_wage) : "—"}</b></div>
+            <div><span>الهاتف</span><b>${olvEsc(e.phone) || "—"}</b></div>
+            <div><span>رقم البصمة</span><b>${olvEsc(e.device_user_id) || "—"}</b></div>
+          </div>
+          <div class="em-card-acts">
+            <button type="button" class="btn small" data-edit="${e.id}">${olvIcon("note")}<span>تعديل</span></button>
+            ${tel ? `<a class="btn small" href="tel:${olvEsc(tel)}" aria-label="اتصال">${olvIcon("phone")}</a>` : ""}
+            <button type="button" class="btn small" data-reset="${e.id}">كلمة سر جديدة</button>
+            ${e.id !== myId ? `<button type="button" class="btn small ${e.is_active ? "danger" : ""}" data-toggle="${e.id}" data-active="${e.is_active}">${e.is_active ? "إيقاف" : "تفعيل"}</button>` : ""}
+          </div>
+        </li>`;
     }
 
     async function loadEmployees() {
-      const errBox = document.getElementById("err");
       try {
-        const { data, error } = await window.supabaseClient
-          .from("profiles").select("*").order("full_name");
+        const { data, error } = await window.supabaseClient.from("profiles").select("*").order("full_name");
         if (error) throw error;
         employees = data || [];
         renderEmployees();
       } catch (err) {
-        olvShowError(errBox, err);
+        olvShowError($("err"), err);
       }
     }
 
-    document.getElementById("add-form").addEventListener("submit", async (e) => {
+    $("add-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("err");
+      const errBox = $("err");
       errBox.style.display = "none";
-      document.getElementById("temp-pass-box").hidden = true;
-      const btn = document.getElementById("add-btn");
+      $("temp-pass-box").hidden = true;
+      const btn = $("add-btn");
       btn.disabled = true;
       try {
+        const name = $("f-name").value.trim();
         const out = await callProxy({
           action: "create",
-          full_name: document.getElementById("f-name").value.trim(),
-          email: document.getElementById("f-email").value.trim(),
-          phone: document.getElementById("f-phone").value.trim(),
-          hourly_wage: document.getElementById("f-wage").value || null,
-          role: document.getElementById("f-role").value,
+          full_name: name,
+          email: $("f-email").value.trim(),
+          phone: $("f-phone").value.trim(),
+          hourly_wage: $("f-wage").value || null,
+          role: $("f-roles").dataset.value || "staff",
         });
-        document.getElementById("add-form").reset();
-        showTempPassword(out.tempPassword);
+        $("add-form").reset();
+        openAdd(false);
+        showTempPassword(out.tempPassword, name);
         await loadEmployees();
       } catch (err) {
         olvShowError(errBox, err);
@@ -324,77 +387,68 @@
       const emp = employees.find((e) => e.id === id);
       if (!emp) return;
       editingId = id;
-      document.getElementById("edit-name-label").textContent = emp.full_name || "";
-      document.getElementById("e-name").value = emp.full_name || "";
-      document.getElementById("e-phone").value = emp.phone || "";
-      document.getElementById("e-wage").value = emp.hourly_wage != null ? emp.hourly_wage : "";
-      document.getElementById("e-role").value = emp.role;
-      document.getElementById("e-device-id").value = emp.device_user_id || "";
-      document.getElementById("edit-group").hidden = false;
-      document.getElementById("edit-group").scrollIntoView({ behavior: "smooth", block: "start" });
+      openAdd(false);
+      $("edit-name-label").textContent = emp.full_name || "";
+      $("e-name").value = emp.full_name || "";
+      $("e-phone").value = emp.phone || "";
+      $("e-wage").value = emp.hourly_wage != null ? emp.hourly_wage : "";
+      $("e-device-id").value = emp.device_user_id || "";
+      rolesFor($("e-roles"), emp.role);
+      $("edit-group").hidden = false;
+      $("edit-group").scrollIntoView({ behavior: "smooth", block: "start" });
     }
+    function closeEdit() { $("edit-group").hidden = true; editingId = null; }
+    $("close-edit-btn").addEventListener("click", closeEdit);
+    $("edit-cancel").addEventListener("click", closeEdit);
 
-    document.getElementById("close-edit-btn").addEventListener("click", () => {
-      editingId = null;
-      document.getElementById("edit-group").hidden = true;
-    });
-
-    // تعديل الاسم/الهاتف/الأجر/الدور بنداء تحديث مباشر لـSupabase (بدون
-    // الحاجة للوسيط) — محمي بسياسة profiles_update + trigger
-    // protect_profile_privileges (schema-employees.sql) اللي بيسمحوا لـ
-    // owner/manager يعدّلوا أي موظف، وبيمنعوا أي حدا تاني حتى من تعديل
-    // دوره/أجره بنفسه
-    document.getElementById("edit-form").addEventListener("submit", async (e) => {
+    // تعديل الاسم/الهاتف/الأجر/الدور بنداء تحديث مباشر لـSupabase (بدون الوسيط): محمي بسياسة
+    // profiles_update + trigger protect_profile_privileges (schema-employees.sql)
+    $("edit-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!editingId) return;
-      const errBox = document.getElementById("err");
       try {
         const { error } = await window.supabaseClient.from("profiles").update({
-          full_name: document.getElementById("e-name").value.trim(),
-          phone: document.getElementById("e-phone").value.trim() || null,
-          hourly_wage: document.getElementById("e-wage").value || null,
-          role: document.getElementById("e-role").value,
-          device_user_id: document.getElementById("e-device-id").value.trim() || null,
+          full_name: $("e-name").value.trim(),
+          phone: $("e-phone").value.trim() || null,
+          hourly_wage: $("e-wage").value || null,
+          role: $("e-roles").dataset.value,
+          device_user_id: $("e-device-id").value.trim() || null,
         }).eq("id", editingId);
         if (error) throw error;
-        document.getElementById("edit-group").hidden = true;
-        editingId = null;
+        closeEdit();
+        olvToast("انحفظت التعديلات", { type: "ok", icon: "check" });
         await loadEmployees();
       } catch (err) {
-        // رقم البصمة عليه قيد فريد (profiles_device_user_id_idx بـ
-        // schema-attendance.sql) — رسالة Postgres الخام مش مفهومة لغير مبرمج
+        // رقم البصمة عليه قيد فريد (schema-attendance.sql): رسالة Postgres الخام مش مفهومة
         if (err && err.code === "23505" && /device_user_id/.test(err.message || "")) {
-          err = new Error("رقم البصمة هذا مستخدم مسبقًا لموظف آخر — كل رقم لازم يكون فريد");
+          err = new Error("رقم البصمة هذا مستخدم مسبقًا لموظف آخر. كل رقم لازم يكون فريد");
         }
-        olvShowError(errBox, err);
+        olvShowError($("err"), err);
       }
     });
 
     async function toggleActive(id, currentlyActive) {
       const emp = employees.find((e) => e.id === id);
       const msg = currentlyActive
-        ? `إيقاف حساب ${emp ? emp.full_name : ""}؟ لن يقدر يسجّل دخول بعدها.`
+        ? `إيقاف حساب ${emp ? emp.full_name : ""}؟ ما رح يقدر يسجّل دخول بعدها.`
         : `تفعيل حساب ${emp ? emp.full_name : ""}؟`;
       if (!confirm(msg)) return;
-      const errBox = document.getElementById("err");
       try {
         await callProxy({ action: "set_active", userId: id, active: !currentlyActive });
         await loadEmployees();
       } catch (err) {
-        olvShowError(errBox, err);
+        olvShowError($("err"), err);
       }
     }
 
     async function resetPassword(id) {
       const emp = employees.find((e) => e.id === id);
       if (!confirm(`تعيين كلمة سر جديدة لـ${emp ? emp.full_name : "هذا الموظف"}؟`)) return;
-      const errBox = document.getElementById("err");
       try {
         const out = await callProxy({ action: "reset_password", userId: id });
-        showTempPassword(out.tempPassword);
-        showToastMsg("كلمة سر جديدة جاهزة — سلّمها للموظف");
+        showTempPassword(out.tempPassword, emp ? emp.full_name : "");
       } catch (err) {
-        olvShowError(errBox, err);
+        olvShowError($("err"), err);
       }
     }
 
@@ -405,16 +459,11 @@
       const { data: myProfile, error } = await window.supabaseClient
         .from("profiles").select("role").eq("id", myId).single();
       if (error || !myProfile || !["owner", "manager"].includes(myProfile.role)) {
-        document.getElementById("no-access").hidden = false;
+        $("no-access").hidden = false;
         return;
       }
       myRole = myProfile.role;
-      // المدير يقدر يضيف كاشير بس (نفس القيد المفروض بالوسيط) — نخفي
-      // خياري owner/manager من القائمة حتى ما يحاول أصلًا ويشوف رفض
-      if (myRole === "manager") {
-        document.getElementById("f-role").querySelectorAll('option[value="owner"], option[value="manager"]').forEach((o) => o.remove());
-      }
-      document.getElementById("employees-content").hidden = false;
+      $("employees-content").hidden = false;
       await loadEmployees();
     })();
     });
