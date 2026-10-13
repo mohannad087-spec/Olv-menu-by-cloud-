@@ -149,16 +149,90 @@
   .pi-ac button:last-child{border-bottom:0;}
   .pi-ac button.on,.pi-ac button:hover{background:rgba(var(--gold-rgb),.14);}
   .pi-ac .m{font-size:11.5px; color:var(--muted); white-space:nowrap;}
+
+  /* صفحة المشتريات (2026-10): الفاتورة الجديدة ورا زر ← 3 أرقام ← سجل الفواتير مجمّع بالشهر مع فلاتر وبحث.
+     القواعد بـ design-system/olv/pages/purchases.md */
+  .wrap.pv-wrap{max-width:1120px;}
+  .pv-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .pv-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .pv-head .pv-sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
+  .pv-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  #pi-form-group[hidden]{display:none;}
+  .pv-form-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
+  .pv-form-head h2{margin:0;}
+  .stats.pv-stats{grid-template-columns:repeat(3,1fr); margin-bottom:14px;}
+  @media (max-width:640px){
+    .stats.pv-stats{grid-template-columns:repeat(2,1fr); gap:10px;}
+    .pv-stats .stat{padding:13px;}
+    .pv-stats .stat .stat-icon{display:none;}
+    .olv-glass .pv-stats .stat .value{font-size:22px;}
+  }
+  .pv-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  .pv-stats .note.warn{color:var(--gold-hi); font-weight:700;}
+  .pv-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  .pv-tools h2{margin:0; flex:1; min-width:140px; display:flex; align-items:center; gap:8px;}
+  .pv-tools h2 .icon{width:18px; height:18px; color:var(--gold-hi);}
+  .pv-tools h2 .n{color:var(--muted); font-weight:500; font-size:14px;}
+  .pv-search{position:relative; flex:1; max-width:340px; min-width:200px;}
+  .pv-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--muted); pointer-events:none;}
+  .pv-search input{width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; padding-inline-start:38px; font-size:16px;
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .pv-search input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .pv-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;}
+  .pv-chip{min-height:40px; padding:0 14px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:13.5px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);}
+  .pv-chip .c{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums;}
+  .pv-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .pv-chip[aria-pressed="true"] .c{color:inherit;}
+  .pv-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .pv-chip:active{transform:scale(.97);}
+  .pv-empty{padding:26px 8px; text-align:center; color:var(--muted); line-height:1.7;}
+  .pv-month{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:16px 0 6px; padding:0 4px;}
+  .pv-month:first-child{margin-top:6px;}
+  .pv-month b{font-size:15px; font-weight:800;}
+  .pv-month small{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .pv-list{list-style:none; margin:0; padding:0;}
+  .pv-inv + .pv-inv{border-top:1px solid var(--hair-soft);}
+  .pv-inv.open{background:var(--ink-3); border-radius:14px;}
+  .pv-inv.open + .pv-inv, .pv-inv + .pv-inv.open{border-top-color:transparent;}
+  .pv-row{width:100%; display:grid; grid-template-columns:52px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:60px; padding:8px; background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:12px;}
+  .pv-row:hover{background:rgba(var(--gold-rgb),.06);}
+  .pv-row:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .pv-row .dt{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2;}
+  .pv-row .dt small{display:block; color:var(--muted); font-size:11.5px; font-weight:500;}
+  .pv-row .who{min-width:0;}
+  .pv-row .who b{display:block; font-size:14.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pv-row .who small{display:flex; flex-wrap:wrap; gap:3px 8px; align-items:center; margin-top:3px; color:var(--muted); font-size:12px;}
+  .pv-row .am{text-align:left; white-space:nowrap; font-weight:800; font-size:15.5px; font-variant-numeric:tabular-nums;}
+  .pv-inv.void .pv-row{opacity:.55;}
+  .pv-inv.void .pv-row .am{text-decoration:line-through;}
+  .pv-detail{padding:2px 12px 14px; padding-inline-start:76px; font-size:13.5px; line-height:1.9;}
+  .pv-detail:not([hidden]){animation:od-in .18s var(--spring) both;}
+  @keyframes od-in{from{opacity:0; transform:translateY(-4px);}}
+  .pv-acts{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  .pv-acts .btn{min-height:44px;}
+  .pv-more{display:flex; justify-content:center; padding-top:10px;}
+  .pv-more[hidden]{display:none;}
+  .pv-more .btn{min-height:44px;}
+  @media (max-width:640px){ .pv-detail{padding-inline-start:12px;} .pv-row{grid-template-columns:46px minmax(0,1fr) auto; gap:10px;} }
+  @media (prefers-reduced-motion: reduce){ .pv-chip{transition:none;} .pv-chip:active{transform:none;} .pv-detail:not([hidden]){animation:none;} }
 </style>
 
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap pv-wrap">
     <div class="err" id="err"></div>
-
-    <div class="group">
-      <h2>فاتورة مشتريات</h2>
+    <header class="pv-head">
+      <div>
+        <h1>المشتريات</h1>
+        <div class="pv-sub">فواتير الموردين: كل فاتورة بتزيد المخزون وبتنزل مصروف وبتسجّل دين المورّد.</div>
+      </div>
+      <button class="btn go" type="button" id="pv-new" aria-expanded="false" aria-controls="pi-form-group"></button>
+    </header>
+    <div class="group" id="pi-form-group" hidden>
+      <div class="pv-form-head"><h2>فاتورة مشتريات جديدة</h2><button class="btn small" type="button" id="pv-close">إغلاق</button></div>
       <div class="pi-snaps">
         <label class="pi-snap" for="pi-file">
           <span class="pi-snap-ic">📷</span>
@@ -273,23 +347,30 @@
       </div>
     </div>
 
+    <div class="stats pv-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-month"></div>
+        <div class="stat-body"><div class="label">مشتريات هالشهر</div><div class="value" id="k-month">—</div><span class="note" id="k-month-note">&nbsp;</span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-debt"></div>
+        <div class="stat-body"><div class="label">باقي على الموردين</div><div class="value" id="k-debt">—</div><span class="note" id="k-debt-note">&nbsp;</span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-tax"></div>
+        <div class="stat-body"><div class="label">ضريبة المشتريات</div><div class="value" id="k-tax">—</div><span class="note">بالفواتير المعروضة</span></div></div></div>
+    </div>
     <div class="group">
-      <h2>سجل الفواتير</h2>
-      <div class="hint" id="pi-tax-summary" style="margin:-6px 0 10px; color:var(--gold-hi);"></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>المورّد</th><th>الإجمالي</th><th>الدفع</th><th></th></tr></thead>
-          <tbody id="pi-history"><tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr></tbody>
-        </table>
+      <div class="pv-tools">
+        <h2 id="pv-title"></h2>
+        <div class="pv-search" id="pv-search-wrap"><input type="search" id="pv-q" placeholder="ابحث بالمورّد أو رقم الفاتورة" aria-label="بحث بالمورّد أو رقم الفاتورة" autocomplete="off"></div>
       </div>
-      <p class="hint" style="margin-top:10px;">
-        الفاتورة ما بتتعدّل. إذا في غلطة، صاحب المطعم بيلغيها بسبب (بيرجع المخزون وبيشيل المصروف وقيد المورّد) وبتدخلها من جديد.
+      <div class="pv-chips" id="pv-chips" role="group" aria-label="نوع الفواتير"></div>
+      <div class="hint" id="pi-tax-summary" hidden></div>
+      <div id="pi-history"><div class="pv-empty">جاري التحميل...</div></div>
+      <div class="pv-more" id="pv-more" hidden><button class="btn" type="button" id="pv-more-btn">عرض كمان</button></div>
+      <p class="hint" style="margin-top:12px;">
+        الفاتورة ما بتتعدّل. إذا في غلطة، صاحب المطعم بيلغيها بسبب (بيرجع المخزون وبيشيل المصروف وقيد المورّد) وبتعيد تسجيلها صح.
         دفعات المورّد اللاحقة بتنسجّل من صفحة <a href="suppliers.html" style="color:var(--gold-hi);">الموردين</a>.
         <a href="purchases.html" style="color:var(--muted);">المشتريات المفردة القديمة</a>
       </p>
     </div>
   </div>
-
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
@@ -308,6 +389,23 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("purchase-invoices");
+
+    // الفاتورة الجديدة مخفية لحد ما تكبس الزر (أو لحد ما تمسح باركود أو تستلم طلبية)
+    function openForm(open) {
+      const g = document.getElementById("pi-form-group");
+      if (!g) return;
+      const wasHidden = g.hidden;
+      g.hidden = !open;
+      document.getElementById("pv-new").setAttribute("aria-expanded", String(open));
+      if (open && wasHidden) g.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    document.getElementById("pv-new").innerHTML = olvIcon("plus") + "<span>فاتورة جديدة</span>";
+    document.getElementById("pv-new").addEventListener("click", () => openForm(document.getElementById("pi-form-group").hidden));
+    document.getElementById("pv-close").addEventListener("click", () => openForm(false));
+    document.getElementById("ic-month").innerHTML = olvIcon("cart");
+    document.getElementById("ic-debt").innerHTML = olvIcon("truck");
+    document.getElementById("ic-tax").innerHTML = olvIcon("receipt");
+    document.getElementById("pv-search-wrap").insertAdjacentHTML("afterbegin", olvIcon("search"));
 
     let items = [];              // مواد خام + مستلزمات
     let catalogOnly = [];        // أصناف الكتالوج اللي لسا مش عندك (بتنضاف تلقائيًا أول ما تنختار)
@@ -831,6 +929,7 @@
     // جهاز الماسح: بيشتغل من أي مكان بالصفحة
     olvBarcodeListen((code) => {
       if (document.querySelector(".olv-scan")) return; // الكاميرا مفتوحة، هي بتتعامل
+      openForm(true);
       handleCode(code).then((m) => { if (m) olvToast(m, { type: "ok", ms: 1800 }); });
     });
 
@@ -1130,7 +1229,9 @@
         await Promise.all([loadItems(), loadHistory()]);
         renderLines();
         if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
-        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+        openForm(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        if (window.olvToast) olvToast("انحفظت الفاتورة", { type: "ok", icon: "check" });
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
@@ -1141,9 +1242,18 @@
     // ---------- السجل ----------
     const PAY_LABELS = { cash: "كاش", credit: "آجل", partial: "جزئي" };
     let payable = {}; // الفواتير اللي عليها باقي وبينفع تتسدّد من هون: id → { supplierId, no, remaining }
+    let invRows = [];
+    let invChip = "all";
+    let invQuery = "";
+    let invShown = 40;
+    const openInv = new Set();
+    const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
+    const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const shortDay = (d) => Number(String(d).slice(8, 10)) + "/" + Number(String(d).slice(5, 7));
+    const dayName = (d) => DAY_NAMES[new Date(d + "T00:00:00").getDay()];
+
     async function loadHistory() {
       const errBox = document.getElementById("err");
-      const body = document.getElementById("pi-history");
       try {
         const { data, error } = await window.supabaseClient
           .from("purchase_invoices").select("*, suppliers(name)").order("created_at", { ascending: false }).limit(HISTORY_LIMIT);
@@ -1151,64 +1261,138 @@
         const tpl = document.getElementById("pi-template");
         tpl.innerHTML = `<option value="">نسخ من فاتورة سابقة…</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
           .map((i) => `<option value="${i.id}">${olvEsc(i.invoice_date)} — ${olvEsc(i.suppliers ? i.suppliers.name : "بدون مورّد")}${i.invoice_no ? " #" + olvEsc(i.invoice_no) : ""} (${money(i.total_amount)})</option>`).join("");
-        if (!data || !data.length) { body.innerHTML = `<tr class="empty-row"><td colspan="6">ما في فواتير مسجّلة بعد</td></tr>`; return; }
         // الدفعات اللاحقة للمورّد (من صفحة الموردين) بتتوزّع على فواتيره من الأقدم — فشلها ما بيوقف السجل
         const settle = {};
-        const openIds = data.filter((i) => i.status === "active" && i.supplier_id && i.payment_type !== "cash").map((i) => i.id);
+        const openIds = (data || []).filter((i) => i.status === "active" && i.supplier_id && i.payment_type !== "cash").map((i) => i.id);
         if (openIds.length) {
           const st = await window.supabaseClient.from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", openIds);
           (st.data || []).forEach((r) => { settle[r.invoice_id] = Number(r.remaining); });
         }
-        const taxSum = data.filter((i) => i.status === "active").reduce((s, i) => s + Number(i.tax_amount || 0), 0);
-        document.getElementById("pi-tax-summary").textContent = taxSum > 0 ? `إجمالي ضريبة المشتريات بالفواتير الفعّالة المعروضة: ${money(taxSum)}` : "";
         const canPay = ["owner", "manager"].includes(window.olvRole);
         payable = {};
-        body.innerHTML = data.map((i) => {
+        invRows = (data || []).map((i) => {
           const voided = i.status === "voided";
           const remaining = i.id in settle ? settle[i.id] : Number(i.total_amount) - Number(i.paid_amount);
           const showPay = canPay && !voided && i.supplier_id && remaining >= 0.005;
           if (showPay) payable[i.id] = { supplierId: i.supplier_id, no: i.invoice_no, remaining };
           const settledLater = i.payment_type !== "cash" && remaining < 0.005;
-          const payBadge = settledLater
-            ? `<span class="pi-badge cash">مدفوعة</span> <small>(اندفعت لاحقًا)</small>`
-            : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${remaining > 0 ? ` <small>(متبقي ${money(remaining)})</small>` : ""}`;
-          return `<tr class="${voided ? "pi-void" : ""}">
-            <td>${olvEsc(i.invoice_date)}</td>
-            <td>${olvEsc(i.invoice_no) || "—"}</td>
-            <td>${i.suppliers ? olvEsc(i.suppliers.name) : "—"}</td>
-            <td>${money(i.total_amount)}</td>
-            <td>${Number(i.tax_amount) > 0 && !voided ? `<small style="display:block; color:var(--muted);">شامل ضريبة ${money(i.tax_amount)}</small>` : ""}${voided ? `<span class="pi-badge credit">ملغاة</span>` : payBadge}</td>
-            <td><div class="row-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
-              ${showPay ? `<button class="btn small gold" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
-              <button class="btn small" data-detail="${i.id}">الأصناف</button>
-              ${i.attachment_path ? `<button class="btn small" data-file="${olvEsc(i.attachment_path)}">الصورة</button>` : ""}
-              ${!voided && isOwner ? `<button class="btn small danger" data-void="${i.id}">إلغاء</button>` : ""}
-            </div></td>
-          </tr>
-          <tr id="det-${i.id}" hidden><td colspan="6">${Number(i.discount_amount) > 0 || Number(i.tax_amount) > 0
-            ? `<div class="hint" style="margin-bottom:6px;">مجموع الأصناف <b>${money(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount)}</b>${Number(i.discount_amount) > 0 ? ` — خصم <b>${money(i.discount_amount)}</b>${i.discount_pct ? ` (${Number(i.discount_pct)}%)` : ""}` : ""}${Number(i.tax_amount) > 0 ? ` — ضريبة ${Number(i.tax_rate)}% = <b>${money(i.tax_amount)}</b> (${i.tax_inclusive ? "الأسعار كانت شاملة" : "أُضيفت فوق الأسعار"}، ${i.tax_recoverable === false ? "غير قابلة للاسترداد" : "قابلة للاسترداد"})` : ""}</div>` : ""}<div class="hint" data-det-body>جاري التحميل...</div>${voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}</td></tr>`;
-        }).join("");
+          return { ...i, voided, remaining, showPay, settledLater, owing: !voided && i.payment_type !== "cash" && remaining >= 0.005 };
+        });
+        renderHistory();
       } catch (err) { olvShowError(errBox, err); }
     }
 
-    document.getElementById("pi-history").addEventListener("click", async (e) => {
-      const errBox = document.getElementById("err");
-      const detail = e.target.closest("[data-detail]");
-      if (detail) {
-        const row = document.getElementById("det-" + detail.dataset.detail);
-        row.hidden = !row.hidden;
-        if (!row.hidden && !row.dataset.loaded) {
-          const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", detail.dataset.detail);
-          if (error) { olvShowError(errBox, error); return; }
-          row.querySelector("[data-det-body]").innerHTML = (data || []).map((p) => {
-            const lp = p.list_price != null ? Number(p.list_price) : Number(p.unit_price);
-            const costNote = p.list_price != null && Math.abs(Number(p.unit_price) - lp) > 0.00001 ? ` <small style="color:var(--muted);">(تكلفة فعلية ${Number(p.unit_price)} بعد الخصم/الضريبة)</small>` : "";
-            return `• ${olvEsc(p.item_name)} — ${Number(p.quantity)} ${olvEsc(p.unit)} × ${lp} = <b>${money(Math.round(Number(p.quantity) * lp * 100) / 100)}</b>${costNote}`;
-          }).join("<br>") || "لا أصناف";
-          row.dataset.loaded = "1";
-        }
+    function renderHistory() {
+      const box = document.getElementById("pi-history");
+      const active = invRows.filter((i) => !i.voided);
+      const monthKey = (typeof olvToday === "function" ? olvToday() : "").slice(0, 7);
+      const month = active.filter((i) => String(i.invoice_date).slice(0, 7) === monthKey);
+      const debt = invRows.filter((i) => i.owing).reduce((s, i) => s + i.remaining, 0);
+      const debtSup = new Set(invRows.filter((i) => i.owing).map((i) => i.supplier_id)).size;
+      const taxSum = active.reduce((s, i) => s + Number(i.tax_amount || 0), 0);
+      document.getElementById("k-month").textContent = money(month.reduce((s, i) => s + Number(i.total_amount), 0));
+      document.getElementById("k-month-note").textContent = month.length ? `${month.length} فاتورة` : "ما في فواتير هالشهر";
+      document.getElementById("k-debt").textContent = money(debt);
+      document.getElementById("k-debt-note").className = "note" + (debt > 0 ? " warn" : "");
+      document.getElementById("k-debt-note").textContent = debt > 0 ? `على ${debtSup} مورّد، سدّد من صفحة الموردين` : "ما في دين معلّق";
+      document.getElementById("k-tax").textContent = money(taxSum);
+
+      const counts = { all: invRows.length, owing: invRows.filter((i) => i.owing).length, cash: invRows.filter((i) => !i.voided && (i.payment_type === "cash" || i.settledLater)).length, voided: invRows.filter((i) => i.voided).length };
+      const chips = [["all", "الكل"], ["owing", "عليها باقي"], ["cash", "مدفوعة"], ["voided", "ملغاة"]];
+      document.getElementById("pv-chips").innerHTML = chips.map(([id, l]) =>
+        `<button class="pv-chip" type="button" data-chip="${id}" aria-pressed="${invChip === id}">${l} <span class="c">${counts[id]}</span></button>`).join("");
+      document.getElementById("pv-chips").querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { invChip = b.dataset.chip; invShown = 40; renderHistory(); }));
+
+      const q = invQuery.toLowerCase();
+      const list = invRows.filter((i) => {
+        if (invChip === "owing" && !i.owing) return false;
+        if (invChip === "cash" && !(!i.voided && (i.payment_type === "cash" || i.settledLater))) return false;
+        if (invChip === "voided" && !i.voided) return false;
+        if (!q) return true;
+        return ((i.suppliers && i.suppliers.name) || "").toLowerCase().includes(q) || String(i.invoice_no || "").toLowerCase().includes(q);
+      }).sort((a, b) => String(b.invoice_date).localeCompare(String(a.invoice_date)) || String(b.created_at).localeCompare(String(a.created_at)));
+      document.getElementById("pv-title").innerHTML = olvIcon("receipt") + ` سجل الفواتير <span class="n">${list.length === invRows.length ? `(${list.length})` : `(${list.length} من ${invRows.length})`}</span>`;
+      if (!list.length) {
+        box.innerHTML = `<div class="pv-empty">${invRows.length ? "ما في فواتير بهالفلتر." : "ما في فواتير مسجّلة لسا. اكبس «فاتورة جديدة» لتسجّل أول وحدة."}</div>`;
+        document.getElementById("pv-more").hidden = true;
         return;
       }
+      const shown = list.slice(0, invShown);
+      const months = [];
+      const idx = new Map();
+      shown.forEach((i) => {
+        const k = String(i.invoice_date).slice(0, 7);
+        if (!idx.has(k)) { idx.set(k, months.length); months.push({ k, rows: [] }); }
+        months[idx.get(k)].rows.push(i);
+      });
+      box.innerHTML = months.map(({ k, rows }) => `
+        <div class="pv-month"><b>${MONTHS[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}</b><small>${rows.length} فاتورة · ${money(rows.filter((i) => !i.voided).reduce((s, i) => s + Number(i.total_amount), 0))}</small></div>
+        <ul class="pv-list">${rows.map(invHtml).join("")}</ul>`).join("");
+      document.getElementById("pv-more").hidden = list.length <= invShown;
+      if (list.length > invShown) document.getElementById("pv-more-btn").textContent = `عرض كمان (${list.length - invShown})`;
+      box.querySelectorAll("[data-toggle-inv]").forEach((b) => b.addEventListener("click", () => {
+        const id = b.dataset.toggleInv;
+        const li = b.closest(".pv-inv");
+        const d = document.getElementById("det-" + id);
+        const open = d.hidden;
+        li.classList.toggle("open", open); b.setAttribute("aria-expanded", String(open));
+        if (open) openInv.add(id); else openInv.delete(id);
+        if (open) loadInvoiceDetail(id);
+        else d.hidden = true;
+      }));
+      // رجّع الفواتير اللي كانت مفتوحة (مثلًا بعد تسديد)
+      openInv.forEach((id) => { const b = box.querySelector(`[data-toggle-inv="${id}"]`); if (b) { b.closest(".pv-inv").classList.add("open"); b.setAttribute("aria-expanded", "true"); loadInvoiceDetail(id); } });
+    }
+
+    function invHtml(i) {
+      const payBadge = i.voided ? `<span class="pi-badge credit">ملغاة</span>`
+        : i.settledLater ? `<span class="pi-badge cash">مدفوعة</span>`
+        : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${i.remaining > 0.004 ? ` <span>باقي ${money(i.remaining)}</span>` : ""}`;
+      const tax = Number(i.tax_amount) > 0 && !i.voided ? `<span>شامل ضريبة ${money(i.tax_amount)}</span>` : "";
+      return `
+        <li class="pv-inv${i.voided ? " void" : ""}">
+          <button class="pv-row" type="button" data-toggle-inv="${i.id}" aria-expanded="false">
+            <span class="dt">${shortDay(i.invoice_date)}<small>${dayName(i.invoice_date)}</small></span>
+            <span class="who"><b>${i.suppliers ? olvEsc(i.suppliers.name) : "كاش من السوق"}</b><small>${i.invoice_no ? `<span>#${olvEsc(i.invoice_no)}</span>` : ""}${payBadge}${tax}</small></span>
+            <span class="am">${money(i.total_amount)}</span>
+          </button>
+          <div class="pv-detail" id="det-${i.id}" hidden>
+            ${Number(i.discount_amount) > 0 || Number(i.tax_amount) > 0
+              ? `<div class="hint" style="margin-bottom:6px;">مجموع الأصناف <b>${money(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount)}</b>${Number(i.discount_amount) > 0 ? ` — خصم <b>${money(i.discount_amount)}</b>${i.discount_pct ? ` (${Number(i.discount_pct)}%)` : ""}` : ""}${Number(i.tax_amount) > 0 ? ` — ضريبة ${Number(i.tax_rate)}% = <b>${money(i.tax_amount)}</b> (${i.tax_inclusive ? "الأسعار كانت شاملة" : "أُضيفت فوق الأسعار"}، ${i.tax_recoverable === false ? "غير قابلة للاسترداد" : "قابلة للاسترداد"})` : ""}</div>` : ""}
+            <div data-det-body>جاري التحميل...</div>
+            ${i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
+            <div class="pv-acts">
+              ${i.showPay ? `<button class="btn go" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
+              ${i.attachment_path ? `<button class="btn" data-file="${olvEsc(i.attachment_path)}">صورة الفاتورة</button>` : ""}
+              ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
+            </div>
+          </div>
+        </li>`;
+    }
+
+    async function loadInvoiceDetail(id) {
+      const row = document.getElementById("det-" + id);
+      if (!row) return;
+      row.hidden = false;
+      if (row.dataset.loaded) return;
+      const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      row.querySelector("[data-det-body]").innerHTML = (data || []).map((p) => {
+        const lp = p.list_price != null ? Number(p.list_price) : Number(p.unit_price);
+        const costNote = p.list_price != null && Math.abs(Number(p.unit_price) - lp) > 0.00001 ? ` <small style="color:var(--muted);">(تكلفة فعلية ${Number(p.unit_price)} بعد الخصم/الضريبة)</small>` : "";
+        return `• ${olvEsc(p.item_name)} — ${Number(p.quantity)} ${olvEsc(p.unit)} × ${lp} = <b>${money(Math.round(Number(p.quantity) * lp * 100) / 100)}</b>${costNote}`;
+      }).join("<br>") || "لا أصناف";
+      row.dataset.loaded = "1";
+    }
+    document.getElementById("pv-more-btn").addEventListener("click", () => { invShown += 40; renderHistory(); });
+    let invTimer = null;
+    document.getElementById("pv-q").addEventListener("input", (e) => {
+      clearTimeout(invTimer);
+      invTimer = setTimeout(() => { invQuery = e.target.value.trim(); invShown = 40; renderHistory(); }, 120);
+    });
+
+    document.getElementById("pi-history").addEventListener("click", async (e) => {
+      const errBox = document.getElementById("err");
       const file = e.target.closest("[data-file]");
       if (file) {
         const { data, error } = await window.supabaseClient.storage.from("purchase-invoices").createSignedUrl(file.dataset.file, 120);
@@ -1294,7 +1478,7 @@
         await Promise.all([loadItems(), loadSuppliers()]);
         lines = [newLine()];
         const poId = new URLSearchParams(location.search).get("po");
-        if (poId) { try { await prefillFromOrder(poId); } catch (err) { olvShowError(document.getElementById("err"), err); } }
+        if (poId) { try { await prefillFromOrder(poId); openForm(true); } catch (err) { olvShowError(document.getElementById("err"), err); } }
         renderLines();
         await loadHistory();
       } catch (err) { olvShowError(document.getElementById("err"), err); }
