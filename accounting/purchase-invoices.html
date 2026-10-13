@@ -68,6 +68,9 @@
   .pi-lines input.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
   .pi-line-total{font-weight:700; white-space:nowrap; padding-top:12px; display:block;}
   .pi-warn{font-size:11.5px; color:var(--gold-hi); margin-top:3px; line-height:1.4;}
+  .pi-stock{font-size:12px; color:var(--muted); margin-top:3px;}
+  .pi-bonus-row{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:13px;}
+  .pi-bonus-row input{max-width:84px;}
   .pi-warn.bad{color:var(--danger-hi);}
   .pi-sugg{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
   .pi-sugg button{font:inherit; font-size:12px; padding:5px 10px; border-radius:999px; border:1px solid var(--gold-hi); background:var(--surface,#fff); color:var(--text); cursor:pointer; min-height:32px;}
@@ -432,7 +435,7 @@
     const round2 = (n) => Math.round(n * 100) / 100;
 
     function newLine(over) {
-      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, unmatchedName: "" }, over || {});
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
@@ -460,8 +463,8 @@
     // ---------- تحميل ----------
     async function loadItems() {
       const [{ data: ing, error: e1 }, { data: sup, error: e2 }] = await Promise.all([
-        window.supabaseClient.from("ingredients").select("id, name, unit, unit_price, purchase_unit, purchase_unit_factor, menu_enabled, menu_price, menu_price_auto, menu_cat").order("name"),
-        window.supabaseClient.from("supplies").select("id, name, unit, unit_price, purchase_unit, purchase_unit_factor").order("name"),
+        window.supabaseClient.from("ingredients").select("id, name, unit, unit_price, current_stock, purchase_unit, purchase_unit_factor, menu_enabled, menu_price, menu_price_auto, menu_cat").order("name"),
+        window.supabaseClient.from("supplies").select("id, name, unit, unit_price, current_stock, purchase_unit, purchase_unit_factor").order("name"),
         window.supabaseClient.from("app_settings").select("value").eq("key", "menu_markup_pct").maybeSingle().then((r) => { const v = r.data && Number(r.data.value); if (Number.isFinite(v)) menuMarkup = v; }, () => {}),
       ]);
       if (e1) throw e1;
@@ -500,31 +503,70 @@
     const smartPrice = (cost) => (Number(cost) > 0 ? Math.round(Math.ceil((Number(cost) * (1 + menuMarkup / 100)) / 0.05 - 1e-9) * 0.05 * 100) / 100 : null);
     const followsMenu = (it) => it && it.kind === "ingredient" && it.menu_enabled && it.menu_price_auto && it.menu_cat !== "shisha-flavor";
     // البونص (حبات مجانية): المخزون بيزيد فيها، والمدفوع ما بيتغير، فتكلفة الحبة = المدفوع ÷ (المشتراة + البونص)
-    const bonusOf = (line) => Math.max(Number(line.bonus) || 0, 0);
+    const r3 = (n) => Math.round(n * 1000) / 1000;
+    const fmtQ = (n) => r3(Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 3 });
+    // البونص بوحدة المخزون. إما رقم إجمالي مباشرة، أو نسبة «كمية بونص لكل كمية مشتراة»: بنحسب المجموعات الكاملة بس (٢٥ كيلو مع «نص لكل ١٠» = مجموعتين)
+    function bonusInfo(line) {
+      const it = itemOf(line);
+      if (line.bMode !== "ratio") {
+        const b = Math.max(Number(line.bonus) || 0, 0);
+        return { total: b, groups: null };
+      }
+      const get = Math.max(Number(line.bGet) || 0, 0), per = Number(line.bPer) || 0, q = Number(line.qty) || 0;
+      if (!(get > 0) || !(per > 0) || !(q > 0)) return { total: 0, groups: 0 };
+      const groups = Math.floor(q / per + 1e-9);
+      const gu = line.bGetUnit || (line.unitMode === "purchase" ? "purchase" : "stock");
+      const inStock = gu === "purchase" && it && it.purchase_unit_factor ? get * Number(it.purchase_unit_factor) : get;
+      return { total: r3(groups * inStock), groups };
+    }
+    const bonusOf = (line) => bonusInfo(line).total;
     const stockQtyOf = (line, it) => (Number(line.qty) || 0) * factorOf(line, it);
     const stockPriceOf = (line, it) => {
       const b = bonusOf(line), q = stockQtyOf(line, it);
       if (b > 0 && q > 0) return lineTotal(line) / (q + b);
       return Number(line.price) / factorOf(line, it);
     };
+    // كمية المخزون الحالية تحت اسم الصنف، ومعها الكمية بعد الفاتورة (المشتراة + البونص)
+    function stockNote(line, it) {
+      if (!it) return "";
+      const cur = Number(it.current_stock) || 0;
+      const add = stockQtyOf(line, it) + bonusOf(line);
+      const after = add > 0 ? ` ← بعد هالفاتورة <b>${fmtQ(cur + add)}</b>` : "";
+      return `<div class="pi-stock">📦 بالمخزن هسا: <b>${fmtQ(cur)}</b> ${olvEsc(it.unit)}${after}</div>`;
+    }
     function bonusHtml(line, it) {
       if (!it) return "";
-      if (!line.bonusOpen && !bonusOf(line)) return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في حبات مجانية (بونص)؟</button>`;
-      const b = bonusOf(line), q = stockQtyOf(line, it);
-      const pu = it.purchase_unit && it.purchase_unit_factor && line.unitMode === "purchase";
+      if (!line.bonusOpen && !bonusOf(line) && line.bMode !== "ratio") return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في بونص (مجاني)؟</button>`;
+      const hasPU = it.purchase_unit && it.purchase_unit_factor;
+      const ratio = line.bMode === "ratio";
+      const buyUnit = line.unitMode === "purchase" && hasPU ? it.purchase_unit : it.unit;
+      const gu = line.bGetUnit || (line.unitMode === "purchase" ? "purchase" : "stock");
+      const getUnitHtml = hasPU
+        ? `<select data-f="bGetUnit" aria-label="وحدة البونص"><option value="stock"${gu === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option><option value="purchase"${gu === "purchase" ? " selected" : ""}>${olvEsc(it.purchase_unit)}</option></select>`
+        : `<span>${olvEsc(it.unit)}</span>`;
+      const body = ratio
+        ? `<div class="pi-bonus-row"><span>بونص</span>
+            <input type="number" data-f="bGet" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bGet)}" placeholder="مثلًا 0.5" aria-label="كمية البونص">
+            ${getUnitHtml}
+            <span>لكل</span>
+            <input type="number" data-f="bPer" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bPer)}" placeholder="مثلًا 10" aria-label="لكل كم مشتراة">
+            <span>${olvEsc(buyUnit)} مشتراة</span></div>`
+        : `<div class="pi-bonus-row"><span>كم ${olvEsc(it.unit)} مجانًا بالمجموع؟</span>
+            <input type="number" data-f="bonus" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bonus)}" placeholder="مثال: 7" aria-label="البونص"></div>`;
       return `<div class="pi-bonus" style="margin-top:6px;">
-        <label style="font-size:13px;font-weight:700;">🎁 بونص: كم ${olvEsc(it.unit)} مجانًا بالمجموع؟</label>
-        <div style="display:flex; gap:6px; align-items:center; margin-top:4px;">
-          <input type="number" data-f="bonus" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bonus)}" placeholder="مثال: 7" aria-label="البونص" style="max-width:110px;">
-          ${pu && Number(line.qty) > 0 ? `<button type="button" class="pi-mini" data-act="bonus-per">حبة لكل ${olvEsc(it.purchase_unit)} (${Number(line.qty)})</button>` : ""}
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <b style="font-size:13px;">🎁 بونص</b>
+          <button type="button" class="pi-mini" data-act="bonus-mode">${ratio ? "أدخل الرقم الإجمالي" : "احسبه بنسبة (مثلًا نص كيلو لكل 10)"}</button>
         </div>
+        ${body}
         <div data-bonus-sum>${bonusSum(line, it)}</div>
       </div>`;
     }
     function bonusSum(line, it) {
-      const b = bonusOf(line), q = stockQtyOf(line, it);
-      if (!(b > 0) || !(q > 0)) return `<div class="hint" style="font-size:12px;">البونص ما بيزيد الفاتورة، بس بيزيد المخزون وبينزّل تكلفة الحبة.</div>`;
-      return `<div class="pi-warn">المخزون رح يزيد ${Math.round((q + b) * 1000) / 1000} ${olvEsc(it.unit)} (${Math.round(q * 1000) / 1000} مشتراة + ${b} مجانًا) — تكلفة الواحدة ${money(stockPriceOf(line, it))}</div>`;
+      const info = bonusInfo(line), b = info.total, q = stockQtyOf(line, it);
+      if (!(b > 0) || !(q > 0)) return `<div class="hint" style="font-size:12px;">${line.bMode === "ratio" && info.groups === 0 && Number(line.qty) > 0 && Number(line.bPer) > Number(line.qty) ? "الكمية أقل من المطلوب للبونص." : "البونص ما بيزيد الفاتورة، بس بيزيد المخزون وبينزّل تكلفة الوحدة."}</div>`;
+      const how = info.groups != null ? ` (${info.groups} مرة)` : "";
+      return `<div class="pi-warn">المخزون رح يزيد ${fmtQ(q + b)} ${olvEsc(it.unit)} (${fmtQ(q)} مشتراة + ${fmtQ(b)} مجانًا${how}) — تكلفة الواحدة ${money(stockPriceOf(line, it))}</div>`;
     }
     // تغيّر كبير: أغلى من مرة ونص أو أرخص من النص (غالبًا غلطة بالفاصلة أو بالوحدة)
     const isJump = (line, it) => {
@@ -612,6 +654,7 @@
             ${line.unmatchedName && !it ? unmatchedHelp(line) : ""}
             ${!it ? `<button type="button" class="pi-newbtn" data-act="newdlg">＋ إضافة مادة جديدة للمخزون</button>` : ""}
             ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
+            <div data-stock>${stockNote(line, it)}</div>
             <div data-warn>${priceWarning(line, it)}</div>
             ${bonusHtml(line, it)}
           </td>
@@ -736,10 +779,13 @@
       } else if (f === "qty") line.qty = e.target.value;
       else if (f === "price") line.price = e.target.value;
       else if (f === "bonus") line.bonus = e.target.value;
+      else if (f === "bGet") line.bGet = e.target.value;
+      else if (f === "bPer") line.bPer = e.target.value;
       const it = itemOf(line);
       const bs = tr.querySelector("[data-bonus-sum]"); if (bs && it) bs.innerHTML = bonusSum(line, it);
       tr.querySelector("[data-total]").textContent = money(lineTotal(line));
       tr.querySelector("[data-warn]").innerHTML = priceWarning(line, it);
+      const sn = tr.querySelector("[data-stock]"); if (sn) sn.innerHTML = stockNote(line, it);
       updateTotals();
     });
     document.getElementById("pi-lines").addEventListener("change", (e) => {
@@ -769,6 +815,9 @@
         });
         return;
       }
+      if (e.target.dataset.f === "bGetUnit") {
+        const line = lines[Number(tr.dataset.idx)]; line.bGetUnit = e.target.value; renderLines(); return;
+      }
       if (e.target.dataset.f === "unit") {
         const line = lines[Number(tr.dataset.idx)]; const it = itemOf(line);
         const before = factorOf(line, it);
@@ -783,7 +832,11 @@
       const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
       if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
       if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
-      if (btn.dataset.act === "bonus-per") { line.bonus = String(Number(line.qty) || ""); renderLines(); return; }
+      if (btn.dataset.act === "bonus-mode") {
+        if (line.bMode === "ratio") { const t = bonusOf(line); line.bonus = t > 0 ? String(t) : ""; line.bMode = "total"; }
+        else line.bMode = "ratio";
+        renderLines(); return;
+      }
       if (btn.dataset.act === "pick") {
         const it = items.find((i) => i.kind + ":" + i.id === btn.dataset.key); if (!it) return;
         line.itemKey = btn.dataset.key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock";
