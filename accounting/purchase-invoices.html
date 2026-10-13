@@ -432,7 +432,7 @@
     const round2 = (n) => Math.round(n * 100) / 100;
 
     function newLine(over) {
-      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", unmatchedName: "" }, over || {});
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
@@ -499,7 +499,33 @@
     let menuMarkup = 50;
     const smartPrice = (cost) => (Number(cost) > 0 ? Math.round(Math.ceil((Number(cost) * (1 + menuMarkup / 100)) / 0.05 - 1e-9) * 0.05 * 100) / 100 : null);
     const followsMenu = (it) => it && it.kind === "ingredient" && it.menu_enabled && it.menu_price_auto && it.menu_cat !== "shisha-flavor";
-    const stockPriceOf = (line, it) => Number(line.price) / factorOf(line, it);
+    // البونص (حبات مجانية): المخزون بيزيد فيها، والمدفوع ما بيتغير، فتكلفة الحبة = المدفوع ÷ (المشتراة + البونص)
+    const bonusOf = (line) => Math.max(Number(line.bonus) || 0, 0);
+    const stockQtyOf = (line, it) => (Number(line.qty) || 0) * factorOf(line, it);
+    const stockPriceOf = (line, it) => {
+      const b = bonusOf(line), q = stockQtyOf(line, it);
+      if (b > 0 && q > 0) return lineTotal(line) / (q + b);
+      return Number(line.price) / factorOf(line, it);
+    };
+    function bonusHtml(line, it) {
+      if (!it) return "";
+      if (!line.bonusOpen && !bonusOf(line)) return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في حبات مجانية (بونص)؟</button>`;
+      const b = bonusOf(line), q = stockQtyOf(line, it);
+      const pu = it.purchase_unit && it.purchase_unit_factor && line.unitMode === "purchase";
+      return `<div class="pi-bonus" style="margin-top:6px;">
+        <label style="font-size:13px;font-weight:700;">🎁 بونص: كم ${olvEsc(it.unit)} مجانًا بالمجموع؟</label>
+        <div style="display:flex; gap:6px; align-items:center; margin-top:4px;">
+          <input type="number" data-f="bonus" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bonus)}" placeholder="مثال: 7" aria-label="البونص" style="max-width:110px;">
+          ${pu && Number(line.qty) > 0 ? `<button type="button" class="pi-mini" data-act="bonus-per">حبة لكل ${olvEsc(it.purchase_unit)} (${Number(line.qty)})</button>` : ""}
+        </div>
+        <div data-bonus-sum>${bonusSum(line, it)}</div>
+      </div>`;
+    }
+    function bonusSum(line, it) {
+      const b = bonusOf(line), q = stockQtyOf(line, it);
+      if (!(b > 0) || !(q > 0)) return `<div class="hint" style="font-size:12px;">البونص ما بيزيد الفاتورة، بس بيزيد المخزون وبينزّل تكلفة الحبة.</div>`;
+      return `<div class="pi-warn">المخزون رح يزيد ${Math.round((q + b) * 1000) / 1000} ${olvEsc(it.unit)} (${Math.round(q * 1000) / 1000} مشتراة + ${b} مجانًا) — تكلفة الواحدة ${money(stockPriceOf(line, it))}</div>`;
+    }
     // تغيّر كبير: أغلى من مرة ونص أو أرخص من النص (غالبًا غلطة بالفاصلة أو بالوحدة)
     const isJump = (line, it) => {
       if (!it || !(Number(it.unit_price) > 0) || !(Number(line.price) > 0)) return false;
@@ -587,6 +613,7 @@
             ${!it ? `<button type="button" class="pi-newbtn" data-act="newdlg">＋ إضافة مادة جديدة للمخزون</button>` : ""}
             ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
             <div data-warn>${priceWarning(line, it)}</div>
+            ${bonusHtml(line, it)}
           </td>
           <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
           <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}" placeholder="الكمية" aria-label="الكمية"></td>
@@ -708,7 +735,9 @@
         line.itemKey = null;
       } else if (f === "qty") line.qty = e.target.value;
       else if (f === "price") line.price = e.target.value;
+      else if (f === "bonus") line.bonus = e.target.value;
       const it = itemOf(line);
+      const bs = tr.querySelector("[data-bonus-sum]"); if (bs && it) bs.innerHTML = bonusSum(line, it);
       tr.querySelector("[data-total]").textContent = money(lineTotal(line));
       tr.querySelector("[data-warn]").innerHTML = priceWarning(line, it);
       updateTotals();
@@ -753,6 +782,8 @@
       const btn = e.target.closest("[data-act]"); if (!btn) return;
       const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
       if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
+      if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
+      if (btn.dataset.act === "bonus-per") { line.bonus = String(Number(line.qty) || ""); renderLines(); return; }
       if (btn.dataset.act === "pick") {
         const it = items.find((i) => i.kind + ":" + i.id === btn.dataset.key); if (!it) return;
         line.itemKey = btn.dataset.key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock";
@@ -1287,7 +1318,11 @@
         const attachment = await uploadAttachment(document.getElementById("pi-file").files[0]);
         const payloadLines = active.map((l) => {
           const it = itemOf(l); const f = factorOf(l, it);
-          return { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1000) / 1000 };
+          const bonus = bonusOf(l);
+          const o = { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1000) / 1000 };
+          // بونص: الكمية = المشتراة + المجانية، والسعر = المدفوع ÷ الكمية (بدقة عالية حتى يضل إجمالي السطر نفسه بالضبط)
+          if (bonus > 0) { o.qty = Math.round((Number(l.qty) * f + bonus) * 1000) / 1000; o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8; }
+          return o;
         });
         const { error } = await window.supabaseClient.rpc("record_purchase_invoice", {
           p_supplier_id: supplierId,
