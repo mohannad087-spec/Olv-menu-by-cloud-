@@ -8,8 +8,169 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <style>
-  .btn-row{display:flex; flex-wrap:wrap; gap:10px;}
-  .btn-row .btn{flex:1 1 180px; justify-content:center;}
+  /* تقفيل الخزينة (2026-10): يوم ← المفروض بالدرج (معادلة واضحة) ← العدّ ← الفرق كبير ← السجل.
+     القواعد بـ design-system/olv/pages/cash-register.md */
+  .wrap.cr-wrap{max-width:1120px;}
+  .cr-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .cr-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .cr-head .cr-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .cr-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .btn.go:disabled{opacity:.6;}
+
+  .cr-chips{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px;}
+  .cr-chip{
+    min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);
+  }
+  .cr-chip .icon{width:16px; height:16px;}
+  .cr-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .cr-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .cr-chip:active{transform:scale(.97);}
+  .cr-chips input[type=date]{min-height:44px; width:auto; min-width:150px; flex:0 1 180px;}
+
+  /* اليوم متقفّل أصلًا */
+  .cr-done{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 16px; border-radius:18px; background:var(--ink-2); border:1px solid var(--hair-soft); margin-bottom:14px;}
+  .cr-done[hidden]{display:none;}
+  .cr-done .ci{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:var(--olive); color:var(--on-olive); flex:none;}
+  .cr-done .ci .icon{width:20px; height:20px;}
+  .cr-done .t{flex:1; min-width:200px; font-size:14px; line-height:1.6;}
+  .cr-done .t b{font-size:15.5px;}
+  .cr-done .btn{min-height:44px;}
+
+  .cr-grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; margin-bottom:14px;}
+  .cr-grid > *{min-width:0;}
+  .cr-grid > .group{margin-bottom:0;}
+  .cr-grid[hidden]{display:none;}
+  @media (max-width:900px){ .cr-grid{grid-template-columns:minmax(0,1fr);} }
+  .cr-step{display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--ink-3); color:var(--gold-hi); font-size:13px; font-weight:800; margin-inline-end:4px;}
+
+  /* المعادلة: افتتاحي + كاش − طلع = المفروض */
+  .eq{list-style:none; margin:0; padding:0;}
+  .eq li{display:grid; grid-template-columns:28px minmax(0,1fr) auto; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--hair-soft);}
+  .eq .op{width:28px; height:28px; border-radius:9px; display:grid; place-items:center; background:var(--ink-3); font-weight:800; font-size:17px; color:var(--muted);}
+  .eq .op.plus{color:var(--ok);}
+  .eq .op.minus{color:var(--danger-hi);}
+  .eq .nm b{display:block; font-size:14.5px; font-weight:700;}
+  .eq .nm small{display:block; color:var(--muted); font-size:12px; margin-top:2px; line-height:1.5;}
+  .eq .v{font-size:17px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:left;}
+  .eq input{width:124px; min-height:46px; box-sizing:border-box; font-family:'Tajawal',sans-serif; font-size:17px !important; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; padding:6px 8px;
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; color:var(--paper);}
+  .eq input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  @media (max-width:640px){ .eq input{width:100px;} }
+  .cr-wrap input[type=number]{-moz-appearance:textfield; appearance:textfield;}
+  .cr-wrap input[type=number]::-webkit-outer-spin-button, .cr-wrap input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  .num{direction:ltr; unicode-bidi:isolate; display:inline-block;}
+  .eq .fill{margin-top:6px; min-height:34px; padding:0 11px; font-size:12.5px;}
+  .eq li.total{border-bottom:0; padding-top:14px;}
+  .eq li.total .op{background:var(--paper); color:var(--ink-2);}
+  .eq li.total .nm b{font-size:16px; font-weight:800;}
+  .eq li.total .v{font-size:clamp(26px,4vw,34px); color:var(--paper);}
+  .cr-aside{margin:6px 0 0; color:var(--muted); font-size:12.5px; line-height:1.6; display:flex; gap:6px; align-items:flex-start;}
+  .cr-aside .icon{width:14px; height:14px; flex:none; margin-top:3px;}
+
+  /* العدّ */
+  .count-big input{font-size:34px !important; font-weight:800; min-height:68px; text-align:center; font-variant-numeric:tabular-nums;}
+  .den-toggle{min-height:44px; display:inline-flex; align-items:center; gap:7px; margin-bottom:10px;}
+  .den-toggle .icon{width:16px; height:16px; transition:transform .2s var(--spring);}
+  .den-toggle[aria-expanded="true"] .icon.chev{transform:rotate(180deg);}
+  .den{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:12px;}
+  .den[hidden]{display:none;}
+  .den:not([hidden]){animation:cr-in .18s var(--spring) both;}
+  @media (max-width:420px){ .den{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  .den label{display:flex; flex-direction:column; gap:4px; padding:8px; border-radius:12px; background:var(--ink-3); font-size:12px; color:var(--muted);}
+  .den label b{color:var(--paper); font-size:14px; font-variant-numeric:tabular-nums;}
+  .den input{min-height:40px; text-align:center; font-size:16px; padding:4px;}
+  .den-sum{grid-column:1/-1; font-size:13px; color:var(--muted); text-align:center;}
+  .den-sum b{color:var(--paper); font-variant-numeric:tabular-nums;}
+
+  /* النتيجة: الفرق كبير وواضح، بلون + أيقونة + كلمة (مش لون بس) */
+  .result{border-radius:18px; padding:16px; margin:4px 0 14px; display:flex; align-items:center; gap:14px; background:var(--ink-3); transition:background .2s var(--ease);}
+  .result .ri{width:46px; height:46px; border-radius:14px; display:grid; place-items:center; background:var(--ink-2); flex:none; color:var(--muted);}
+  .result .ri .icon{width:24px; height:24px;}
+  .result .rt{flex:1; min-width:0;}
+  .result .rt b{display:block; font-size:16px; font-weight:800;}
+  .result .rt small{display:block; color:var(--muted); font-size:12.5px; margin-top:2px; line-height:1.5;}
+  .result .rv{font-size:clamp(26px,4vw,34px); font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .result.ok{background:rgba(86,105,46,.12);}
+  .result.ok .ri{background:var(--olive); color:var(--on-olive);}
+  .result.ok .rv, .result.over .rv{color:var(--ok);}
+  .result.over{background:rgba(86,105,46,.08);}
+  .result.over .ri{color:var(--ok);}
+  .result.short{background:rgba(179,65,42,.10);}
+  .result.short .ri{background:var(--danger); color:#fff;}
+  .result.short .rv{color:var(--danger-hi);}
+  .cr-save{display:flex; gap:10px; flex-wrap:wrap;}
+  .cr-save .btn{min-height:52px; flex:1 1 200px; justify-content:center; font-size:16px; display:inline-flex; align-items:center; gap:8px;}
+
+  /* السجل */
+  .stats.cr-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.cr-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.cr-stats{gap:10px;}
+    .cr-stats .stat{padding:13px;}
+    .cr-stats .stat .stat-icon{display:none;}
+    .olv-glass .cr-stats .stat .value{font-size:22px;}
+  }
+  .cr-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  .cr-hist-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:22px 0 10px;}
+  .cr-hist-head h2{margin:0; font-size:20px; font-weight:800;}
+  .cr-hist-head .muted{color:var(--muted); font-size:13px;}
+
+  .diff-wrap{position:relative;}
+  .diff-chart{width:100%; height:auto; display:block; direction:ltr; overflow:visible;}
+  .diff-chart .zero{stroke:var(--muted); stroke-width:1; opacity:.5;}
+  .diff-chart .grid{stroke:var(--hair); stroke-width:1;}
+  .diff-chart .axis{fill:var(--muted); font-size:11px; font-family:'Tajawal',sans-serif;}
+  .diff-chart .b-over{fill:var(--olive);}
+  .diff-chart .b-short{fill:var(--danger);}
+  .diff-chart .b-ok{fill:var(--muted); opacity:.5;}
+  .diff-chart .hit{fill:transparent; cursor:pointer;}
+  .diff-chart g.on .hit, .diff-chart g:focus-within .hit{fill:var(--hair-soft);}
+  .cr-tip{position:absolute; top:0; transform:translateX(-50%); pointer-events:none; white-space:nowrap; z-index:2;
+    background:var(--paper); color:var(--ink-2); border-radius:10px; padding:7px 11px; font-size:12.5px; line-height:1.5;
+    box-shadow:0 8px 20px -8px rgba(0,0,0,.4); opacity:0; transition:opacity .12s var(--ease);}
+  .cr-tip.show{opacity:1;}
+  .cr-summary{font-size:13.5px; color:var(--muted); margin:10px 0 0; line-height:1.7;}
+  .cr-summary b{color:var(--paper);}
+
+  .cl-list{list-style:none; margin:0; padding:0;}
+  .cl + .cl{border-top:1px solid var(--hair-soft);}
+  .cl.open{background:var(--ink-3); border-radius:14px;}
+  .cl.open + .cl, .cl + .cl.open{border-top-color:transparent;}
+  .cl-row{width:100%; display:grid; grid-template-columns:62px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:60px; padding:8px;
+    background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:12px;}
+  .cl-row:hover{background:rgba(var(--gold-rgb),.06);}
+  .cl-row:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .cl-row .dt{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2;}
+  .cl-row .dt small{display:block; color:var(--muted); font-size:11.5px; font-weight:500;}
+  .cl-row .nm{min-width:0; font-size:13px; color:var(--muted); line-height:1.5;}
+  .cl-row .nm b{color:var(--paper); font-variant-numeric:tabular-nums; font-weight:700;}
+  .cl-row .nm .nt{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pill{display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:999px; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; background:var(--ink-3);}
+  .cl.open .pill{background:var(--ink-2);}
+  .pill .icon{width:14px; height:14px;}
+  .pill.ok{color:var(--ok);}
+  .pill.over{color:var(--ok);}
+  .pill.short{color:var(--danger-hi);}
+  .cl-detail{padding:2px 10px 14px; padding-inline-start:82px;}
+  .cl-detail:not([hidden]){animation:cr-in .18s var(--spring) both;}
+  .cl-detail .facts{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; color:var(--muted); margin-bottom:10px;}
+  .cl-detail .facts b{color:var(--paper); font-weight:700; font-variant-numeric:tabular-nums;}
+  .cl-detail .acts{display:flex; gap:8px; flex-wrap:wrap;}
+  .cl-detail .acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px;}
+  @media (max-width:640px){ .cl-detail{padding-inline-start:10px;} .cl-row{grid-template-columns:52px minmax(0,1fr) auto; gap:10px;} }
+  .cl-more{display:flex; justify-content:center; padding-top:10px;}
+  .cl-more .btn{min-height:44px;}
+  .cr-empty{padding:26px 8px; text-align:center; color:var(--muted);}
+  @keyframes cr-in{from{opacity:0; transform:translateY(-4px);}}
+
+  @media (prefers-reduced-motion: reduce){
+    .cr-chip, .result, .den-toggle .icon{transition:none;}
+    .den:not([hidden]), .cl-detail:not([hidden]){animation:none;}
+    .cr-chip:active{transform:none;}
+  }
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f7f1e6">
@@ -65,55 +226,112 @@
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap cr-wrap">
     <div class="err" id="err"></div>
 
-    <div class="group">
-      <h2>تقفيل خزينة اليوم</h2>
-      <form id="closing-form">
-        <div class="row2">
-          <div class="field">
-            <label>التاريخ</label>
-            <input type="date" id="closing_date" required>
-          </div>
-          <div class="field">
-            <label>رصيد أول اليوم (الافتتاحي)</label>
-            <input type="number" id="opening_balance" step="0.01" min="0" value="0" required>
-          </div>
-        </div>
-        <div class="row2">
-          <div class="field">
-            <label>المفروض يكون في الخزينة (متوقع)</label>
-            <input type="number" id="expected_closing" step="0.01" min="0" value="0" required>
-            <div class="hint">افتراضي = الرصيد الافتتاحي + كاش اليوم من المبيعات − مصروفات اليوم النقدية</div>
-          </div>
-          <div class="field">
-            <label>الموجود فعليًا بالعدّ</label>
-            <input type="number" id="actual_closing" step="0.01" min="0" value="0" required>
-          </div>
-        </div>
-        <div class="field">
-          <label>ملاحظات (اختياري)</label>
-          <input type="text" id="notes" placeholder="سبب أي عجز أو زيادة">
-        </div>
-        <div class="btn-row">
-          <button type="submit" class="btn gold" id="save-btn">حفظ التقفيل</button>
-          <button type="button" class="btn" id="share-day-btn"></button>
-        </div>
-      </form>
+    <header class="cr-head">
+      <div>
+        <h1>تقفيل الخزينة</h1>
+        <div class="cr-sub">اعدّ المصاري بالدرج، والبرنامج بيقلّك إذا في عجز أو زيادة.</div>
+      </div>
+      <button class="btn small" type="button" id="share-day-btn"></button>
+    </header>
+
+    <div class="cr-chips" role="group" aria-label="يوم التقفيل">
+      <button class="cr-chip" type="button" data-day="0">اليوم</button>
+      <button class="cr-chip" type="button" data-day="-1">أمس</button>
+      <input type="date" id="closing_date" aria-label="تاريخ التقفيل" required>
     </div>
 
-    <div class="group">
-      <h2>سجل التقفيلات</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>التاريخ</th><th>افتتاحي</th><th>متوقع</th><th>فعلي</th><th>الفرق</th><th>ملاحظات</th></tr></thead>
-          <tbody id="closings-body">
-            <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <!-- إذا اليوم متقفّل: ملخّص، والفورم بيتسكّر لحد ما يكبس «تقفيل تاني» (وردية تانية) -->
+    <div class="cr-done" id="done-box" hidden>
+      <div class="ci" id="done-ic"></div>
+      <div class="t" id="done-text"></div>
+      <button class="btn small" type="button" id="again-btn">تقفيل تاني لنفس اليوم</button>
     </div>
+
+    <form id="closing-form" novalidate>
+      <div class="cr-grid" id="form-grid">
+        <section class="group">
+          <h2><span class="cr-step">1</span>المفروض يكون بالدرج</h2>
+          <ul class="eq">
+            <li>
+              <span class="op">&nbsp;</span>
+              <span class="nm"><b>رصيد أول اليوم</b><small id="opening-hint">الفراطة اللي كانت بالدرج لما فتحت</small></span>
+              <input type="number" id="opening_balance" step="0.01" min="0" inputmode="decimal" value="0" aria-label="رصيد أول اليوم">
+            </li>
+            <li>
+              <span class="op plus">+</span>
+              <span class="nm"><b>كاش المبيعات</b><small id="sales-hint">جاري التحميل...</small></span>
+              <span class="v" id="cash-sales">—</span>
+            </li>
+            <li>
+              <span class="op minus">−</span>
+              <span class="nm"><b>طلع من الدرج</b><small>مصاريف أو دفعات دفعتها كاش من الدرج</small>
+                <button class="cr-chip fill" type="button" id="fill-exp" hidden></button></span>
+              <input type="number" id="cash_out" step="0.01" min="0" inputmode="decimal" value="0" aria-label="المبلغ اللي طلع من الدرج">
+            </li>
+            <li class="total">
+              <span class="op">=</span>
+              <span class="nm"><b>المفروض بالدرج</b></span>
+              <span class="v" id="expected">—</span>
+            </li>
+          </ul>
+          <p class="cr-aside" id="other-pay" hidden></p>
+        </section>
+
+        <section class="group">
+          <h2><span class="cr-step">2</span>اعدّ الدرج</h2>
+          <div class="field count-big">
+            <label for="actual_closing">الموجود فعليًا</label>
+            <input type="number" id="actual_closing" step="0.01" min="0" inputmode="decimal" placeholder="0.00" required>
+          </div>
+          <button class="btn small den-toggle" type="button" id="den-toggle" aria-expanded="false" aria-controls="den"></button>
+          <div class="den" id="den" hidden></div>
+
+          <div class="result" id="result" aria-live="polite">
+            <div class="ri" id="r-ic"></div>
+            <div class="rt"><b id="r-title">اكتب المبلغ اللي عدّيته</b><small id="r-sub">وبنقارنه بالمفروض</small></div>
+            <div class="rv" id="r-val"></div>
+          </div>
+
+          <div class="field">
+            <label for="notes" id="notes-label">ملاحظة (اختياري)</label>
+            <input type="text" id="notes" maxlength="300" placeholder="مثلًا: مين كان عالكاش، أو أي شي صار">
+          </div>
+          <div class="cr-save">
+            <button type="submit" class="btn go" id="save-btn"></button>
+          </div>
+        </section>
+      </div>
+    </form>
+
+    <div class="cr-hist-head">
+      <h2>آخر التقفيلات</h2>
+      <span class="muted">آخر 30 يوم</span>
+    </div>
+
+    <div class="stats cr-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-n"></div>
+        <div class="stat-body"><div class="label">تقفيلات</div><div class="value" id="k-n">—</div><span class="note" id="k-n-note"></span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-ok"></div>
+        <div class="stat-body"><div class="label">مزبوطة بالقرش</div><div class="value" id="k-ok">—</div><span class="note" id="k-ok-note"></span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-short"></div>
+        <div class="stat-body"><div class="label">مجموع العجز</div><div class="value bad" id="k-short">—</div><span class="note" id="k-short-note"></span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-over"></div>
+        <div class="stat-body"><div class="label">مجموع الزيادة</div><div class="value good" id="k-over">—</div><span class="note" id="k-over-note"></span></div></div></div>
+    </div>
+
+    <section class="group" id="chart-group">
+      <h2 id="chart-title"></h2>
+      <div class="diff-wrap" id="diff-wrap"></div>
+      <p class="cr-summary" id="chart-summary"></p>
+    </section>
+
+    <section class="group">
+      <h2 id="list-title"></h2>
+      <ul class="cl-list" id="closings-list"><li class="cr-empty">جاري التحميل...</li></ul>
+    </section>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -132,96 +350,381 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("cash");
-    const shareBtn = document.getElementById("share-day-btn");
-    shareBtn.innerHTML = olvIcon("share") + "<span>صورة تقرير هاليوم</span>";
-    shareBtn.addEventListener("click", () => olvOpenDayReport(document.getElementById("closing_date").value || olvToday()));
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => olvFormatMoney(n);
+    const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+    const isAdmin = () => window.olvRole && window.olvRole !== "staff";
+    // فئات الدينار (ورق + فراطة)
+    const DENOMS = [50, 20, 10, 5, 1, 0.5, 0.25, 0.1, 0.05];
+
+    $("share-day-btn").innerHTML = olvIcon("share") + "<span>صورة تقرير اليوم</span>";
+    $("share-day-btn").addEventListener("click", () => olvOpenDayReport($("closing_date").value || olvToday()));
+    $("ic-n").innerHTML = olvIcon("calendar");
+    $("ic-ok").innerHTML = olvIcon("checkCircle");
+    $("ic-short").innerHTML = olvIcon("minusCircle");
+    $("ic-over").innerHTML = olvIcon("plus");
+    $("chart-title").innerHTML = olvIcon("barChart") + " الفرق بكل تقفيل";
+    $("list-title").innerHTML = olvIcon("receipt") + " السجل";
+    $("save-btn").innerHTML = olvIcon("check") + "<span>قفّل الخزينة</span>";
+    $("den-toggle").innerHTML = olvIcon("banknote") + "<span>عدّ بالفئات</span>" + olvIcon("chevronDown", "chev");
+
     let session = null;
-    // لو المستخدم عدّل حقل "المتوقع بالخزينة" يدويًا، نوقف الاقتراح
-    // التلقائي عن الكتابة فوقه — وإلا ممكن نداء الشبكة غير المتزامن
-    // (suggestExpected) يوصل رده بالضبط وهو وسط الكتابة، فيطغى جزئيًا
-    // على رقم أدخله بنفسه (سباق نادر لكنه حقيقي)
-    let userEditedExpected = false;
-    document.getElementById("expected_closing").addEventListener("input", () => {
-      userEditedExpected = true;
+    let ctx = { cashSales: 0, salesCount: 0, card: 0, delivery: 0, expToday: 0, sinceClosing: null };
+    let closings = [];
+    let names = {};
+    let openRow = null;
+    let listLimit = 10;
+    let showForm = true;
+    let loadSeq = 0;
+    let openingTouched = false;
+
+    // تاريخ "اليوم" بنفس طريقة شاشة البيع (olvToday) حتى الكاش يطابق المبيعات
+    function shiftDay(dateStr, d) {
+      const t = new Date(dateStr + "T12:00:00Z");
+      t.setUTCDate(t.getUTCDate() + d);
+      return t.toISOString().slice(0, 10);
+    }
+    function dayName(dateStr) {
+      try { return new Date(dateStr + "T12:00:00Z").toLocaleDateString("ar", { weekday: "long", timeZone: "UTC" }); } catch (e) { return ""; }
+    }
+    function shortDate(dateStr) { const [, m, d] = dateStr.split("-"); return `${Number(d)}/${Number(m)}`; }
+    function timeOf(ts) {
+      try { return new Date(ts).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" }); } catch (e) { return ""; }
+    }
+    function state(diff) {
+      diff = r2(diff);
+      if (Math.abs(diff) < 0.005) return { cls: "ok", word: "مزبوط", icon: "checkCircle" };
+      return diff < 0 ? { cls: "short", word: "عجز", icon: "warning" } : { cls: "over", word: "زيادة", icon: "plus" };
+    }
+
+    // ---------- عدّ بالفئات ----------
+    $("den").innerHTML = DENOMS.map((v) => `
+      <label><span>${v >= 1 ? "ورقة" : "فراطة"} <b>${v >= 1 ? v : money(v)}</b></span>
+        <input type="number" min="0" step="1" inputmode="numeric" data-den="${v}" placeholder="0" aria-label="عدد فئة ${v}"></label>`).join("")
+      + `<div class="den-sum" id="den-sum"></div>`;
+    $("den-toggle").addEventListener("click", () => {
+      const open = $("den").hidden;
+      $("den").hidden = !open;
+      $("den-toggle").setAttribute("aria-expanded", String(open));
+      if (open) { const f = $("den").querySelector("input"); if (f) f.focus(); }
+    });
+    $("den").addEventListener("input", () => {
+      let sum = 0;
+      $("den").querySelectorAll("input").forEach((i) => { sum += Number(i.dataset.den) * Math.max(0, Math.floor(Number(i.value || 0))); });
+      sum = r2(sum);
+      $("den-sum").innerHTML = `المجموع: <b>${money(sum)}</b> (انكتب بخانة «الموجود فعليًا»)`;
+      $("actual_closing").value = sum ? sum.toFixed(2) : "";
+      recalc();
     });
 
-    async function suggestExpected(dateStr) {
-      if (userEditedExpected) return;
-      try {
-        const { data: sales } = await window.supabaseClient
-          .from("sales_entries").select("cash_amount").eq("entry_date", dateStr).eq("status", "completed");
-        if (userEditedExpected) return; // ممكن يكون عدّل أثناء انتظار الرد
-        const cashSales = (sales || []).reduce((s, r) => s + Number(r.cash_amount), 0);
-        const opening = Number(document.getElementById("opening_balance").value || 0);
-        document.getElementById("expected_closing").value = (opening + cashSales).toFixed(2);
-      } catch (e) { /* تجاهل — مجرد اقتراح */ }
+    // ---------- الحساب ----------
+    function expectedNow() {
+      return r2(Number($("opening_balance").value || 0) + ctx.cashSales - Number($("cash_out").value || 0));
+    }
+    function recalc() {
+      const exp = expectedNow();
+      $("expected").textContent = money(exp);
+      const raw = $("actual_closing").value;
+      const box = $("result");
+      box.className = "result";
+      if (raw === "") {
+        $("r-ic").innerHTML = olvIcon("banknote");
+        $("r-title").textContent = "اكتب المبلغ اللي عدّيته";
+        $("r-sub").textContent = "وبنقارنه بالمفروض";
+        $("r-val").textContent = "";
+        $("notes-label").textContent = "ملاحظة (اختياري)";
+        return;
+      }
+      const diff = r2(Number(raw) - exp);
+      const s = state(diff);
+      box.classList.add(s.cls);
+      $("r-ic").innerHTML = olvIcon(s.icon);
+      $("r-title").textContent = s.cls === "ok" ? "الدرج مزبوط" : (s.cls === "short" ? "في عجز بالدرج" : "في زيادة بالدرج");
+      $("r-sub").textContent = s.cls === "ok" ? "الموجود نفس المفروض بالضبط" :
+        (s.cls === "short" ? "الموجود أقل من المفروض. اكتب السبب إذا بتعرفه" : "الموجود أكتر من المفروض. ممكن بيع ما انسجّل أو فراطة زيادة");
+      $("r-val").innerHTML = `<span class="num">${s.cls === "ok" ? "0.00" : (diff > 0 ? "+" : "−") + money(Math.abs(diff))}</span>`;
+      $("notes-label").textContent = s.cls === "ok" ? "ملاحظة (اختياري)" : "سبب " + s.word + " (اختياري)";
+    }
+    ["opening_balance", "cash_out", "actual_closing"].forEach((id) => $(id).addEventListener("input", () => {
+      if (id === "opening_balance") openingTouched = true;
+      recalc();
+    }));
+    $("fill-exp").addEventListener("click", () => { $("cash_out").value = ctx.expToday.toFixed(2); recalc(); });
+
+    // ---------- تحميل اليوم ----------
+    async function loadDay() {
+      const seq = ++loadSeq;
+      const date = $("closing_date").value || olvToday();
+      document.querySelectorAll(".cr-chip[data-day]").forEach((b) =>
+        b.setAttribute("aria-pressed", String(shiftDay(olvToday(), Number(b.dataset.day)) === date)));
+      const sb = window.supabaseClient;
+      // آخر تقفيل قبل/بنفس اليوم: رصيده الفعلي = رصيد أول اليوم (أو أول الوردية)
+      const sameDay = closings.filter((c) => c.closing_date === date).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+      const prev = sameDay[0] || null;
+      let opening = null, openingHint = "الفراطة اللي كانت بالدرج لما فتحت";
+      if (prev) {
+        opening = Number(prev.actual_closing);
+        openingHint = `من تقفيل الساعة ${timeOf(prev.created_at)} لنفس اليوم`;
+      } else {
+        const { data: before } = await sb.from("cash_closings").select("closing_date, actual_closing")
+          .lt("closing_date", date).order("closing_date", { ascending: false }).order("created_at", { ascending: false }).limit(1);
+        if (before && before[0]) {
+          opening = Number(before[0].actual_closing);
+          openingHint = `اللي ضل بالدرج بتقفيل ${shortDate(before[0].closing_date)}. غيّره إذا شلت منه شي`;
+        }
+      }
+      let qs = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", date).eq("status", "completed");
+      let qe = sb.from("expenses").select("amount, created_at").eq("expense_date", date);
+      if (prev) { qs = qs.gt("created_at", prev.created_at); qe = qe.gt("created_at", prev.created_at); }
+      const [{ data: sales, error: e1 }, { data: exps }] = await Promise.all([qs, qe]);
+      if (seq !== loadSeq) return;
+      if (e1) throw e1;
+      const cashRows = (sales || []).filter((s) => Number(s.cash_amount) > 0);
+      ctx = {
+        cashSales: r2((sales || []).reduce((s, r) => s + Number(r.cash_amount || 0), 0)),
+        salesCount: cashRows.length,
+        card: r2((sales || []).reduce((s, r) => s + Number(r.card_amount || 0), 0)),
+        delivery: r2((sales || []).reduce((s, r) => s + Number(r.delivery_amount || 0), 0)),
+        expToday: r2((exps || []).reduce((s, r) => s + Number(r.amount || 0), 0)),
+        sinceClosing: prev,
+      };
+      if (!openingTouched) $("opening_balance").value = (opening || 0).toFixed(2);
+      $("opening-hint").textContent = openingHint;
+      $("cash-sales").textContent = money(ctx.cashSales);
+      $("sales-hint").textContent = ctx.salesCount
+        ? `${ctx.salesCount} طلب كاش${prev ? " من بعد آخر تقفيل" : ""}`
+        : (prev ? "ما في بيع كاش من بعد آخر تقفيل" : "ما في بيع كاش بهاليوم");
+      $("fill-exp").hidden = !(ctx.expToday > 0);
+      $("fill-exp").innerHTML = olvIcon("minusCircle") + `<span>مصروفات ${prev ? "من بعد التقفيل" : "اليوم"} المسجّلة: ${money(ctx.expToday)}</span>`;
+      const other = [];
+      if (ctx.card > 0) other.push(`شبكة ${money(ctx.card)}`);
+      if (ctx.delivery > 0) other.push(`توصيل ${money(ctx.delivery)}`);
+      $("other-pay").hidden = !other.length;
+      $("other-pay").innerHTML = olvIcon("creditCard") + `<span>${other.join(" و")} ما بيدخلوا الدرج، فمش محسوبين هون.</span>`;
+
+      // اليوم متقفّل؟
+      showForm = !sameDay.length;
+      $("done-box").hidden = !sameDay.length;
+      if (sameDay.length) {
+        const s = state(prev.difference);
+        $("done-ic").innerHTML = olvIcon("checkCircle");
+        $("done-text").innerHTML = `<b>هاليوم متقفّل</b>${sameDay.length > 1 ? ` (${sameDay.length} مرات)` : ""}. آخر مرة الساعة ${timeOf(prev.created_at)}:
+          بالدرج <b>${money(prev.actual_closing)}</b>، ${s.cls === "ok" ? "مزبوط" : s.word + " " + money(Math.abs(prev.difference))}.`;
+      }
+      $("form-grid").hidden = !showForm;
+      recalc();
     }
 
+    // ---------- السجل ----------
     async function loadClosings() {
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("closings-body");
-      try {
-        const { data, error } = await window.supabaseClient
-          .from("cash_closings").select("*").order("closing_date", { ascending: false }).limit(30);
-        if (error) throw error;
-        if (!data || !data.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد تقفيلات مسجّلة بعد</td></tr>`;
-          return;
-        }
-        body.innerHTML = data.map((r) => `
-          <tr>
-            <td>${r.closing_date}</td>
-            <td>${olvFormatMoney(r.opening_balance)}</td>
-            <td>${olvFormatMoney(r.expected_closing)}</td>
-            <td>${olvFormatMoney(r.actual_closing)}</td>
-            <td style="color:${Number(r.difference) < 0 ? 'var(--danger-hi)' : (Number(r.difference) > 0 ? 'var(--ok)' : 'inherit')}">
-              ${olvFormatMoney(r.difference)}
-            </td>
-            <td>${olvEsc(r.notes) || "—"}</td>
-          </tr>
-        `).join("");
-      } catch (err) {
-        olvShowError(errBox, err);
+      const from = shiftDay(olvToday(), -60);
+      const { data, error } = await window.supabaseClient.from("cash_closings").select("*")
+        .gte("closing_date", from).order("closing_date", { ascending: false }).order("created_at", { ascending: false }).limit(120);
+      if (error) throw error;
+      closings = data || [];
+      const ids = [...new Set(closings.map((c) => c.closed_by).filter((id) => id && !names[id]))];
+      if (ids.length) {
+        const { data: ps } = await window.supabaseClient.from("profiles").select("id, full_name").in("id", ids);
+        (ps || []).forEach((p) => { names[p.id] = p.full_name || ""; });
       }
+      renderHistory();
     }
+
+    function renderHistory() {
+      const since = shiftDay(olvToday(), -29);
+      const last = closings.filter((c) => c.closing_date >= since);
+      const ok = last.filter((c) => state(c.difference).cls === "ok");
+      const short = last.filter((c) => state(c.difference).cls === "short");
+      const over = last.filter((c) => state(c.difference).cls === "over");
+      const sum = (a) => r2(a.reduce((s, c) => s + Math.abs(Number(c.difference || 0)), 0));
+      $("k-n").textContent = last.length;
+      $("k-n-note").textContent = last.length ? `آخرها ${shortDate(last[0].closing_date)}` : "ما في تقفيلات";
+      $("k-ok").textContent = last.length ? Math.round(ok.length / last.length * 100) + "%" : "—";
+      $("k-ok-note").textContent = `${ok.length} من ${last.length}`;
+      $("k-short").textContent = money(sum(short));
+      $("k-short-note").textContent = short.length ? `${short.length} مرة` : "ولا مرة";
+      $("k-over").textContent = money(sum(over));
+      $("k-over-note").textContent = over.length ? `${over.length} مرة` : "ولا مرة";
+      renderChart(last.slice().reverse());
+      renderList();
+    }
+
+    // أعمدة فوق وتحت الصفر: الزيادة زيتوني لفوق، العجز أحمر لتحت، المزبوط نقطة رمادية
+    function renderChart(rows) {
+      const wrap = $("diff-wrap");
+      if (!rows.length) {
+        wrap.innerHTML = `<div class="cr-empty">لا يوجد تقفيلات لنرسمها</div>`;
+        $("chart-summary").textContent = "";
+        return;
+      }
+      const W = Math.max(280, wrap.clientWidth || 600), H = 190, padT = 18, padB = 26, padX = 34;
+      const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(Number(r.difference || 0))));
+      const mid = padT + (H - padT - padB) / 2;
+      const half = (H - padT - padB) / 2;
+      const step = (W - padX - 8) / rows.length;
+      const bw = Math.max(4, Math.min(28, step * 0.6));
+      const labelEvery = Math.ceil(rows.length / Math.max(1, Math.floor((W - padX) / 46)));
+      let svg = `<svg class="diff-chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="الفرق بكل تقفيل">`;
+      svg += `<line class="grid" x1="${padX}" x2="${W}" y1="${padT}" y2="${padT}"/><line class="grid" x1="${padX}" x2="${W}" y1="${H - padB}" y2="${H - padB}"/>`;
+      svg += `<text class="axis" x="${padX - 6}" y="${padT + 4}" text-anchor="end">+${Math.round(maxAbs)}</text>`;
+      svg += `<text class="axis" x="${padX - 6}" y="${H - padB + 4}" text-anchor="end">−${Math.round(maxAbs)}</text>`;
+      svg += `<line class="zero" x1="${padX}" x2="${W}" y1="${mid}" y2="${mid}"/>`;
+      svg += `<text class="axis" x="${padX - 6}" y="${mid + 4}" text-anchor="end">0</text>`;
+      rows.forEach((r, i) => {
+        const d = r2(r.difference);
+        const s = state(d);
+        const cx = padX + step * i + step / 2;
+        const h = Math.max(s.cls === "ok" ? 0 : 3, Math.abs(d) / maxAbs * half);
+        let mark;
+        if (s.cls === "ok") mark = `<circle class="b-ok" cx="${cx}" cy="${mid}" r="4"/>`;
+        else mark = `<rect class="b-${s.cls}" x="${cx - bw / 2}" y="${d > 0 ? mid - h : mid}" width="${bw}" height="${h}" rx="3"/>`;
+        svg += `<g tabindex="0" data-i="${i}" aria-label="${r.closing_date}: ${s.word} ${money(Math.abs(d))}">
+          <rect class="hit" x="${cx - step / 2}" y="${padT - 6}" width="${step}" height="${H - padT - padB + 12}" rx="6"/>${mark}</g>`;
+        if (i % labelEvery === 0) svg += `<text class="axis" x="${cx}" y="${H - 6}" text-anchor="middle">${shortDate(r.closing_date)}</text>`;
+      });
+      svg += `</svg><div class="cr-tip" id="cr-tip"></div>`;
+      wrap.innerHTML = svg;
+      const tip = $("cr-tip");
+      const show = (g) => {
+        wrap.querySelectorAll("g.on").forEach((x) => x.classList.remove("on"));
+        if (!g) { tip.classList.remove("show"); return; }
+        g.classList.add("on");
+        const r = rows[Number(g.dataset.i)];
+        const s = state(r.difference);
+        tip.innerHTML = `${dayName(r.closing_date)} ${shortDate(r.closing_date)}: <b>${s.word}${s.cls === "ok" ? "" : " " + money(Math.abs(r.difference))}</b>`;
+        const box = g.getBoundingClientRect(), wb = wrap.getBoundingClientRect();
+        tip.style.left = Math.min(wb.width - 70, Math.max(70, box.left - wb.left + box.width / 2)) + "px";
+        tip.classList.add("show");
+      };
+      wrap.querySelectorAll("g[data-i]").forEach((g) => {
+        g.addEventListener("mouseenter", () => show(g));
+        g.addEventListener("focus", () => show(g));
+        g.addEventListener("click", () => show(g));
+      });
+      wrap.addEventListener("mouseleave", () => show(null));
+      const worst = rows.reduce((w, r) => (Number(r.difference) < Number(w.difference) ? r : w), rows[0]);
+      const net = r2(rows.reduce((s, r) => s + Number(r.difference || 0), 0));
+      let txt = `الصافي بآخر 30 يوم: <b>${Math.abs(net) < 0.005 ? "صفر" : (net < 0 ? "عجز " : "زيادة ") + money(Math.abs(net))}</b>.`;
+      if (Number(worst.difference) < -0.005) txt += ` أكبر عجز ${dayName(worst.closing_date)} ${shortDate(worst.closing_date)} بـ <b>${money(Math.abs(worst.difference))}</b>.`;
+      $("chart-summary").innerHTML = txt;
+    }
+
+    function renderList() {
+      const list = $("closings-list");
+      if (!closings.length) { list.innerHTML = `<li class="cr-empty">لا يوجد تقفيلات مسجّلة بعد</li>`; return; }
+      list.innerHTML = closings.slice(0, listLimit).map((c) => {
+        const s = state(c.difference);
+        const open = openRow === c.id;
+        const who = names[c.closed_by] || "";
+        const facts = [`رصيد أول اليوم <b>${money(c.opening_balance)}</b>`];
+        if (c.cash_sales != null) facts.push(`كاش المبيعات <b>${money(c.cash_sales)}</b>`);
+        if (c.cash_out != null && Number(c.cash_out) > 0) facts.push(`طلع من الدرج <b>${money(c.cash_out)}</b>`);
+        facts.push(`المفروض <b>${money(c.expected_closing)}</b>`, `الموجود <b>${money(c.actual_closing)}</b>`, `الساعة <b>${timeOf(c.created_at)}</b>`);
+        if (who) facts.push(`قفّلها <b>${olvEsc(who)}</b>`);
+        return `<li class="cl${open ? " open" : ""}" data-id="${c.id}">
+          <button class="cl-row" type="button" aria-expanded="${open}">
+            <span class="dt">${shortDate(c.closing_date)}<small>${dayName(c.closing_date)}</small></span>
+            <span class="nm">المفروض <b>${money(c.expected_closing)}</b> · الموجود <b>${money(c.actual_closing)}</b>
+              ${c.notes ? `<span class="nt">${olvEsc(c.notes)}</span>` : (who ? `<span class="nt">${olvEsc(who)}</span>` : "")}</span>
+            <span class="pill ${s.cls}">${olvIcon(s.icon)}${s.cls === "ok" ? "مزبوط" : `<span class="num">${(Number(c.difference) > 0 ? "+" : "−") + money(Math.abs(c.difference))}</span>`}</span>
+          </button>
+          <div class="cl-detail" ${open ? "" : "hidden"}>
+            <div class="facts">${facts.map((f) => `<span>${f}</span>`).join("")}</div>
+            ${c.notes ? `<p class="facts" style="color:var(--paper)">${olvEsc(c.notes)}</p>` : ""}
+            <div class="acts">
+              <button class="btn small" type="button" data-act="report">${olvIcon("share")}صورة تقرير اليوم</button>
+              ${isAdmin() ? `<button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}حذف</button>` : ""}
+            </div>
+          </div>
+        </li>`;
+      }).join("") + (closings.length > listLimit
+        ? `<li class="cl-more"><button class="btn small" type="button" data-act="more">عرض كمان (${closings.length - listLimit})</button></li>` : "");
+    }
+    $("closings-list").addEventListener("click", (e) => {
+      if (e.target.closest('[data-act="more"]')) { listLimit += 20; renderList(); return; }
+      const li = e.target.closest(".cl"); if (!li) return;
+      const c = closings.find((x) => x.id === li.dataset.id); if (!c) return;
+      const act = e.target.closest("[data-act]");
+      if (act && act.dataset.act === "report") { olvOpenDayReport(c.closing_date); return; }
+      if (act && act.dataset.act === "del") {
+        olvUndoDelete(act, {
+          msg: "انحذف التقفيل",
+          run: () => window.supabaseClient.from("cash_closings").delete().eq("id", c.id),
+          after: async () => { await loadClosings(); await loadDay(); },
+        });
+        return;
+      }
+      if (e.target.closest(".cl-row")) { openRow = openRow === c.id ? null : c.id; renderList(); }
+    });
+
+    // ---------- الأيام ----------
+    function setDate(d) {
+      $("closing_date").value = d;
+      openingTouched = false;
+      $("cash_out").value = "0";
+      $("actual_closing").value = "";
+      $("den").querySelectorAll("input").forEach((i) => { i.value = ""; });
+      $("den-sum").textContent = "";
+      loadDay().catch((err) => olvShowError($("err"), err));
+    }
+    document.querySelectorAll(".cr-chip[data-day]").forEach((b) =>
+      b.addEventListener("click", () => setDate(shiftDay(olvToday(), Number(b.dataset.day)))));
+    $("closing_date").addEventListener("change", (e) => { if (e.target.value) setDate(e.target.value); });
+    $("again-btn").addEventListener("click", () => {
+      showForm = true;
+      $("form-grid").hidden = false;
+      $("done-box").hidden = true;
+      $("actual_closing").focus();
+    });
+
+    let resizeT = null;
+    window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => {
+      const since = shiftDay(olvToday(), -29);
+      renderChart(closings.filter((c) => c.closing_date >= since).reverse());
+    }, 150); });
 
     (async () => {
       session = await olvRequireAuth();
       if (!session) return;
-      document.getElementById("closing_date").value = olvToday();
-      await Promise.all([loadClosings(), suggestExpected(olvToday())]);
-
-      document.getElementById("closing_date").addEventListener("change", (e) => {
-        userEditedExpected = false; // تغيير التاريخ = بداية جديدة، الاقتراح التلقائي يرجع يشتغل
-        suggestExpected(e.target.value);
-      });
-      document.getElementById("opening_balance").addEventListener("change", () =>
-        suggestExpected(document.getElementById("closing_date").value)
-      );
+      $("closing_date").value = olvToday();
+      try {
+        await loadClosings();
+        await loadDay();
+      } catch (err) { olvShowError($("err"), err); }
     })();
 
-    document.getElementById("closing-form").addEventListener("submit", async (e) => {
+    $("closing-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("err");
+      const errBox = $("err");
       errBox.style.display = "none";
-      const btn = document.getElementById("save-btn");
+      if ($("actual_closing").value === "") {
+        olvToast("اكتب المبلغ اللي عدّيته بالدرج أول", { type: "danger", icon: "warning" });
+        $("actual_closing").focus();
+        return;
+      }
+      const btn = $("save-btn");
       btn.disabled = true;
       try {
         const payload = {
-          closing_date: document.getElementById("closing_date").value,
-          opening_balance: Number(document.getElementById("opening_balance").value || 0),
-          expected_closing: Number(document.getElementById("expected_closing").value || 0),
-          actual_closing: Number(document.getElementById("actual_closing").value || 0),
-          notes: document.getElementById("notes").value.trim() || null,
+          closing_date: $("closing_date").value,
+          opening_balance: r2($("opening_balance").value),
+          cash_sales: ctx.cashSales,
+          cash_out: r2($("cash_out").value),
+          expected_closing: expectedNow(),
+          actual_closing: r2($("actual_closing").value),
+          notes: $("notes").value.trim() || null,
           closed_by: session.user.id,
         };
         const { error } = await window.supabaseClient.from("cash_closings").insert(payload);
         if (error) throw error;
+        const s = state(payload.actual_closing - payload.expected_closing);
+        olvToast(s.cls === "ok" ? "انقفلت الخزينة: مزبوطة" : `انقفلت الخزينة: ${s.word} ${money(Math.abs(payload.actual_closing - payload.expected_closing))}`,
+          { type: s.cls === "short" ? "danger" : "ok", icon: "check" });
         // بعد التقفيل بتطلع صورة تقرير اليوم جاهزة للإرسال
         olvOpenDayReport(payload.closing_date);
-        document.getElementById("closing-form").reset();
-        document.getElementById("closing_date").value = olvToday();
+        $("notes").value = "";
         await loadClosings();
+        setDate(payload.closing_date);
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
