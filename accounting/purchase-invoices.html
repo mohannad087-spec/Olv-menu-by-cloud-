@@ -799,7 +799,8 @@
             <select id="ni-kind"><option value="ingredient">مادة خام (بتدخل بالوصفات)</option><option value="supply">مستلزم (أكياس، علب، منظفات...)</option></select></div>
           <div class="field"><label>الوحدة</label>
             <select id="ni-unit">${UNITS.map((u) => `<option value="${olvEsc(u)}"${u === init.unit ? " selected" : ""}>${olvEsc(u)}</option>`).join("")}</select></div>
-          <div class="field"><label>سعر الوحدة</label><input type="number" id="ni-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(init.price || "")}" placeholder="اختياري"></div>
+          <div class="field" id="ni-box-f" style="display:none;"><label>كم حبة بالصندوق الواحد؟</label><input type="number" id="ni-box" min="1" step="any" inputmode="decimal" dir="ltr" placeholder="مثال: 12 أو 24"><div class="hint">المخزون بيتحسب بالحبة، والفاتورة بتدخلها بالصندوق.</div></div>
+          <div class="field"><label id="ni-price-l">سعر الوحدة</label><input type="number" id="ni-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(init.price || "")}" placeholder="اختياري"></div>
           <div class="pi-warn bad" id="ni-err" style="min-height:16px;"></div>
           <div style="display:flex; gap:8px; margin-top:6px;">
             <button type="button" class="btn gold" id="ni-save" style="flex:1;">إضافة واستخدامها</button>
@@ -811,10 +812,19 @@
         box.querySelector("#ni-cancel").addEventListener("click", () => done(null));
         back.addEventListener("click", (e) => { if (e.target === back) done(null); });
         nameEl.addEventListener("input", () => { box.querySelector("#ni-err").textContent = ""; });
+        const syncBox = () => {
+          const isBox = box.querySelector("#ni-unit").value === "صندوق";
+          box.querySelector("#ni-box-f").style.display = isBox ? "" : "none";
+          box.querySelector("#ni-price-l").textContent = isBox ? "سعر الصندوق" : "سعر الوحدة";
+        };
+        box.querySelector("#ni-unit").addEventListener("change", syncBox); syncBox();
         box.querySelector("#ni-save").addEventListener("click", () => {
           const name = nameEl.value.trim().slice(0, 120);
           if (!name) { box.querySelector("#ni-err").textContent = "اكتب اسم المادة"; nameEl.focus(); return; }
-          done({ name, kind: box.querySelector("#ni-kind").value, unit: box.querySelector("#ni-unit").value, price: Number(box.querySelector("#ni-price").value) || 0 });
+          const unit = box.querySelector("#ni-unit").value;
+          const perBox = Number(box.querySelector("#ni-box").value) || 0;
+          if (unit === "صندوق" && !(perBox > 0)) { box.querySelector("#ni-err").textContent = "اكتب كم حبة بالصندوق (رقم أكبر من صفر)"; box.querySelector("#ni-box").focus(); return; }
+          done({ name, kind: box.querySelector("#ni-kind").value, unit, perBox: unit === "صندوق" ? perBox : 0, price: Number(box.querySelector("#ni-price").value) || 0 });
         });
         setTimeout(() => nameEl.focus(), 50);
       });
@@ -833,13 +843,15 @@
       if (same) key = same.kind + ":" + same.id;
       else {
         const row = { name: res.name, unit: res.unit };
-        if (res.price > 0) row.unit_price = res.price;
+        // صندوق: المخزون بالحبة، وبنحفظ «صندوق» كوحدة شراء بعدد الحبات اللي دخّله المستخدم
+        if (res.perBox > 0) { row.unit = "قطعة"; row.purchase_unit = "صندوق"; row.purchase_unit_factor = res.perBox; }
+        if (res.price > 0) row.unit_price = res.perBox > 0 ? Math.round(res.price / res.perBox * 1000) / 1000 : res.price;
         const { data, error } = await window.supabaseClient.from(res.kind === "ingredient" ? "ingredients" : "supplies").insert(row).select("id").single();
         if (error) { if (btn) btn.disabled = false; olvShowError(errBox, error); return false; }
         key = res.kind + ":" + data.id;
         await loadItems();
       }
-      line.itemKey = key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock"; line.typed = "";
+      line.itemKey = key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = (!same && res.perBox > 0) ? "purchase" : "stock"; line.typed = "";
       if ((line.price === "" || line.price == null) && res.price > 0) line.price = String(res.price);
       renderLines();
       const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="${line.qty ? "price" : "qty"}"]`); if (q) q.focus();
