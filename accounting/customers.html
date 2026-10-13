@@ -59,92 +59,205 @@
 })();
 </script>
 <style>
-  .customer-row{cursor:pointer;}
-  .customer-row:hover td{background:rgba(var(--gold-rgb),.08);}
-  .customer-row.on td{background:rgba(var(--gold-rgb),.12);}
-  .points-badge{
-    display:inline-flex; align-items:center; gap:4px; background:rgba(var(--gold-rgb),.14);
-    color:var(--gold-hi); font-weight:700; border-radius:999px; padding:3px 10px; font-size:12.5px;
+  /* صفحة العملاء والولاء (2026-10): 4 أرقام ← «مين زبايننا» + «أكتر ناس صرفوا» ← قائمة مرتّبة بفلاتر.
+     القواعد بـ design-system/olv/pages/customers.md */
+  .wrap.cu-wrap{max-width:1120px;}
+  .cu-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .cu-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .cu-head .cu-sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
+  .cu-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px; text-decoration:none;}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .btn.go:disabled{opacity:.6;}
+  /* الأرقام */
+  .stats.cu-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.cu-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.cu-stats{gap:10px;}
+    .cu-stats .stat{padding:13px;}
+    .cu-stats .stat .stat-icon{display:none;}
+    .olv-glass .cu-stats .stat .value{font-size:22px;}
   }
-  .points-badge .icon{width:12px; height:12px;}
+  .cu-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  .cu-stats .note.warn{color:var(--gold-hi); font-weight:700;}
+  .cu-grid{display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:14px; margin-bottom:14px;}
+  .cu-grid > *{min-width:0;}
+  .cu-grid > .group{margin-bottom:0;}
+  @media (max-width:900px){ .cu-grid{grid-template-columns:minmax(0,1fr);} }
+  .cu-grid h2{display:flex; align-items:center; gap:8px;}
+  .cu-grid h2 .icon{width:18px; height:18px; color:var(--gold-hi);}
+  .cu-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
+  .cu-summary{font-size:13.5px; color:var(--muted); margin:12px 0 0; line-height:1.7;}
+  .cu-summary b{color:var(--paper);}
+  /* «مين زبايننا»: شريط 100% مقسوم + مفتاح، الكبسة بتفلتر القائمة */
+  .seg-bar{display:flex; height:16px; border-radius:999px; overflow:hidden; background:var(--ink-3); gap:2px; margin:6px 0 14px;}
+  .seg-bar i{display:block; height:100%; transform-origin:right; animation:bar-in .6s var(--spring) both;}
+  .seg-loyal{background:var(--olive);}
+  .seg-back{background:var(--gold);}
+  .seg-once{background:var(--hair);}
+  .seg-legend{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+  .seg-legend button{width:100%; display:grid; grid-template-columns:12px minmax(0,1fr) auto 42px; align-items:center; gap:10px; min-height:48px; padding:6px 8px;
+    border-radius:12px; background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer;}
+  .seg-legend button:hover{background:rgba(var(--gold-rgb),.06);}
+  .seg-legend button:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .seg-legend .dot{width:12px; height:12px; border-radius:4px;}
+  .seg-legend .t b{display:block; font-size:14px; font-weight:700;}
+  .seg-legend .t small{display:block; font-size:12px; color:var(--muted);}
+  .seg-legend .n{font-weight:800; font-size:16px; font-variant-numeric:tabular-nums;}
+  .seg-legend .pc{color:var(--muted); font-size:12px; text-align:left; font-variant-numeric:tabular-nums;}
+  /* أكتر ناس صرفوا */
+  .top-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+  .top-list button{width:100%; display:block; padding:7px 8px; border-radius:12px; background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; min-height:44px;}
+  .top-list button:hover{background:rgba(var(--gold-rgb),.06);}
+  .top-list button:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .top-list .row{display:flex; align-items:baseline; gap:8px; margin-bottom:6px; font-size:13.5px;}
+  .top-list .rk{color:var(--muted); font-size:12px; width:16px; flex:none; font-variant-numeric:tabular-nums;}
+  .top-list .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .top-list .amt{font-weight:700; font-variant-numeric:tabular-nums; flex:none;}
+  .top-list .vis{color:var(--muted); font-size:12px; flex:none;}
+  .top-list .tr{display:block; height:7px; border-radius:999px; background:var(--ink-3); overflow:hidden;}
+  .top-list .tr i{display:block; height:100%; border-radius:999px; background:var(--gold); transform-origin:right; animation:bar-in .6s var(--spring) both;}
+  .top-list li:first-child .amt{color:var(--gold-hi);}
+  @keyframes bar-in{from{transform:scaleX(0);}}
+  /* القائمة */
+  .cu-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  .cu-tools h2{margin:0; flex:1; min-width:140px; display:flex; align-items:center; gap:8px;}
+  .cu-tools h2 .icon{width:18px; height:18px; color:var(--gold-hi);}
+  .cu-tools h2 .n{color:var(--muted); font-weight:500; font-size:14px;}
+  .cu-search{position:relative; flex:1; max-width:340px; min-width:200px;}
+  .cu-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--muted); pointer-events:none;}
+  .cu-search input{width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; padding-inline-start:38px; font-size:16px;
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .cu-search input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .cu-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;}
+  .cu-chip{
+    min-height:40px; padding:0 14px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:13.5px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);
+  }
+  .cu-chip .c{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums;}
+  .cu-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .cu-chip[aria-pressed="true"] .c{color:inherit;}
+  .cu-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .cu-chip:active{transform:scale(.97);}
+  .cu-sort{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:12.5px; color:var(--muted);}
+  .cu-sort .cu-chip{min-height:36px; padding:0 12px; font-size:12.5px;}
+  .cu-list{list-style:none; margin:0; padding:0;}
+  .cu + .cu{border-top:1px solid var(--hair-soft);}
+  .cu.open{background:var(--ink-3); border-radius:14px;}
+  .cu.open + .cu, .cu + .cu.open{border-top-color:transparent;}
+  .cu-row{width:100%; display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:64px; padding:10px 8px;
+    background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:12px;}
+  .cu-row:hover{background:rgba(var(--gold-rgb),.06);}
+  .cu-row:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .av{width:42px; height:42px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:16px; background:var(--ink-3); color:var(--muted);}
+  .av .icon{width:20px; height:20px;}
+  .av.loyal{background:var(--olive); color:var(--on-olive);}
+  .av.back{background:var(--gold); color:var(--on-gold);}
+  .cu.open .av:not(.loyal):not(.back){background:var(--ink-2);}
+  .cu-row .who{min-width:0;}
+  .cu-row .who b{display:block; font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cu-row .who b.noname{color:var(--muted); font-weight:500;}
+  .cu-row .who small{display:flex; flex-wrap:wrap; gap:2px 10px; color:var(--muted); font-size:12.5px; margin-top:3px;}
+  .cu-row .who .ph{direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums;}
+  .cu-row .who .away{color:var(--gold-hi); font-weight:700;}
+  .cu-row .m{text-align:left; white-space:nowrap;}
+  .cu-row .m b{display:block; font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .cu-row .m small{color:var(--muted); font-size:12px;}
+  .cu-detail{padding:2px 12px 16px; padding-inline-start:62px;}
+  .cu-detail:not([hidden]){animation:od-in .18s var(--spring) both;}
+  @keyframes od-in{from{opacity:0; transform:translateY(-4px);}}
+  .cu-facts{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:12px;}
+  .cu-facts div{background:var(--ink-2); border-radius:12px; padding:9px 11px; min-width:0;}
+  .cu-facts span{display:block; font-size:11.5px; color:var(--muted);}
+  .cu-facts b{display:block; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pts{display:inline-flex; align-items:center; gap:4px; color:var(--gold-hi);}
+  .pts .icon{width:13px; height:13px;}
+  .cu-fav{font-size:13.5px; margin:0 0 10px; line-height:1.7;}
+  .cu-fav span{color:var(--muted);}
+  .cu-orders{list-style:none; margin:0 0 12px; padding:0; font-size:13.5px;}
+  .cu-orders li{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:baseline; padding:7px 0; border-top:1px solid var(--hair-soft);}
+  .cu-orders li:first-child{border-top:0;}
+  .cu-orders .d{font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .cu-orders .it{color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cu-orders .a{font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .cu-acts{display:flex; gap:8px; flex-wrap:wrap;}
+  .cu-acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;}
+  .cu-name-form{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  .cu-name-form input{flex:1; min-width:180px; min-height:44px; font-size:16px;}
+  .cu-name-form[hidden]{display:none;}
+  .cu-more{display:flex; justify-content:center; padding-top:10px;}
+  .cu-more .btn{min-height:44px;}
+  @media (max-width:640px){
+    .cu-detail{padding-inline-start:12px;}
+    .cu-facts{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .cu-row{gap:10px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .cu-chip{transition:none;}
+    .cu-detail:not([hidden]), .seg-bar i, .top-list .tr i{animation:none;}
+    .cu-chip:active{transform:none;}
+  }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap cu-wrap">
     <div class="err" id="err"></div>
 
-    <div class="group">
-      <h2>العملاء والولاء</h2>
-      <p class="hint" style="margin-bottom:14px;">
-        بينسجّل الزبون تلقائيًا أول ما يدخل رقم هاتفه بأي عملية بيع (بيع سريع)، وبتتراكم
-        له زيارات ونقاط (نقطة لكل وحدة عملة تُنفق) — بدون أي إدخال يدوي. إلغاء طلب أو صنف
-        بيرجّع النقاط المتأثرة تلقائيًا.
-      </p>
-      <div class="field" style="margin-bottom:0;">
-        <label>بحث بالاسم أو رقم الهاتف</label>
-        <input type="search" id="customer-search" placeholder="مثال: أحمد أو 079...">
+    <header class="cu-head">
+      <div>
+        <h1>العملاء والولاء</h1>
+        <div class="cu-sub">الزبون بينسجّل لحاله لما الكاشير يكتب رقمه بالبيع السريع، وبياخد نقطة عن كل دينار.</div>
       </div>
-    </div>
+      <a class="btn small" id="pos-link" href="pos.html"></a>
+    </header>
 
-    <div class="stats">
+    <div class="stats cu-stats">
       <div class="stat">
-        <div class="label">عدد العملاء المسجَّلين</div>
-        <div class="value" id="stat-count">—</div>
+        <div class="stat-row"><div class="stat-icon" id="ic-count"></div>
+          <div class="stat-body"><div class="label">العملاء</div><div class="value" id="k-count">—</div>
+            <span class="note" id="k-count-note">&nbsp;</span></div></div>
       </div>
       <div class="stat">
-        <div class="label">عملاء بزيارة تانية أو أكثر</div>
-        <div class="value" id="stat-repeat">—</div>
+        <div class="stat-row"><div class="stat-icon" id="ic-back"></div>
+          <div class="stat-body"><div class="label">رجعوا مرة تانية</div><div class="value" id="k-back">—</div>
+            <span class="note" id="k-back-note">&nbsp;</span></div></div>
       </div>
       <div class="stat">
-        <div class="label">إجمالي النقاط الممنوحة</div>
-        <div class="value" id="stat-points">—</div>
+        <div class="stat-row"><div class="stat-icon" id="ic-avg"></div>
+          <div class="stat-body"><div class="label">متوسط صرف الزبون</div><div class="value" id="k-avg">—</div>
+            <span class="note" id="k-avg-note">&nbsp;</span></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-away"></div>
+          <div class="stat-body"><div class="label">غابوا عنّا</div><div class="value" id="k-away">—</div>
+            <span class="note" id="k-away-note">زباين رجعوا قبل وصار لهم +30 يوم</span></div></div>
       </div>
     </div>
 
-    <div class="group">
-      <h2>قائمة العملاء</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>الاسم</th><th>الهاتف</th><th>الزيارات</th><th>إجمالي المصروف</th><th>النقاط</th><th>آخر زيارة</th></tr></thead>
-          <tbody id="customers-body">
-            <tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="cu-grid">
+      <section class="group">
+        <h2 id="seg-title"></h2>
+        <div id="seg-box"><div class="cu-empty">جاري التحميل...</div></div>
+      </section>
+      <section class="group">
+        <h2 id="top-title"></h2>
+        <div id="top-box"><div class="cu-empty">جاري التحميل...</div></div>
+      </section>
     </div>
 
-    <div class="group" id="detail-group" hidden>
-      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-        <h2 style="margin:0;" id="detail-name">—</h2>
-        <button type="button" class="btn small" id="close-detail-btn">إغلاق</button>
-      </div>
-
-      <div class="stats">
-        <div class="stat">
-          <div class="label">الزيارات</div>
-          <div class="value" id="d-visits">—</div>
-        </div>
-        <div class="stat">
-          <div class="label">إجمالي المصروف</div>
-          <div class="value" id="d-spent">—</div>
-        </div>
-        <div class="stat">
-          <div class="label">النقاط الحالية</div>
-          <div class="value" id="d-points">—</div>
+    <section class="group">
+      <div class="cu-tools">
+        <h2 id="list-title"></h2>
+        <div class="cu-search" id="search-wrap">
+          <input type="search" id="q" placeholder="ابحث بالاسم أو الرقم" aria-label="بحث بالاسم أو رقم الهاتف" autocomplete="off">
         </div>
       </div>
-
-      <h3 style="font-size:15px; color:var(--muted); margin-bottom:10px;">سجل الطلبات</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>التاريخ</th><th>النوع</th><th>الإجمالي</th></tr></thead>
-          <tbody id="orders-body">
-            <tr class="empty-row"><td colspan="3">لا يوجد طلبات بعد</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <div class="cu-chips" id="seg-chips" role="group" aria-label="نوع الزبون"></div>
+      <div class="cu-sort" id="sort-chips" role="group" aria-label="الترتيب"></div>
+      <ul class="cu-list" id="list"></ul>
+      <div class="cu-more" id="more" hidden><button class="btn" type="button" id="more-btn">عرض كمان</button></div>
+    </section>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -163,107 +276,351 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("customers");
 
-    let customers = [];
-    let selectedPhone = null;
-    let searchTerm = "";
+    const $ = (id) => document.getElementById(id);
+    const errBox = $("err");
+    const STEP = 40;          // كم زبون بيبين بالقائمة قبل «عرض كمان»
+    const AWAY_DAYS = 30;     // «غاب» = رجع قبل هيك وصار له أكتر من هيك بلا زيارة
+    const isAdmin = () => window.olvRole && window.olvRole !== "staff";
 
-    function renderCustomers() {
-      const body = document.getElementById("customers-body");
-      const list = customers.filter((c) => {
-        if (!searchTerm) return true;
-        const hay = `${c.name || ""} ${c.phone}`.toLowerCase();
-        return hay.includes(searchTerm);
-      });
-      if (!list.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="6">${customers.length ? "لا يوجد نتائج مطابقة" : "لا يوجد عملاء مسجَّلون بعد — بيتسجّلوا تلقائيًا أول ما تدخل رقم هاتف الزبون بشاشة البيع السريع"}</td></tr>`;
+    // أنواع الزباين (كل زبون بنوع واحد بس، حتى الشريط يجمع 100%)
+    const SEGS = [
+      { id: "loyal", label: "دايمين", hint: "5 زيارات أو أكتر", test: (c) => c.visit_count >= 5 },
+      { id: "back", label: "رجعوا", hint: "2 لـ 4 زيارات", test: (c) => c.visit_count >= 2 && c.visit_count < 5 },
+      { id: "once", label: "مرة وحدة", hint: "إجوا مرة وما رجعوا لهلأ", test: (c) => c.visit_count < 2 },
+    ];
+    const segOf = (c) => (SEGS.find((s) => s.test(c)) || SEGS[2]).id;
+    const SORTS = [
+      { id: "visits", label: "الأكثر زيارة", fn: (a, b) => b.visit_count - a.visit_count || b.total_spent - a.total_spent },
+      { id: "spent", label: "الأكثر صرف", fn: (a, b) => b.total_spent - a.total_spent },
+      { id: "recent", label: "آخر زيارة", fn: (a, b) => (b.last_visit_at || "").localeCompare(a.last_visit_at || "") },
+      { id: "new", label: "الجداد", fn: (a, b) => (b.created_at || "").localeCompare(a.created_at || "") },
+    ];
+
+    const DAY_MS = 86400000;
+    const daysAgo = (ts) => ts ? Math.floor((Date.now() - new Date(ts).getTime()) / DAY_MS) : null;
+    function agoText(ts) {
+      const d = daysAgo(ts);
+      if (d === null) return "—";
+      if (d <= 0) return "اليوم";
+      if (d === 1) return "أمس";
+      if (d < 7) return `قبل ${d} أيام`;
+      if (d < 30) { const w = Math.round(d / 7); return w === 1 ? "قبل أسبوع" : `قبل ${w} أسابيع`; }
+      if (d < 365) { const m = Math.round(d / 30); return m === 1 ? "قبل شهر" : `قبل ${m} شهور`; }
+      return "قبل أكتر من سنة";
+    }
+    const fmtDate = (ts) => ts ? new Date(ts).toLocaleDateString("ar-EG", { numberingSystem: "latn", day: "numeric", month: "numeric", year: "2-digit" }) : "—";
+    const isAway = (c) => c.visit_count >= 2 && daysAgo(c.last_visit_at) !== null && daysAgo(c.last_visit_at) > AWAY_DAYS;
+    const initial = (c) => (c.name || "").trim().charAt(0);
+    function waNumber(phone) {
+      let n = String(phone || "").replace(/\D/g, "");
+      if (n.startsWith("00")) n = n.slice(2);
+      else if (n.startsWith("0")) n = "962" + n.slice(1);
+      return n.length >= 8 ? n : "";
+    }
+
+    // أيقونات ثابتة
+    $("pos-link").innerHTML = olvIcon("bolt") + "<span>بيع سريع</span>";
+    $("ic-count").innerHTML = olvIcon("people");
+    $("ic-back").innerHTML = olvIcon("refresh");
+    $("ic-avg").innerHTML = olvIcon("wallet");
+    $("ic-away").innerHTML = olvIcon("clock");
+    $("seg-title").innerHTML = olvIcon("people") + " مين زبايننا";
+    $("top-title").innerHTML = olvIcon("star") + " أكتر ناس صرفوا";
+    $("list-title").innerHTML = olvIcon("person") + ' الزباين <span class="n" id="list-count"></span>';
+    $("search-wrap").insertAdjacentHTML("afterbegin", olvIcon("search"));
+
+    let customers = [];
+    let seg = "all";
+    let sort = "visits";
+    let query = "";
+    let shown = STEP;
+    let openPhone = null;
+    const detailCache = {};   // رقم ← { orders, fav }
+
+    // -------------------------------------------------------------
+    // الأرقام والرسمين
+    // -------------------------------------------------------------
+    function renderSummary() {
+      const n = customers.length;
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const fresh = customers.filter((c) => c.created_at && new Date(c.created_at) >= monthStart).length;
+      const back = customers.filter((c) => c.visit_count >= 2).length;
+      const away = customers.filter(isAway).length;
+      const spent = customers.reduce((s, c) => s + Number(c.total_spent || 0), 0);
+      const visits = customers.reduce((s, c) => s + Number(c.visit_count || 0), 0);
+      $("k-count").textContent = n;
+      $("k-count-note").textContent = fresh ? `+${fresh} جداد هالشهر` : "ما في جداد هالشهر";
+      $("k-back").textContent = n ? Math.round(back / n * 100) + "%" : "—";
+      $("k-back-note").textContent = n ? `${back} من ${n} زبون` : " ";
+      $("k-avg").textContent = n ? olvFormatMoney(spent / n) : "—";
+      $("k-avg-note").textContent = visits ? `الطلب الواحد تقريبًا ${olvFormatMoney(spent / visits)}` : " ";
+      $("k-away").textContent = away;
+      $("k-away-note").className = "note" + (away ? " warn" : "");
+      $("k-away-note").textContent = away ? "اكبس بالقائمة على «غابوا» وابعتلهم" : `زباين رجعوا قبل وصار لهم +${AWAY_DAYS} يوم`;
+
+      // مين زبايننا
+      if (!n) {
+        $("seg-box").innerHTML = `<div class="cu-empty">لسا ما في زباين.<br>اكتب رقم الزبون بشاشة البيع السريع وبينسجّل لحاله.</div>`;
+        $("top-box").innerHTML = `<div class="cu-empty">بيبيّنوا هون أول ما يصير في زباين.</div>`;
         return;
       }
-      body.innerHTML = list.map((c) => `
-        <tr class="customer-row${selectedPhone === c.phone ? " on" : ""}" data-select="${olvEsc(c.phone)}">
-          <td>${olvEsc(c.name) || "—"}</td>
-          <td dir="ltr" style="text-align:right;">${olvEsc(c.phone)}</td>
-          <td>${c.visit_count}</td>
-          <td>${olvFormatMoney(c.total_spent)}</td>
-          <td><span class="points-badge">${olvIcon("star")}${c.points_balance}</span></td>
-          <td>${c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString("ar-EG", { numberingSystem: "latn" }) : "—"}</td>
-        </tr>
-      `).join("");
-      body.querySelectorAll("tr[data-select]").forEach((row) => {
-        row.addEventListener("click", () => selectCustomer(row.dataset.select));
-      });
+      const counts = SEGS.map((s) => customers.filter((c) => segOf(c) === s.id).length);
+      const points = customers.reduce((s, c) => s + Number(c.points_balance || 0), 0);
+      $("seg-box").innerHTML = `
+        <div class="seg-bar" role="img" aria-label="${SEGS.map((s, i) => `${s.label} ${counts[i]}`).join("، ")}">
+          ${SEGS.map((s, i) => counts[i] ? `<i class="seg-${s.id}" style="flex:${counts[i]}"></i>` : "").join("")}
+        </div>
+        <ul class="seg-legend">
+          ${SEGS.map((s, i) => `
+            <li><button type="button" data-seg="${s.id}">
+              <span class="dot seg-${s.id}"></span>
+              <span class="t"><b>${s.label}</b><small>${s.hint}</small></span>
+              <span class="n">${counts[i]}</span>
+              <span class="pc">${Math.round(counts[i] / n * 100)}%</span>
+            </button></li>`).join("")}
+        </ul>
+        <p class="cu-summary">عند الزباين هلأ <b>${points.toLocaleString("en-US")}</b> نقطة، ومجموع اللي صرفوه <b>${olvFormatMoney(spent)}</b>.</p>`;
+      $("seg-box").querySelectorAll("[data-seg]").forEach((b) => b.addEventListener("click", () => {
+        setSeg(b.dataset.seg);
+        $("list-title").scrollIntoView({ behavior: "smooth", block: "start" });
+      }));
+
+      // أكتر ناس صرفوا
+      const top = customers.slice().sort((a, b) => b.total_spent - a.total_spent).slice(0, 5);
+      const max = Number(top[0].total_spent) || 1;
+      $("top-box").innerHTML = `<ol class="top-list">${top.map((c, i) => `
+        <li><button type="button" data-open="${olvEsc(c.phone)}">
+          <span class="row"><span class="rk">${i + 1}</span><span class="nm">${olvEsc(c.name || c.phone)}</span>
+            <span class="vis">${c.visit_count} زيارة</span><span class="amt">${olvFormatMoney(c.total_spent)}</span></span>
+          <span class="tr"><i style="width:${Math.max(3, Number(c.total_spent) / max * 100)}%"></i></span>
+        </button></li>`).join("")}</ol>`;
+      $("top-box").querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openCustomer(b.dataset.open, true)));
     }
 
-    async function loadCustomers() {
-      const errBox = document.getElementById("err");
-      try {
-        const { data, error } = await window.supabaseClient
-          .from("customers").select("*").order("visit_count", { ascending: false });
-        if (error) throw error;
-        customers = data || [];
-        document.getElementById("stat-count").textContent = customers.length;
-        document.getElementById("stat-repeat").textContent = customers.filter((c) => c.visit_count > 1).length;
-        document.getElementById("stat-points").textContent = customers.reduce((s, c) => s + Number(c.points_balance), 0);
-        renderCustomers();
-      } catch (err) {
-        olvShowError(errBox, err);
+    // -------------------------------------------------------------
+    // الفلاتر والقائمة
+    // -------------------------------------------------------------
+    function renderChips() {
+      const count = (id) => id === "all" ? customers.length
+        : id === "away" ? customers.filter(isAway).length
+        : customers.filter((c) => segOf(c) === id).length;
+      const opts = [{ id: "all", label: "الكل" }, ...SEGS, { id: "away", label: "غابوا" }];
+      $("seg-chips").innerHTML = opts.map((o) =>
+        `<button class="cu-chip" type="button" data-seg="${o.id}" aria-pressed="${seg === o.id}">${o.label} <span class="c">${count(o.id)}</span></button>`).join("");
+      $("seg-chips").querySelectorAll("[data-seg]").forEach((b) => b.addEventListener("click", () => setSeg(b.dataset.seg)));
+      $("sort-chips").innerHTML = `<span>رتّب:</span>` + SORTS.map((s) =>
+        `<button class="cu-chip" type="button" data-sort="${s.id}" aria-pressed="${sort === s.id}">${s.label}</button>`).join("");
+      $("sort-chips").querySelectorAll("[data-sort]").forEach((b) => b.addEventListener("click", () => {
+        sort = b.dataset.sort; shown = STEP; renderChips(); renderList();
+      }));
+    }
+    function setSeg(id) { seg = id; shown = STEP; renderChips(); renderList(); }
+
+    function filtered() {
+      const q = query.replace(/\s+/g, "");
+      const qName = query.toLowerCase();
+      return customers.filter((c) => {
+        if (seg === "away" && !isAway(c)) return false;
+        if (seg !== "all" && seg !== "away" && segOf(c) !== seg) return false;
+        if (!query) return true;
+        return (c.name || "").toLowerCase().includes(qName) || (q && String(c.phone).replace(/\s+/g, "").includes(q));
+      }).sort(SORTS.find((s) => s.id === sort).fn);
+    }
+
+    function rowHtml(c) {
+      const s = segOf(c);
+      const open = openPhone === c.phone;
+      const ini = initial(c);
+      return `
+        <li class="cu${open ? " open" : ""}" data-phone="${olvEsc(c.phone)}">
+          <button class="cu-row" type="button" aria-expanded="${open}">
+            <span class="av ${s}" aria-hidden="true">${ini ? olvEsc(ini) : olvIcon("person")}</span>
+            <span class="who">
+              <b class="${c.name ? "" : "noname"}">${olvEsc(c.name) || "بدون اسم"}</b>
+              <small><span class="ph">${olvEsc(c.phone)}</span>
+                <span class="${isAway(c) ? "away" : ""}">${agoText(c.last_visit_at)}</span></small>
+            </span>
+            <span class="m"><b>${olvFormatMoney(c.total_spent)}</b><small>${c.visit_count} زيارة</small></span>
+          </button>
+          <div class="cu-detail" ${open ? "" : "hidden"}>${open ? detailHtml(c) : ""}</div>
+        </li>`;
+    }
+
+    function renderList() {
+      const list = filtered();
+      $("list-count").textContent = list.length === customers.length ? `(${list.length})` : `(${list.length} من ${customers.length})`;
+      if (!list.length) {
+        $("list").innerHTML = `<li class="cu-empty">${customers.length
+          ? (query ? `ما لقينا زبون بـ«${olvEsc(query)}». جرّب آخر 4 أرقام من الهاتف.` : "ما في زباين بهالنوع.")
+          : "لسا ما في زباين مسجّلين."}</li>`;
+        $("more").hidden = true;
+        return;
+      }
+      $("list").innerHTML = list.slice(0, shown).map(rowHtml).join("");
+      $("more").hidden = list.length <= shown;
+      if (list.length > shown) $("more-btn").textContent = `عرض كمان (${list.length - shown})`;
+      if (openPhone) {
+        const c = customers.find((x) => x.phone === openPhone);
+        if (c && !detailCache[c.phone]) loadDetail(c);
+        bindDetail();
       }
     }
 
-    const ORDER_TYPE_LABELS = { "صالة": "صالة", "سفري": "سفري", "توصيل": "توصيل" };
+    // -------------------------------------------------------------
+    // تفاصيل الزبون (بتنفتح تحت سطره)
+    // -------------------------------------------------------------
+    function detailHtml(c) {
+      const d = detailCache[c.phone];
+      const avg = c.visit_count ? c.total_spent / c.visit_count : 0;
+      const wa = waNumber(c.phone);
+      const tel = String(c.phone || "").replace(/[^\d+]/g, "");
+      let body;
+      if (!d) body = `<p class="cu-fav"><span>جاري تحميل طلباته...</span></p>`;
+      else if (d.error) body = `<p class="cu-fav"><span>ما قدرنا نجيب طلباته هلأ.</span></p>`;
+      else {
+        body = (d.fav.length ? `<p class="cu-fav"><span>بيطلب عادةً:</span> ${d.fav.map((f) => `${olvEsc(f.name)} ×${f.qty}`).join("، ")}</p>` : "")
+          + (d.orders.length
+            ? `<ul class="cu-orders">${d.orders.map((o) => `
+                <li><span class="d">${o.date}</span><span class="it">${olvEsc(o.type)}${o.items ? " · " + olvEsc(o.items) : ""}</span><span class="a">${olvFormatMoney(o.total)}</span></li>`).join("")}</ul>`
+            : `<p class="cu-fav"><span>ما في طلبات مكتملة مسجّلة على رقمه.</span></p>`);
+      }
+      return `
+        <div class="cu-facts">
+          <div><span>الزيارات</span><b>${c.visit_count}</b></div>
+          <div><span>متوسط الطلب</span><b>${olvFormatMoney(avg)}</b></div>
+          <div><span>النقاط</span><b class="pts">${olvIcon("star")}${Number(c.points_balance || 0).toLocaleString("en-US")}</b></div>
+          <div><span>أول زيارة</span><b>${fmtDate(c.created_at)}</b></div>
+        </div>
+        ${body}
+        <div class="cu-acts">
+          ${tel ? `<a class="btn" href="tel:${olvEsc(tel)}">${olvIcon("phone")}<span>اتصال</span></a>` : ""}
+          ${wa ? `<a class="btn go" href="https://wa.me/${wa}" target="_blank" rel="noopener">${olvIcon("message")}<span>واتساب</span></a>` : ""}
+          ${isAdmin() ? `<button class="btn" type="button" data-act="rename">${olvIcon("note")}<span>${c.name ? "عدّل الاسم" : "ضيف اسم"}</span></button>` : ""}
+        </div>
+        <form class="cu-name-form" hidden>
+          <input type="text" maxlength="60" value="${olvEsc(c.name || "")}" placeholder="اسم الزبون" aria-label="اسم الزبون">
+          <button class="btn go" type="submit">حفظ</button>
+          <button class="btn" type="button" data-act="cancel">إلغاء</button>
+        </form>`;
+    }
 
-    async function selectCustomer(phone) {
-      selectedPhone = phone;
-      const customer = customers.find((c) => c.phone === phone);
-      if (!customer) return;
-      document.getElementById("detail-group").hidden = false;
-      document.getElementById("detail-name").textContent = customer.name || customer.phone;
-      document.getElementById("d-visits").textContent = customer.visit_count;
-      document.getElementById("d-spent").textContent = olvFormatMoney(customer.total_spent);
-      document.getElementById("d-points").textContent = customer.points_balance;
-      renderCustomers();
+    function bindDetail() {
+      const li = $("list").querySelector(".cu.open");
+      if (!li) return;
+      const c = customers.find((x) => x.phone === li.dataset.phone);
+      const form = li.querySelector(".cu-name-form");
+      const rename = li.querySelector('[data-act="rename"]');
+      if (rename) rename.addEventListener("click", () => { form.hidden = false; form.querySelector("input").focus(); });
+      li.querySelector('[data-act="cancel"]').addEventListener("click", () => { form.hidden = true; });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector('button[type="submit"]');
+        const name = form.querySelector("input").value.trim() || null;
+        btn.disabled = true;
+        try {
+          const { error } = await window.supabaseClient.from("customers").update({ name }).eq("id", c.id);
+          if (error) throw error;
+          c.name = name;
+          olvToast("انحفظ الاسم", { type: "ok", icon: "check" });
+          renderSummary(); renderList();
+        } catch (err) {
+          btn.disabled = false;
+          olvShowError(errBox, err);
+        }
+      });
+    }
 
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("orders-body");
+    async function loadDetail(c) {
       try {
-        const { data, error } = await window.supabaseClient
+        const { data: sales, error } = await window.supabaseClient
           .from("sales_entries")
-          .select("entry_date, order_type, cash_amount, card_amount, delivery_amount, status")
-          .eq("customer_phone", phone)
+          .select("id, entry_date, order_type, cash_amount, card_amount, delivery_amount")
+          .eq("customer_phone", c.phone)
           .eq("status", "completed")
           .order("entry_date", { ascending: false })
           .limit(30);
         if (error) throw error;
-        const orders = data || [];
-        body.innerHTML = orders.length
-          ? orders.map((o) => `
-              <tr>
-                <td>${o.entry_date}</td>
-                <td>${olvEsc(ORDER_TYPE_LABELS[o.order_type] || o.order_type) || "—"}</td>
-                <td>${olvFormatMoney(Number(o.cash_amount) + Number(o.card_amount) + Number(o.delivery_amount))}</td>
-              </tr>
-            `).join("")
-          : `<tr class="empty-row"><td colspan="3">لا يوجد طلبات بعد</td></tr>`;
+        const ids = (sales || []).map((s) => s.id);
+        let items = [];
+        if (ids.length) {
+          const r = await window.supabaseClient.from("sale_items").select("sale_id, product_name, qty, status").in("sale_id", ids);
+          if (r.error) throw r.error;
+          items = (r.data || []).filter((i) => i.status !== "voided");
+        }
+        const bySale = {};
+        const tally = {};
+        items.forEach((i) => {
+          (bySale[i.sale_id] = bySale[i.sale_id] || []).push(i);
+          tally[i.product_name] = (tally[i.product_name] || 0) + Number(i.qty || 0);
+        });
+        const fav = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, qty]) => ({ name, qty: Math.round(qty * 100) / 100 }));
+        const orders = (sales || []).slice(0, 8).map((s) => {
+          const its = bySale[s.id] || [];
+          return {
+            date: s.entry_date ? Number(s.entry_date.slice(8, 10)) + "/" + Number(s.entry_date.slice(5, 7)) : "—",
+            type: s.order_type || "طلب",
+            items: its.slice(0, 3).map((i) => i.product_name).join("، ") + (its.length > 3 ? ` +${its.length - 3}` : ""),
+            total: Number(s.cash_amount || 0) + Number(s.card_amount || 0) + Number(s.delivery_amount || 0),
+          };
+        });
+        detailCache[c.phone] = { orders, fav };
+      } catch (err) {
+        detailCache[c.phone] = { error: true, orders: [], fav: [] };
+      }
+      if (openPhone === c.phone) {
+        const li = $("list").querySelector(".cu.open .cu-detail");
+        if (li) { li.innerHTML = detailHtml(c); bindDetail(); }
+      }
+    }
+
+    function openCustomer(phone, fromTop) {
+      openPhone = openPhone === phone && !fromTop ? null : phone;
+      if (fromTop) {
+        // من «أكتر ناس صرفوا»: صفّر الفلاتر حتى يبيّن بالقائمة
+        const idx = filtered().findIndex((c) => c.phone === phone);
+        if (idx < 0) { seg = "all"; query = ""; $("q").value = ""; renderChips(); }
+        const idx2 = filtered().findIndex((c) => c.phone === phone);
+        if (idx2 >= shown) shown = idx2 + 1;
+      }
+      renderList();
+      if (fromTop) {
+        const li = [...$("list").querySelectorAll(".cu")].find((x) => x.dataset.phone === phone);
+        if (li) li.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+
+    $("list").addEventListener("click", (e) => {
+      const row = e.target.closest(".cu-row");
+      if (!row) return;
+      openCustomer(row.closest(".cu").dataset.phone, false);
+    });
+    $("more-btn").addEventListener("click", () => { shown += STEP; renderList(); });
+    let qTimer = null;
+    $("q").addEventListener("input", (e) => {
+      clearTimeout(qTimer);
+      qTimer = setTimeout(() => { query = e.target.value.trim(); shown = STEP; renderList(); }, 120);
+    });
+
+    async function load() {
+      try {
+        const { data, error } = await window.supabaseClient
+          .from("customers")
+          .select("id, phone, name, visit_count, total_spent, points_balance, created_at, last_visit_at")
+          .order("visit_count", { ascending: false });
+        if (error) throw error;
+        customers = (data || []).map((c) => ({ ...c, visit_count: Number(c.visit_count || 0), total_spent: Number(c.total_spent || 0) }));
+        renderSummary();
+        renderChips();
+        renderList();
       } catch (err) {
         olvShowError(errBox, err);
       }
-      document.getElementById("detail-group").scrollIntoView({ behavior: "smooth", block: "start" });
     }
-
-    document.getElementById("close-detail-btn").addEventListener("click", () => {
-      selectedPhone = null;
-      document.getElementById("detail-group").hidden = true;
-      renderCustomers();
-    });
-
-    document.getElementById("customer-search").addEventListener("input", (e) => {
-      searchTerm = e.target.value.trim().toLowerCase();
-      renderCustomers();
-    });
 
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
-      await loadCustomers();
+      await load();
     })();
     });
   </script>
