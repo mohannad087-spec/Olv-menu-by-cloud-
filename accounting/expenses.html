@@ -58,117 +58,366 @@
   window.olvApplyTheme();
 })();
 </script>
+<style>
+  /* صفحة المصروفات (2026-10): فترة ← 4 أرقام ← رسمين ← الثابتة ← السجل مجمّع حسب التصنيف.
+     القواعد بـ design-system/olv/pages/expenses.md */
+  .wrap.ex-wrap{max-width:1120px;}
+  .ex-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .ex-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .ex-head .ex-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .ex-head-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .ex-head-actions .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px; text-decoration:none;}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .btn.go:disabled{opacity:.6;}
+
+  /* الحبوب (الفترة والتصنيف بالفورم) */
+  .ex-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
+  .ex-chip{
+    min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);
+  }
+  .ex-chip .icon{width:16px; height:16px;}
+  .ex-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .ex-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .ex-chip:active{transform:scale(.97);}
+  @media (max-width:640px){ #period-chips{gap:6px;} #period-chips .ex-chip{padding:0 11px; font-size:13.5px;} }
+  .ex-custom{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin:-4px 0 14px;}
+  .ex-custom .field{margin:0; min-width:150px;}
+  .ex-custom[hidden]{display:none;}
+
+  /* فورم مصروف جديد/تعديل: المبلغ كبير، التصنيف حبوب بكبسة وحدة */
+  #add-group[hidden], #rec-form-wrap[hidden]{display:none;}
+  .ex-form-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
+  .ex-form-head h2{margin:0;}
+  .ex-amount input{font-size:28px !important; font-weight:800; font-variant-numeric:tabular-nums; min-height:58px; text-align:center;}
+  .ex-cats{display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 14px;}
+  .ex-cats .ex-chip{min-height:42px; font-size:13.5px; padding:0 13px;}
+  .ex-date-line{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .ex-date-line .ex-chip{min-height:42px;}
+  .ex-date-line input{flex:1; min-width:150px;}
+  .ex-label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
+  .ex-repeat{display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:14px; background:var(--ink-3); margin:4px 0 14px; cursor:pointer; font-size:14px; line-height:1.5;}
+  .ex-repeat input{width:20px; height:20px; margin-top:2px; accent-color:var(--olive); flex:none;}
+  .ex-repeat small{display:block; color:var(--muted); font-size:12.5px;}
+  .ex-repeat[hidden]{display:none;}
+  .ex-form-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .ex-form-actions .btn{min-height:48px; min-width:140px;}
+  .ex-locked{color:var(--muted); font-size:13px; margin:-6px 0 12px;}
+
+  /* الأرقام */
+  .stats.ex-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.ex-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.ex-stats{gap:10px;}
+    .ex-stats .stat{padding:13px;}
+    .ex-stats .stat .stat-icon{display:none;}
+    .olv-glass .ex-stats .stat .value{font-size:22px;}
+  }
+  .ex-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  .ex-stats .vs{display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:12px; font-weight:700; color:var(--danger-hi);}
+  .ex-stats .vs.down{color:var(--ok);}
+  .ex-stats .vs .icon{width:13px; height:13px;}
+  .ex-stats .vs[hidden]{display:none;}
+
+  .ex-grid{display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:14px; margin-bottom:14px;}
+  .ex-grid > *{min-width:0;}
+  .ex-grid > .group{margin-bottom:0;}
+  @media (max-width:900px){ .ex-grid{grid-template-columns:minmax(0,1fr);} }
+  .ex-summary{font-size:13.5px; color:var(--muted); margin:10px 0 0; line-height:1.7;}
+  .ex-summary b{color:var(--paper);}
+  .ex-empty{padding:26px 8px; text-align:center; color:var(--muted);}
+
+  /* أعمدة المصروفات: ذهبي (الزيتوني للمبيعات، والأحمر للخطر بس) */
+  .ex-bars-wrap{position:relative;}
+  .ex-bars{width:100%; height:auto; display:block; direction:ltr; overflow:visible;}
+  .ex-bars .grid{stroke:var(--hair); stroke-width:1;}
+  .ex-bars .axis{fill:var(--muted); font-size:11px; font-family:'Tajawal',sans-serif;}
+  .ex-bars .bar{fill:var(--gold); opacity:.8; transition:opacity .12s var(--ease);}
+  .ex-bars .bar.top{opacity:1;}
+  .ex-bars .zero{fill:var(--hair-soft);}
+  .ex-bars .peak{fill:var(--gold-hi); font-size:12px; font-weight:700; font-family:'Tajawal',sans-serif;}
+  .ex-bars .hit{fill:transparent; cursor:pointer;}
+  .ex-bars .hit:focus{outline:none;}
+  .ex-bars g.on .bar, .ex-bars g:hover .bar{opacity:1;}
+  .ex-bars g.on .hit, .ex-bars g:focus-within .hit{fill:var(--hair-soft);}
+  .ex-tip{
+    position:absolute; top:0; transform:translateX(-50%); pointer-events:none; white-space:nowrap; z-index:2;
+    background:var(--paper); color:var(--ink-2); border-radius:10px; padding:7px 11px; font-size:12.5px; line-height:1.5;
+    box-shadow:0 8px 20px -8px rgba(0,0,0,.4); opacity:0; transition:opacity .12s var(--ease);
+  }
+  .ex-tip.show{opacity:1;}
+
+  /* حسب التصنيف: أشرطة مرتّبة، الكبسة بتفتح التصنيف بالسجل */
+  .cat-bars{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+  .cat-bars button{width:100%; display:block; padding:7px 8px; border-radius:12px; background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; min-height:44px;}
+  .cat-bars button:hover{background:rgba(var(--gold-rgb),.06);}
+  .cat-bars button:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .cat-bars .row{display:flex; width:100%; align-items:baseline; gap:8px; margin-bottom:6px; font-size:13.5px;}
+  .cat-bars .row .icon{width:15px; height:15px; color:var(--muted); align-self:center; flex:none;}
+  .cat-bars .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cat-bars .amt{font-weight:700; font-variant-numeric:tabular-nums; flex:none;}
+  .cat-bars .pc{color:var(--muted); font-size:12px; flex:none; width:38px; text-align:left; font-variant-numeric:tabular-nums;}
+  .cat-bars .tr{display:block; height:7px; border-radius:999px; background:var(--ink-3); overflow:hidden;}
+  .cat-bars .tr i{display:block; height:100%; border-radius:999px; background:var(--gold); transform-origin:right; animation:bar-in .6s var(--spring) both;}
+  .cat-bars li:first-child .amt{color:var(--gold-hi);}
+  @keyframes bar-in{from{transform:scaleX(0);}}
+
+  /* المصروفات الثابتة */
+  .rec-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .rec-head h2{margin:0;}
+  .rec-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  .rec-note{color:var(--muted); font-size:13px; margin:0 0 10px; line-height:1.6;}
+  .rec-note b{color:var(--paper);}
+  .rec-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px;}
+  .rec-card{border-radius:16px; background:var(--ink-3); padding:12px 14px; display:flex; flex-direction:column; gap:8px; min-width:0;}
+  .rec-card.off{opacity:.6;}
+  .rec-top{display:flex; align-items:flex-start; gap:10px;}
+  .rec-top .ci{width:36px; height:36px; border-radius:11px; background:var(--ink-2); display:grid; place-items:center; color:var(--gold-hi); flex:none;}
+  .rec-top .ci .icon{width:18px; height:18px;}
+  .rec-top .t{flex:1; min-width:0;}
+  .rec-top .t b{display:block; font-size:14.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .rec-top .t small{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
+  .rec-top .amt{font-weight:800; font-size:16px; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .rec-next{display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:var(--muted);}
+  .rec-next .icon{width:13px; height:13px;}
+  .rec-next.soon{color:var(--gold-hi); font-weight:700;}
+  .rec-actions{display:flex; gap:6px; flex-wrap:wrap;}
+  .rec-actions .btn{min-height:40px; padding:6px 12px; font-size:13px;}
+  #rec-form-wrap{margin-top:14px; padding-top:14px; border-top:1px solid var(--hair-soft);}
+
+  /* السجل: تصنيفات بتنفتح وبتتسكّر */
+  .ex-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  .ex-tools h2{margin:0; flex:1; min-width:140px;}
+  .ex-tools h2 .n{color:var(--muted); font-weight:500; font-size:14px;}
+  .ex-search{position:relative; flex:1; max-width:340px; min-width:200px;}
+  .ex-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--muted); pointer-events:none;}
+  .ex-search input{width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; padding-inline-start:38px; font-size:16px;
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .ex-search input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .ex-kind{margin-bottom:6px;}
+  .ex-kind .ex-chip{min-height:38px; padding:0 13px; font-size:13px;}
+
+  .cat{border-bottom:1px solid var(--hair-soft);}
+  .cat:last-child{border-bottom:0;}
+  .cat-h{width:100%; display:grid; grid-template-columns:40px minmax(0,1fr) auto 18px; align-items:center; gap:12px; min-height:64px; padding:10px 4px;
+    background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:14px; transition:background .15s var(--ease);}
+  .cat-h:hover{background:rgba(var(--gold-rgb),.06);}
+  .cat-h:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .cat-h .ci{width:40px; height:40px; border-radius:12px; background:var(--ink-3); display:grid; place-items:center; color:var(--gold-hi);}
+  .cat-h .ci .icon{width:20px; height:20px;}
+  .cat-h .t{min-width:0;}
+  .cat-h .t b{display:block; font-size:15.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cat-h .t small{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
+  .cat-h .m{text-align:left; white-space:nowrap;}
+  .cat-h .m b{display:block; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .cat-h .m small{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums;}
+  .cat-h .chev{width:18px; height:18px; color:var(--muted); transition:transform .2s var(--spring);}
+  .cat.open .cat-h .chev{transform:rotate(180deg);}
+  .cat-body{list-style:none; margin:0; padding:0 0 12px; padding-inline-start:52px;}
+  .cat-body:not([hidden]){animation:od-in .18s var(--spring) both;}
+  @keyframes od-in{from{opacity:0; transform:translateY(-4px);}}
+  @media (max-width:640px){ .cat-body{padding-inline-start:0;} .cat-h{grid-template-columns:40px minmax(0,1fr) auto; gap:10px;} .cat-h .chev{display:none;} }
+
+  .ex + .ex{border-top:1px solid var(--hair-soft);}
+  .ex.open{background:var(--ink-3); border-radius:14px;}
+  .ex.open + .ex, .ex + .ex.open{border-top-color:transparent;}
+  .ex-row{width:100%; display:grid; grid-template-columns:54px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:56px; padding:8px;
+    background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:12px;}
+  .ex-row:hover{background:rgba(var(--gold-rgb),.06);}
+  .ex-row:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .ex-row .dt{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2;}
+  .ex-row .dt small{display:block; color:var(--muted); font-size:11.5px; font-weight:500;}
+  .ex-row .nm{min-width:0;}
+  .ex-row .nm b{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font-size:14px; font-weight:500; overflow-wrap:anywhere; line-height:1.45;}
+  .ex.open .ex-row .nm b{display:block;}
+  .ex-row .tags{display:flex; flex-wrap:wrap; gap:4px 8px; margin-top:3px;}
+  .tag{display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:var(--muted); font-weight:700;}
+  .tag .icon{width:12px; height:12px;}
+  .tag.rec{color:var(--olive);}
+  .tag.inv{color:var(--gold-hi);}
+  .ex-row .am{font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:left;}
+  .ex-detail{padding:2px 10px 14px; padding-inline-start:74px;}
+  .ex-detail:not([hidden]){animation:od-in .18s var(--spring) both;}
+  .ex-detail .facts{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; color:var(--muted); margin-bottom:10px;}
+  .ex-detail .facts b{color:var(--paper); font-weight:700;}
+  .ex-detail .acts{display:flex; gap:8px; flex-wrap:wrap;}
+  .ex-detail .acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;}
+  @media (max-width:640px){ .ex-detail{padding-inline-start:10px;} .ex-row{grid-template-columns:46px minmax(0,1fr) auto; gap:10px;} }
+  .cat-more{display:flex; justify-content:center; padding-top:8px;}
+  .cat-more .btn{min-height:44px;}
+
+  @media (prefers-reduced-motion: reduce){
+    .cat-h .chev, .ex-chip, .ex-bars .bar{transition:none;}
+    .cat-body:not([hidden]), .ex-detail:not([hidden]), .cat-bars .tr i{animation:none;}
+    .ex-chip:active{transform:none;}
+  }
+</style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap ex-wrap">
     <div class="err" id="err"></div>
 
-    <div class="group" id="rec-group" hidden>
-      <h2>المصروفات الثابتة والمتكررة</h2>
-      <p class="hint" style="margin-bottom:14px;">
-        عرّف المصروف مرة وحدة (إنترنت، إيجار، اشتراك...) وبينزل لحاله بموعده كل شهر بدون ما تكرره يدويًا.
-        تعديل المبلغ بيأثر على الدفعات الجاية بس، واللي نزل قبل بيضل زي ما هو.
-      </p>
-      <form id="rec-form">
-        <div class="row2">
-          <div class="field">
-            <label>الاسم</label>
-            <input type="text" id="rec-name" placeholder="مثال: اشتراك الإنترنت" required>
-          </div>
-          <div class="field">
-            <label>التصنيف</label>
-            <select id="rec-category" required></select>
-          </div>
-        </div>
-        <div class="row2">
-          <div class="field">
-            <label>المبلغ</label>
-            <input type="number" id="rec-amount" step="0.01" min="0.01" required>
-          </div>
-          <div class="field">
-            <label>يتكرر</label>
-            <select id="rec-every">
-              <option value="1">كل شهر</option>
-              <option value="2">كل شهرين</option>
-              <option value="3">كل 3 شهور</option>
-              <option value="6">كل 6 شهور</option>
-              <option value="12">كل سنة</option>
-            </select>
-          </div>
-        </div>
-        <div class="row2">
-          <div class="field">
-            <label>يوم الشهر (31 = آخر يوم بالشهر)</label>
-            <input type="number" id="rec-day" min="1" max="31" value="1" required>
-          </div>
-          <div class="field">
-            <label>يبدأ من</label>
-            <input type="date" id="rec-start" required>
-            <div class="hint">لو اخترت تاريخ قديم، الشهور الفايتة بتنزل كلها دفعة وحدة</div>
-          </div>
-        </div>
-        <div class="row2">
-          <div class="field">
-            <label>ينتهي بتاريخ (اختياري)</label>
-            <input type="date" id="rec-end">
-          </div>
-          <div class="field">
-            <label>ملاحظات (اختياري)</label>
-            <input type="text" id="rec-notes">
-          </div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button type="submit" class="btn gold" id="rec-save">حفظ المصروف المتكرر</button>
-          <button type="button" class="btn" id="rec-cancel" hidden>إلغاء التعديل</button>
-        </div>
-      </form>
-      <div class="table-wrap" style="margin-top:18px;">
-        <table>
-          <thead><tr><th>الاسم</th><th>التصنيف</th><th>المبلغ</th><th>الجدول</th><th>الدفعة الجاية</th><th></th></tr></thead>
-          <tbody id="rec-body"><tr class="empty-row"><td colspan="6">جاري التحميل...</td></tr></tbody>
-        </table>
+    <header class="ex-head">
+      <div>
+        <h1>المصروفات</h1>
+        <div class="ex-sub" id="ex-sub">&nbsp;</div>
       </div>
-    </div>
+      <div class="ex-head-actions">
+        <button class="btn go" type="button" id="add-toggle" aria-expanded="false" aria-controls="add-group"></button>
+        <a class="btn small" id="reports-link" href="reports.html" hidden></a>
+      </div>
+    </header>
 
-    <div class="group">
-      <h2>تسجيل مصروف</h2>
-      <form id="expense-form">
+    <!-- تسجيل/تعديل مصروف: مسكّر لحد ما تكبس «سجّل مصروف» -->
+    <section class="group" id="add-group" hidden>
+      <div class="ex-form-head">
+        <h2 id="add-title"></h2>
+        <button class="btn small" type="button" id="add-close">إغلاق</button>
+      </div>
+      <p class="ex-locked" id="edit-note" hidden></p>
+      <form id="expense-form" novalidate>
         <div class="row2">
+          <div class="field ex-amount">
+            <label for="amount">المبلغ</label>
+            <input type="number" id="amount" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00" required>
+          </div>
           <div class="field">
-            <label>التاريخ</label>
+            <label for="description">البيان (اختياري)</label>
+            <input type="text" id="description" placeholder="مثال: فاتورة كهرباء شهر 9" maxlength="200">
+          </div>
+        </div>
+        <span class="ex-label" id="cat-label">التصنيف</span>
+        <div class="ex-cats" id="cat-chips" role="radiogroup" aria-labelledby="cat-label"></div>
+        <div class="field">
+          <label for="expense_date">التاريخ</label>
+          <div class="ex-date-line">
+            <button class="ex-chip" type="button" data-day="0">اليوم</button>
+            <button class="ex-chip" type="button" data-day="-1">أمس</button>
             <input type="date" id="expense_date" required>
           </div>
-          <div class="field">
-            <label>التصنيف</label>
-            <select id="category_id" required></select>
-          </div>
         </div>
-        <div class="row2">
-          <div class="field">
-            <label>المبلغ</label>
-            <input type="number" id="amount" step="0.01" min="0" required>
-          </div>
-          <div class="field">
-            <label>البيان (اختياري)</label>
-            <input type="text" id="description" placeholder="مثال: فاتورة كهرباء شهر 9">
-          </div>
+        <label class="ex-repeat" id="repeat-wrap" hidden>
+          <input type="checkbox" id="repeat">
+          <span>مصروف ثابت؟ خلّيه ينزل لحاله كل شهر
+            <small>بنفس المبلغ وبنفس اليوم من الشهر (إيجار، إنترنت، اشتراك...). بتقدر توقفه أو تعدّله من «المصروفات الثابتة».</small></span>
+        </label>
+        <div class="ex-form-actions">
+          <button type="submit" class="btn go" id="save-btn">حفظ المصروف</button>
+          <button type="button" class="btn" id="cancel-btn">إلغاء</button>
         </div>
-        <button type="submit" class="btn gold" id="save-btn">حفظ المصروف</button>
       </form>
+    </section>
+
+    <div class="ex-chips" id="period-chips" role="group" aria-label="الفترة">
+      <button class="ex-chip" type="button" data-period="month" aria-pressed="true">هالشهر</button>
+      <button class="ex-chip" type="button" data-period="last" aria-pressed="false">الشهر الماضي</button>
+      <button class="ex-chip" type="button" data-period="q" aria-pressed="false">3 شهور</button>
+      <button class="ex-chip" type="button" data-period="year" aria-pressed="false">هالسنة</button>
+      <button class="ex-chip" type="button" data-period="custom" aria-pressed="false" id="custom-chip"></button>
+    </div>
+    <div class="ex-custom" id="custom-range" hidden>
+      <div class="field"><label for="from-date">من</label><input type="date" id="from-date"></div>
+      <div class="field"><label for="to-date">إلى</label><input type="date" id="to-date"></div>
+      <button class="btn gold" type="button" id="custom-apply">عرض</button>
     </div>
 
-    <div class="group">
-      <h2>سجل المصروفات</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>التاريخ</th><th>التصنيف</th><th>البيان</th><th>المبلغ</th><th></th></tr></thead>
-          <tbody id="expenses-body">
-            <tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr>
-          </tbody>
-        </table>
+    <div class="stats ex-stats">
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-total"></div>
+          <div class="stat-body"><div class="label">مجموع المصروفات</div><div class="value" id="k-total">—</div>
+            <span class="vs" id="k-vs" hidden></span></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-buy"></div>
+          <div class="stat-body"><div class="label">مشتريات بضاعة</div><div class="value" id="k-buy">—</div>
+            <span class="note">من فواتير المشتريات</span></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-run"></div>
+          <div class="stat-body"><div class="label">مصاريف تشغيل</div><div class="value" id="k-run">—</div>
+            <span class="note" id="k-run-note">إيجار، فواتير، رواتب...</span></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-row"><div class="stat-icon" id="ic-ratio"></div>
+          <div class="stat-body"><div class="label">من المبيعات</div><div class="value" id="k-ratio">—</div>
+            <span class="note" id="k-ratio-note">&nbsp;</span></div></div>
       </div>
     </div>
+
+    <div class="ex-grid">
+      <section class="group">
+        <h2 id="chart-title"></h2>
+        <div class="ex-bars-wrap" id="chart"></div>
+        <p class="ex-summary" id="chart-summary"></p>
+      </section>
+      <section class="group">
+        <h2 id="cats-title"></h2>
+        <ul class="cat-bars" id="cat-bars"></ul>
+        <p class="ex-summary" id="cats-summary"></p>
+      </section>
+    </div>
+
+    <!-- المصروفات الثابتة (للمالك والمدير) -->
+    <section class="group" id="rec-group" hidden>
+      <div class="rec-head">
+        <h2 id="rec-title"></h2>
+        <button class="btn small" type="button" id="rec-new"></button>
+      </div>
+      <p class="rec-note" id="rec-note"></p>
+      <ul class="rec-list" id="rec-list"></ul>
+      <div id="rec-form-wrap" hidden>
+        <h3 id="rec-form-title" style="font-size:15px; margin:0 0 12px;"></h3>
+        <form id="rec-form">
+          <div class="row2">
+            <div class="field"><label for="rec-name">الاسم</label><input type="text" id="rec-name" placeholder="مثال: اشتراك الإنترنت" required></div>
+            <div class="field"><label for="rec-category">التصنيف</label><select id="rec-category" required></select></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="rec-amount">المبلغ</label><input type="number" id="rec-amount" step="0.01" min="0.01" inputmode="decimal" required></div>
+            <div class="field"><label for="rec-every">يتكرر</label>
+              <select id="rec-every">
+                <option value="1">كل شهر</option>
+                <option value="2">كل شهرين</option>
+                <option value="3">كل 3 شهور</option>
+                <option value="6">كل 6 شهور</option>
+                <option value="12">كل سنة</option>
+              </select></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="rec-day">يوم الشهر (31 = آخر يوم بالشهر)</label><input type="number" id="rec-day" min="1" max="31" value="1" inputmode="numeric" required></div>
+            <div class="field"><label for="rec-start">يبدأ من</label><input type="date" id="rec-start" required>
+              <div class="hint">لو اخترت تاريخ قديم، الشهور الفايتة بتنزل كلها دفعة وحدة</div></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="rec-end">ينتهي بتاريخ (اختياري)</label><input type="date" id="rec-end"></div>
+            <div class="field"><label for="rec-notes">ملاحظات (اختياري)</label><input type="text" id="rec-notes"></div>
+          </div>
+          <div class="ex-form-actions">
+            <button type="submit" class="btn go" id="rec-save">حفظ</button>
+            <button type="button" class="btn" id="rec-cancel">إلغاء</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="group">
+      <div class="ex-tools">
+        <h2 id="list-title"></h2>
+        <label class="ex-search" id="search-wrap">
+          <span class="olv-sr">بحث بالمصروفات</span>
+          <input type="search" id="ex-search" placeholder="بيان، مورّد، مبلغ" autocomplete="off">
+        </label>
+      </div>
+      <div class="ex-chips ex-kind" id="kind-chips" role="group" aria-label="نوع المصروف">
+        <button class="ex-chip" type="button" data-kind="all" aria-pressed="true">الكل</button>
+        <button class="ex-chip" type="button" data-kind="manual" aria-pressed="false">يدوي</button>
+        <button class="ex-chip" type="button" data-kind="rec" aria-pressed="false">ثابت</button>
+        <button class="ex-chip" type="button" data-kind="inv" aria-pressed="false">من المشتريات</button>
+      </div>
+      <div id="ex-list"><p class="empty-state">جاري التحميل...</p></div>
+    </section>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -186,69 +435,522 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("expenses");
-    let session = null;
-    let categories = [];
 
-    async function loadCategories() {
-      const { data, error } = await window.supabaseClient
-        .from("expense_categories").select("*").order("name");
-      if (error) { olvShowError(document.getElementById("err"), error); return; }
-      categories = data || [];
-      const sel = document.getElementById("category_id");
-      sel.innerHTML = categories.map((c) => `<option value="${c.id}">${olvEsc(c.name)}</option>`).join("");
+    const $ = (id) => document.getElementById(id);
+    const errBox = $("err");
+    const BUY_CAT = "مشتريات ومخزون"; // التصنيف اللي بتنزل فيه فواتير المشتريات لحالها
+    const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
+    const EVERY_LABEL = { 1: "كل شهر", 2: "كل شهرين", 3: "كل 3 شهور", 6: "كل 6 شهور", 12: "كل سنة" };
+    const CAT_STEP = 30;
+    const compact = (v) => Math.round(v).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
+    const isAdmin = () => window.olvRole && window.olvRole !== "staff";
+
+    // أيقونة لكل تصنيف حسب اسمه (التصنيفات بالداتابيس نصوص حرّة)
+    function catIcon(name) {
+      const n = name || "";
+      if (/مشتريات|مخزون|بضاعة/.test(n)) return "cart";
+      if (/رواتب|أجور|اجور|موظف/.test(n)) return "people";
+      if (/إيجار|ايجار|أجار/.test(n)) return "home";
+      if (/فواتير|كهرباء|مياه|غاز|إنترنت|انترنت/.test(n)) return "bolt";
+      if (/صيانة|تصليح/.test(n)) return "gear";
+      if (/تسويق|إعلان|اعلان/.test(n)) return "sparkle";
+      if (/توصيل|نقل|بنزين/.test(n)) return "truck";
+      return "receipt";
     }
 
-    const expTracker = olvNewTracker();
-    async function loadExpenses() {
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("expenses-body");
+    // ---------------------------------------------------------------
+    // التواريخ بتوقيت الجهاز (olvToday بيرجع UTC وبعد نص الليل بيزيح يوم)
+    // ---------------------------------------------------------------
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const parse = (s) => new Date(s + "T00:00:00");
+    const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+    const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+    const todayIso = () => iso(new Date());
+    const shortDate = (s) => Number(s.slice(8, 10)) + "/" + Number(s.slice(5, 7));
+    const monthName = (s) => MONTHS[Number(s.slice(5, 7)) - 1];
+    const lastDayOf = (s) => { const d = parse(s.slice(0, 8) + "01"); d.setMonth(d.getMonth() + 1); d.setDate(0); return iso(d); };
+    const monthShift = (s, n) => { const d = parse(s.slice(0, 8) + "01"); d.setMonth(d.getMonth() + n); return iso(d); };
+
+    // أيقونات وأزرار ثابتة
+    $("add-toggle").innerHTML = olvIcon("plus") + "<span>سجّل مصروف</span>";
+    $("reports-link").innerHTML = olvIcon("barChart") + "<span>التقارير</span>";
+    $("custom-chip").innerHTML = olvIcon("calendar") + "<span>فترة…</span>";
+    $("ic-total").innerHTML = olvIcon("minusCircle");
+    $("ic-buy").innerHTML = olvIcon("cart");
+    $("ic-run").innerHTML = olvIcon("bolt");
+    $("ic-ratio").innerHTML = olvIcon("barChart");
+    $("cats-title").innerHTML = olvIcon("grid") + " وين راحت المصاري";
+    $("rec-title").innerHTML = olvIcon("refresh") + " المصروفات الثابتة";
+    $("rec-new").innerHTML = olvIcon("plus") + "<span>ثابت جديد</span>";
+    $("list-title").innerHTML = olvIcon("receipt") + ' السجل <span class="n" id="list-count"></span>';
+    $("search-wrap").insertAdjacentHTML("afterbegin", olvIcon("search"));
+
+    let session = null;
+    let categories = [];
+    let rows = [];            // مصروفات الفترة
+    let invoiceOf = {};       // expense_id ← فاتورة المشتريات اللي نزّلته
+    let recs = [];
+    let period = "month";
+    let range = null;
+    let kind = "all";
+    let query = "";
+    let openCats = new Set();
+    let openRow = null;
+    let shown = {};           // كم سطر ظاهر بكل تصنيف
+    let editing = null;       // المصروف اللي عم يتعدّل
+
+    const catName = (id) => { const c = categories.find((x) => x.id === id); return c ? c.name : "بدون تصنيف"; };
+    const kindOf = (r) => invoiceOf[r.id] ? "inv" : r.recurring_id ? "rec" : "manual";
+
+    // ---------------------------------------------------------------
+    // الفترة
+    // ---------------------------------------------------------------
+    function rangeFor(p) {
+      const t = todayIso(), m0 = t.slice(0, 8) + "01";
+      if (p === "month") return { from: m0, to: t, label: "هالشهر", prevLabel: "نفس الأيام من الشهر الماضي" };
+      if (p === "last") { const f = monthShift(t, -1); return { from: f, to: lastDayOf(f), label: "الشهر الماضي", prevLabel: "الشهر اللي قبله" }; }
+      if (p === "q") return { from: monthShift(t, -2), to: t, label: "آخر 3 شهور", prevLabel: "الـ3 شهور اللي قبلها" };
+      if (p === "year") return { from: t.slice(0, 4) + "-01-01", to: t, label: "هالسنة", prevLabel: "نفس الفترة السنة الماضية" };
+      let from = $("from-date").value || addDays(t, -29), to = $("to-date").value || t;
+      if (from > to) [from, to] = [to, from];
+      if (daysBetween(from, to) > 731) from = addDays(to, -731);
+      return { from, to, label: `من ${shortDate(from)} لـ ${shortDate(to)}`, prevLabel: "الفترة اللي قبلها" };
+    }
+    function prevRange(r, p) {
+      if (p === "month") {
+        const f = monthShift(r.from, -1);
+        const to = f.slice(0, 8) + String(Math.min(Number(r.to.slice(8)), Number(lastDayOf(f).slice(8)))).padStart(2, "0");
+        return { from: f, to };
+      }
+      if (p === "last") { const f = monthShift(r.from, -1); return { from: f, to: lastDayOf(f) }; }
+      if (p === "q") return { from: monthShift(r.from, -3), to: addDays(r.from, -1) };
+      if (p === "year") return { from: String(Number(r.from.slice(0, 4)) - 1) + "-01-01", to: String(Number(r.to.slice(0, 4)) - 1) + r.to.slice(4) };
+      const len = daysBetween(r.from, r.to);
+      return { from: addDays(r.from, -(len + 1)), to: addDays(r.from, -1) };
+    }
+    function setPressed(groupId, attr, value) {
+      document.querySelectorAll(`#${groupId} .ex-chip`).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset[attr] === value)));
+    }
+    $("period-chips").addEventListener("click", (e) => {
+      const b = e.target.closest(".ex-chip"); if (!b) return;
+      period = b.dataset.period;
+      setPressed("period-chips", "period", period);
+      $("custom-range").hidden = period !== "custom";
+      if (period === "custom") {
+        if (!$("from-date").value) $("from-date").value = addDays(todayIso(), -29);
+        if (!$("to-date").value) $("to-date").value = todayIso();
+      }
+      load();
+    });
+    $("custom-apply").addEventListener("click", load);
+
+    // ---------------------------------------------------------------
+    // تحميل البيانات
+    // ---------------------------------------------------------------
+    let loadSeq = 0;
+    async function load() {
+      const seq = ++loadSeq;
+      range = rangeFor(period);
+      const prev = prevRange(range, period);
+      errBox.style.display = "none";
       try {
-        const { data, error } = await window.supabaseClient
-          .from("expenses").select("*, expense_categories(name)")
-          .order("expense_date", { ascending: false }).limit(60);
-        if (error) throw error;
-        const fresh = expTracker.diff((data || []).map((r) => r.id));
-        if (!data || !data.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد مصروفات مسجّلة بعد</td></tr>`;
-          return;
+        const db = window.supabaseClient;
+        const [cur, old, sales] = await Promise.all([
+          db.from("expenses").select("*").gte("expense_date", range.from).lte("expense_date", range.to)
+            .order("expense_date", { ascending: false }).order("created_at", { ascending: false }).limit(5000),
+          db.from("expenses").select("amount").gte("expense_date", prev.from).lte("expense_date", prev.to).limit(10000),
+          db.from("sales_entries").select("cash_amount, card_amount, delivery_amount, status")
+            .gte("entry_date", range.from).lte("entry_date", range.to).limit(20000),
+        ]);
+        if (cur.error) throw cur.error;
+        if (seq !== loadSeq) return;
+        rows = cur.data || [];
+        // أي مصروف نزل من فاتورة مشتريات: تعديله وإلغاؤه من صفحة المشتريات، مش من هون
+        invoiceOf = {};
+        const ids = rows.filter((r) => !r.recurring_id).map((r) => r.id);
+        for (let i = 0; i < ids.length; i += 150) {
+          const part = ids.slice(i, i + 150);
+          const [pi, pu] = await Promise.all([
+            db.from("purchase_invoices").select("id, invoice_no, expense_id, status, suppliers(name)").in("expense_id", part),
+            db.from("purchases").select("id, expense_id").in("expense_id", part),
+          ]);
+          (pi.data || []).forEach((x) => { invoiceOf[x.expense_id] = { no: x.invoice_no, supplier: x.suppliers && x.suppliers.name, voided: x.status === "voided" }; });
+          (pu.data || []).forEach((x) => { if (!invoiceOf[x.expense_id]) invoiceOf[x.expense_id] = { old: true }; });
         }
-        body.innerHTML = data.map((r) => `
-          <tr data-row-id="${olvEsc(r.id)}">
-            <td>${r.expense_date}</td>
-            <td>${r.expense_categories ? olvEsc(r.expense_categories.name) : "—"}</td>
-            <td>${olvEsc(r.description) || "—"}${r.recurring_id ? ' <small style="color:var(--muted)">(متكرر)</small>' : ""}</td>
-            <td>${olvFormatMoney(r.amount)}</td>
-            <td>${window.olvRole === "staff" ? "" : `<button class="btn small danger" data-id="${r.id}">حذف</button>`}</td>
-          </tr>
-        `).join("");
-        olvMarkNew(body, fresh, { scroll: true });
-        body.querySelectorAll("button[data-id]").forEach((btn) => {
-          btn.addEventListener("click", () => olvUndoDelete(btn, {
-            msg: "انحذف المصروف",
-            run: () => window.supabaseClient.from("expenses").delete().eq("id", btn.dataset.id),
-            after: loadExpenses,
-          }));
-        });
+        if (seq !== loadSeq) return;
+        const prevTotal = old.error ? null : (old.data || []).reduce((s, r) => s + Number(r.amount), 0);
+        const salesTotal = sales.error ? null : (sales.data || []).filter((r) => r.status !== "voided")
+          .reduce((s, r) => s + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
+        renderAll(prevTotal, salesTotal);
       } catch (err) {
-        olvShowError(errBox, err);
+        if (seq === loadSeq) olvShowError(errBox, err);
       }
     }
 
+    function renderAll(prevTotal, salesTotal) {
+      const r = range;
+      $("ex-sub").textContent = period === "custom" ? r.label
+        : period === "month" || period === "last" ? `${r.label} · ${monthName(r.from)} ${r.from.slice(0, 4)}`
+        : `${r.label} (${shortDate(r.from)} – ${shortDate(r.to)})`;
 
-    // ---------- المصروفات المتكررة (schema-recurring-expenses.sql) ----------
-    const EVERY_LABEL = { 1: "كل شهر", 2: "كل شهرين", 3: "كل 3 شهور", 6: "كل 6 شهور", 12: "كل سنة" };
-    let recs = [];
+      const total = rows.reduce((s, x) => s + Number(x.amount), 0);
+      const buy = rows.filter((x) => catName(x.category_id) === BUY_CAT).reduce((s, x) => s + Number(x.amount), 0);
+      const setVal = (id, html) => { const el = $(id); delete el.dataset.olvCounted; el.innerHTML = html; };
+      setVal("k-total", olvFormatMoney(total));
+      setVal("k-buy", olvFormatMoney(buy));
+      setVal("k-run", olvFormatMoney(total - buy));
+      const vs = $("k-vs");
+      if (prevTotal != null && prevTotal > 0) {
+        const pct = Math.round(((total - prevTotal) / prevTotal) * 100);
+        // المصروف الزايد أحمر، والناقص زيتوني (عكس المبيعات)
+        vs.innerHTML = olvIcon(pct >= 0 ? "chevronUp" : "chevronDown") + `<span>${Math.abs(pct) > 999 ? "+999" : Math.abs(pct)}% عن ${r.prevLabel}</span>`;
+        vs.classList.toggle("down", pct < 0);
+        vs.hidden = false;
+      } else vs.hidden = true;
+      if (salesTotal != null && salesTotal > 0) {
+        setVal("k-ratio", Math.round((total / salesTotal) * 100) + "%");
+        $("k-ratio-note").textContent = `المبيعات ${olvFormatMoney(salesTotal)}`;
+      } else {
+        setVal("k-ratio", "—");
+        $("k-ratio-note").textContent = salesTotal === 0 ? "ما في مبيعات بهالفترة" : " ";
+      }
+      renderChart();
+      renderCatBars(total);
+      renderList();
+    }
+
+    // ---------------------------------------------------------------
+    // الرسم: لحد شهرين ← يوم بيوم، أكتر ← شهر بشهر
+    // ---------------------------------------------------------------
+    function renderChart() {
+      const box = $("chart"), summary = $("chart-summary");
+      const daily = daysBetween(range.from, range.to) <= 62;
+      let keys = [], vals, counts, label, tipLabel;
+      const by = {}, cnt = {};
+      if (daily) {
+        $("chart-title").innerHTML = olvIcon("barChart") + " المصروفات يوم بيوم";
+        rows.forEach((x) => { by[x.expense_date] = (by[x.expense_date] || 0) + Number(x.amount); cnt[x.expense_date] = (cnt[x.expense_date] || 0) + 1; });
+        for (let d = range.from; d <= range.to && keys.length < 70; d = addDays(d, 1)) keys.push(d);
+        label = shortDate; tipLabel = (d) => `${DAY_NAMES[parse(d).getDay()]} ${shortDate(d)}`;
+      } else {
+        $("chart-title").innerHTML = olvIcon("barChart") + " المصروفات شهر بشهر";
+        rows.forEach((x) => { const m = x.expense_date.slice(0, 7); by[m] = (by[m] || 0) + Number(x.amount); cnt[m] = (cnt[m] || 0) + 1; });
+        for (let m = range.from.slice(0, 7); m <= range.to.slice(0, 7) && keys.length < 30; m = monthShift(m + "-01", 1).slice(0, 7)) keys.push(m);
+        label = (m) => String(Number(m.slice(5, 7))); tipLabel = (m) => `${monthName(m + "-01")} ${m.slice(0, 4)}`;
+      }
+      vals = keys.map((k) => by[k] || 0); counts = keys.map((k) => cnt[k] || 0);
+      const sum = vals.reduce((a, b) => a + b, 0);
+      if (!sum) { box.innerHTML = `<p class="ex-empty">ما في مصروفات بهالفترة</p>`; summary.textContent = ""; return; }
+      const max = Math.max(...vals), best = vals.indexOf(max);
+      const W = Math.max(300, Math.round(box.clientWidth || 640)), H = W < 500 ? 180 : 220, L = 40, R = 6, T = 22, B = 24;
+      const n = keys.length, slot = (W - L - R) / n, bw = Math.max(2, Math.min(34, slot * 0.66));
+      const x = (i) => L + slot * i + slot / 2;
+      const y = (v) => T + (H - T - B) * (1 - v / max);
+      const step = Math.max(1, Math.ceil(n / (W < 500 ? 5 : 10)));
+      box.innerHTML = `
+        <svg class="ex-bars" viewBox="0 0 ${W} ${H}" role="group" aria-label="${olvEsc($("chart-title").textContent.trim())}">
+          ${[0, max / 2, max].map((t) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis" x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${compact(t)}</text>`).join("")}
+          ${keys.map((k, i) => i % step === 0 ? `<text class="axis" x="${x(i)}" y="${H - 6}" text-anchor="middle">${label(k)}</text>` : "").join("")}
+          ${keys.map((k, i) => {
+            const v = vals[i], top = y(v);
+            return `<g data-i="${i}">
+              <rect class="hit" role="button" tabindex="0" x="${L + slot * i}" y="${T - 18}" width="${slot}" height="${H - B - T + 18}" rx="6"
+                aria-label="${olvEsc(tipLabel(k))}: ${olvFormatMoney(v)}، ${counts[i]} مصروف"/>
+              ${v > 0 ? `<rect class="bar${i === best ? " top" : ""}" x="${x(i) - bw / 2}" y="${top}" width="${bw}" height="${Math.max(H - B - top, 2)}" rx="${Math.min(5, bw / 2)}"/>`
+                : `<rect class="zero" x="${x(i) - bw / 2}" y="${H - B - 2}" width="${bw}" height="2" rx="1"/>`}
+            </g>`;
+          }).join("")}
+          <text class="peak" x="${x(best)}" y="${y(max) - 6}" text-anchor="middle">${compact(max)}</text>
+        </svg>
+        <div class="ex-tip" id="ex-tip"></div>`;
+      const tip = $("ex-tip"), svg = box.querySelector("svg");
+      const show = (g) => {
+        const i = Number(g.dataset.i);
+        box.querySelectorAll("g.on").forEach((e) => e.classList.remove("on"));
+        g.classList.add("on");
+        tip.innerHTML = `<b>${olvEsc(tipLabel(keys[i]))}</b><br>${olvFormatMoney(vals[i])} · ${counts[i]} مصروف`;
+        const w = svg.getBoundingClientRect().width;
+        tip.style.left = Math.min(Math.max((x(i) / W) * w, 70), w - 70) + "px";
+        tip.classList.add("show");
+      };
+      const hide = () => { tip.classList.remove("show"); box.querySelectorAll("g.on").forEach((e) => e.classList.remove("on")); };
+      box.querySelectorAll("g[data-i]").forEach((g) => {
+        g.addEventListener("pointerenter", () => show(g));
+        g.addEventListener("click", () => show(g));
+        g.addEventListener("focusin", () => show(g));
+      });
+      svg.addEventListener("pointerleave", hide);
+      svg.addEventListener("focusout", hide);
+      // أكبر مصروف لحاله بيفسّر ليش اليوم عالي
+      const big = rows.reduce((a, b) => (Number(b.amount) > Number(a ? a.amount : 0) ? b : a), null);
+      const bestName = daily ? `${DAY_NAMES[parse(keys[best]).getDay()]} ${shortDate(keys[best])}` : tipLabel(keys[best]);
+      summary.innerHTML = `أعلى ${daily ? "يوم" : "شهر"} <b>${olvEsc(bestName)}</b> بـ <b>${olvFormatMoney(max)}</b>.`
+        + (big ? ` أكبر مصروف لحاله: <b>${olvEsc(shortText(big.description) || catName(big.category_id))}</b> (${olvFormatMoney(big.amount)}).` : "");
+    }
+    const shortText = (s) => { s = (s || "").trim(); return s.length > 40 ? s.slice(0, 40) + "…" : s; };
+
+    // ---------------------------------------------------------------
+    // حسب التصنيف
+    // ---------------------------------------------------------------
+    function groups() {
+      const g = {};
+      rows.forEach((x) => {
+        const k = x.category_id || "none";
+        (g[k] = g[k] || { id: k, name: catName(x.category_id), total: 0, items: [] });
+        g[k].total += Number(x.amount); g[k].items.push(x);
+      });
+      return Object.values(g).sort((a, b) => b.total - a.total);
+    }
+    function renderCatBars(total) {
+      const box = $("cat-bars"), gs = groups();
+      if (!gs.length) { box.innerHTML = `<li class="ex-empty">ما في مصروفات بهالفترة</li>`; $("cats-summary").textContent = ""; return; }
+      const max = gs[0].total;
+      box.innerHTML = gs.map((g) => `<li><button type="button" data-cat="${olvEsc(g.id)}">
+          <span class="row">${olvIcon(catIcon(g.name))}<span class="nm">${olvEsc(g.name)}</span>
+            <span class="amt">${olvFormatMoney(g.total)}</span><span class="pc">${Math.round((g.total / total) * 100)}%</span></span>
+          <span class="tr"><i style="width:${Math.max(2, (g.total / max) * 100)}%"></i></span>
+        </button></li>`).join("");
+      const top = gs[0];
+      $("cats-summary").innerHTML = `أكبر بند <b>${olvEsc(top.name)}</b>: ${Math.round((top.total / total) * 100)}% من المصروفات. اكبس على أي تصنيف لتشوف تفاصيله.`;
+    }
+    $("cat-bars").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-cat]"); if (!b) return;
+      openCats = new Set([b.dataset.cat]);
+      renderList();
+      const sec = document.querySelector(`.cat[data-cat="${CSS.escape(b.dataset.cat)}"]`);
+      if (sec) sec.scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "start" });
+    });
+
+    // ---------------------------------------------------------------
+    // السجل: مجمّع حسب التصنيف، مسكّر لحد ما تفتحه
+    // ---------------------------------------------------------------
+    function matches(x) {
+      if (kind !== "all" && kindOf(x) !== kind) return false;
+      if (!query) return true;
+      const inv = invoiceOf[x.id] || {};
+      const hay = [x.description, catName(x.category_id), inv.supplier, inv.no, String(x.amount), x.expense_date].join(" ").toLowerCase();
+      return query.split(/\s+/).every((w) => hay.includes(w));
+    }
+    function rowHtml(x) {
+      const inv = invoiceOf[x.id];
+      const tags = [];
+      if (x.recurring_id) tags.push(`<span class="tag rec">${olvIcon("refresh")}ثابت</span>`);
+      if (inv) tags.push(`<span class="tag inv">${olvIcon("receipt")}${inv.old ? "مشتريات" : "فاتورة مشتريات" + (inv.voided ? " (ملغاة)" : "")}</span>`);
+      const open = openRow === x.id;
+      return `<li class="ex${open ? " open" : ""}" data-id="${olvEsc(x.id)}">
+        <button type="button" class="ex-row" aria-expanded="${open}">
+          <span class="dt">${shortDate(x.expense_date)}<small>${DAY_NAMES[parse(x.expense_date).getDay()]}</small></span>
+          <span class="nm"><b>${olvEsc(x.description) || olvEsc(catName(x.category_id))}</b>${tags.length ? `<span class="tags">${tags.join("")}</span>` : ""}</span>
+          <span class="am">${olvFormatMoney(x.amount)}</span>
+        </button>
+        ${open ? detailHtml(x) : ""}
+      </li>`;
+    }
+    function detailHtml(x) {
+      const inv = invoiceOf[x.id];
+      const when = x.created_at ? new Date(x.created_at).toLocaleString("ar", { day: "numeric", month: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      const facts = [`التصنيف <b>${olvEsc(catName(x.category_id))}</b>`];
+      if (when) facts.push(`انسجّل <b>${olvEsc(when)}</b>`);
+      if (inv && inv.supplier) facts.push(`المورّد <b>${olvEsc(inv.supplier)}</b>`);
+      if (x.recurring_id) facts.push("نزل لحاله من مصروف ثابت");
+      let acts = "";
+      if (inv) {
+        acts = `<span class="ex-locked" style="margin:0">انسجّل من المشتريات، فتعديله أو إلغاؤه من هناك حتى يضل المخزون وحساب المورّد مزبوط.</span>
+          <a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
+      } else if (isAdmin()) {
+        acts = `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button>
+          <button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}<span>حذف</span></button>`;
+      }
+      return `<div class="ex-detail"><div class="facts">${facts.map((f) => `<span>${f}</span>`).join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>`;
+    }
+    function renderList() {
+      const box = $("ex-list");
+      const gs = groups().map((g) => ({ ...g, items: g.items.filter(matches) })).filter((g) => g.items.length);
+      const n = gs.reduce((s, g) => s + g.items.length, 0);
+      $("list-count").textContent = rows.length ? `(${n})` : "";
+      if (!rows.length) { box.innerHTML = `<p class="ex-empty">ما في مصروفات بهالفترة</p>`; return; }
+      if (!gs.length) { box.innerHTML = `<p class="ex-empty">ما في نتيجة</p>`; return; }
+      // بالبحث أو إذا القائمة قصيرة، التصنيفات بتنفتح لحالها
+      const autoOpen = !!query || kind !== "all" || n <= 8;
+      box.innerHTML = gs.map((g) => {
+        const open = autoOpen || openCats.has(g.id);
+        const lim = shown[g.id] || CAT_STEP;
+        const recN = g.items.filter((x) => x.recurring_id).length, invN = g.items.filter((x) => invoiceOf[x.id]).length;
+        const sub = [`${g.items.length} ${g.items.length === 1 ? "مصروف" : g.items.length <= 10 ? "مصروفات" : "مصروف"}`];
+        if (invN) sub.push(`${invN} من المشتريات`);
+        if (recN) sub.push(`${recN} ثابت`);
+        const sumShown = g.items.reduce((s, x) => s + Number(x.amount), 0);
+        return `<div class="cat${open ? " open" : ""}" data-cat="${olvEsc(g.id)}">
+          <button type="button" class="cat-h" aria-expanded="${open}">
+            <span class="ci">${olvIcon(catIcon(g.name))}</span>
+            <span class="t"><b>${olvEsc(g.name)}</b><small>${sub.join(" · ")}</small></span>
+            <span class="m"><b>${olvFormatMoney(sumShown)}</b></span>
+            ${olvIcon("chevronDown", "chev")}
+          </button>
+          <ul class="cat-body"${open ? "" : " hidden"}>
+            ${open ? g.items.slice(0, lim).map(rowHtml).join("") : ""}
+          </ul>
+          ${open && g.items.length > lim ? `<div class="cat-more"><button class="btn" type="button" data-more="${olvEsc(g.id)}">عرض ${Math.min(CAT_STEP, g.items.length - lim)} كمان</button></div>` : ""}
+        </div>`;
+      }).join("");
+    }
+    $("ex-list").addEventListener("click", (e) => {
+      const head = e.target.closest(".cat-h");
+      if (head) {
+        const id = head.closest(".cat").dataset.cat;
+        if (openCats.has(id) || head.getAttribute("aria-expanded") === "true") openCats.delete(id); else openCats.add(id);
+        if (head.getAttribute("aria-expanded") === "true" && (query || kind !== "all")) { query = ""; $("ex-search").value = ""; kind = "all"; setPressed("kind-chips", "kind", "all"); }
+        renderList();
+        return;
+      }
+      const more = e.target.closest("[data-more]");
+      if (more) { shown[more.dataset.more] = (shown[more.dataset.more] || CAT_STEP) + CAT_STEP; renderList(); return; }
+      const li = e.target.closest(".ex"); if (!li) return;
+      const x = rows.find((r) => r.id === li.dataset.id); if (!x) return;
+      const act = e.target.closest("[data-act]");
+      if (act && act.dataset.act === "edit") { startEdit(x); return; }
+      if (act && act.dataset.act === "del") {
+        olvUndoDelete(act, {
+          msg: "انحذف المصروف",
+          run: () => window.supabaseClient.from("expenses").delete().eq("id", x.id),
+          after: load,
+        });
+        return;
+      }
+      if (e.target.closest(".ex-row")) {
+        openRow = openRow === x.id ? null : x.id;
+        const cat = li.closest(".cat"); if (cat) openCats.add(cat.dataset.cat);
+        renderList();
+      }
+    });
+    $("ex-search").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
+    $("kind-chips").addEventListener("click", (e) => {
+      const b = e.target.closest(".ex-chip"); if (!b) return;
+      kind = b.dataset.kind; setPressed("kind-chips", "kind", kind); renderList();
+    });
+
+    // ---------------------------------------------------------------
+    // تسجيل/تعديل مصروف
+    // ---------------------------------------------------------------
+    let pickedCat = null;
+    function renderCatChips() {
+      $("cat-chips").innerHTML = categories.map((c) =>
+        `<button class="ex-chip" type="button" role="radio" data-cat="${olvEsc(c.id)}" aria-checked="${c.id === pickedCat}" aria-pressed="${c.id === pickedCat}">${olvIcon(catIcon(c.name))}<span>${olvEsc(c.name)}</span></button>`
+      ).join("");
+    }
+    $("cat-chips").addEventListener("click", (e) => {
+      const b = e.target.closest(".ex-chip"); if (!b) return;
+      pickedCat = b.dataset.cat; renderCatChips();
+    });
+    function setDate(v) {
+      $("expense_date").value = v;
+      document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.setAttribute("aria-pressed", String(addDays(todayIso(), Number(b.dataset.day)) === v)));
+    }
+    document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.addEventListener("click", () => setDate(addDays(todayIso(), Number(b.dataset.day)))));
+    $("expense_date").addEventListener("change", (e) => setDate(e.target.value));
+
+    function openForm(open) {
+      $("add-group").hidden = !open;
+      $("add-toggle").setAttribute("aria-expanded", String(open));
+      if (!open) { editing = null; return; }
+      $("add-group").scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "start" });
+      setTimeout(() => $("amount").focus({ preventScroll: true }), 50);
+    }
+    function resetForm() {
+      editing = null;
+      $("expense-form").reset();
+      // آخر تصنيف غير المشتريات، لأن المشتريات بتنزل لحالها من الفواتير
+      const firstOther = categories.find((c) => c.name !== BUY_CAT);
+      pickedCat = (localStorage.getItem("olv_exp_last_cat") && categories.some((c) => c.id === localStorage.getItem("olv_exp_last_cat")))
+        ? localStorage.getItem("olv_exp_last_cat") : firstOther ? firstOther.id : (categories[0] || {}).id;
+      renderCatChips();
+      setDate(todayIso());
+      $("add-title").innerHTML = olvIcon("plus") + " مصروف جديد";
+      $("save-btn").textContent = "حفظ المصروف";
+      $("edit-note").hidden = true;
+      $("repeat-wrap").hidden = !isAdmin();
+    }
+    function startEdit(x) {
+      resetForm();
+      editing = x.id;
+      $("amount").value = x.amount;
+      $("description").value = x.description || "";
+      pickedCat = x.category_id; renderCatChips();
+      setDate(x.expense_date);
+      $("add-title").innerHTML = olvIcon("note") + " تعديل مصروف";
+      $("save-btn").textContent = "حفظ التعديل";
+      $("repeat-wrap").hidden = true;
+      $("edit-note").hidden = !x.recurring_id;
+      $("edit-note").textContent = "هاد نزل من مصروف ثابت. التعديل هون بيغيّر هالدفعة بس؛ لتغيير الجاي عدّل المصروف الثابت.";
+      openForm(true);
+    }
+    $("add-toggle").addEventListener("click", () => {
+      if ($("add-group").hidden || editing) { resetForm(); openForm(true); } else openForm(false);
+    });
+    $("add-close").addEventListener("click", () => openForm(false));
+    $("cancel-btn").addEventListener("click", () => openForm(false));
+
+    $("expense-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errBox.style.display = "none";
+      const amount = Number($("amount").value || 0);
+      if (!(amount > 0)) { olvToast("اكتب المبلغ", { type: "danger", icon: "warning" }); $("amount").focus(); return; }
+      if (!pickedCat) { olvToast("اختار التصنيف", { type: "danger", icon: "warning" }); return; }
+      const date = $("expense_date").value || todayIso();
+      const desc = $("description").value.trim() || null;
+      const btn = $("save-btn");
+      btn.disabled = true;
+      try {
+        const db = window.supabaseClient;
+        if (editing) {
+          const { error } = await db.from("expenses").update({ amount, category_id: pickedCat, expense_date: date, description: desc }).eq("id", editing);
+          if (error) throw error;
+          olvToast("تم تعديل المصروف");
+        } else if ($("repeat").checked && isAdmin()) {
+          // ثابت: منعمل القالب وgenerate_recurring_expenses بتنزّل دفعة هالشهر (إذا تاريخها إجا)
+          const { error } = await db.from("recurring_expenses").insert({
+            name: desc || catName(pickedCat), category_id: pickedCat, amount, every_months: 1,
+            day_of_month: Number(date.slice(8)), start_date: date, created_by: session.user.id,
+          });
+          if (error) throw error;
+          await runRecurring();
+          await loadRecs();
+          olvToast(date > todayIso() ? "تم حفظ المصروف الثابت. أول دفعة بتنزل بموعدها" : "تم حفظ المصروف الثابت، وبينزل لحاله كل شهر");
+        } else {
+          const { error } = await db.from("expenses").insert({ expense_date: date, category_id: pickedCat, amount, description: desc, created_by: session.user.id });
+          if (error) throw error;
+          olvToast("تم حفظ المصروف");
+        }
+        try { localStorage.setItem("olv_exp_last_cat", pickedCat); } catch (_) {}
+        // إذا التاريخ برّا الفترة المعروضة، منرجع لفترة فيها التاريخ حتى يبيّن بالسجل
+        if (date < range.from || date > range.to) {
+          period = date.slice(0, 7) === todayIso().slice(0, 7) ? "month" : date.slice(0, 7) === monthShift(todayIso(), -1).slice(0, 7) ? "last" : "year";
+          setPressed("period-chips", "period", period); $("custom-range").hidden = true;
+        }
+        openForm(false);
+        resetForm();
+        await load();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---------------------------------------------------------------
+    // المصروفات الثابتة (schema-recurring-expenses.sql)
+    // ---------------------------------------------------------------
     let editingRec = null;
     const pad = (n) => String(n).padStart(2, "0");
-    const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
     // نفس حساب generate_recurring_expenses: اليوم المحدد أو آخر يوم بالشهر لو أقصر
     function nextDue(r) {
-      const today = olvToday();
+      const today = todayIso();
       const [sy, sm] = r.start_date.split("-").map(Number);
       let y = sy, m = sm - 1;
       for (let i = 0; i < 240; i++) {
         const last = new Date(y, m + 1, 0).getDate();
-        const due = iso(y, m, Math.min(r.day_of_month, last));
+        const due = `${y}-${pad(m + 1)}-${pad(Math.min(r.day_of_month, last))}`;
         if (r.end_date && due > r.end_date) return null;
         if (due > today && due >= r.start_date) return due;
         m += r.every_months; y += Math.floor(m / 12); m = m % 12;
@@ -256,38 +958,40 @@
       return null;
     }
     function renderRecs() {
-      const body = document.getElementById("rec-body");
-      if (!recs.length) { body.innerHTML = `<tr class="empty-row"><td colspan="6">ما في مصروفات متكررة بعد</td></tr>`; return; }
-      body.innerHTML = recs.map((r) => {
-        const nd = r.is_active ? nextDue(r) : null;
-        const cat = categories.find((c) => c.id === r.category_id);
-        return `<tr style="${r.is_active ? "" : "opacity:.55"}">
-          <td>${olvEsc(r.name)}${r.is_active ? "" : " <small>(موقوف)</small>"}</td>
-          <td>${cat ? olvEsc(cat.name) : "—"}</td>
-          <td>${olvFormatMoney(r.amount)}</td>
-          <td>${EVERY_LABEL[r.every_months] || ""} — يوم ${r.day_of_month === 31 ? "آخر الشهر" : r.day_of_month}</td>
-          <td>${nd || (r.is_active ? "منتهي" : "—")}</td>
-          <td style="white-space:nowrap;">
-            <button class="btn small" data-rec-edit="${olvEsc(r.id)}">تعديل</button>
-            <button class="btn small" data-rec-toggle="${olvEsc(r.id)}">${r.is_active ? "إيقاف" : "تفعيل"}</button>
-            <button class="btn small danger" data-rec-del="${olvEsc(r.id)}">حذف</button>
-          </td>
-        </tr>`;
+      const list = $("rec-list");
+      const act = recs.filter((r) => r.is_active);
+      const monthly = act.reduce((s, r) => s + Number(r.amount) / r.every_months, 0);
+      $("rec-note").innerHTML = recs.length
+        ? `${act.length} ${act.length === 1 ? "مصروف ثابت شغّال" : "مصروفات ثابتة شغّالة"}، تقريبًا <b>${olvFormatMoney(monthly)}</b> بالشهر. بتنزل لحالها بموعدها بالسجل.`
+        : "عرّف المصروف مرة وحدة (إيجار، إنترنت، اشتراك...) وبينزل لحاله بموعده بدون ما تكرره.";
+      if (!recs.length) { list.innerHTML = ""; return; }
+      // الشغّال أول، مرتّب حسب الدفعة الجاية
+      const sorted = recs.map((r) => ({ r, nd: r.is_active ? nextDue(r) : null }))
+        .sort((a, b) => (b.r.is_active - a.r.is_active) || String(a.nd || "9").localeCompare(String(b.nd || "9")));
+      list.innerHTML = sorted.map(({ r, nd }) => {
+        const days = nd ? daysBetween(todayIso(), nd) : null;
+        const when = !r.is_active ? "موقوف" : !nd ? "خلص (انتهى تاريخه)"
+          : days === 1 ? "الدفعة الجاية بكرا" : `الدفعة الجاية ${shortDate(nd)} (بعد ${days} يوم)`;
+        return `<li class="rec-card${r.is_active ? "" : " off"}">
+          <div class="rec-top">
+            <span class="ci">${olvIcon(catIcon(catName(r.category_id)))}</span>
+            <span class="t"><b>${olvEsc(r.name)}</b><small>${olvEsc(catName(r.category_id))} · ${EVERY_LABEL[r.every_months] || ""}، يوم ${r.day_of_month === 31 ? "آخر الشهر" : r.day_of_month}</small></span>
+            <span class="amt">${olvFormatMoney(r.amount)}</span>
+          </div>
+          <span class="rec-next${days != null && days <= 7 ? " soon" : ""}">${olvIcon("calendar")}${when}</span>
+          <div class="rec-actions">
+            <button class="btn small" type="button" data-rec-edit="${olvEsc(r.id)}">تعديل</button>
+            <button class="btn small" type="button" data-rec-toggle="${olvEsc(r.id)}">${r.is_active ? "إيقاف" : "تشغيل"}</button>
+            <button class="btn small danger" type="button" data-rec-del="${olvEsc(r.id)}">حذف</button>
+          </div>
+        </li>`;
       }).join("");
     }
     async function loadRecs() {
       const { data, error } = await window.supabaseClient.from("recurring_expenses").select("*").order("created_at");
-      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      if (error) { olvShowError(errBox, error); return; }
       recs = data || [];
       renderRecs();
-    }
-    function resetRecForm() {
-      editingRec = null;
-      document.getElementById("rec-form").reset();
-      document.getElementById("rec-start").value = olvToday();
-      document.getElementById("rec-day").value = new Date().getDate();
-      document.getElementById("rec-cancel").hidden = true;
-      document.getElementById("rec-save").textContent = "حفظ المصروف المتكرر";
     }
     // بتنزّل المستحق لحد اليوم (idempotent) وبترجّع عدد اللي نزل
     async function runRecurring() {
@@ -295,114 +999,112 @@
       if (error) return 0;
       return Number(data) || 0;
     }
-    async function initRecurring() {
-      if (window.olvRole === "staff") return;
-      document.getElementById("rec-group").hidden = false;
-      document.getElementById("rec-category").innerHTML = categories.map((c) => `<option value="${c.id}">${olvEsc(c.name)}</option>`).join("");
-      resetRecForm();
-      const n = await runRecurring();
-      await loadRecs();
-      if (n > 0) await loadExpenses();
+    function showRecForm(open) {
+      $("rec-form-wrap").hidden = !open;
+      if (open) $("rec-form-wrap").scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "center" });
+      else editingRec = null;
     }
-    document.getElementById("rec-form").addEventListener("submit", async (e) => {
+    function resetRecForm() {
+      editingRec = null;
+      $("rec-form").reset();
+      $("rec-start").value = todayIso();
+      $("rec-day").value = new Date().getDate();
+      $("rec-form-title").textContent = "مصروف ثابت جديد";
+      $("rec-save").textContent = "حفظ المصروف الثابت";
+    }
+    $("rec-new").addEventListener("click", () => { resetRecForm(); showRecForm(true); setTimeout(() => $("rec-name").focus({ preventScroll: true }), 50); });
+    $("rec-cancel").addEventListener("click", () => showRecForm(false));
+    $("rec-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("err");
       errBox.style.display = "none";
-      const btn = document.getElementById("rec-save");
+      const btn = $("rec-save");
       btn.disabled = true;
       try {
         const payload = {
-          name: document.getElementById("rec-name").value.trim(),
-          category_id: document.getElementById("rec-category").value,
-          amount: Number(document.getElementById("rec-amount").value || 0),
-          every_months: Number(document.getElementById("rec-every").value),
-          day_of_month: Number(document.getElementById("rec-day").value),
-          start_date: document.getElementById("rec-start").value,
-          end_date: document.getElementById("rec-end").value || null,
-          notes: document.getElementById("rec-notes").value.trim() || null,
+          name: $("rec-name").value.trim(),
+          category_id: $("rec-category").value,
+          amount: Number($("rec-amount").value || 0),
+          every_months: Number($("rec-every").value),
+          day_of_month: Number($("rec-day").value),
+          start_date: $("rec-start").value,
+          end_date: $("rec-end").value || null,
+          notes: $("rec-notes").value.trim() || null,
         };
-        let res;
-        if (editingRec) res = await window.supabaseClient.from("recurring_expenses").update(payload).eq("id", editingRec);
-        else res = await window.supabaseClient.from("recurring_expenses").insert({ ...payload, created_by: session.user.id });
+        const db = window.supabaseClient;
+        const res = editingRec
+          ? await db.from("recurring_expenses").update(payload).eq("id", editingRec)
+          : await db.from("recurring_expenses").insert({ ...payload, created_by: session.user.id });
         if (res.error) throw res.error;
-        const wasEditing = !!editingRec;
-        resetRecForm();
+        const was = !!editingRec;
+        showRecForm(false);
         await runRecurring();
-        await Promise.all([loadRecs(), loadExpenses()]);
-        olvToast(wasEditing ? "تم تعديل المصروف المتكرر" : "تم حفظ المصروف المتكرر");
+        await Promise.all([loadRecs(), load()]);
+        olvToast(was ? "تم تعديل المصروف الثابت" : "تم حفظ المصروف الثابت");
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
         btn.disabled = false;
       }
     });
-    document.getElementById("rec-cancel").addEventListener("click", resetRecForm);
-    document.getElementById("rec-body").addEventListener("click", async (e) => {
+    $("rec-list").addEventListener("click", async (e) => {
       const b = e.target.closest("button"); if (!b) return;
-      const errBox = document.getElementById("err");
+      const db = window.supabaseClient;
       if (b.dataset.recEdit) {
         const r = recs.find((x) => x.id === b.dataset.recEdit); if (!r) return;
+        resetRecForm();
         editingRec = r.id;
-        document.getElementById("rec-name").value = r.name;
-        document.getElementById("rec-category").value = r.category_id || "";
-        document.getElementById("rec-amount").value = r.amount;
-        document.getElementById("rec-every").value = String(r.every_months);
-        document.getElementById("rec-day").value = r.day_of_month;
-        document.getElementById("rec-start").value = r.start_date;
-        document.getElementById("rec-end").value = r.end_date || "";
-        document.getElementById("rec-notes").value = r.notes || "";
-        document.getElementById("rec-cancel").hidden = false;
-        document.getElementById("rec-save").textContent = "حفظ التعديل";
-        document.getElementById("rec-form").scrollIntoView({ behavior: "smooth", block: "center" });
+        $("rec-name").value = r.name;
+        $("rec-category").value = r.category_id || "";
+        $("rec-amount").value = r.amount;
+        $("rec-every").value = String(r.every_months);
+        $("rec-day").value = r.day_of_month;
+        $("rec-start").value = r.start_date;
+        $("rec-end").value = r.end_date || "";
+        $("rec-notes").value = r.notes || "";
+        $("rec-form-title").textContent = "تعديل: " + r.name + " (بيأثر على الدفعات الجاية بس)";
+        $("rec-save").textContent = "حفظ التعديل";
+        showRecForm(true);
       } else if (b.dataset.recToggle) {
         const r = recs.find((x) => x.id === b.dataset.recToggle); if (!r) return;
-        const { error } = await window.supabaseClient.from("recurring_expenses").update({ is_active: !r.is_active }).eq("id", r.id);
+        b.disabled = true;
+        const { error } = await db.from("recurring_expenses").update({ is_active: !r.is_active }).eq("id", r.id);
+        b.disabled = false;
         if (error) { olvShowError(errBox, error); return; }
         if (!r.is_active) await runRecurring();
-        await Promise.all([loadRecs(), loadExpenses()]);
+        await Promise.all([loadRecs(), load()]);
+        olvToast(r.is_active ? "وقّفناه، ما رح ينزل منه شي لحد ما تشغّله" : "اشتغل");
       } else if (b.dataset.recDel) {
-        if (!confirm("حذف هذا المصروف المتكرر؟ المصروفات اللي نزلت قبل بتضل بالسجل، بس ما رح ينزل منه شي جديد.")) return;
-        const { error } = await window.supabaseClient.from("recurring_expenses").delete().eq("id", b.dataset.recDel);
+        if (!confirm("حذف هالمصروف الثابت؟ المصروفات اللي نزلت قبل بتضل بالسجل، بس ما رح ينزل منه شي جديد.")) return;
+        const { error } = await db.from("recurring_expenses").delete().eq("id", b.dataset.recDel);
         if (error) { olvShowError(errBox, error); return; }
-        await Promise.all([loadRecs(), loadExpenses()]);
-        olvToast("تم حذف المصروف المتكرر");
+        await loadRecs();
+        olvToast("تم حذف المصروف الثابت");
       }
     });
 
+    // ---------------------------------------------------------------
     (async () => {
       session = await olvRequireAuth();
       if (!session) return;
-      document.getElementById("expense_date").value = olvToday();
-      await Promise.all([loadCategories(), loadExpenses()]);
-      await initRecurring();
+      const { data, error } = await window.supabaseClient.from("expense_categories").select("*").order("name");
+      if (error) olvShowError(errBox, error);
+      // المشتريات آخر شي بالحبوب لأنها بتنزل لحالها من الفواتير
+      categories = (data || []).sort((a, b) => (a.name === BUY_CAT) - (b.name === BUY_CAT));
+      $("rec-category").innerHTML = categories.map((c) => `<option value="${olvEsc(c.id)}">${olvEsc(c.name)}</option>`).join("");
+      resetForm();
+      if (isAdmin()) {
+        $("rec-group").hidden = false;
+        $("reports-link").hidden = false;
+        // المصروفات الثابتة بتنزل لحالها أول ما المالك/المدير يفتح الصفحة
+        await runRecurring();
+        loadRecs();
+      }
+      await load();
     })();
 
-    document.getElementById("expense-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const errBox = document.getElementById("err");
-      errBox.style.display = "none";
-      const btn = document.getElementById("save-btn");
-      btn.disabled = true;
-      try {
-        const payload = {
-          expense_date: document.getElementById("expense_date").value,
-          category_id: document.getElementById("category_id").value,
-          amount: Number(document.getElementById("amount").value || 0),
-          description: document.getElementById("description").value.trim() || null,
-          created_by: session.user.id,
-        };
-        const { error } = await window.supabaseClient.from("expenses").insert(payload);
-        if (error) throw error;
-        document.getElementById("expense-form").reset();
-        document.getElementById("expense_date").value = olvToday();
-        await loadExpenses();
-        olvToast("تم حفظ المصروف");
-      } catch (err) {
-        olvShowError(errBox, err);
-      } finally {
-        btn.disabled = false;
-      }
-    });
+    // الرسم بيتبع عرض الشاشة
+    let rz;
+    window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => rows.length && renderChart(), 200); });
     });
   </script>
   <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
