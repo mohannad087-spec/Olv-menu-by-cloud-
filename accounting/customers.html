@@ -497,6 +497,7 @@
           ${tel ? `<a class="btn" href="tel:${olvEsc(tel)}">${olvIcon("phone")}<span>اتصال</span></a>` : ""}
           ${wa ? `<a class="btn go" href="https://wa.me/${wa}" target="_blank" rel="noopener">${olvIcon("message")}<span>واتساب</span></a>` : ""}
           ${isAdmin() ? `<button class="btn" type="button" data-act="rename">${olvIcon("note")}<span>${c.name ? "عدّل الاسم" : "ضيف اسم"}</span></button>` : ""}
+          ${isAdmin() ? `<button class="btn danger" type="button" data-act="delete">${olvIcon("trash")}<span>احذف الزبون</span></button>` : ""}
         </div>
         <form class="cu-name-form" hidden>
           <input type="text" maxlength="60" value="${olvEsc(c.name || "")}" placeholder="اسم الزبون" aria-label="اسم الزبون">
@@ -512,6 +513,18 @@
       const form = li.querySelector(".cu-name-form");
       const rename = li.querySelector('[data-act="rename"]');
       if (rename) rename.addEventListener("click", () => { form.hidden = false; form.querySelector("input").focus(); });
+      const del = li.querySelector('[data-act="delete"]');
+      // حذف مع «تراجع»: بس سجل الزبون (الاسم والنقاط)، المبيعات القديمة بتضل بحالها
+      if (del) del.addEventListener("click", () => olvUndoDelete(del, {
+        msg: `انحذف الزبون ${c.name || c.phone}`,
+        failMsg: "ما انحذف الزبون",
+        run: async () => {
+          const { data, error } = await window.supabaseClient.from("customers").delete().eq("id", c.id).select("id");
+          if (!error && !(data || []).length) return { error: new Error("ما عندك صلاحية الحذف") };
+          return { error };
+        },
+        after: () => { customers = customers.filter((x) => x.id !== c.id); openPhone = null; renderSummary(); renderList(); },
+      }));
       li.querySelector('[data-act="cancel"]').addEventListener("click", () => { form.hidden = true; });
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
