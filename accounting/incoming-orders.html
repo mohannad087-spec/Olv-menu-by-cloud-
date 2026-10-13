@@ -59,30 +59,46 @@
 })();
 </script>
 <style>
-  /* شبكة بطاقات بدل عمود واحد طويل — نفس نمط شاشة المطبخ، عشان الشغلة
-     توضح دفعة وحدة على شاشة واسعة بدل التمرير لتحت لكل طلب */
-  .io-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px;}
+  /* الطلبات الواردة (2026-10): ترويسة + عدّادين ← «جديدة بتنتظر قرارك» ← «قيد التحضير».
+     القواعد بـ design-system/olv/pages/incoming-orders.md */
+  .wrap.io-wrap{max-width:1120px;}
+  .io-pagehead{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .io-pagehead h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .io-pagehead .io-sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
+  .io-sum{display:flex; gap:8px; flex-wrap:wrap;}
+  .io-pill{display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); font-size:14px; font-weight:700;}
+  .io-pill b{font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .io-pill.new{background:var(--gold); border-color:var(--gold); color:var(--on-gold);}
+  .io-help{margin:0 0 14px; font-size:13px; color:var(--muted);}
+  .io-help summary{cursor:pointer; min-height:36px; display:inline-flex; align-items:center; font-weight:700; color:var(--gold-hi);}
+  .io-help p{margin:4px 0 0; line-height:1.8; max-width:760px;}
+  .io-sec{display:flex; align-items:center; gap:8px; font-size:15px; font-weight:800; margin:18px 0 10px;}
+  .io-sec:first-of-type{margin-top:0;}
+  .io-sec .icon{width:18px; height:18px; color:var(--gold-hi);}
+  .io-sec .n{color:var(--muted); font-weight:500; font-size:13.5px;}
+  .io-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; margin-bottom:6px;}
   .io-card{
-    background:var(--ink-2); border:1px solid var(--hair); border-radius:14px; padding:16px;
-    box-shadow:var(--card-shadow); display:flex; flex-direction:column;
+    background:var(--ink-2); border:1px solid var(--hair-soft); border-radius:18px; padding:16px;
+    box-shadow:var(--card-shadow); display:flex; flex-direction:column; min-width:0;
   }
   .io-card.io-new{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 8px 24px rgba(var(--gold-rgb),.15);}
+  .io-card.io-prep{background:var(--ink-3);}
   .io-card .hint .icon{width:13px; height:13px; vertical-align:-2px;}
   .io-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px;}
-  .io-head b{font-family:'Tajawal',sans-serif; font-weight:800; font-size:21px; color:var(--gold-hi);}
-  .io-total{font-family:'Tajawal',sans-serif; font-weight:800; font-size:19px; color:var(--gold-hi); font-weight:700; white-space:nowrap;}
+  .io-head b{font-weight:800; font-size:21px; color:var(--gold-hi);}
+  .io-total{font-weight:800; font-size:20px; white-space:nowrap; font-variant-numeric:tabular-nums;}
   .io-badges{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
   .io-mode-badge{
-    font-size:11.5px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px;
+    font-size:12px; border:1px solid var(--hair); border-radius:999px; padding:3px 10px;
     color:var(--muted); display:inline-flex; align-items:center; gap:4px;
   }
   .io-mode-badge .icon{width:12px; height:12px;}
-  .io-status-badge{font-size:11px; font-weight:700; border-radius:999px; padding:3px 10px;}
+  .io-status-badge{font-size:11.5px; font-weight:700; border-radius:999px; padding:3px 10px;}
   .io-status-new{background:var(--gold); color:var(--on-gold);}
   .io-status-preparing{background:rgba(124,138,74,.15); color:var(--ok); border:1px solid rgba(124,138,74,.35);}
   .io-status-other{background:transparent; color:var(--muted); border:1px solid var(--hair);}
   .io-items{margin:6px 0 0; flex:1;}
-  .io-item{padding:8px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1)); font-size:13.5px;}
+  .io-item{padding:8px 0; border-bottom:1px solid var(--hair-soft); font-size:13.5px;}
   .io-item:last-child{border-bottom:none;}
   .io-item-main{display:flex; align-items:center; justify-content:space-between; gap:8px;}
   .io-item-left{display:flex; align-items:center; gap:8px; min-width:0;}
@@ -92,38 +108,47 @@
     display:flex; align-items:center; justify-content:center; padding:0 4px;
   }
   .io-item-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .io-item-price{color:var(--muted); flex:none; white-space:nowrap;}
-  .io-item-note{color:var(--olive-hi,#9dab63); font-size:12px; margin-top:3px; margin-inline-start:32px;}
+  .io-item-price{color:var(--muted); flex:none; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .io-item-note{color:var(--olive); font-size:12px; margin-top:3px; margin-inline-start:32px;}
   .io-item-note .icon, .io-matched .icon{width:11px; height:11px; vertical-align:-1px;}
   .io-matched{color:var(--ok); font-size:11.5px; margin-top:3px; margin-inline-start:32px;}
-  .io-unmatched select{margin-top:6px; width:100%; background:var(--ink-3); border:1px solid var(--danger); color:var(--paper); padding:9px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
-  .io-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.12));}
+  .io-unmatched select{margin-top:6px; width:100%; min-height:44px; background:var(--ink-3); border:1px solid var(--danger); color:var(--paper); padding:9px; border-radius:12px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .io-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid var(--hair-soft);}
+  .io-actions .btn{min-height:48px; flex:1; justify-content:center; display:inline-flex; align-items:center; gap:6px;}
+  .io-actions .btn.pay{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .io-actions .btn.pay:disabled{opacity:.5;}
+  .io-actions .btn.danger{flex:0 0 auto;}
   .io-waiting{
     color:var(--muted); font-size:12.5px; text-align:center; margin-top:14px; padding-top:14px;
-    border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.12));
+    border-top:1px solid var(--hair-soft); display:flex; align-items:center; justify-content:center; gap:6px;
   }
+  .io-waiting .icon{width:14px; height:14px; color:var(--olive);}
+  .io-empty{padding:44px 12px; text-align:center; color:var(--muted); line-height:1.8;}
+  .io-empty .icon{width:32px; height:32px; color:var(--olive); display:block; margin:0 auto 10px;}
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap io-wrap">
     <div class="err" id="err"></div>
-
-    <div class="group">
-      <h2>الطلبات الواردة من موقع المنيو</h2>
-      <p class="hint">
-        طلبات الزبائن/الموظفين من موقع المنيو الحقيقي (olv-menu.pages.dev) بتظهر هون
-        أوتوماتيك. اضغط "قبول" لتسجيلها كبيع فعلي (بينقص المخزون ويظهر بالمطبخ)، أو
-        "رفض" لإلغائها. أي صنف غير مربوط بمنتج بالمحاسبة لازم يترَبط أول مرة قبل القبول
-        — وبعدين بيضل مربوط تلقائيًا بالمرات الجاية.
-      </p>
-    </div>
-
-    <div id="orders-list" class="io-grid">
-      <div class="hint" style="grid-column:1/-1;">جاري التحميل...</div>
+    <header class="io-pagehead">
+      <div>
+        <h1>الطلبات الواردة</h1>
+        <div class="io-sub">طلبات موقع المنيو بتوصل هون لحالها (بتتحدث كل 10 ثواني).</div>
+      </div>
+      <div class="io-sum" aria-live="polite">
+        <span class="io-pill new">جديدة <b id="k-new">0</b></span>
+        <span class="io-pill">قيد التحضير <b id="k-prep">0</b></span>
+      </div>
+    </header>
+    <details class="io-help">
+      <summary>كيف بتشتغل؟</summary>
+      <p>اكبس «قبول» لتسجيل الطلب كبيع فعلي (بينقص المخزون ويظهر بالمطبخ) أو «رفض» لإلغائه. أي صنف مش مربوط بمنتج بالمحاسبة لازم تربطه أول مرة قبل القبول، وبعدين بيضل مربوط لحاله.</p>
+    </details>
+    <div id="orders-list">
+      <div class="io-empty">جاري التحميل...</div>
     </div>
   </div>
-
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
@@ -205,16 +230,20 @@
       const list = document.getElementById("orders-list");
       const active = lastOrders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
       const freshOrders = ioTracker.diff(active.map((o) => String(o.id)));
+      const newOrders = active.filter((o) => o.status === "new");
+      const prepOrders = active.filter((o) => o.status !== "new");
+      document.getElementById("k-new").textContent = newOrders.length;
+      document.getElementById("k-prep").textContent = prepOrders.length;
       if (!active.length) {
-        list.innerHTML = `<div class="hint" style="grid-column:1/-1; text-align:center; padding:40px 0;">لا يوجد طلبات واردة حاليًا</div>`;
+        list.innerHTML = `<div class="io-empty">${olvIcon("checkCircle")}ما في طلبات واردة هلأ.<br>أول ما يوصل طلب من المنيو بيظهر هون وبتسمع تنبيه.</div>`;
         return;
       }
-      list.innerHTML = active.map((o) => {
+      const cardHtml = (o) => {
         const isNew = o.status === "new";
         const mapped = orderFullyMapped(o);
         const statusClass = isNew ? "io-status-new" : o.status === "preparing" ? "io-status-preparing" : "io-status-other";
         return `
-          <div class="io-card${isNew ? " io-new" : ""}" data-row-id="${olvEsc(String(o.id))}">
+          <div class="io-card${isNew ? " io-new" : " io-prep"}" data-row-id="${olvEsc(String(o.id))}">
             <div class="io-head">
               <b>#${olvEsc(o.number)}</b>
               <div class="io-total">${olvFormatMoney(o.total)}</div>
@@ -230,16 +259,18 @@
             <div class="io-items">${(o.items || []).map((it) => renderItemRow(o, it)).join("")}</div>
             ${isNew ? `
               <div class="io-actions">
-                <button class="btn gold small" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
-                <button class="btn gold small" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
-                <button class="btn danger small" data-reject="${olvEsc(o.id)}">رفض</button>
+                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
+                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
+                <button class="btn danger" data-reject="${olvEsc(o.id)}">رفض</button>
               </div>
-              ${!mapped ? `<div class="hint">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
-            ` : `<div class="io-waiting">بانتظار… (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>`}
-          </div>
-        `;
-      }).join("");
-
+              ${!mapped ? `<div class="hint" style="margin-top:8px;">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
+            ` : `<div class="io-waiting">${olvIcon("checkCircle")} انقبل وراح للمطبخ (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>`}
+          </div>`;
+      };
+      const section = (icon, title, arr) => arr.length ? `
+        <h2 class="io-sec">${olvIcon(icon)} ${title} <span class="n">${arr.length}</span></h2>
+        <div class="io-grid">${arr.map(cardHtml).join("")}</div>` : "";
+      list.innerHTML = section("bell", "جديدة بتنتظر قرارك", newOrders) + section("flame", "قيد التحضير", prepOrders);
       olvMarkNew(list, freshOrders);
       list.querySelectorAll("select[data-map-item]").forEach((sel) => {
         sel.addEventListener("change", async () => {
@@ -342,7 +373,7 @@
           pollErrShown = true;
           if (!lastOrders) {
             document.getElementById("orders-list").innerHTML =
-              '<div class="hint" style="grid-column:1/-1;">ما قدرنا نجيب الطلبات من موقع المنيو — شوف السبب فوق. بنعيد المحاولة تلقائيًا.</div>';
+              '<div class="io-empty">ما قدرنا نجيب الطلبات من موقع المنيو — شوف السبب فوق. بنعيد المحاولة تلقائيًا.</div>';
           }
         } else if (pollErrShown) {
           pollErrShown = false;
