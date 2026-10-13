@@ -1319,7 +1319,8 @@
         const payloadLines = active.map((l) => {
           const it = itemOf(l); const f = factorOf(l, it);
           const bonus = bonusOf(l);
-          const o = { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1000) / 1000 };
+          // السعر بدقة عالية (مو 3 خانات) حتى إجمالي السطر على السيرفر يطابق اللي انكتب بالفاتورة (مثال: 3 صناديق × 25 ÷ 24 حبة)
+          const o = { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1e8) / 1e8 };
           // بونص: الكمية = المشتراة + المجانية، والسعر = المدفوع ÷ الكمية (بدقة عالية حتى يضل إجمالي السطر نفسه بالضبط)
           if (bonus > 0) { o.qty = Math.round((Number(l.qty) * f + bonus) * 1000) / 1000; o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8; }
           return o;
