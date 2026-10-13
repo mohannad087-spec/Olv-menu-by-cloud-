@@ -119,6 +119,21 @@
   .pf-note.miss{color:var(--muted);}
   .pf-note.sug{color:var(--paper);}
   .pf-more{margin-top:10px;}
+  /* ترويسة الصفحة + أقسام مطوية */
+  .pr-pagehead{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;}
+  .pr-pagehead h1{margin:0 0 4px; font-size:24px;}
+  .pr-pagesub{color:var(--muted); font-size:13.5px; line-height:1.7; max-width:520px;}
+  .pr-pills{display:flex; gap:8px; flex-wrap:wrap;}
+  .pr-pill{display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); font-size:14px; font-weight:700;}
+  .pr-pill b{font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .pr-pill.wait b{color:var(--gold-hi);}
+  .pr-pill.warn b{color:var(--danger-hi);}
+  details.pr-fold > summary{list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; min-height:44px;}
+  details.pr-fold > summary::-webkit-details-marker{display:none;}
+  details.pr-fold > summary h2{margin:0;}
+  details.pr-fold > summary::after{content:"+"; font-size:22px; color:var(--gold-hi); margin-inline-start:auto;}
+  details.pr-fold[open] > summary::after{content:"−";}
+  details.pr-fold[open] > summary{margin-bottom:10px;}
 </style>
 </head>
 <body>
@@ -126,41 +141,23 @@
   <div class="wrap">
     <div class="err" id="err"></div>
 
+    <header class="pr-pagehead">
+      <div>
+        <h1>الأصناف والوصفات</h1>
+        <div class="pr-pagesub">كل صنف إله وصفة بينقص مواده من المخزون تلقائيًا مع كل بيعة. الأصناف بدون وصفة ما بتأثر على المخزون.</div>
+      </div>
+      <div class="pr-pills" aria-live="polite">
+        <span class="pr-pill">بوصفة <b id="k-with">0</b></span>
+        <span class="pr-pill wait">بدون وصفة <b id="k-without">0</b></span>
+        <span class="pr-pill warn">ربح قليل <b id="k-low">0</b></span>
+      </div>
+    </header>
     <div class="group">
       <h2>تغطية الوصفات</h2>
-      <p class="hint" style="margin-bottom:6px;">
-        الصنف اللي إله وصفة بينقص مواده من المخزون تلقائيًا مع كل بيعة، وبيدخل بتوقّع "يكفي لـ كم يوم".
-        الأصناف بدون وصفة ما بتأثر على المخزون أبدًا.
-      </p>
       <div id="cov-text" class="hint" style="color:var(--paper); font-size:14px;">جاري التحميل...</div>
       <div class="cov-bar"><div id="cov-fill" style="width:0%"></div></div>
       <div class="hint" style="margin-bottom:8px;">أصناف فعّالة بدون وصفة (اضغط على صنف لتبلّش وصفته):</div>
       <div class="recipe-suggest-chips" id="cov-missing"></div>
-    </div>
-
-    <div class="group" id="profit">
-      <h2>ربح كل صنف</h2>
-      <p class="hint">تكلفة المواد بالوصفة (حسب آخر سعر شراء) مقابل سعر البيع. الأحسن تكون التكلفة 35% من السعر أو أقل.</p>
-      <div class="pf-sum" id="pf-sum">جاري التحميل...</div>
-      <div class="pf-filters" id="pf-filters" role="group" aria-label="فلترة الأصناف" hidden>
-        <button type="button" class="cov-chip on" data-f="all">الكل</button>
-        <button type="button" class="cov-chip" data-f="bad">ربح قليل</button>
-        <button type="button" class="cov-chip" data-f="rose">غليت موادها</button>
-      </div>
-      <div class="pf-list" id="pf-list"></div>
-    </div>
-
-    <div class="group" id="ai-recipes-group">
-      <h2>✨ وصفات مقترحة بالذكاء الاصطناعي</h2>
-      <p class="hint" style="margin-bottom:10px;">
-        بنقترحلك وصفة تقديرية لكل صنف ما إله وصفة، من المواد الموجودة بالمخزون. راجع الكميات وعدّلها
-        (الخانة الذهبية يعني تأكد منها منيح)، وبعدين اضغط «اعتماد». ما بينحفظ شي بدون موافقتك.
-      </p>
-      <div class="ai-head">
-        <button type="button" class="btn gold" id="ai-go"></button>
-        <span class="ai-status" id="ai-status" role="status"></span>
-      </div>
-      <div class="ai-list" id="ai-list"></div>
     </div>
 
     <div class="group" id="product-recipe-group">
@@ -185,8 +182,33 @@
       <button class="btn gold" id="add-recipe-line">إضافة للوصفة</button>
     </div>
 
-    <div class="group">
-      <h2>وصفة إضافة (Extra)</h2>
+    <div class="group" id="profit">
+      <h2>ربح كل صنف</h2>
+      <p class="hint">تكلفة المواد بالوصفة (حسب آخر سعر شراء) مقابل سعر البيع. الأحسن تكون التكلفة 35% من السعر أو أقل.</p>
+      <div class="pf-sum" id="pf-sum">جاري التحميل...</div>
+      <div class="pf-filters" id="pf-filters" role="group" aria-label="فلترة الأصناف" hidden>
+        <button type="button" class="cov-chip on" data-f="all">الكل</button>
+        <button type="button" class="cov-chip" data-f="bad">ربح قليل</button>
+        <button type="button" class="cov-chip" data-f="rose">غليت موادها</button>
+      </div>
+      <div class="pf-list" id="pf-list"></div>
+    </div>
+
+    <details class="group pr-fold" id="ai-recipes-group">
+      <summary><h2>✨ وصفات مقترحة بالذكاء الاصطناعي</h2><span class="hint">للأصناف اللي بدون وصفة</span></summary>
+      <p class="hint" style="margin-bottom:10px;">
+        بنقترحلك وصفة تقديرية لكل صنف ما إله وصفة، من المواد الموجودة بالمخزون. راجع الكميات وعدّلها
+        (الخانة الذهبية يعني تأكد منها منيح)، وبعدين اضغط «اعتماد». ما بينحفظ شي بدون موافقتك.
+      </p>
+      <div class="ai-head">
+        <button type="button" class="btn gold" id="ai-go"></button>
+        <span class="ai-status" id="ai-status" role="status"></span>
+      </div>
+      <div class="ai-list" id="ai-list"></div>
+    </details>
+
+    <details class="group pr-fold" id="addon-group">
+      <summary><h2>وصفة إضافة (Extra)</h2><span class="hint">مواد كل إضافة، مثل جبنة زيادة</span></summary>
       <div class="field">
         <label>اختر الإضافة</label>
         <select id="recipe-addon"></select>
@@ -203,7 +225,7 @@
         </div>
       </div>
       <button class="btn gold" id="add-addon-recipe-line">إضافة للوصفة</button>
-    </div>
+    </details>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -245,6 +267,8 @@
       const pct = active.length ? Math.round(covered / active.length * 100) : 0;
       document.getElementById("cov-text").textContent = `${covered} من ${active.length} صنف فعّال إلها وصفة (${pct}%)`;
       document.getElementById("cov-fill").style.width = pct + "%";
+      document.getElementById("k-with").textContent = covered;
+      document.getElementById("k-without").textContent = active.length - covered;
       const missing = active.filter((p) => !withRecipe.has(p.id));
       const sel = document.getElementById("recipe-product").value;
       document.getElementById("cov-missing").innerHTML = missing.length
@@ -284,6 +308,7 @@
         sum.textContent = "ما في أصناف إلها وصفة لسا. لما تكتب وصفة لصنف، بيطلع هون قدّيش بيكلّف وقدّيش بتربح فيه.";
         list.innerHTML = ""; document.getElementById("pf-filters").hidden = true; return;
       }
+      document.getElementById("k-low").textContent = pf.items.filter((x) => x.level === "low" || x.level === "loss").length;
       const rank = { loss: 0, low: 1, unknown: 3, ok: 2 };
       const sorted = [...pf.items].sort((a, b) => (b.rose.length > 0) - (a.rose.length > 0) || rank[a.level] - rank[b.level] || (b.costPct || 0) - (a.costPct || 0));
       const roseN = pf.items.filter((x) => x.rose.length).length;
