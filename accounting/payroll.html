@@ -59,92 +59,179 @@
 })();
 </script>
 <style>
-  .open-shift-warn{color:var(--gold-hi); font-size:11.5px; display:block; margin-top:2px;}
-  .net-negative{color:var(--danger-hi); font-weight:700;}
+  /* صفحة الرواتب (2026-10): فترة ← أرقام ← «مستحق للدفع» بطاقات ← السلف ← سجل المدفوع.
+     القواعد بـ design-system/olv/pages/payroll.md */
+  .wrap.py-wrap{max-width:1120px;}
+  .py-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .py-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .py-head .py-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .py-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .btn.go:disabled{opacity:.6;}
+  .py-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; align-items:center;}
+  .py-chip{
+    min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);
+  }
+  .py-chip .icon{width:16px; height:16px;}
+  .py-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .py-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .py-chip:active{transform:scale(.97);}
+  .py-emp{min-height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:14px; max-width:100%;}
+  .py-custom{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin:-4px 0 14px;}
+  .py-custom .field{margin:0; min-width:150px;}
+  .py-custom[hidden]{display:none;}
+  #adv-form-wrap[hidden]{display:none;}
+  .stats.py-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.py-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.py-stats{gap:10px;}
+    .py-stats .stat{padding:13px;}
+    .py-stats .stat .stat-icon{display:none;}
+    .olv-glass .py-stats .stat .value{font-size:22px;}
+  }
+  .py-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  .py-stats .note.warn{color:var(--gold-hi); font-weight:700;}
+  .group h2.py-h{display:flex; align-items:center; gap:8px;}
+  .group h2.py-h .icon{width:18px; height:18px; color:var(--gold-hi);}
+  .py-note{color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.7;}
+  .py-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
+  /* بطاقات «مستحق للدفع»: المعادلة واضحة: ساعات × أجر − سلف = صافي */
+  .pay-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px;}
+  .pay-card{border-radius:18px; background:var(--ink-3); padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0;}
+  .pay-top{display:flex; align-items:center; gap:12px;}
+  .av{width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:16px; background:var(--ink-2); color:var(--muted); flex:none;}
+  .pay-top .t{flex:1; min-width:0;}
+  .pay-top .t b{display:block; font-size:15.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pay-top .t small{display:block; color:var(--muted); font-size:12.5px; margin-top:2px;}
+  .pay-net{text-align:left; white-space:nowrap;}
+  .pay-net b{display:block; font-size:21px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .pay-net small{color:var(--muted); font-size:11.5px;}
+  .pay-net.neg b{color:var(--danger-hi);}
+  .pay-eq{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;}
+  .pay-eq div{background:var(--ink-2); border-radius:12px; padding:8px 10px; min-width:0;}
+  .pay-eq span{display:block; font-size:11.5px; color:var(--muted);}
+  .pay-eq b{display:block; font-size:14px; font-weight:800; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pay-eq .minus b{color:var(--danger-hi);}
+  .pay-warn{display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-radius:12px; background:rgba(var(--gold-rgb),.14); color:var(--gold-hi); font-size:12.5px; font-weight:700; line-height:1.6;}
+  .pay-warn .icon{width:16px; height:16px; flex:none; margin-top:2px;}
+  .pay-warn a{color:inherit; text-decoration:underline;}
+  .pay-card .btn{min-height:48px; width:100%; justify-content:center;}
+  .pay-card .btn:disabled{opacity:.6;}
+  .pay-nowage{font-size:12.5px; color:var(--danger-hi); font-weight:700;}
+  /* السلف */
+  .adv-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .adv-head h2{margin:0;}
+  .adv-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  #adv-form-wrap{margin:8px 0 14px; padding:14px; border-radius:16px; background:var(--ink-3);}
+  .adv-amount input{font-size:26px !important; font-weight:800; min-height:56px; text-align:center; font-variant-numeric:tabular-nums;}
+  .py-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .py-actions .btn{min-height:48px; min-width:140px;}
+  .adv-list{list-style:none; margin:0; padding:0;}
+  .adv-emp{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:14px 0 4px; padding:0 4px;}
+  .adv-emp:first-child{margin-top:4px;}
+  .adv-emp b{font-size:15px; font-weight:800;}
+  .adv-emp small{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .adv-row{display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:center; gap:12px; min-height:52px; padding:6px 8px; border-top:1px solid var(--hair-soft);}
+  .adv-row .d{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--muted); white-space:nowrap;}
+  .adv-row .nt{min-width:0; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted);}
+  .adv-row .am{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .adv-row .del{min-height:44px; min-width:44px; display:inline-grid; place-items:center; border-radius:12px; background:none; border:0; color:var(--danger-hi); cursor:pointer;}
+  .adv-row .del:hover{background:rgba(193,88,63,.12);}
+  .adv-row .del:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .adv-row .del .icon{width:18px; height:18px;}
+  /* سجل المدفوع */
+  .hist-month{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:16px 0 6px; padding:0 4px;}
+  .hist-month:first-child{margin-top:4px;}
+  .hist-month b{font-size:15px; font-weight:800;}
+  .hist-month small{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .hist-list{list-style:none; margin:0; padding:0;}
+  .hist-row{display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 12px; padding:9px 8px; border-top:1px solid var(--hair-soft);}
+  .hist-row .nm{font-weight:700; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .hist-row .sub{grid-column:1; color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .hist-row .am{grid-column:2; grid-row:1 / span 2; font-weight:800; font-size:16px; font-variant-numeric:tabular-nums; text-align:left; white-space:nowrap;}
+  .hist-row .am small{display:block; color:var(--muted); font-weight:500; font-size:11.5px;}
+  .py-more{display:flex; justify-content:center; padding-top:10px;}
+  .py-more .btn{min-height:44px;}
+  .py-more[hidden]{display:none;}
+  @media (prefers-reduced-motion: reduce){ .py-chip{transition:none;} .py-chip:active{transform:none;} }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap py-wrap">
     <div class="err" id="err"></div>
-
     <div id="payroll-content" hidden>
 
-      <div class="group" id="advance-group" hidden>
-        <h2>سلف الموظفين</h2>
-        <p class="hint" style="margin-bottom:14px;">
-          أي سلفة مسجَّلة هون بتنخصم تلقائيًا من أقرب راتب تأكّد دفعه لنفس الموظف،
-          بغض النظر عن الفترة المحددة وقتها.
-        </p>
-        <form id="advance-form">
-          <div class="row3">
-            <div class="field">
-              <label>الموظف</label>
-              <select id="a-employee" required></select>
-            </div>
-            <div class="field">
-              <label>المبلغ</label>
-              <input type="number" id="a-amount" step="0.01" min="0.01" required>
-            </div>
-            <div class="field">
-              <label>التاريخ</label>
-              <input type="date" id="a-date" required>
-            </div>
-          </div>
-          <div class="field">
-            <label>ملاحظة (اختياري)</label>
-            <input type="text" id="a-note" placeholder="مثال: سلفة طارئة">
-          </div>
-          <button type="submit" class="btn gold">تسجيل سلفة</button>
-        </form>
-        <div class="table-wrap" style="margin-top:16px;">
-          <table>
-            <thead><tr><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>ملاحظة</th><th></th></tr></thead>
-            <tbody id="advances-body"><tr class="empty-row"><td colspan="5">لا يوجد سلف غير مسوّاة حاليًا</td></tr></tbody>
-          </table>
+      <header class="py-head">
+        <div>
+          <h1>الرواتب</h1>
+          <div class="py-sub" id="py-sub">&nbsp;</div>
         </div>
+      </header>
+
+      <div id="manage-top" hidden>
+        <div class="py-chips" id="period-chips" role="group" aria-label="فترة الراتب">
+          <button class="py-chip" type="button" data-period="month" aria-pressed="true">هالشهر</button>
+          <button class="py-chip" type="button" data-period="last" aria-pressed="false">الشهر الماضي</button>
+          <button class="py-chip" type="button" data-period="week" aria-pressed="false">آخر 7 أيام</button>
+          <button class="py-chip" type="button" data-period="custom" aria-pressed="false" id="custom-chip"></button>
+          <select class="py-emp" id="f-employee" aria-label="الموظف"><option value="">كل الموظفين</option></select>
+        </div>
+        <div class="py-custom" id="custom-range" hidden>
+          <div class="field"><label for="from_date">من</label><input type="date" id="from_date"></div>
+          <div class="field"><label for="to_date">إلى</label><input type="date" id="to_date"></div>
+          <button class="btn go" type="button" id="custom-apply">احسب</button>
+        </div>
+
+        <div class="stats py-stats">
+          <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-due"></div>
+            <div class="stat-body"><div class="label">مستحق للدفع</div><div class="value" id="k-due">—</div><span class="note" id="k-due-note">&nbsp;</span></div></div></div>
+          <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-hrs"></div>
+            <div class="stat-body"><div class="label">ساعات الفترة</div><div class="value" id="k-hrs">—</div><span class="note" id="k-hrs-note">&nbsp;</span></div></div></div>
+          <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-adv"></div>
+            <div class="stat-body"><div class="label">سلف غير مسوّاة</div><div class="value" id="k-adv">—</div><span class="note" id="k-adv-note">&nbsp;</span></div></div></div>
+          <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-paid"></div>
+            <div class="stat-body"><div class="label">انصرف هالشهر</div><div class="value" id="k-paid">—</div><span class="note" id="k-paid-note">&nbsp;</span></div></div></div>
+        </div>
+
+        <section class="group">
+          <h2 class="py-h" id="due-title"></h2>
+          <p class="py-note">الراتب = ساعات الورديات المسكّرة × الأجر بالساعة − السلف غير المسوّاة (بتنخصم كلها من أقرب راتب بتأكّد دفعه، بغض النظر عن الفترة).</p>
+          <div id="due-box"><div class="py-empty">جاري الحساب...</div></div>
+        </section>
+
+        <section class="group">
+          <div class="adv-head">
+            <h2 class="py-h" id="adv-title"></h2>
+            <button class="btn go" type="button" id="adv-toggle" aria-expanded="false" aria-controls="adv-form-wrap"></button>
+          </div>
+          <div id="adv-form-wrap" hidden>
+            <form id="advance-form">
+              <div class="row2">
+                <div class="field adv-amount"><label for="a-amount">المبلغ</label><input type="number" id="a-amount" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00" required></div>
+                <div class="field"><label for="a-employee">الموظف</label><select id="a-employee" required></select></div>
+              </div>
+              <div class="row2">
+                <div class="field"><label for="a-date">التاريخ</label><input type="date" id="a-date" required></div>
+                <div class="field"><label for="a-note">ملاحظة (اختياري)</label><input type="text" id="a-note" placeholder="مثال: سلفة طارئة"></div>
+              </div>
+              <div class="py-actions">
+                <button type="submit" class="btn go">تسجيل السلفة</button>
+                <button type="button" class="btn" id="adv-cancel">إلغاء</button>
+              </div>
+            </form>
+          </div>
+          <div id="adv-box"><div class="py-empty">جاري التحميل...</div></div>
+        </section>
       </div>
 
-      <div class="group" id="compute-group" hidden>
-        <h2>احتساب الرواتب</h2>
-        <div class="row3">
-          <div class="field">
-            <label>من تاريخ</label>
-            <input type="date" id="from_date">
-          </div>
-          <div class="field">
-            <label>إلى تاريخ</label>
-            <input type="date" id="to_date">
-          </div>
-          <div class="field">
-            <label>الموظف</label>
-            <select id="f-employee"><option value="">كل الموظفين</option></select>
-          </div>
-        </div>
-        <button class="btn gold" id="run-btn">احسب</button>
-
-        <div class="table-wrap" style="margin-top:16px;">
-          <table>
-            <thead>
-              <tr><th>الموظف</th><th>ساعات العمل</th><th>الأجر/ساعة</th><th>الإجمالي</th><th>السلف المخصومة</th><th>الصافي</th><th></th></tr>
-            </thead>
-            <tbody id="preview-body"><tr class="empty-row"><td colspan="7">اختر فترة واضغط "احسب"</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="group">
-        <h2>سجل الرواتب المدفوعة</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>الموظف</th><th>الفترة</th><th>الساعات</th><th>الإجمالي</th><th>السلف</th><th>الصافي</th><th>تاريخ الدفع</th></tr>
-            </thead>
-            <tbody id="history-body"><tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
+      <section class="group">
+        <h2 class="py-h" id="hist-title"></h2>
+        <div id="hist-box"><div class="py-empty">جاري التحميل...</div></div>
+        <div class="py-more" id="hist-more" hidden><button class="btn" type="button" id="hist-more-btn">عرض أقدم</button></div>
+      </section>
     </div>
   </div>
 
@@ -165,13 +252,40 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("payroll");
 
+    const $ = (id) => document.getElementById(id);
+    const errBox = $("err");
+    const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
+    const HIST_STEP = 20;
     let myRole = null;
+    let canManage = false;
     let profilesById = new Map();
     let employees = [];
     let unsettledAdvances = [];
     let previewRows = [];
+    let history = [];
+    let period = "month";
+    let range = null;
+    let histShown = HIST_STEP;
 
-    function fmtDate(iso) { return String(iso).slice(0, 10); }
+    // التواريخ بتوقيت الجهاز (olvToday بيرجع UTC وبعد نص الليل بيزيح يوم)
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const parse = (s) => new Date(s + "T00:00:00");
+    const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+    const todayIso = () => iso(new Date());
+    const shortDate = (s) => Number(String(s).slice(8, 10)) + "/" + Number(String(s).slice(5, 7));
+    const fmtDate = (v) => String(v).slice(0, 10);
+    const fmtHrs = (h) => { const v = Math.round(h * 10) / 10; return v % 1 === 0 ? v.toFixed(0) : v.toFixed(1); };
+    const monthLabel = (s) => `${MONTHS[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}`;
+
+    $("custom-chip").innerHTML = olvIcon("calendar") + "<span>فترة…</span>";
+    $("ic-due").innerHTML = olvIcon("banknote");
+    $("ic-hrs").innerHTML = olvIcon("clock");
+    $("ic-adv").innerHTML = olvIcon("wallet");
+    $("ic-paid").innerHTML = olvIcon("checkCircle");
+    $("due-title").innerHTML = olvIcon("banknote") + " مستحق للدفع";
+    $("adv-title").innerHTML = olvIcon("wallet") + " سلف الموظفين";
+    $("adv-toggle").innerHTML = olvIcon("plus") + "<span>سلفة جديدة</span>";
+    $("hist-title").innerHTML = olvIcon("receipt") + " سجل الرواتب المدفوعة";
 
     async function loadProfiles() {
       const { data, error } = await window.supabaseClient
@@ -180,15 +294,15 @@
       employees = data || [];
       profilesById = new Map(employees.map((p) => [p.id, p]));
       const optionsHtml = employees.map((p) => `<option value="${p.id}">${olvEsc(p.full_name)}</option>`).join("");
-      document.getElementById("a-employee").innerHTML = optionsHtml;
-      document.getElementById("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
+      $("a-employee").innerHTML = optionsHtml;
+      $("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
     }
+    const empName = (id) => { const p = profilesById.get(id); return p ? p.full_name : "—"; };
+    const initial = (id) => (empName(id) || "").trim().charAt(0);
 
-    function empName(id) {
-      const p = profilesById.get(id);
-      return p ? p.full_name : "—";
-    }
-
+    // ---------------------------------------------------------------
+    // السلف
+    // ---------------------------------------------------------------
     async function loadUnsettledAdvances() {
       const { data, error } = await window.supabaseClient
         .from("salary_advances").select("*").is("settled_payroll_id", null).order("advance_date");
@@ -196,60 +310,74 @@
       unsettledAdvances = data || [];
       renderAdvances();
     }
+    const advancesTotalFor = (profileId) => unsettledAdvances
+      .filter((a) => a.profile_id === profileId).reduce((s, a) => s + Number(a.amount), 0);
 
     function renderAdvances() {
-      const body = document.getElementById("advances-body");
-      if (!unsettledAdvances.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="5">لا يوجد سلف غير مسوّاة حاليًا</td></tr>`;
-        return;
-      }
-      body.innerHTML = unsettledAdvances.map((a) => `
-        <tr>
-          <td>${empName(a.profile_id)}</td>
-          <td>${a.advance_date}</td>
-          <td>${olvFormatMoney(a.amount)}</td>
-          <td>${olvEsc(a.note) || "—"}</td>
-          <td><button class="btn small danger" data-del="${a.id}">حذف</button></td>
-        </tr>
-      `).join("");
-      body.querySelectorAll("button[data-del]").forEach((btn) => {
+      const box = $("adv-box");
+      const total = unsettledAdvances.reduce((s, a) => s + Number(a.amount), 0);
+      $("k-adv").textContent = olvFormatMoney(total);
+      const who = new Set(unsettledAdvances.map((a) => a.profile_id)).size;
+      $("k-adv-note").className = "note" + (total ? " warn" : "");
+      $("k-adv-note").textContent = total ? `على ${who} موظف، بتنخصم من الراتب الجاي` : "ما في سلف معلّقة";
+      if (!unsettledAdvances.length) { box.innerHTML = `<div class="py-empty">ما في سلف غير مسوّاة هلأ.</div>`; return; }
+      const by = new Map();
+      unsettledAdvances.forEach((a) => { if (!by.has(a.profile_id)) by.set(a.profile_id, []); by.get(a.profile_id).push(a); });
+      const groups = [...by.entries()].sort((a, b) => empName(a[0]).localeCompare(empName(b[0]), "ar"));
+      box.innerHTML = `<div class="adv-list">${groups.map(([pid, list]) => `
+        <div class="adv-emp"><b>${olvEsc(empName(pid))}</b><small>${list.length} سلفة · ${olvFormatMoney(list.reduce((s, a) => s + Number(a.amount), 0))}</small></div>
+        <ul class="adv-list">${list.map((a) => `
+          <li class="adv-row"><span class="d">${shortDate(a.advance_date)}</span><span class="nt">${olvEsc(a.note) || ""}</span>
+            <span class="am">${olvFormatMoney(a.amount)}</span>
+            <button type="button" class="del" data-del="${a.id}" aria-label="حذف السلفة">${olvIcon("trash")}</button></li>`).join("")}</ul>`).join("")}</div>`;
+      box.querySelectorAll("button[data-del]").forEach((btn) => {
         btn.addEventListener("click", () => olvUndoDelete(btn, {
           msg: "انحذفت السلفة",
           run: () => window.supabaseClient.from("salary_advances").delete().eq("id", btn.dataset.del),
-          after: loadUnsettledAdvances,
+          after: async () => { await loadUnsettledAdvances(); await runCompute(); },
         }));
       });
     }
 
-    document.getElementById("advance-form").addEventListener("submit", async (e) => {
+    function openAdv(open) {
+      $("adv-form-wrap").hidden = !open;
+      $("adv-toggle").setAttribute("aria-expanded", String(open));
+      if (open) $("a-amount").focus();
+    }
+    $("adv-toggle").addEventListener("click", () => openAdv($("adv-form-wrap").hidden));
+    $("adv-cancel").addEventListener("click", () => openAdv(false));
+
+    $("advance-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("err");
       try {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
         const { error } = await window.supabaseClient.from("salary_advances").insert({
-          profile_id: document.getElementById("a-employee").value,
-          amount: Number(document.getElementById("a-amount").value || 0),
-          advance_date: document.getElementById("a-date").value,
-          note: document.getElementById("a-note").value.trim() || null,
+          profile_id: $("a-employee").value,
+          amount: Number($("a-amount").value || 0),
+          advance_date: $("a-date").value,
+          note: $("a-note").value.trim() || null,
           created_by: session ? session.user.id : null,
         });
         if (error) throw error;
-        document.getElementById("advance-form").reset();
-        document.getElementById("a-date").value = olvToday();
+        $("advance-form").reset();
+        $("a-date").value = todayIso();
+        openAdv(false);
+        olvToast("انسجلت السلفة", { type: "ok", icon: "check" });
         await loadUnsettledAdvances();
+        await runCompute();
       } catch (err) {
         olvShowError(errBox, err);
       }
     });
 
-    // نفس منطق تزويج البصمات المستخدم بصفحة الحضور (assets/shift-utils.js)
-    // — نحسب الساعات بس من الورديات المكتملة (دخول وخروج)؛ أي وردية
-    // مفتوحة (نسي يبصم خروج) بتنستثنى من المجموع وتظهر كتحذير، حتى ما
-    // يُحتسب راتب ناقص بالغلط قبل ما تُصحَّح من صفحة الحضور
+    // ---------------------------------------------------------------
+    // احتساب الرواتب (قراءة بس: ما بينكتب شي لحد «تأكيد الدفع»)
+    // نفس منطق تزويج البصمات بصفحة الحضور (assets/shift-utils.js): الساعات بس من الورديات
+    // المكتملة؛ الوردية المفتوحة (نسي يبصم خروج) بتنستثنى وبتطلع كتحذير حتى ما يتحسب راتب ناقص بالغلط
+    // ---------------------------------------------------------------
     function computeHoursByEmployee(punches) {
-      const shifts = olvComputeShifts(punches);
-      const result = new Map(); // profile_id -> { hours, openCount }
-      shifts.forEach((s) => {
+      const result = new Map();
+      olvComputeShifts(punches).forEach((s) => {
         if (!result.has(s.profile_id)) result.set(s.profile_id, { hours: 0, openCount: 0 });
         const entry = result.get(s.profile_id);
         const hrs = olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
@@ -259,55 +387,34 @@
       return result;
     }
 
-    function advancesTotalFor(profileId) {
-      return unsettledAdvances
-        .filter((a) => a.profile_id === profileId)
-        .reduce((s, a) => s + Number(a.amount), 0);
-    }
-
-    function renderPreview() {
-      const body = document.getElementById("preview-body");
-      if (!previewRows.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد ساعات عمل أو سلف غير مسوّاة بهذه الفترة</td></tr>`;
-        return;
+    function rangeFor(p) {
+      const t = todayIso();
+      if (p === "week") return { from: addDays(t, -6), to: t };
+      if (p === "last") {
+        const d = parse(t.slice(0, 8) + "01"); d.setDate(0);
+        const end = iso(d); return { from: end.slice(0, 8) + "01", to: end };
       }
-      body.innerHTML = previewRows.map((r) => `
-        <tr>
-          <td>${empName(r.profileId)}</td>
-          <td>${r.hours.toFixed(1)}${r.openCount ? `<span class="open-shift-warn">⚠ ${r.openCount} وردية مفتوحة — راجع صفحة الحضور</span>` : ""}</td>
-          <td>${r.hourlyWage != null ? olvFormatMoney(r.hourlyWage) : "—"}</td>
-          <td>${olvFormatMoney(r.gross)}</td>
-          <td>${olvFormatMoney(r.advancesTotal)}</td>
-          <td class="${r.net < 0 ? "net-negative" : ""}">${olvFormatMoney(r.net)}</td>
-          <td><button class="btn small gold" data-pay="${r.profileId}">تأكيد الدفع</button></td>
-        </tr>
-      `).join("");
-      body.querySelectorAll("button[data-pay]").forEach((btn) => {
-        btn.addEventListener("click", () => confirmPay(btn.dataset.pay, btn));
-      });
+      if (p === "custom") return { from: $("from_date").value || t, to: $("to_date").value || t };
+      return { from: t.slice(0, 8) + "01", to: t };
     }
 
     async function runCompute() {
-      const errBox = document.getElementById("err");
+      if (!canManage) return;
       errBox.style.display = "none";
-      const from = document.getElementById("from_date").value;
-      const to = document.getElementById("to_date").value;
-      const toExclusive = new Date(new Date(to).getTime() + 86400000).toISOString().slice(0, 10);
-      const employeeId = document.getElementById("f-employee").value;
+      range = rangeFor(period);
+      $("py-sub").textContent = `الفترة: ${shortDate(range.from)} لـ ${shortDate(range.to)}`;
+      const toExclusive = addDays(range.to, 1);
+      const employeeId = $("f-employee").value;
       try {
         let query = window.supabaseClient
           .from("employee_punches").select("id, profile_id, punched_at")
-          .gte("punched_at", from).lt("punched_at", toExclusive);
+          .gte("punched_at", range.from).lt("punched_at", toExclusive);
         if (employeeId) query = query.eq("profile_id", employeeId);
         const { data, error } = await query;
         if (error) throw error;
-
         const hoursMap = computeHoursByEmployee(data || []);
         const profileIds = new Set([...hoursMap.keys(), ...unsettledAdvances.map((a) => a.profile_id)]);
-        if (employeeId) {
-          [...profileIds].forEach((id) => { if (id !== employeeId) profileIds.delete(id); });
-        }
-
+        if (employeeId) [...profileIds].forEach((id) => { if (id !== employeeId) profileIds.delete(id); });
         previewRows = [...profileIds]
           .map((profileId) => {
             const h = hoursMap.get(profileId) || { hours: 0, openCount: 0 };
@@ -315,18 +422,44 @@
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
             const gross = hourlyWage != null ? h.hours * hourlyWage : 0;
             const advancesTotal = advancesTotalFor(profileId);
-            return {
-              profileId, hours: h.hours, openCount: h.openCount, hourlyWage, gross,
-              advancesTotal, net: gross - advancesTotal,
-            };
+            return { profileId, hours: h.hours, openCount: h.openCount, hourlyWage, gross, advancesTotal, net: gross - advancesTotal };
           })
           .filter((r) => r.hours > 0 || r.advancesTotal > 0)
-          .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId)));
-
+          .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         renderPreview();
       } catch (err) {
         olvShowError(errBox, err);
       }
+    }
+
+    function renderPreview() {
+      const box = $("due-box");
+      const net = previewRows.reduce((s, r) => s + r.net, 0);
+      const hrs = previewRows.reduce((s, r) => s + r.hours, 0);
+      $("k-due").textContent = olvFormatMoney(net);
+      $("k-due-note").textContent = previewRows.length ? `لـ ${previewRows.length} موظف` : "ما في شي مستحق بهالفترة";
+      $("k-hrs").textContent = fmtHrs(hrs);
+      const open = previewRows.reduce((s, r) => s + r.openCount, 0);
+      $("k-hrs-note").className = "note" + (open ? " warn" : "");
+      $("k-hrs-note").textContent = open ? `${open} وردية مفتوحة مش محسوبة` : "من ورديات مسكّرة";
+      if (!previewRows.length) { box.innerHTML = `<div class="py-empty">ما في ساعات عمل ولا سلف بهالفترة.</div>`; return; }
+      box.innerHTML = `<ul class="pay-list">${previewRows.map((r) => `
+        <li class="pay-card">
+          <div class="pay-top">
+            <span class="av" aria-hidden="true">${olvEsc(initial(r.profileId)) || olvIcon("person")}</span>
+            <span class="t"><b>${olvEsc(empName(r.profileId))}</b><small>${fmtHrs(r.hours)} ساعة${r.hourlyWage != null ? ` × ${olvFormatMoney(r.hourlyWage)}` : ""}</small></span>
+            <span class="pay-net${r.net < 0 ? " neg" : ""}"><b>${olvFormatMoney(r.net)}</b><small>الصافي</small></span>
+          </div>
+          <div class="pay-eq">
+            <div><span>الساعات</span><b>${fmtHrs(r.hours)}</b></div>
+            <div><span>الإجمالي</span><b>${olvFormatMoney(r.gross)}</b></div>
+            <div class="minus"><span>سلف مخصومة</span><b>${olvFormatMoney(r.advancesTotal)}</b></div>
+          </div>
+          ${r.hourlyWage == null ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
+          ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} وردية مفتوحة (نسي يبصم خروج) مش محسوبة. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
+          <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
+        </li>`).join("")}</ul>`;
+      box.querySelectorAll("button[data-pay]").forEach((btn) => btn.addEventListener("click", () => confirmPay(btn.dataset.pay, btn)));
     }
 
     async function confirmPay(profileId, btn) {
@@ -336,18 +469,15 @@
         `(${row.hours.toFixed(1)} ساعة × ${row.hourlyWage != null ? olvFormatMoney(row.hourlyWage) : "—"} = ${olvFormatMoney(row.gross)}` +
         `${row.advancesTotal ? `، مطروح منه سلف ${olvFormatMoney(row.advancesTotal)}` : ""})`;
       if (!confirm(msg)) return;
-      const errBox = document.getElementById("err");
       if (btn) btn.disabled = true;
       try {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
-        const from = document.getElementById("from_date").value;
-        const to = document.getElementById("to_date").value;
         const paymentId = (crypto.randomUUID ? crypto.randomUUID() : "pay-" + Date.now() + "-" + Math.random().toString(36).slice(2));
         const { error: insertErr } = await window.supabaseClient.from("payroll_payments").insert({
           id: paymentId,
           profile_id: profileId,
-          period_start: from,
-          period_end: to,
+          period_start: range.from,
+          period_end: range.to,
           hours_worked: row.hours,
           hourly_wage: row.hourlyWage || 0,
           gross_amount: row.gross,
@@ -356,77 +486,94 @@
           paid_by: session ? session.user.id : null,
         });
         if (insertErr) throw insertErr;
-
         if (row.advancesTotal > 0) {
           const { error: settleErr } = await window.supabaseClient.from("salary_advances")
             .update({ settled_payroll_id: paymentId }).eq("profile_id", profileId).is("settled_payroll_id", null);
           if (settleErr) throw settleErr;
         }
-
         await Promise.all([loadUnsettledAdvances(), loadHistory()]);
         previewRows = previewRows.filter((r) => r.profileId !== profileId);
         renderPreview();
+        olvToast("انسجل دفع الراتب", { type: "ok", icon: "check" });
       } catch (err) {
         olvShowError(errBox, err);
         if (btn) btn.disabled = false;
       }
     }
 
+    // ---------------------------------------------------------------
+    // سجل المدفوع (مجمّع بالشهر)
+    // ---------------------------------------------------------------
     async function loadHistory() {
-      const body = document.getElementById("history-body");
       try {
         const { data, error } = await window.supabaseClient
-          .from("payroll_payments").select("*").order("paid_at", { ascending: false }).limit(50);
+          .from("payroll_payments").select("*").order("paid_at", { ascending: false }).limit(200);
         if (error) throw error;
-        if (!data || !data.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد رواتب مدفوعة بعد</td></tr>`;
-          return;
-        }
-        body.innerHTML = data.map((p) => `
-          <tr>
-            <td>${empName(p.profile_id)}</td>
-            <td>${fmtDate(p.period_start)} — ${fmtDate(p.period_end)}</td>
-            <td>${Number(p.hours_worked).toFixed(1)}</td>
-            <td>${olvFormatMoney(p.gross_amount)}</td>
-            <td>${olvFormatMoney(p.advances_deducted)}</td>
-            <td>${olvFormatMoney(p.net_amount)}</td>
-            <td>${fmtDate(p.paid_at)}</td>
-          </tr>
-        `).join("");
+        history = data || [];
+        renderHistory();
       } catch (err) {
-        olvShowError(document.getElementById("err"), err);
+        olvShowError(errBox, err);
       }
     }
+    function renderHistory() {
+      const box = $("hist-box");
+      const monthKey = todayIso().slice(0, 7);
+      const thisMonth = history.filter((p) => fmtDate(p.paid_at).slice(0, 7) === monthKey);
+      $("k-paid").textContent = olvFormatMoney(thisMonth.reduce((s, p) => s + Number(p.net_amount), 0));
+      $("k-paid-note").textContent = thisMonth.length ? `${thisMonth.length} دفعة` : "ما انصرف شي هالشهر";
+      if (!history.length) { box.innerHTML = `<div class="py-empty">ما في رواتب مدفوعة لسا.</div>`; $("hist-more").hidden = true; return; }
+      const list = history.slice(0, histShown);
+      const months = [];
+      const idx = new Map();
+      list.forEach((p) => {
+        const k = fmtDate(p.paid_at).slice(0, 7);
+        if (!idx.has(k)) { idx.set(k, months.length); months.push({ k, rows: [] }); }
+        months[idx.get(k)].rows.push(p);
+      });
+      box.innerHTML = months.map(({ k, rows }) => `
+        <div class="hist-month"><b>${monthLabel(k + "-01")}</b><small>${rows.length} دفعة · ${olvFormatMoney(rows.reduce((s, p) => s + Number(p.net_amount), 0))}</small></div>
+        <ul class="hist-list">${rows.map((p) => `
+          <li class="hist-row"><span class="nm">${olvEsc(empName(p.profile_id))}</span>
+            <span class="sub">${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة${Number(p.advances_deducted) ? ` · سلف ${olvFormatMoney(p.advances_deducted)}` : ""} · اندفع ${shortDate(p.paid_at)}</span>
+            <span class="am">${olvFormatMoney(p.net_amount)}<small>الصافي</small></span></li>`).join("")}</ul>`).join("");
+      $("hist-more").hidden = history.length <= histShown;
+      if (history.length > histShown) $("hist-more-btn").textContent = `عرض أقدم (${history.length - histShown})`;
+    }
+    $("hist-more-btn").addEventListener("click", () => { histShown += HIST_STEP; renderHistory(); });
 
-    document.getElementById("run-btn").addEventListener("click", runCompute);
+    function setPeriod(p) {
+      period = p;
+      document.querySelectorAll("#period-chips [data-period]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.period === p)));
+      $("custom-range").hidden = p !== "custom";
+      if (p !== "custom") runCompute();
+    }
+    document.querySelectorAll("#period-chips [data-period]").forEach((b) => b.addEventListener("click", () => setPeriod(b.dataset.period)));
+    $("custom-apply").addEventListener("click", runCompute);
+    $("f-employee").addEventListener("change", runCompute);
 
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
       const { data: myProfile, error } = await window.supabaseClient
         .from("profiles").select("role").eq("id", session.user.id).single();
-      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      if (error) { olvShowError(errBox, error); return; }
       myRole = myProfile ? myProfile.role : null;
-      const canManage = myRole === "owner" || myRole === "manager";
-
-      // staff بيشوف بس سجل رواتبه هو (RLS بتحصر النتيجة تلقائيًا)، بدون
-      // أي واجهة احتساب/سلف
-      document.getElementById("payroll-content").hidden = false;
-      document.getElementById("advance-group").hidden = !canManage;
-      document.getElementById("compute-group").hidden = !canManage;
-
-      const today = new Date();
-      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      document.getElementById("from_date").value = firstOfMonth.toISOString().slice(0, 10);
-      document.getElementById("to_date").value = olvToday();
-      document.getElementById("a-date").value = olvToday();
-
+      canManage = myRole === "owner" || myRole === "manager";
+      // staff بيشوف بس سجل رواتبه هو (RLS بتحصر النتيجة تلقائيًا)، بدون أي واجهة احتساب/سلف
+      $("payroll-content").hidden = false;
+      $("manage-top").hidden = !canManage;
+      if (!canManage) { $("k-paid").textContent = ""; $("py-sub").textContent = "رواتبك المدفوعة"; }
+      const t = todayIso();
+      $("from_date").value = t.slice(0, 8) + "01";
+      $("to_date").value = t;
+      $("a-date").value = t;
       try {
         await loadProfiles();
         if (canManage) await loadUnsettledAdvances();
         await loadHistory();
+        if (canManage) await runCompute();
       } catch (err) {
-        olvShowError(document.getElementById("err"), err);
+        olvShowError(errBox, err);
       }
     })();
     });
