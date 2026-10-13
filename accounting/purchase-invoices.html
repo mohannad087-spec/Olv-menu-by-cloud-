@@ -73,6 +73,8 @@
   .pi-sugg button{font:inherit; font-size:12px; padding:5px 10px; border-radius:999px; border:1px solid var(--gold-hi); background:var(--surface,#fff); color:var(--text); cursor:pointer; min-height:32px;}
   .pi-sugg button.new{border-style:dashed; color:var(--olive,var(--gold-hi));}
   .pi-sugg button:disabled{opacity:.5;}
+  .pi-newbtn{display:block; margin-top:6px; font:inherit; font-size:13px; font-weight:700; padding:7px 12px; min-height:36px; border-radius:10px; border:1px dashed var(--olive,var(--gold-hi)); background:none; color:var(--olive,var(--gold-hi)); cursor:pointer;}
+  .pi-newbtn:disabled{opacity:.5;}
   .pi-mini{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:8px; padding:8px 10px; font-size:13px; transition:transform .16s var(--spring); -webkit-tap-highlight-color:transparent;}
   .pi-mini:active{transform:scale(.96); transition-duration:.08s;}
   .pi-total-box{background:var(--ink-3); border:1px solid var(--hair); border-radius:12px; padding:14px 16px;}
@@ -266,6 +268,7 @@
       </div>
       <datalist id="pi-items-list"></datalist>
       <button type="button" class="pi-addline" id="pi-add-line">＋ أضف صنف</button>
+      <button type="button" class="pi-addline" id="pi-add-new-item" style="border-style:solid; border-color:var(--olive,var(--gold-hi)); color:var(--olive,var(--gold-hi)); font-weight:700;">＋ إضافة مادة جديدة للمخزون</button>
       <div class="pi-links">
         <button type="button" class="pi-link" id="pi-paste-toggle">لصق أصناف (Excel / واتساب)</button>
         <button type="button" class="pi-link" id="pi-catalog">من الكتالوج الجاهز</button>
@@ -580,6 +583,7 @@
           <td>
             <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="pi-ac-list" aria-label="الصنف" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
             ${line.unmatchedName && !it ? unmatchedHelp(line) : ""}
+            ${!it ? `<button type="button" class="pi-newbtn" data-act="newdlg">＋ إضافة مادة جديدة للمخزون</button>` : ""}
             ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
             <div data-warn>${priceWarning(line, it)}</div>
           </td>
@@ -754,6 +758,7 @@
         if (!line.price && it.unit_price) line.price = String(it.unit_price);
         renderLines(); return;
       }
+      if (btn.dataset.act === "newdlg") { await addNewItemForLine(line, btn); return; }
       if (btn.dataset.act === "new") {
         const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
         if (!name) return;
@@ -775,6 +780,71 @@
         const next = document.querySelector(`#pi-lines tr[data-idx="${idx + 1}"] [data-f="item"]`); if (next) next.focus();
       }
     });
+    // نافذة «إضافة مادة جديدة» من داخل الفاتورة: الاسم + النوع + الوحدة + السعر، وبتنربط بالسطر مباشرة
+    function openNewItemDialog(init) {
+      return new Promise((resolve) => {
+        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس"];
+        if (init.unit && !UNITS.includes(init.unit)) UNITS.unshift(init.unit);
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">إضافة مادة جديدة للمخزون</h3>
+          <div class="hint" style="margin-bottom:12px;">بتنضاف للمخزون وبتنربط بسطر الفاتورة مباشرة، وما بتطلع من الفاتورة.</div>
+          <div class="field"><label>اسم المادة</label><input type="text" id="ni-name" maxlength="120" value="${olvEsc(init.name || "")}" placeholder="مثال: جبنة موزاريلا"></div>
+          <div class="field"><label>النوع</label>
+            <select id="ni-kind"><option value="ingredient">مادة خام (بتدخل بالوصفات)</option><option value="supply">مستلزم (أكياس، علب، منظفات...)</option></select></div>
+          <div class="field"><label>الوحدة</label>
+            <select id="ni-unit">${UNITS.map((u) => `<option value="${olvEsc(u)}"${u === init.unit ? " selected" : ""}>${olvEsc(u)}</option>`).join("")}</select></div>
+          <div class="field"><label>سعر الوحدة</label><input type="number" id="ni-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(init.price || "")}" placeholder="اختياري"></div>
+          <div class="pi-warn bad" id="ni-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="ni-save" style="flex:1;">إضافة واستخدامها</button>
+            <button type="button" class="btn" id="ni-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const nameEl = box.querySelector("#ni-name");
+        box.querySelector("#ni-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        nameEl.addEventListener("input", () => { box.querySelector("#ni-err").textContent = ""; });
+        box.querySelector("#ni-save").addEventListener("click", () => {
+          const name = nameEl.value.trim().slice(0, 120);
+          if (!name) { box.querySelector("#ni-err").textContent = "اكتب اسم المادة"; nameEl.focus(); return; }
+          done({ name, kind: box.querySelector("#ni-kind").value, unit: box.querySelector("#ni-unit").value, price: Number(box.querySelector("#ni-price").value) || 0 });
+        });
+        setTimeout(() => nameEl.focus(), 50);
+      });
+    }
+    // يرجّع true إذا انربط السطر بمادة (جديدة أو موجودة بنفس الاسم)
+    async function addNewItemForLine(line, btn) {
+      const name0 = String(line.unmatchedName || line.typed || "").trim();
+      const guess = unitFromInvoice(line.rawUnit || name0);
+      const res = await openNewItemDialog({ name: name0, unit: guess, price: line.price !== "" && line.unitMode === "stock" ? String(line.price) : "" });
+      if (!res) return false;
+      if (btn) btn.disabled = true;
+      const errBox = document.getElementById("err");
+      // لو في مادة بنفس الاسم أصلًا ما منكرّرها — بنربط السطر فيها
+      const same = items.find((i) => norm(i.name) === norm(res.name));
+      let key;
+      if (same) key = same.kind + ":" + same.id;
+      else {
+        const row = { name: res.name, unit: res.unit };
+        if (res.price > 0) row.unit_price = res.price;
+        const { data, error } = await window.supabaseClient.from(res.kind === "ingredient" ? "ingredients" : "supplies").insert(row).select("id").single();
+        if (error) { if (btn) btn.disabled = false; olvShowError(errBox, error); return false; }
+        key = res.kind + ":" + data.id;
+        await loadItems();
+      }
+      line.itemKey = key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock"; line.typed = "";
+      if ((line.price === "" || line.price == null) && res.price > 0) line.price = String(res.price);
+      renderLines();
+      const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="${line.qty ? "price" : "qty"}"]`); if (q) q.focus();
+      return true;
+    }
+
     // نافذة تعريف وحدة الشراء لصنف: الاسم (أزرار سريعة) + كم وحدة مخزون بالواحدة
     function openUnitDialog(it) {
       return new Promise((resolve) => {
@@ -937,6 +1007,14 @@
       olvOpenCatalog({ onDone: async () => { await loadItems(); renderLines(); } });
     });
     document.getElementById("pi-add-line").addEventListener("click", () => { lines.push(newLine()); renderLines(); });
+    document.getElementById("pi-add-new-item").addEventListener("click", async () => {
+      // نستخدم آخر سطر فاضي إن وجد، وإلا بنفتح سطر جديد؛ إذا انلغت العملية بنشيل السطر الفاضي اللي فتحناه
+      let line = lines.find((l) => !itemOf(l) && !l.typed && !l.qty && !l.price && !l.unmatchedName);
+      const created = !line;
+      if (created) { line = newLine(); lines.push(line); renderLines(); }
+      const ok = await addNewItemForLine(line, null);
+      if (!ok && created && !itemOf(line)) { lines.splice(lines.indexOf(line), 1); if (!lines.length) lines.push(newLine()); renderLines(); }
+    });
 
     // ---------- الدفع ----------
     document.getElementById("pi-pay").addEventListener("change", (e) => {
@@ -1167,7 +1245,7 @@
       if (!active.length) { olvShowError(errBox, new Error("أضف صنف واحد على الأقل")); return; }
       const bad = active.find((l) => !itemOf(l) || !(Number(l.qty) > 0) || !(Number(l.price) >= 0) || l.price === "");
       const unlinked = active.filter((l) => !itemOf(l)).length;
-      if (unlinked) { olvShowError(errBox, new Error(`في ${unlinked} سطر لسا مش مربوط بصنف من المخزون — اضغط «تقصد...» أو «＋ أضفه» تحت كل سطر أحمر`)); return; }
+      if (unlinked) { olvShowError(errBox, new Error(`في ${unlinked} سطر لسا مش مربوط بصنف من المخزون — اختر من القائمة أو اضغط «＋ إضافة مادة جديدة للمخزون» تحت السطر`)); return; }
       if (bad) { olvShowError(errBox, new Error("في سطر ناقص: لازم صنف من القائمة + كمية أكبر من صفر + سعر")); return; }
       const supplierId = document.getElementById("pi-supplier").value || null;
       const T = computeTotals();
