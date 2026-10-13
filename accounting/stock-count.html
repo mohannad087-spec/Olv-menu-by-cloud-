@@ -59,66 +59,166 @@
 })();
 </script>
 <style>
-  .sc-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
-  .sc-bar input[type=search], .sc-bar select{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:10px; font-size:15px; font-family:'Tajawal',sans-serif;}
-  .sc-bar input[type=search]{flex:1; min-width:180px;}
-  .sc-count{width:100px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:9px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .wrap.sc-wrap{max-width:1000px; padding-bottom:120px;}
+  .sc-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .sc-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .sc-head .sc-sub{color:var(--muted); font-size:13.5px; margin-top:4px; max-width:560px; line-height:1.6;}
+  .sc-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+
+  /* التقدّم: قديش انعدّ من الكل */
+  .sc-prog{display:grid; grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr)); gap:14px; align-items:center;}
+  .sc-prog .big{font-size:clamp(28px,5vw,40px); font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1;}
+  .sc-prog .big small{font-size:15px; font-weight:500; color:var(--muted); margin-inline-start:4px;}
+  .sc-prog .lbl{font-size:12.5px; color:var(--muted); margin-bottom:4px;}
+  .sc-prog .k{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .sc-prog .k.neg{color:var(--danger-hi);} .sc-prog .k.pos{color:var(--ok);}
+  .pbar{height:10px; border-radius:999px; background:var(--ink-3); overflow:hidden; margin-top:10px;}
+  .pbar i{display:block; height:100%; border-radius:999px; background:var(--olive); transition:width .4s var(--spring);}
+  @media (max-width:640px){ .sc-prog{grid-template-columns:repeat(2,minmax(0,1fr));} .sc-prog > :first-child{grid-column:1/-1;} }
+
+  .sc-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  .sc-search{position:relative; flex:1; min-width:200px;}
+  .sc-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--muted); pointer-events:none;}
+  .sc-search input{width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; padding-inline-start:38px; font-size:16px;
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .sc-search input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .sc-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;}
+  .sc-chip{display:inline-flex; align-items:center; gap:7px; min-height:40px; padding:0 14px; border-radius:999px; border:1px solid var(--hair);
+    background:var(--ink-2); color:var(--paper); font:inherit; font-size:13.5px; cursor:pointer; transition:transform .08s var(--ease);}
+  .sc-chip .n{color:var(--muted); font-size:12px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .sc-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .sc-chip[aria-pressed="true"] .n{color:var(--on-gold);}
+  .sc-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .sc-chip:active{transform:scale(.97);}
+  .sc-linkbtn{background:none; border:0; color:var(--gold-hi); font:inherit; font-size:13px; cursor:pointer; padding:8px 2px; min-height:36px;}
+
+  .cat{border-bottom:1px solid var(--hair-soft);}
+  .cat:last-child{border-bottom:0;}
+  .cat-h{width:100%; display:grid; grid-template-columns:40px minmax(0,1fr) auto 18px; align-items:center; gap:12px; min-height:64px; padding:10px 4px;
+    background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:14px; transition:background .15s var(--ease);}
+  .cat-h:hover{background:rgba(var(--gold-rgb),.06);}
+  .cat-h:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .cat-h .ci{width:40px; height:40px; border-radius:12px; background:var(--ink-3); display:grid; place-items:center; color:var(--gold-hi);}
+  .cat-h .ci .icon{width:20px; height:20px;}
+  .cat.done .cat-h .ci{background:var(--olive); color:var(--on-olive);}
+  .cat-h .t{min-width:0;}
+  .cat-h .t b{display:block; font-size:15.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cat-h .t .pbar{height:5px; margin-top:7px; max-width:220px;}
+  .cat-h .m{white-space:nowrap; font-size:12.5px; color:var(--muted); text-align:left;}
+  .cat-h .m b{display:block; color:var(--paper); font-size:13.5px; font-variant-numeric:tabular-nums;}
+  .cat-h .m .neg{color:var(--danger-hi); font-weight:700;}
+  .cat-h .chev{width:18px; height:18px; color:var(--muted); transition:transform .2s var(--spring);}
+  .cat.open .cat-h .chev{transform:rotate(180deg);}
+  .cat-body{padding:0 0 12px; padding-inline-start:52px;}
+  .cat-body:not([hidden]){animation:od-in .18s var(--spring) both;}
+  @keyframes od-in{from{opacity:0; transform:translateY(-4px);}}
+  @media (max-width:640px){ .cat-body{padding-inline-start:0;} .cat-h{grid-template-columns:40px minmax(0,1fr) auto; gap:10px;} .cat-h .chev{display:none;} }
+
+  .ln{display:grid; grid-template-columns:minmax(0,1fr) 112px 88px; align-items:center; gap:10px; padding:8px 4px; border-top:1px solid var(--hair-soft);}
+  .ln:first-child{border-top:0;}
+  .ln .nm{min-width:0;}
+  .ln .nm b{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; font-size:14.5px; font-weight:700; line-height:1.4;}
+  .ln .nm small{display:block; color:var(--muted); font-size:12px; margin-top:2px; font-variant-numeric:tabular-nums;}
+  .ln input{width:100%; box-sizing:border-box; min-height:46px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
+    padding:8px 10px; border-radius:12px; font-size:17px; font-weight:700; font-family:'Tajawal',sans-serif; text-align:center;}
+  .ln input:focus{outline:2px solid var(--gold); outline-offset:1px; border-color:var(--gold);}
+  .ln.counted input{border-color:var(--olive); background:rgba(86,105,46,.08);}
+  .ln .df{text-align:left; font-size:13px; font-variant-numeric:tabular-nums; line-height:1.35;}
+  .ln .df small{display:block; font-size:11.5px; font-weight:500;}
   .sc-diff.neg{color:var(--danger-hi); font-weight:700;}
   .sc-diff.pos{color:var(--ok); font-weight:700;}
-  .sc-cat td{background:var(--ink-3); color:var(--gold-hi); font-weight:700; font-size:13px;}
-  @media(max-width:640px){ #sc-body td:nth-child(5), .sc-table th:nth-child(5){display:none;} .sc-count{width:70px;} .sc-table{width:100%;} .sc-table td, .sc-table th{padding-left:6px; padding-right:6px;} }
-  .sc-summary{position:sticky; bottom:0; background:var(--ink-2); border:1px solid var(--hair); border-radius:12px; padding:12px 14px; margin-top:14px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; justify-content:space-between; z-index:5;}
+  .sc-diff.eq{color:var(--muted);}
+  @media (max-width:640px){ .ln{grid-template-columns:minmax(0,1fr) 92px 70px; gap:8px;} }
+  .sc-empty{padding:28px 8px; text-align:center; color:var(--muted);}
+
+  /* شريط الحفظ تحت */
+  .sc-summary{position:sticky; bottom:calc(var(--bnav-h, 0px) + 8px); background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:10px 14px;
+    margin-top:14px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; z-index:5; box-shadow:0 10px 30px rgba(0,0,0,.12);}
+  .sc-summary .txt{font-size:13.5px; line-height:1.5;}
+  .sc-summary .txt b{font-variant-numeric:tabular-nums;}
+  .sc-summary .act{display:flex; gap:8px; flex-wrap:nowrap; align-items:center; flex:1 1 300px; justify-content:flex-end; min-width:0;}
+  .sc-summary .act .btn{flex:none;}
+  .sc-summary input{min-height:44px; box-sizing:border-box; width:220px; min-width:0; flex:1 1 120px; background:var(--ink-3); border:1px solid var(--hair);
+    color:var(--paper); padding:8px 12px; border-radius:12px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .sc-summary .btn{min-height:44px;}
+
+  /* سجل الحركات */
+  .mv-chart{list-style:none; margin:0 0 6px; padding:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px;}
+  .mv-chart li{background:var(--ink-3); border-radius:14px; padding:12px;}
+  .mv-chart .lbl{font-size:12.5px; color:var(--muted);}
+  .mv-chart .v{font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; margin-top:4px;}
+  .mv-chart .n{font-size:12px; color:var(--muted);}
+  .mv-chart .tr{height:6px; border-radius:999px; background:var(--ink-2); overflow:hidden; margin-top:8px;}
+  .mv-chart .tr i{display:block; height:100%; border-radius:999px; background:var(--danger);}
+  .mv-chart .tr i.pos{background:var(--olive);}
+  @media (max-width:520px){ .mv-chart{gap:6px;} .mv-chart li{padding:10px 8px;} .mv-chart .v{font-size:16px;} .mv-chart .lbl{font-size:11.5px;} }
+  .mv-list{list-style:none; margin:0; padding:0;}
+  .mv-list li{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:10px 2px; border-top:1px solid var(--hair-soft); font-size:13.5px;}
+  .mv-list .nm b{display:block; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mv-list .nm small{display:block; color:var(--muted); font-size:12px; margin-top:2px; overflow-wrap:anywhere;}
+  .mv-list .r{text-align:left; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .mv-list .r small{display:block; color:var(--muted); font-size:11.5px;}
+  .mv-more{display:flex; justify-content:center; padding-top:10px;}
+  .mv-more[hidden]{display:none;}
+
+  @media (prefers-reduced-motion: reduce){
+    .cat-h .chev, .pbar i, .sc-chip{transition:none;}
+    .cat-body:not([hidden]){animation:none;}
+    .sc-chip:active{transform:none;}
+  }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap sc-wrap">
     <div class="err" id="err"></div>
 
-    <div class="group">
-      <h2>الجرد الفعلي</h2>
-      <p class="hint" style="margin-bottom:14px;">
-        عِدّ الموجود فعليًا على الرف واكتبه بخانة "العدد الفعلي". الصنف اللي بتتركه فاضي ما بيتغيّر.
-        بالحفظ بتصير الكمية بالنظام = العدد الفعلي، وبينسجّل الفرق (عجز أو زيادة) وقيمته بسجل الحركات.
-        بتقدر تجرد قسم واحد (مثلًا الثلاجة) أو كل شي مرة وحدة.
-      </p>
-      <div class="sc-bar">
-        <input type="search" id="sc-q" placeholder="ابحث باسم الصنف...">
-        <select id="sc-kind" aria-label="نوع الجرد">
-          <option value="all">المواد الخام والمستلزمات</option>
-          <option value="ingredient">المواد الخام بس</option>
-          <option value="supply">المستلزمات بس</option>
-        </select>
-        <button type="button" class="btn small" id="sc-clear">تفريغ الخانات</button>
+    <header class="sc-head">
+      <div>
+        <h1>الجرد</h1>
+        <div class="sc-sub">افتح قسم، عِدّ اللي على الرف واكتب العدد. اللي بتتركه فاضي ما بيتغيّر. الأعداد بتنحفظ على الجهاز لحد ما تكبس «حفظ الجرد».</div>
       </div>
-      <div class="table-wrap">
-        <table class="sc-table">
-          <thead><tr><th>الصنف</th><th>بالنظام</th><th>العدد الفعلي</th><th>الفرق</th><th>قيمة الفرق</th></tr></thead>
-          <tbody id="sc-body"><tr class="empty-row"><td colspan="5">جاري التحميل...</td></tr></tbody>
-        </table>
+      <button type="button" class="btn small" id="sc-clear"></button>
+    </header>
+
+    <section class="group sc-prog" aria-live="polite">
+      <div>
+        <div class="lbl">انعدّ لهلق</div>
+        <div class="big"><span id="p-n">0</span><small id="p-of">من 0</small></div>
+        <div class="pbar"><i id="p-bar" style="width:0%"></i></div>
       </div>
+      <div><div class="lbl">فيها فرق</div><div class="k" id="p-nd">0</div></div>
+      <div><div class="lbl">قيمة الفرق</div><div class="k" id="p-val">0.00</div></div>
+    </section>
+
+    <section class="group" id="list-box">
+      <div class="sc-tools">
+        <label class="sc-search"><span class="olv-sr">ابحث باسم الصنف</span><span id="search-ic"></span>
+          <input type="search" id="sc-q" placeholder="ابحث: معس بطيخ" autocomplete="off"></label>
+      </div>
+      <div class="sc-chips" id="kind-chips" role="group" aria-label="شو بدك تجرد"></div>
+      <div class="sc-chips" style="justify-content:space-between; align-items:center;">
+        <button class="sc-chip" type="button" id="only-left" aria-pressed="false">اللي لسا ما انعدّ بس</button>
+        <button class="sc-linkbtn" type="button" id="toggle-all"></button>
+      </div>
+      <div id="sc-list"><p class="sc-empty">جاري التحميل...</p></div>
+
       <div class="sc-summary">
-        <div>
-          <div class="hint" style="margin:0;">أصناف معدودة: <b id="sc-n">0</b> — فيها فرق: <b id="sc-nd">0</b></div>
-          <div>قيمة الفرق التقديرية: <b id="sc-val">0.00</b></div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          <input type="text" id="sc-note" maxlength="200" placeholder="ملاحظة (مثال: جرد آخر الشهر)" class="sc-count" style="width:220px;">
+        <div class="txt">معدود <b id="sc-n">0</b> · فيه فرق <b id="sc-nd">0</b> · قيمة الفرق <b id="sc-val">0.00</b></div>
+        <div class="act">
+          <input type="text" id="sc-note" maxlength="200" placeholder="ملاحظة (مثال: جرد آخر الشهر)" aria-label="ملاحظة الجرد">
           <button type="button" class="btn gold" id="sc-save">حفظ الجرد</button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="group">
-      <h2>آخر حركات المخزون اليدوية</h2>
-      <p class="hint" style="margin-bottom:12px;">الجرد، والتعديل والهدر من صفحتي المخزون والمستلزمات. (البيع وفواتير الشراء مسجّلين بصفحاتهم.)</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>الوقت</th><th>الصنف</th><th>النوع</th><th>الفرق</th><th>بعدها</th><th>مين</th><th>ملاحظة</th></tr></thead>
-          <tbody id="mv-body"><tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr></tbody>
-        </table>
-      </div>
-    </div>
+    <section class="group">
+      <h2 id="mv-title"></h2>
+      <p class="hint" style="margin:0 0 12px;">الجرد والتعديل والهدر بآخر 30 يوم. القيمة = الفرق × آخر سعر شراء. (البيع وفواتير الشراء بصفحاتهم.)</p>
+      <ul class="mv-chart" id="mv-chart"></ul>
+      <ul class="mv-list" id="mv-list"><li><span class="hint">جاري التحميل...</span></li></ul>
+      <div class="mv-more" id="mv-more" hidden><button class="btn small" type="button" id="mv-more-btn">عرض أكتر</button></div>
+    </section>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -134,15 +234,22 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/search.js"></script>
+  <script defer src="assets/inv-groups.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("stock-count");
+    const $ = (id) => document.getElementById(id);
+    $("search-ic").outerHTML = olvIcon("search");
+    $("sc-clear").innerHTML = olvIcon("refresh") + "<span>تفريغ الأعداد</span>";
+    $("mv-title").innerHTML = olvIcon("clipboard") + "<span>آخر الحركات اليدوية</span>";
     const DRAFT_KEY = "olv_stock_count_draft_v1";
     const REASONS = { count: "جرد", adjust: "تعديل", waste: "هدر/تالف" };
     let items = [];           // { key, kind, id, name, unit, cat, stock, cost }
     let counts = {};          // key -> النص المكتوب بالخانة
+    let kindFilter = "all", onlyLeft = false;
+    const openCats = new Set();
 
-    const fmtQty = (n) => String(Math.round(Number(n) * 1000) / 1000);
+    const fmtQty = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 3 });
     const parsedCount = (key) => {
       const v = counts[key];
       if (v === undefined || v === null || String(v).trim() === "") return null;
@@ -156,61 +263,112 @@
 
     async function loadItems() {
       const [ing, sup] = await Promise.all([
-        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, unit_price").order("name"),
+        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, unit_price, category").order("name"),
         window.supabaseClient.from("supplies").select("id, name, unit, category, current_stock, unit_price").order("category").order("name"),
       ]);
       if (ing.error) throw ing.error;
       if (sup.error) throw sup.error;
+      // المواد الخام بأقسامها (نفس صفحة المخزون)، والمستلزمات بتصنيفها
       items = [
-        ...(ing.data || []).map((r) => ({ key: "ingredient:" + r.id, kind: "ingredient", id: r.id, name: r.name, unit: r.unit, cat: "مواد خام", stock: Number(r.current_stock) || 0, cost: Number(r.unit_price) || 0 })),
-        ...(sup.data || []).map((r) => ({ key: "supply:" + r.id, kind: "supply", id: r.id, name: r.name, unit: r.unit, cat: "مستلزمات — " + (r.category || "عام"), stock: Number(r.current_stock) || 0, cost: Number(r.unit_price) || 0 })),
+        ...(ing.data || []).map((r) => ({ key: "ingredient:" + r.id, kind: "ingredient", id: r.id, name: r.name, unit: r.unit, cat: olvIngCategory(r), icon: olvIngCatIcon(olvIngCategory(r)), stock: Number(r.current_stock) || 0, cost: Number(r.unit_price) || 0 })),
+        ...(sup.data || []).map((r) => ({ key: "supply:" + r.id, kind: "supply", id: r.id, name: r.name, unit: r.unit, cat: "مستلزمات: " + (r.category || "عام"), icon: "archive", stock: Number(r.current_stock) || 0, cost: Number(r.unit_price) || 0 })),
       ];
       // نشيل من المسودة أي صنف انحذف
       const keys = new Set(items.map((i) => i.key));
       Object.keys(counts).forEach((k) => { if (!keys.has(k)) delete counts[k]; });
     }
 
-    function diffCells(it) {
+    function diffHtml(it) {
       const c = parsedCount(it.key);
-      if (c === null) return { diff: "", val: "" };
-      if (Number.isNaN(c)) return { diff: `<span class="sc-diff neg">رقم غير صالح</span>`, val: "" };
+      if (c === null) return "";
+      if (Number.isNaN(c)) return `<span class="sc-diff neg">رقم غلط</span>`;
       const d = Math.round((c - it.stock) * 1000) / 1000;
-      if (d === 0) return { diff: `<span class="hint" style="margin:0;">مطابق</span>`, val: "" };
+      if (d === 0) return `<span class="sc-diff eq">مطابق</span>`;
       const cls = d < 0 ? "neg" : "pos";
-      return {
-        diff: `<span class="sc-diff ${cls}">${d > 0 ? "+" : ""}${fmtQty(d)}</span>`,
-        val: it.cost ? `<span class="sc-diff ${cls}">${olvFormatMoney(d * it.cost)}</span>` : `<span class="hint" style="margin:0;">بدون تكلفة</span>`,
-      };
+      return `<span class="sc-diff ${cls}"><bdi dir="ltr">${d > 0 ? "+" : ""}${fmtQty(d)}</bdi><small>${it.cost ? `<bdi dir="ltr">${olvFormatMoney(d * it.cost)}</bdi>` : "بلا سعر"}</small></span>`;
     }
 
+    const kindOk = (i) => kindFilter === "all" || i.kind === kindFilter;
     function visibleItems() {
-      const q = document.getElementById("sc-q").value;
-      const k = document.getElementById("sc-kind").value;
-      // بحث بالكلمات (معس بطيخ = معسل مزايا بطيخ)، وبيشمل اسم التصنيف
-      return items.filter((i) => (k === "all" || i.kind === k) && olvSearchMatch(i.name + " " + i.cat, q));
+      const q = $("sc-q").value;
+      // بحث بالكلمات (معس بطيخ = معسل مزايا بطيخ)، وبيشمل اسم القسم
+      return items.filter((i) => kindOk(i) && olvSearchMatch(i.name + " " + i.cat, q) && (!onlyLeft || parsedCount(i.key) === null));
+    }
+    const catOrder = () => [...OLV_ING_CATS.map((c) => c.name)];
+    function sortCats(cats) {
+      const order = catOrder();
+      return cats.sort((a, b) => {
+        const sa = a.startsWith("مستلزمات") ? 1 : 0, sb = b.startsWith("مستلزمات") ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        const ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia < 0 ? 98 : ia) - (ib < 0 ? 98 : ib) || a.localeCompare(b, "ar");
+      });
+    }
+
+    function renderChips() {
+      const n = (k) => items.filter((i) => k === "all" || i.kind === k).length;
+      $("kind-chips").innerHTML = [["all", "الكل"], ["ingredient", "المواد الخام"], ["supply", "المستلزمات"]].map(([k, l]) =>
+        `<button class="sc-chip" type="button" data-kind="${k}" aria-pressed="${kindFilter === k}">${l} <span class="n">${n(k)}</span></button>`).join("");
+      $("only-left").setAttribute("aria-pressed", String(onlyLeft));
+    }
+
+    function lineHtml(it) {
+      const c = counts[it.key];
+      return `<div class="ln${parsedCount(it.key) !== null ? " counted" : ""}" data-key="${olvEsc(it.key)}">
+        <div class="nm"><b title="${olvEsc(it.name)}">${olvEsc(it.name)}</b><small>بالنظام: ${olvEsc(fmtQty(it.stock))} ${olvEsc(it.unit || "")}</small></div>
+        <input type="number" class="sc-count" min="0" step="any" inputmode="decimal" dir="ltr" value="${olvEsc(c ?? "")}" placeholder="العدد" aria-label="العدد الفعلي لـ ${olvEsc(it.name)}">
+        <div class="df" data-diff>${diffHtml(it)}</div>
+      </div>`;
+    }
+
+    function catStats(cat) {
+      const all = items.filter((i) => i.cat === cat && kindOk(i));
+      let done = 0, nd = 0;
+      all.forEach((i) => { const c = parsedCount(i.key); if (c === null || Number.isNaN(c)) return; done++; if (Math.abs(c - i.stock) > 0.0005) nd++; });
+      return { total: all.length, done, nd };
+    }
+    function catHeadInner(cat) {
+      const s = catStats(cat);
+      const pc = s.total ? Math.round((s.done / s.total) * 100) : 0;
+      return { done: s.total > 0 && s.done === s.total, html: `
+        <span class="ci">${olvIcon(s.total > 0 && s.done === s.total ? "check" : (items.find((i) => i.cat === cat) || {}).icon || "tag")}</span>
+        <span class="t"><b>${olvEsc(cat)}</b><span class="pbar" aria-hidden="true"><i style="width:${pc}%"></i></span></span>
+        <span class="m"><b>${s.done} من ${s.total}</b>${s.nd ? `<span class="neg">${s.nd} فيها فرق</span>` : s.done ? "انعدّ" : "ما انعدّ"}</span>
+        ${olvIcon("chevronDown", "chev")}` };
     }
 
     function render() {
-      const body = document.getElementById("sc-body");
+      renderChips();
+      const box = $("sc-list");
+      if (!items.length) { box.innerHTML = `<p class="sc-empty">ما في أصناف بالمخزون بعد</p>`; olvEmptyStates(box); $("toggle-all").hidden = true; updateSummary(); return; }
       const rows = visibleItems();
+      const q = $("sc-q").value.trim();
       if (!rows.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="5">${items.length ? "ما في نتائج" : "ما في أصناف بالمخزون بعد"}</td></tr>`;
-      } else {
-        let lastCat = null;
-        body.innerHTML = rows.map((it) => {
-          const head = it.cat !== lastCat ? `<tr class="sc-cat"><td colspan="5">${olvEsc(it.cat)}</td></tr>` : "";
-          lastCat = it.cat;
-          const dc = diffCells(it);
-          return `${head}<tr data-key="${olvEsc(it.key)}">
-            <td>${olvEsc(it.name)}</td>
-            <td>${olvEsc(fmtQty(it.stock))} ${olvEsc(it.unit)}</td>
-            <td><input type="number" class="sc-count" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(counts[it.key] ?? "")}" placeholder="—"></td>
-            <td data-diff>${dc.diff}</td>
-            <td data-val>${dc.val}</td>
-          </tr>`;
-        }).join("");
+        box.innerHTML = `<p class="sc-empty">${onlyLeft && !q ? "كل شي بهالاختيار انعدّ. اكبس «حفظ الجرد» تحت." : "ما في نتائج"}</p>`;
+        $("toggle-all").hidden = true; updateSummary(); return;
       }
+      const groups = new Map();
+      rows.forEach((i) => { if (!groups.has(i.cat)) groups.set(i.cat, []); groups.get(i.cat).push(i); });
+      const cats = sortCats([...groups.keys()]);
+      const autoOpen = !!q || rows.length <= 12;
+      $("toggle-all").hidden = autoOpen || cats.length < 2;
+      $("toggle-all").textContent = cats.every((c) => openCats.has(c)) ? "سكّر كل الأقسام" : "افتح كل الأقسام";
+      box.innerHTML = cats.map((cat) => {
+        const open = autoOpen || openCats.has(cat);
+        const h = catHeadInner(cat);
+        return `<div class="cat${open ? " open" : ""}${h.done ? " done" : ""}" data-cat="${olvEsc(cat)}">
+          <button type="button" class="cat-h" aria-expanded="${open}">${h.html}</button>
+          <div class="cat-body"${open ? "" : " hidden"}>${open ? groups.get(cat).map(lineHtml).join("") : ""}</div>
+        </div>`;
+      }).join("");
       updateSummary();
+    }
+    function refreshCatHead(cat) {
+      const el = [...document.querySelectorAll("#sc-list .cat")].find((x) => x.dataset.cat === cat);
+      if (!el) return;
+      const h = catHeadInner(cat);
+      el.querySelector(".cat-h").innerHTML = h.html;
+      el.classList.toggle("done", h.done);
     }
 
     function updateSummary() {
@@ -222,43 +380,65 @@
         const d = c - it.stock;
         if (Math.abs(d) > 0.0005) { nd++; val += d * it.cost; }
       });
-      document.getElementById("sc-n").textContent = n;
-      document.getElementById("sc-nd").textContent = nd;
-      const v = document.getElementById("sc-val");
-      v.textContent = olvFormatMoney(val);
-      v.className = val < -0.004 ? "sc-diff neg" : val > 0.004 ? "sc-diff pos" : "";
+      const total = items.filter(kindOk).length;
+      $("sc-n").textContent = n; $("p-n").textContent = n;
+      $("p-of").textContent = `من ${total}`;
+      $("p-bar").style.width = (total ? Math.min(100, (n / total) * 100) : 0) + "%";
+      $("sc-nd").textContent = nd; $("p-nd").textContent = nd;
+      const cls = val < -0.004 ? "neg" : val > 0.004 ? "pos" : "";
+      $("sc-val").textContent = olvFormatMoney(val); $("sc-val").className = cls ? "sc-diff " + cls : "";
+      $("p-val").textContent = olvFormatMoney(val); $("p-val").className = "k " + cls;
     }
 
-    document.getElementById("sc-body").addEventListener("input", (e) => {
+    $("sc-list").addEventListener("click", (e) => {
+      const head = e.target.closest(".cat-h"); if (!head) return;
+      const wrap = head.closest(".cat"), cat = wrap.dataset.cat, body = wrap.querySelector(".cat-body");
+      const willOpen = body.hidden;
+      if (willOpen) { body.innerHTML = visibleItems().filter((i) => i.cat === cat).map(lineHtml).join(""); openCats.add(cat); }
+      else openCats.delete(cat);
+      body.hidden = !willOpen;
+      wrap.classList.toggle("open", willOpen);
+      head.setAttribute("aria-expanded", String(willOpen));
+      if (willOpen && window.matchMedia("(hover:hover)").matches) { const f = body.querySelector(".sc-count"); if (f) f.focus(); }
+    });
+    $("sc-list").addEventListener("input", (e) => {
       if (!e.target.classList.contains("sc-count")) return;
-      const tr = e.target.closest("tr");
-      const it = items.find((i) => i.key === tr.dataset.key);
+      const ln = e.target.closest(".ln");
+      const it = items.find((i) => i.key === ln.dataset.key);
       if (!it) return;
       counts[it.key] = e.target.value;
       if (String(e.target.value).trim() === "") delete counts[it.key];
       saveDraft();
-      const dc = diffCells(it);
-      tr.querySelector("[data-diff]").innerHTML = dc.diff;
-      tr.querySelector("[data-val]").innerHTML = dc.val;
+      ln.querySelector("[data-diff]").innerHTML = diffHtml(it);
+      ln.classList.toggle("counted", parsedCount(it.key) !== null);
+      refreshCatHead(it.cat);
       updateSummary();
     });
     // Enter = انزل للخانة اللي بعدها (أسرع وإنت بتعدّ)
-    document.getElementById("sc-body").addEventListener("keydown", (e) => {
+    $("sc-list").addEventListener("keydown", (e) => {
       if (e.key !== "Enter" || !e.target.classList.contains("sc-count")) return;
       e.preventDefault();
-      const all = [...document.querySelectorAll("#sc-body .sc-count")];
+      const all = [...document.querySelectorAll("#sc-list .sc-count")];
       const next = all[all.indexOf(e.target) + 1];
       if (next) { next.focus(); next.select(); }
     });
-    document.getElementById("sc-q").addEventListener("input", render);
-    document.getElementById("sc-kind").addEventListener("change", render);
-    document.getElementById("sc-clear").addEventListener("click", () => {
+    $("kind-chips").addEventListener("click", (e) => { const b = e.target.closest("[data-kind]"); if (!b) return; kindFilter = b.dataset.kind; render(); });
+    $("only-left").addEventListener("click", () => { onlyLeft = !onlyLeft; render(); });
+    $("toggle-all").addEventListener("click", () => {
+      const cats = [...new Set(visibleItems().map((i) => i.cat))];
+      const allOpen = cats.every((c) => openCats.has(c));
+      cats.forEach((c) => allOpen ? openCats.delete(c) : openCats.add(c));
+      render();
+    });
+    $("sc-q").addEventListener("input", render);
+    $("sc-q").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.target.value = ""; render(); } });
+    $("sc-clear").addEventListener("click", () => {
       if (Object.keys(counts).length && !confirm("تفريغ كل الأعداد المكتوبة؟")) return;
       counts = {}; saveDraft(); render();
     });
 
-    document.getElementById("sc-save").addEventListener("click", async () => {
-      const errBox = document.getElementById("err");
+    $("sc-save").addEventListener("click", async () => {
+      const errBox = $("err");
       errBox.style.display = "none";
       const bad = items.find((it) => Number.isNaN(parsedCount(it.key)));
       if (bad) { olvShowError(errBox, new Error(`رقم غير صالح عند "${bad.name}"`)); return; }
@@ -269,15 +449,15 @@
       const nd = payload.filter((p) => { const it = items.find((i) => i.id === p.id && i.kind === p.kind); return Math.abs(p.counted - it.stock) > 0.0005; }).length;
       if (!confirm(`حفظ جرد ${payload.length} صنف؟ (${nd} منهم فيهم فرق، كمياتهم رح تتعدّل للعدد الفعلي)`)) return;
       if (!navigator.onLine) { olvShowError(errBox, new Error("حفظ الجرد بيحتاج نت — الأعداد محفوظة على الجهاز، احفظ لما يرجع")); return; }
-      const btn = document.getElementById("sc-save");
+      const btn = $("sc-save");
       btn.disabled = true;
       try {
         const { data, error } = await window.supabaseClient.rpc("record_stock_count", {
-          p_counts: payload, p_note: document.getElementById("sc-note").value.trim() || null,
+          p_counts: payload, p_note: $("sc-note").value.trim() || null,
         });
         if (error) throw error;
         counts = {}; saveDraft();
-        document.getElementById("sc-note").value = "";
+        $("sc-note").value = "";
         await Promise.all([loadItems(), loadMovements()]);
         render();
         const vd = Number(data && data.value_diff) || 0;
@@ -290,31 +470,51 @@
       }
     });
 
+    // ===== سجل الحركات: ملخّص 30 يوم (رسم بسيط) + القائمة =====
+    let mvRows = [], mvNames = {}, mvShown = 10;
     async function loadMovements() {
-      const body = document.getElementById("mv-body");
+      const since = new Date(Date.now() - 30 * 864e5).toISOString();
       const { data, error } = await window.supabaseClient
-        .from("stock_movements").select("*").order("created_at", { ascending: false }).limit(50);
-      if (error) { body.innerHTML = `<tr class="empty-row"><td colspan="7">تعذّر تحميل السجل: ${olvEsc(error.message)}</td></tr>`; return; }
-      if (!data || !data.length) { body.innerHTML = `<tr class="empty-row"><td colspan="7">ما في حركات بعد</td></tr>`; return; }
-      const ids = [...new Set(data.map((m) => m.created_by).filter(Boolean))];
-      const names = {};
+        .from("stock_movements").select("*").gte("created_at", since).order("created_at", { ascending: false }).limit(300);
+      if (error) { $("mv-list").innerHTML = `<li><span class="hint">تعذّر تحميل السجل: ${olvEsc(error.message)}</span></li>`; return; }
+      mvRows = data || [];
+      const ids = [...new Set(mvRows.map((m) => m.created_by).filter(Boolean))];
       if (ids.length) {
         const { data: profs } = await window.supabaseClient.from("profiles").select("id, full_name").in("id", ids);
-        (profs || []).forEach((p) => { names[p.id] = p.full_name; });
+        (profs || []).forEach((p) => { mvNames[p.id] = p.full_name; });
       }
-      body.innerHTML = data.map((m) => {
-        const d = Number(m.delta);
-        return `<tr>
-          <td>${olvEsc(new Date(m.created_at).toLocaleString("ar-JO", { dateStyle: "short", timeStyle: "short" }))}</td>
-          <td>${olvEsc(m.item_name || "—")}</td>
-          <td>${olvEsc(REASONS[m.reason] || m.reason)}</td>
-          <td><span class="sc-diff ${d < 0 ? "neg" : "pos"}">${d > 0 ? "+" : ""}${olvEsc(fmtQty(d))}</span></td>
-          <td>${m.stock_after == null ? "—" : olvEsc(fmtQty(m.stock_after))}</td>
-          <td>${olvEsc(names[m.created_by] || "—")}</td>
-          <td>${olvEsc(m.note || "")}</td>
-        </tr>`;
-      }).join("");
+      renderMovements();
     }
+    function mvValue(m) {
+      const it = items.find((i) => i.kind === m.item_kind && i.id === m.item_id);
+      return it && it.cost ? Number(m.delta) * it.cost : 0;
+    }
+    function renderMovements() {
+      const sums = { count: { v: 0, n: 0 }, waste: { v: 0, n: 0 }, adjust: { v: 0, n: 0 } };
+      mvRows.forEach((m) => { const s = sums[m.reason]; if (s) { s.v += mvValue(m); s.n++; } });
+      const max = Math.max(...Object.values(sums).map((s) => Math.abs(s.v)), 0.0001);
+      const labels = { count: "فرق الجرد", waste: "الهدر والتالف", adjust: "تعديلات يدوية" };
+      $("mv-chart").innerHTML = Object.entries(sums).map(([k, s]) => `<li>
+        <div class="lbl">${labels[k]}</div>
+        <div class="v ${s.v < -0.004 ? "sc-diff neg" : s.v > 0.004 ? "sc-diff pos" : ""}">${olvFormatMoney(s.v)}</div>
+        <div class="n">${s.n ? `${s.n} حركة` : "ولا حركة"}</div>
+        <div class="tr" aria-hidden="true"><i class="${s.v > 0 ? "pos" : ""}" style="width:${(Math.abs(s.v) / max) * 100}%"></i></div>
+      </li>`).join("");
+      if (!mvRows.length) { $("mv-list").innerHTML = `<li><span class="hint">ما في حركات بآخر 30 يوم</span></li>`; $("mv-more").hidden = true; return; }
+      $("mv-list").innerHTML = mvRows.slice(0, mvShown).map((m) => {
+        const d = Number(m.delta), v = mvValue(m);
+        const when = new Date(m.created_at).toLocaleString("ar-JO", { dateStyle: "short", timeStyle: "short", numberingSystem: "latn" });
+        const who = mvNames[m.created_by];
+        return `<li>
+          <div class="nm"><b title="${olvEsc(m.item_name || "")}">${olvEsc(m.item_name || "—")}</b>
+            <small>${olvEsc(REASONS[m.reason] || m.reason)} · ${olvEsc(when)}${who ? " · " + olvEsc(who) : ""}${m.note ? " · " + olvEsc(m.note) : ""}</small></div>
+          <div class="r"><span class="sc-diff ${d < 0 ? "neg" : "pos"}"><bdi dir="ltr">${d > 0 ? "+" : ""}${olvEsc(fmtQty(d))}</bdi></span>
+            <small>${v ? `<bdi dir="ltr">${olvEsc(olvFormatMoney(v))}</bdi>` : m.stock_after == null ? "" : "بعدها " + olvEsc(fmtQty(m.stock_after))}</small></div>
+        </li>`;
+      }).join("");
+      $("mv-more").hidden = mvRows.length <= mvShown;
+    }
+    $("mv-more-btn").addEventListener("click", () => { mvShown += 20; renderMovements(); });
 
     (async () => {
       const session = await olvRequireAuth();
@@ -324,7 +524,7 @@
         await loadItems();
         render();
       } catch (err) {
-        olvShowError(document.getElementById("err"), err);
+        olvShowError($("err"), err);
       }
       loadMovements();
     })();

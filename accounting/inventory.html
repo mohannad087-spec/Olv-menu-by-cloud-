@@ -59,65 +59,228 @@
 })();
 </script>
 <style>
-  .low-stock{color:var(--danger-hi); font-weight:700;}
-  .low-stock .icon{width:13px; height:13px; vertical-align:-2px;}
-  .urgent-banner{
-    background:rgba(193,88,63,.12); border:1px solid rgba(193,88,63,.4); border-radius:12px;
-    padding:16px; margin-bottom:20px;
+  .wrap.inv-wrap{max-width:1120px;}
+  .iv-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .iv-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .iv-head .iv-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .iv-head-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .iv-head-actions .btn, .iv-urgent-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px; text-decoration:none;}
+
+  .stats.iv-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  .iv-stats .value.bad{color:var(--danger-hi);}
+  .iv-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  @media (max-width:900px){ .stats.iv-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.iv-stats{gap:10px;}
+    .iv-stats .stat{padding:13px;}
+    .iv-stats .stat .stat-icon{display:none;}
+    .olv-glass .iv-stats .stat .value{font-size:22px;}
   }
-  .urgent-banner h3{color:var(--danger-hi); font-size:15px; margin-bottom:10px; display:flex; align-items:center; gap:7px;}
-  .urgent-item{display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px;}
-  .urgent-item .days{color:var(--danger-hi); font-weight:700;}
-  .stock-adjust-input{width:80px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:8px; font-size:16px; font-family:'Tajawal',sans-serif;}
-  .stock-adjust-reason{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:8px; font-size:14px; font-family:'Tajawal',sans-serif;}
-  .olv-add-box summary{cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+
+  .iv-grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:14px; margin-bottom:14px;}
+  .iv-grid > *{min-width:0;}
+  .iv-grid > .group{margin-bottom:0;}
+  @media (max-width:900px){ .iv-grid{grid-template-columns:minmax(0,1fr);} }
+  .iv-summary{font-size:13.5px; color:var(--muted); margin:12px 0 0; line-height:1.7;}
+  .iv-summary b{color:var(--paper);}
+
+  /* حالة المخزون: شريط واحد مقسوم (جزء من كل) + مفتاح بينكبس كفلتر */
+  .st-stack{display:flex; height:16px; border-radius:999px; overflow:hidden; background:var(--ink-3); gap:2px;}
+  .st-stack i{display:block; height:100%; min-width:4px; transition:flex-grow .5s var(--spring);}
+  .st-urgent{background:var(--danger);}
+  .st-zero{background:repeating-linear-gradient(135deg, var(--hair) 0 5px, var(--ink-3) 5px 10px); outline:1px solid var(--hair); outline-offset:-1px;}
+  .st-ok{background:var(--olive);}
+  .st-legend{list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:4px;}
+  .st-legend button{width:100%; display:flex; align-items:center; gap:10px; min-height:44px; padding:6px 10px; border-radius:12px;
+    background:none; border:1px solid transparent; color:inherit; font:inherit; font-size:14px; cursor:pointer; text-align:right;
+    transition:background .15s var(--ease), border-color .15s var(--ease);}
+  .st-legend button:hover{background:rgba(var(--gold-rgb),.06);}
+  .st-legend button[aria-pressed="true"]{border-color:var(--gold); background:rgba(var(--gold-rgb),.08);}
+  .st-legend button:focus-visible{outline:2px solid var(--gold); outline-offset:1px;}
+  .st-legend .sw{width:12px; height:12px; border-radius:4px; flex:none;}
+  .st-legend .nm{flex:1;}
+  .st-legend .nm small{display:block; color:var(--muted); font-size:12px; line-height:1.4;}
+  .st-legend .n{font-weight:800; font-variant-numeric:tabular-nums;}
+  .st-legend .pc{width:42px; text-align:left; color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+
+  /* قيمة/عدد المواد بكل قسم: أشرطة مرتّبة، كل شريط بيفتح قسمه تحت */
+  .cat-bars{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+  .cat-bars button{width:100%; display:block; padding:7px 8px; border-radius:12px; background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; min-height:44px;}
+  .cat-bars button:hover{background:rgba(var(--gold-rgb),.06);}
+  .cat-bars button:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .cat-bars .row{display:flex; width:100%; align-items:baseline; gap:8px; margin-bottom:6px; font-size:13.5px;}
+  .cat-bars .row .icon{width:15px; height:15px; color:var(--muted); align-self:center; flex:none;}
+  .cat-bars .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cat-bars .amt{font-weight:700; font-variant-numeric:tabular-nums; flex:none;}
+  .cat-bars .sub{color:var(--muted); font-size:12px; flex:none;}
+  .cat-bars .tr{display:block; height:7px; border-radius:999px; background:var(--ink-3); overflow:hidden;}
+  .cat-bars .tr i{display:block; height:100%; border-radius:999px; background:var(--olive); transform-origin:right; animation:bar-in .6s var(--spring) both;}
+  .cat-bars li:nth-child(-n+3) .amt{color:var(--gold-hi);}
+  @keyframes bar-in{from{transform:scaleX(0);}}
+
+  /* بدها طلب */
+  .iv-urgent{border-color:rgba(193,88,63,.35);}
+  .iv-urgent-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .iv-urgent-head h2{margin:0; color:var(--danger-hi);}
+  .iv-urgent-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  .ug-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px;}
+  .ug-list li{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background:var(--ink-3); font-size:13.5px; min-width:0;}
+  .ug-list .nm{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700;}
+  .ug-list .why{flex:none; color:var(--danger-hi); font-size:12.5px; font-weight:700; white-space:nowrap;}
+  .ug-more{margin-top:8px; font-size:13px; color:var(--muted);}
+
+  /* القائمة: أقسام بتنفتح وبتتسكّر */
+  .iv-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;}
+  .iv-tools h2{margin:0; flex:1; min-width:140px;}
+  .iv-search{position:relative; flex:1; max-width:340px; min-width:200px;}
+  .iv-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--muted); pointer-events:none;}
+  .iv-search input{width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; padding-inline-start:38px; font-size:16px;
+    background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .iv-search input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .iv-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;}
+  .iv-chip{display:inline-flex; align-items:center; gap:7px; min-height:40px; padding:0 14px; border-radius:999px; border:1px solid var(--hair);
+    background:var(--ink-2); color:var(--paper); font:inherit; font-size:13.5px; cursor:pointer; transition:background .15s var(--ease), transform .08s var(--ease);}
+  .iv-chip .n{color:var(--muted); font-size:12px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .iv-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .iv-chip[aria-pressed="true"] .n{color:var(--on-gold);}
+  .iv-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .iv-chip:active{transform:scale(.97);}
+  .iv-chip .sw{width:9px; height:9px; border-radius:3px;}
+  .iv-actions-row{display:flex; justify-content:flex-start; gap:8px; margin-bottom:6px;}
+  .iv-linkbtn{background:none; border:0; color:var(--gold-hi); font:inherit; font-size:13px; cursor:pointer; padding:8px 2px; min-height:36px;}
+
+  .cat{border-bottom:1px solid var(--hair-soft);}
+  .cat:last-child{border-bottom:0;}
+  .cat-h{width:100%; display:grid; grid-template-columns:40px minmax(0,1fr) auto 18px; align-items:center; gap:12px; min-height:64px; padding:10px 4px;
+    background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:14px; transition:background .15s var(--ease);}
+  .cat-h:hover{background:rgba(var(--gold-rgb),.06);}
+  .cat-h:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .cat-h .ci{width:40px; height:40px; border-radius:12px; background:var(--ink-3); display:grid; place-items:center; color:var(--gold-hi);}
+  .cat-h .ci .icon{width:20px; height:20px;}
+  .cat-h .t{min-width:0;}
+  .cat-h .t b{display:block; font-size:15.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cat-h .t .mini{display:flex; height:5px; border-radius:999px; overflow:hidden; background:var(--ink-3); gap:1px; margin-top:7px; max-width:220px;}
+  .cat-h .t .mini i{display:block; height:100%;}
+  .cat-h .m{display:flex; flex-direction:column; align-items:flex-end; gap:3px; white-space:nowrap; font-size:12.5px; color:var(--muted);}
+  .cat-h .m .cnt{font-weight:700; color:var(--paper); font-size:13.5px; font-variant-numeric:tabular-nums;}
+  .cat-h .m .alert{color:var(--danger-hi); font-weight:700; display:inline-flex; align-items:center; gap:4px;}
+  .cat-h .m .alert .icon{width:13px; height:13px;}
+  .cat-h .chev{width:18px; height:18px; color:var(--muted); transition:transform .2s var(--spring);}
+  .cat.open .cat-h .chev{transform:rotate(180deg);}
+  .cat-body{padding:0 0 12px; padding-inline-start:52px;}
+  .cat-body:not([hidden]){animation:od-in .18s var(--spring) both;}
+  @keyframes od-in{from{opacity:0; transform:translateY(-4px);}}
+  @media (max-width:640px){ .cat-body{padding-inline-start:0;} .cat-h{grid-template-columns:40px minmax(0,1fr) auto; gap:10px;} .cat-h .chev{display:none;} }
+
+  .it{border-radius:0;}
+  .it.open{border-radius:14px;}
+  .it.open + .it, .it + .it.open{border-top-color:transparent;}
+  .it + .it{border-top:1px solid var(--hair-soft);}
+  .it-row{width:100%; display:grid; grid-template-columns:10px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:56px; padding:8px 8px;
+    background:none; border:0; color:inherit; font:inherit; text-align:right; cursor:pointer; border-radius:12px;}
+  .it-row:hover{background:rgba(var(--gold-rgb),.06);}
+  .it-row:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .it-row .dot{width:10px; height:10px; border-radius:50%;}
+  .it-row .nm{min-width:0;}
+  .it-row .nm b{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font-size:14.5px; font-weight:700; overflow-wrap:anywhere; line-height:1.4;}
+  .it.open .it-row .nm b{display:block;}
+  .it-row .nm small{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
+  .it-row .nm small .bad{color:var(--danger-hi); font-weight:700;}
+  .it-row .q{text-align:left; white-space:nowrap;}
+  .it-row .q b{font-size:16px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .it-row .q span{color:var(--muted); font-size:12px; margin-inline-start:4px;}
+  .it.s-urgent .it-row .q b{color:var(--danger-hi);}
+  .it.s-zero .it-row .q b{color:var(--muted);}
+  .it.open{background:var(--ink-3);}
+  .it-detail{padding:4px 10px 14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; align-items:end;}
+  .it-detail:not([hidden]){animation:od-in .18s var(--spring) both;}
+  .it-detail .f label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px;}
+  .it-detail .f .line{display:flex; gap:6px;}
+  .it-detail input, .it-detail select{min-height:44px; box-sizing:border-box; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
+    padding:8px 10px; border-radius:12px; font-size:16px; font-family:'Tajawal',sans-serif; min-width:0;}
+  .it-detail input[type=number]{width:96px;}
+  .it-detail select{flex:1;}
+  .it-detail input:focus, .it-detail select:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .it-detail .btn{min-height:44px;}
+  .it-detail .del{justify-self:start;}
+  .iv-empty{padding:28px 8px; text-align:center; color:var(--muted);}
+
+  .olv-add-box summary{cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:44px;}
   .olv-add-box summary::-webkit-details-marker{display:none;}
   .olv-add-box summary::before{content:"＋"; color:var(--gold-hi); font-weight:700;}
   .olv-add-box[open] summary::before{content:"－";}
-  .inv-filter{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
-  .inv-filter input[type=search]{flex:1; min-width:220px; box-sizing:border-box; padding:12px 14px; font-size:16px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:10px; font-family:'Tajawal',sans-serif;}
-  .inv-filter input[type=search]:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(var(--gold-rgb),.18);}
-  .inv-low{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); white-space:nowrap;}
-  .thr-input{width:76px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:8px; font-size:15px; font-family:'Tajawal',sans-serif; box-sizing:border-box;}
-  .thr-input:focus{outline:none; border-color:var(--gold);}
+
+  @media (prefers-reduced-motion: reduce){
+    .cat-h .chev, .iv-chip, .st-stack i{transition:none;}
+    .cat-body:not([hidden]), .it-detail:not([hidden]), .cat-bars .tr i{animation:none;}
+    .iv-chip:active{transform:none;}
+  }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap inv-wrap">
     <div class="err" id="err"></div>
 
-    <p class="hint" style="margin-bottom:14px;">وصفات الأصناف صارت بقسم <a href="product-recipes.html" style="color:var(--gold-hi); font-weight:700;">الأصناف والوصفات</a>.</p>
-
-    <div id="tab-stock">
-      <div class="urgent-banner" id="urgent-banner" hidden>
-        <h3 id="urgent-title"></h3>
-        <div id="urgent-list"></div>
+    <header class="iv-head">
+      <div>
+        <h1>المواد الخام</h1>
+        <div class="iv-sub" id="iv-sub">&nbsp;</div>
       </div>
-
-      <div class="group">
-        <h2>المخزون الحالي</h2>
-        <p class="hint" style="margin-bottom:12px;">
-          عمود "يكفي لـ" تقدير آلي بناءً على متوسط مبيعات آخر 14 يومًا من
-          الأصناف الأساسية (لا يشمل استهلاك الإضافات حاليًا)، ويحتاج بضعة
-          أيام من المبيعات الفعلية حتى يصبح دقيقًا.
-        </p>
-        <div class="inv-filter">
-          <input type="search" id="inv-q" placeholder="🔍 ابحث بكلمة — مثال: معس بطيخ" autocomplete="off" aria-label="ابحث في المخزون">
-          <label class="inv-low"><input type="checkbox" id="inv-low"> الناقص فقط</label>
-          <span class="hint" id="inv-count" style="margin:0;"></span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th title="لما الكمية توصل هالرقم أو تنزل عنه بتظهر «ناقص» وبتقترح تجهيز الطلبية كمية">حد التنبيه</th><th>يكفي لـ</th><th>تعديل</th><th></th></tr></thead>
-            <tbody id="ing-body">
-              <tr class="empty-row"><td colspan="7">جاري التحميل...</td></tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="iv-head-actions">
+        <a class="btn small" id="go-count" href="stock-count.html"></a>
+        <button class="btn small gold" id="go-add" type="button"></button>
       </div>
+    </header>
 
-      <details class="group olv-add-box">
+    <div class="stats iv-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-val"></div>
+        <div class="stat-body"><div class="label">قيمة المخزون</div><div class="value" id="k-val">—</div><span class="note" id="k-val-note"></span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-urgent"></div>
+        <div class="stat-body"><div class="label">بدها طلب</div><div class="value" id="k-urgent">—</div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-zero"></div>
+        <div class="stat-body"><div class="label">آخر جرد</div><div class="value" id="k-count">—</div><span class="note" id="k-count-note"></span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-ok"></div>
+        <div class="stat-body"><div class="label">هدر آخر 30 يوم</div><div class="value" id="k-waste">—</div><span class="note" id="k-waste-note"></span></div></div></div>
+    </div>
+
+    <section class="group iv-urgent" id="urgent-box" hidden>
+      <div class="iv-urgent-head">
+        <h2 id="urgent-title"></h2>
+        <a class="btn small" id="go-order" href="purchase-orders.html"></a>
+      </div>
+      <ul class="ug-list" id="urgent-list"></ul>
+      <div class="ug-more" id="urgent-more" hidden></div>
+    </section>
+
+    <div class="iv-grid">
+      <section class="group">
+        <h2 id="status-title"></h2>
+        <div class="st-stack" id="st-stack" role="img"></div>
+        <ul class="st-legend" id="st-legend"></ul>
+      </section>
+      <section class="group">
+        <h2 id="cat-title"></h2>
+        <ul class="cat-bars" id="cat-bars"></ul>
+        <p class="iv-summary" id="cat-summary"></p>
+      </section>
+    </div>
+
+    <section class="group" id="list-box">
+      <div class="iv-tools">
+        <h2 id="list-title"></h2>
+        <label class="iv-search">
+          <span class="olv-sr">ابحث بالمواد</span>
+          <span id="search-ic"></span>
+          <input type="search" id="inv-q" placeholder="ابحث: معس بطيخ" autocomplete="off">
+        </label>
+      </div>
+      <div class="iv-chips" id="status-chips" role="group" aria-label="الحالة"></div>
+      <div class="iv-actions-row"><button class="iv-linkbtn" type="button" id="toggle-all"></button></div>
+      <div id="cat-list"><p class="iv-empty">جاري التحميل...</p></div>
+    </section>
+
+      <details class="group olv-add-box" id="add-box">
         <summary><h2 style="display:inline; margin:0;">إضافة مواد جديدة</h2> <span class="hint">(يدوي، من الكتالوج، أو من وصف الأصناف)</span></summary>
         <div style="margin-top:14px;">
       <div class="group" style="margin-bottom:12px;">
@@ -178,7 +341,6 @@
 
         </div>
       </details>
-    </div>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -196,176 +358,410 @@
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/catalog.js"></script>
   <script defer src="assets/search.js"></script>
+  <script defer src="assets/inv-groups.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("inventory");
-    document.getElementById("urgent-title").innerHTML = olvIcon("warning") + "<span>مواد قاربت تنفد</span>";
-    document.getElementById("open-catalog-btn").innerHTML = olvIcon("search") + "<span>تصفّح الكتالوج وإضافة أصناف</span>";
-    document.getElementById("open-catalog-btn").addEventListener("click", () => {
+    const $ = (id) => document.getElementById(id);
+    $("go-count").innerHTML = olvIcon("clipboard") + "<span>ابدأ جرد</span>";
+    $("go-add").innerHTML = olvIcon("plus") + "<span>مادة جديدة</span>";
+    $("go-order").innerHTML = olvIcon("truck") + "<span>جهّز طلبية</span>";
+    $("urgent-title").innerHTML = olvIcon("warning") + "<span>بدها طلب</span>";
+    $("status-title").innerHTML = olvIcon("barChart") + "<span>حالة المخزون</span>";
+    $("list-title").innerHTML = olvIcon("box") + "<span>المواد حسب القسم</span>";
+    $("search-ic").outerHTML = olvIcon("search");
+    $("ic-val").innerHTML = olvIcon("wallet");
+    $("ic-urgent").innerHTML = olvIcon("warning");
+    $("ic-zero").innerHTML = olvIcon("clipboard");
+    $("ic-ok").innerHTML = olvIcon("trash");
+    $("open-catalog-btn").innerHTML = olvIcon("search") + "<span>تصفّح الكتالوج وإضافة أصناف</span>";
+    $("open-catalog-btn").addEventListener("click", () => {
       olvOpenCatalog({ kind: "i", onDone: async () => { clearInvFilter(); await loadIngredients(); } });
     });
-    document.getElementById("extract-ing-btn").innerHTML = olvIcon("refresh") + "<span>استخراج أسماء من وصف الأصناف والإضافات</span>";
+    $("extract-ing-btn").innerHTML = olvIcon("refresh") + "<span>استخراج أسماء من وصف الأصناف والإضافات</span>";
+    $("go-add").addEventListener("click", () => {
+      const box = $("add-box");
+      box.open = true;
+      box.scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "start" });
+      setTimeout(() => $("i-name").focus({ preventScroll: true }), 300);
+    });
 
     let ingredients = [];
     let products = [];
     let addons = [];
-    let daysLeftById = {}; // ingredient_id -> أيام متبقية تقديريًا (من view ingredient_consumption)
+    let daysLeftById = {}; // ingredient_id -> أيام متبقية تقديريًا (view ingredient_consumption)
+    let statusFilter = "all";
+    const openCats = new Set();   // الأقسام المفتوحة (بتضل مفتوحة بعد أي تحديث)
+    let openItem = null;          // المادة المفتوحة تفاصيلها
+    let firstRender = true;
+    let movements = [];           // آخر حركات الجرد والهدر (للبطاقات فوق)
 
-    // نفس حد "٣ أيام" المستخدم بـ schema-low-stock-view.sql (view
-    // low_stock_items) — لازم يضلوا متطابقين حتى البانر هون والتنبيه
-    // الاستباقي (شارة شريط التنقل) يتفقوا على نفس الأصناف "العاجلة"
-    const URGENT_DAYS_THRESHOLD = 3;
+    const STATUS = {
+      urgent: { label: "بدها طلب", hint: "وصلت حد التنبيه أو بتخلص خلال 3 أيام", cls: "st-urgent", color: "var(--danger)" },
+      zero: { label: "كميتها صفر", hint: "يا خلصت يا لسا ما انعدّت: اعمل جرد", cls: "st-zero", color: "var(--hair)" },
+      ok: { label: "متوفرة", hint: "فوق حد التنبيه", cls: "st-ok", color: "var(--olive)" },
+    };
+    const fmtQty = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 3 });
+    const fmtDays = (d) => d <= 0 ? "خلصت حسب البيع" : `يكفي ${d < 10 ? d.toFixed(1) : Math.round(d)} يوم`;
 
-    // أيام تكفي كل مادة خام تقريبًا — محسوبة بالكامل داخل view
-    // ingredient_consumption (schema-low-stock-view.sql) من متوسط
-    // مبيعات آخر 14 يومًا المكتملة فعليًا (بدون الملغاة) مضروبة بوصفة كل
-    // صنف، حتى نفس الحسبة تُستخدم هون وبالتنبيه الاستباقي بدون تكرار أو
-    // احتمال تعارض بين الاثنين
+    // أيام تكفي كل مادة تقريبًا: محسوبة بالكامل بـ view ingredient_consumption
+    // (schema-low-stock-view.sql) من متوسط بيع آخر 14 يوم × وصفة كل صنف
     async function loadDaysLeft() {
       const { data, error } = await window.supabaseClient.from("ingredient_consumption").select("*");
       if (error) return {};
       const map = {};
-      (data || []).forEach((row) => { map[row.ingredient_id] = row.days_left; });
+      (data || []).forEach((row) => { if (row.days_left != null) map[row.ingredient_id] = Number(row.days_left); });
       return map;
     }
 
-    function renderUrgentBanner() {
-      const banner = document.getElementById("urgent-banner");
-      const list = document.getElementById("urgent-list");
-      const urgent = ingredients
-        .map((ing) => ({ ing, daysLeft: daysLeftById[ing.id] ?? null }))
-        .filter((x) => x.daysLeft !== null && x.daysLeft <= URGENT_DAYS_THRESHOLD)
-        .sort((a, b) => a.daysLeft - b.daysLeft);
-
-      if (!urgent.length) { banner.hidden = true; return; }
-      banner.hidden = false;
-      list.innerHTML = urgent.map(({ ing, daysLeft }) => `
-        <div class="urgent-item">
-          <span>${olvEsc(ing.name)}</span>
-          <span class="days">${daysLeft <= 0 ? "نفدت تقريبًا" : `يكفي لـ ${daysLeft.toFixed(1)} يوم تقريبًا`}</span>
-        </div>
-      `).join("");
-    }
-
-    const ingTracker = olvNewTracker();
     async function loadIngredients() {
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("ing-body");
       try {
         const [{ data, error }, daysLeftMap] = await Promise.all([
           window.supabaseClient.from("ingredients").select("*").order("name"),
           loadDaysLeft(),
-        ]);
+          window.supabaseClient.from("stock_movements").select("item_kind, item_id, delta, reason, created_at")
+            .in("reason", ["count", "waste"]).order("created_at", { ascending: false }).limit(500),
+        ]).then(([a, b, m]) => { movements = (m && !m.error && m.data) || []; return [a, b]; });
         if (error) throw error;
-        ingredients = data || [];
-        const freshIng = ingTracker.diff(ingredients.map((i) => i.id));
         daysLeftById = daysLeftMap;
-        renderUrgentBanner();
-        renderIngredients(freshIng);
+        ingredients = (data || []).map((i) => {
+          const days = daysLeftById[i.id] ?? null;
+          return Object.assign(i, { _cat: olvIngCategory(i), _days: days, _st: olvIngStatus(i, days) });
+        });
+        renderAll();
       } catch (err) {
-        olvShowError(errBox, err);
+        olvShowError($("err"), err);
+      }
+    }
+    const refreshItem = (ing) => { ing._cat = olvIngCategory(ing); ing._st = olvIngStatus(ing, ing._days); };
+    const itemValue = (i) => Math.max(0, Number(i.current_stock) || 0) * (Number(i.unit_price) || 0);
+
+    function renderAll() {
+      renderSummary();
+      renderUrgent();
+      renderStatusChart();
+      renderCatChart();
+      renderList();
+      firstRender = false;
+    }
+
+    function counts() {
+      const c = { urgent: 0, zero: 0, ok: 0 };
+      ingredients.forEach((i) => { c[i._st]++; });
+      return c;
+    }
+
+    function renderSummary() {
+      const c = counts();
+      const total = ingredients.length;
+      const val = ingredients.reduce((s, i) => s + itemValue(i), 0);
+      const unpriced = ingredients.filter((i) => Number(i.current_stock) > 0 && !(Number(i.unit_price) > 0)).length;
+      $("iv-sub").textContent = total ? `${total} مادة بـ ${new Set(ingredients.map((i) => i._cat)).size} أقسام` : "لسا ما في مواد";
+      $("k-val").textContent = olvFormatMoney(val);
+      $("k-val-note").textContent = unpriced ? `${unpriced} مادة موجودة بلا سعر شراء` : "";
+      $("k-urgent").textContent = c.urgent;
+      $("k-urgent").classList.toggle("bad", c.urgent > 0);
+      // آخر جرد + الهدر: من سجل الحركات (stock_movements)
+      const lastCount = movements.find((m) => m.reason === "count");
+      if (lastCount) {
+        const days = Math.floor((Date.now() - new Date(lastCount.created_at).getTime()) / 864e5);
+        $("k-count").textContent = days <= 0 ? "اليوم" : days === 1 ? "مبارح" : `من ${days} ${days <= 10 ? "أيام" : "يوم"}`;
+        $("k-count-note").textContent = days > 7 ? "صار وقت جرد جديد" : "";
+      } else {
+        $("k-count").textContent = "ولا مرة";
+        $("k-count-note").textContent = "الجرد بيصحّح الكميات اللي صفر";
+      }
+      const priceOf = new Map(ingredients.map((i) => [i.id, Number(i.unit_price) || 0]));
+      const since = Date.now() - 30 * 864e5;
+      const waste = movements.filter((m) => m.reason === "waste" && m.item_kind === "ingredient" && new Date(m.created_at).getTime() >= since);
+      $("k-waste").textContent = olvFormatMoney(waste.reduce((s, m) => s + Math.abs(Number(m.delta) || 0) * (priceOf.get(m.item_id) || 0), 0));
+      $("k-waste-note").textContent = waste.length ? `${waste.length} مرة هدر` : "ما انسجّل هدر";
+      if (firstRender) olvCountUpStats(document.querySelector(".iv-stats"));
+    }
+
+    function renderUrgent() {
+      const list = ingredients.filter((i) => i._st === "urgent")
+        .sort((a, b) => (a._days ?? 1e9) - (b._days ?? 1e9) || Number(a.current_stock) - Number(b.current_stock));
+      $("urgent-box").hidden = !list.length;
+      if (!list.length) return;
+      const SHOW = 8;
+      $("urgent-list").innerHTML = list.slice(0, SHOW).map((i) => {
+        const why = i._days != null ? fmtDays(i._days) : Number(i.current_stock) <= 0 ? "خلصت" : `باقي ${fmtQty(i.current_stock)} ${i.unit || ""}`;
+        return `<li><span class="nm" title="${olvEsc(i.name)}">${olvEsc(i.name)}</span><span class="why">${olvEsc(why)}</span></li>`;
+      }).join("");
+      $("urgent-more").hidden = list.length <= SHOW;
+      $("urgent-more").textContent = list.length > SHOW ? `و ${list.length - SHOW} كمان، بتلاقيهم تحت بفلتر «بدها طلب»` : "";
+    }
+
+    function renderStatusChart() {
+      const c = counts(), total = ingredients.length || 1;
+      const order = ["urgent", "zero", "ok"];
+      $("st-stack").innerHTML = order.filter((k) => c[k]).map((k) =>
+        `<i class="${STATUS[k].cls}" style="flex-grow:${c[k]}" title="${STATUS[k].label}: ${c[k]}"></i>`).join("");
+      $("st-stack").setAttribute("aria-label", order.map((k) => `${STATUS[k].label} ${c[k]}`).join("، "));
+      $("st-legend").innerHTML = order.map((k) => `
+        <li><button type="button" data-st="${k}" aria-pressed="${statusFilter === k}">
+          <span class="sw ${STATUS[k].cls}"></span>
+          <span class="nm">${STATUS[k].label}<small>${STATUS[k].hint}</small></span>
+          <span class="n">${c[k]}</span><span class="pc">${Math.round((c[k] / total) * 100)}%</span>
+        </button></li>`).join("");
+    }
+
+    // القيمة بالدينار إذا في أسعار، وإلا عدد المواد بكل قسم
+    function renderCatChart() {
+      const by = new Map();
+      ingredients.forEach((i) => {
+        const g = by.get(i._cat) || { cat: i._cat, n: 0, val: 0, urgent: 0 };
+        g.n++; g.val += itemValue(i); if (i._st === "urgent") g.urgent++;
+        by.set(i._cat, g);
+      });
+      const groups = [...by.values()];
+      const totalVal = groups.reduce((s, g) => s + g.val, 0);
+      const byValue = totalVal > 0;
+      $("cat-title").innerHTML = olvIcon(byValue ? "wallet" : "tag") + `<span>${byValue ? "قيمة المخزون حسب القسم" : "عدد المواد بكل قسم"}</span>`;
+      if (!groups.length) { $("cat-bars").innerHTML = ""; $("cat-summary").textContent = "لا يوجد مواد خام بعد"; return; }
+      const metric = (g) => byValue ? g.val : g.n;
+      groups.sort((a, b) => metric(b) - metric(a) || b.n - a.n);
+      const SHOW = 6;
+      const shown = groups.slice(0, SHOW).filter((g) => metric(g) > 0);
+      const max = Math.max(...shown.map(metric), 1);
+      $("cat-bars").innerHTML = shown.map((g) => `
+        <li><button type="button" data-goto="${olvEsc(g.cat)}" aria-label="افتح قسم ${olvEsc(g.cat)}">
+          <span class="row">${olvIcon(olvIngCatIcon(g.cat))}<span class="nm">${olvEsc(g.cat)}</span>
+            ${byValue ? `<span class="sub">${g.n} مادة</span>` : ""}
+            <span class="amt">${byValue ? olvFormatMoney(g.val) : g.n}</span></span>
+          <span class="tr"><i style="width:${Math.max(2, (metric(g) / max) * 100)}%"></i></span>
+        </button></li>`).join("");
+      const rest = groups.length - shown.length;
+      const top = shown[0];
+      if (byValue) {
+        const pc = Math.round((top.val / totalVal) * 100);
+        $("cat-summary").innerHTML = `أغلى قسم بالمخزون <b>${olvEsc(top.cat)}</b> (${pc}% من القيمة).` +
+          (rest > 0 ? ` وفي كمان ${rest} أقسام بالقائمة تحت.` : "") + ` القيمة = الكمية × آخر سعر شراء.`;
+      } else {
+        $("cat-summary").innerHTML = `أكبر قسم <b>${olvEsc(top.cat)}</b> بـ ${top.n} مادة. القيمة بتطلع هون لما تدخل فواتير شراء بأسعار.`;
       }
     }
 
-    // الرسم لحاله (بدون جلب) حتى البحث والفلتر يشتغلوا فورًا
-    function renderIngredients(freshIng) {
-      const errBox = document.getElementById("err");
-      const body = document.getElementById("ing-body");
-      const q = document.getElementById("inv-q").value, lowOnly = document.getElementById("inv-low").checked;
-      const isLow = (ing) => Number(ing.low_stock_threshold) > 0 && Number(ing.current_stock) <= Number(ing.low_stock_threshold);
-      const list = ingredients.filter((ing) => olvSearchMatch(ing.name, q) && (!lowOnly || isLow(ing)));
-      document.getElementById("inv-count").textContent = ingredients.length ? ((q || lowOnly) ? `${list.length} من ${ingredients.length}` : `${ingredients.length} مادة`) : "";
-      {
-        if (!ingredients.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="7">لا يوجد مواد خام بعد</td></tr>`;
-        } else if (!list.length) {
-          body.innerHTML = `<tr class="empty-row"><td colspan="7">ما في مادة بهالكلمة${lowOnly ? " ناقصة" : ""} — جرّب كلمة ثانية</td></tr>`;
-        } else {
-          body.innerHTML = list.map((ing) => {
-            const low = Number(ing.current_stock) <= Number(ing.low_stock_threshold) && Number(ing.low_stock_threshold) > 0;
-            const daysLeft = daysLeftById[ing.id] ?? null;
-            let daysCell = `<span class="hint">لا يوجد بيانات كافية</span>`;
-            if (daysLeft !== null) {
-              const urgent = daysLeft <= URGENT_DAYS_THRESHOLD;
-              daysCell = `<span class="${urgent ? "low-stock" : ""}">${daysLeft <= 0 ? "نفدت تقريبًا" : `${daysLeft.toFixed(1)} يوم`}</span>`;
-            }
-            return `
-              <tr data-row-id="${olvEsc(ing.id)}">
-                <td>${olvEsc(ing.name)}</td>
-                <td>${olvEsc(ing.unit)}</td>
-                <td class="${low ? "low-stock" : ""}">${ing.current_stock}${low ? " " + olvIcon("warning") : ""}</td>
-                <td><input type="number" class="thr-input" min="0" step="any" inputmode="decimal" dir="ltr" value="${Number(ing.low_stock_threshold) > 0 ? olvEsc(ing.low_stock_threshold) : ""}" placeholder="—" data-thr="${ing.id}" aria-label="حد التنبيه"></td>
-                <td>${daysCell}</td>
-                <td>
-                  <div style="display:flex; gap:6px;">
-                    <input type="number" step="0.001" placeholder="+/-" class="stock-adjust-input" data-adjust="${ing.id}">
-                    <select class="stock-adjust-reason" data-reason="${ing.id}" title="سبب التعديل"><option value="adjust">تعديل</option><option value="waste">هدر/تالف</option></select>
-                    <button class="btn small" data-apply="${ing.id}">تعديل</button>
-                  </div>
-                </td>
-                <td><button class="btn small danger" data-del="${ing.id}">حذف</button></td>
-              </tr>
-            `;
-          }).join("");
-          if (freshIng) olvMarkNew(body, freshIng, { scroll: true });
-          body.querySelectorAll("input[data-thr]").forEach((inp) => {
-            inp.addEventListener("change", async () => {
-              const ing = ingredients.find((i) => i.id === inp.dataset.thr); if (!ing) return;
-              const v = inp.value.trim() === "" ? 0 : Number(inp.value);
-              if (!Number.isFinite(v) || v < 0) { olvShowError(errBox, new Error("حد التنبيه لازم يكون رقم صفر أو أكثر")); inp.value = Number(ing.low_stock_threshold) > 0 ? ing.low_stock_threshold : ""; return; }
-              const { error } = await window.supabaseClient.from("ingredients").update({ low_stock_threshold: v }).eq("id", ing.id);
-              if (error) { olvShowError(errBox, error); return; }
-              ing.low_stock_threshold = v;
-              renderIngredients();
-              olvToast(v > 0 ? `حد تنبيه "${ing.name}" = ${v}` : `انشال حد التنبيه عن "${ing.name}"`);
-            });
-          });
-          body.querySelectorAll("button[data-apply]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              const input = body.querySelector(`input[data-adjust="${btn.dataset.apply}"]`);
-              const delta = Number(input.value || 0);
-              if (!delta) return;
-              const reason = body.querySelector(`select[data-reason="${btn.dataset.apply}"]`).value;
-              if (reason === "waste" && delta > 0) { olvShowError(errBox, new Error("الهدر لازم يكون بالسالب (مثال: -2)")); return; }
-              // تعديل ذرّي على السيرفر + سطر بسجل الحركات (adjust_stock، schema-inventory-hardening.sql)
-              btn.disabled = true;
-              const { error } = await window.supabaseClient.rpc("adjust_stock", {
-                p_kind: "ingredient", p_id: btn.dataset.apply, p_delta: delta, p_reason: reason, p_note: null,
-              });
-              btn.disabled = false;
-              if (error) { olvShowError(errBox, error); return; }
-              await loadIngredients();
-              olvToast("تم تعديل الكمية");
-            });
-          });
-          body.querySelectorAll("button[data-del]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              // الحذف بيمسح سطور الوصفات المربوطة فيها تلقائيًا (ON DELETE CASCADE)، فالأصناف
-              // اللي كانت تنقص منها بتوقف تنقص من المخزون بدون أي تنبيه — نعدّها ونحذّر قبل
-              const [{ count: pCount }, { count: aCount }] = await Promise.all([
-                window.supabaseClient.from("product_ingredients").select("id", { count: "exact", head: true }).eq("ingredient_id", btn.dataset.del),
-                window.supabaseClient.from("addon_ingredients").select("id", { count: "exact", head: true }).eq("ingredient_id", btn.dataset.del),
-              ]);
-              const linked = (pCount || 0) + (aCount || 0);
-              const ing = ingredients.find((i) => i.id === btn.dataset.del);
-              const msg = linked
-                ? `"${ing ? ing.name : ""}" مربوطة بـ ${linked} وصفة. الحذف بيشيلها من هالوصفات، والأصناف دي ما رح تنقص من المخزون بعدها.${ing && ing.menu_enabled ? "\nوهي كمان معروضة على المنيو." : ""}\n\nمتأكد بدك تحذف؟`
-                : "حذف هذه المادة؟";
-              if (!confirm(msg)) return;
-              const { error } = await window.supabaseClient.from("ingredients").delete().eq("id", btn.dataset.del);
-              if (error) { olvShowError(errBox, error); return; }
-              await loadIngredients();
-              olvToast("تم حذف المادة");
-            });
-          });
-        }
-      }
+    function visible() {
+      const q = $("inv-q").value;
+      return ingredients.filter((i) => (statusFilter === "all" || i._st === statusFilter) && olvSearchMatch(i.name + " " + i._cat, q));
     }
-    document.getElementById("inv-q").addEventListener("input", () => renderIngredients());
-    document.getElementById("inv-low").addEventListener("change", () => renderIngredients());
-    document.getElementById("inv-q").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.target.value = ""; renderIngredients(); } });
-    // مادة جديدة انضافت: نمسح البحث حتى تظهر بالجدول وتتعلّم
-    const clearInvFilter = () => { document.getElementById("inv-q").value = ""; document.getElementById("inv-low").checked = false; };
+
+    function renderChips() {
+      const c = counts();
+      const chips = [["all", "الكل", ingredients.length], ["urgent", STATUS.urgent.label, c.urgent], ["zero", STATUS.zero.label, c.zero], ["ok", STATUS.ok.label, c.ok]];
+      $("status-chips").innerHTML = chips.map(([k, label, n]) =>
+        `<button class="iv-chip" type="button" data-st="${k}" aria-pressed="${statusFilter === k}">${k !== "all" ? `<span class="sw ${STATUS[k].cls}"></span>` : ""}${label} <span class="n">${n}</span></button>`).join("");
+    }
+
+    const ST_RANK = { urgent: 0, ok: 1, zero: 2 };
+    function renderList() {
+      renderChips();
+      const box = $("cat-list");
+      if (!ingredients.length) { box.innerHTML = `<p class="iv-empty">لا يوجد مواد خام بعد</p>`; olvEmptyStates(box); $("toggle-all").hidden = true; return; }
+      const list = visible();
+      const q = $("inv-q").value.trim();
+      if (!list.length) {
+        box.innerHTML = `<p class="iv-empty">ما في مادة ${q ? "بهالكلمة" : "بهالحالة"}${q && statusFilter !== "all" ? " وهالحالة" : ""}</p>`;
+        olvEmptyStates(box); $("toggle-all").hidden = true; return;
+      }
+      const catOrder = OLV_ING_CATS.map((c) => c.name);
+      const groups = new Map();
+      list.forEach((i) => { if (!groups.has(i._cat)) groups.set(i._cat, []); groups.get(i._cat).push(i); });
+      const cats = [...groups.keys()].sort((a, b) => {
+        const ia = catOrder.indexOf(a), ib = catOrder.indexOf(b);
+        return (ia < 0 ? 98 : ia) - (ib < 0 ? 98 : ib) || a.localeCompare(b, "ar");
+      });
+      // بحث أو فلتر بيرجّع شوية مواد؟ منفتح أقسامهم لحالهم
+      const autoOpen = !!q || list.length <= 12;
+      $("toggle-all").hidden = autoOpen || cats.length < 2;
+      const allOpen = cats.every((c) => openCats.has(c));
+      $("toggle-all").textContent = allOpen ? "سكّر كل الأقسام" : "افتح كل الأقسام";
+      box.innerHTML = cats.map((cat) => {
+        const items = groups.get(cat).sort((a, b) => ST_RANK[a._st] - ST_RANK[b._st] || a.name.localeCompare(b.name, "ar"));
+        const all = ingredients.filter((i) => i._cat === cat);
+        const n = { urgent: 0, zero: 0, ok: 0 }; all.forEach((i) => n[i._st]++);
+        const open = autoOpen || openCats.has(cat);
+        const mini = ["urgent", "zero", "ok"].filter((k) => n[k]).map((k) => `<i class="${STATUS[k].cls}" style="flex-grow:${n[k]}"></i>`).join("");
+        const countTxt = items.length === all.length ? `${all.length} مادة` : `${items.length} من ${all.length}`;
+        return `<div class="cat${open ? " open" : ""}" data-cat="${olvEsc(cat)}">
+          <button type="button" class="cat-h" aria-expanded="${open}">
+            <span class="ci">${olvIcon(olvIngCatIcon(cat))}</span>
+            <span class="t"><b>${olvEsc(cat)}</b><span class="mini" aria-hidden="true">${mini}</span></span>
+            <span class="m"><span class="cnt">${countTxt}</span>${n.urgent ? `<span class="alert">${olvIcon("warning")}${n.urgent} بدها طلب</span>` : n.ok ? `<span>${n.ok} متوفرة</span>` : `<span>كلها صفر</span>`}</span>
+            ${olvIcon("chevronDown", "chev")}
+          </button>
+          <div class="cat-body"${open ? "" : " hidden"}>${open ? items.map(itemHtml).join("") : ""}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function itemHtml(i) {
+      const st = STATUS[i._st];
+      const meta = [];
+      if (i._st === "urgent") meta.push(`<span class="bad">${i._days != null ? olvEsc(fmtDays(i._days)) : "وصلت حد التنبيه"}</span>`);
+      else if (i._days != null) meta.push(olvEsc(fmtDays(i._days)));
+      if (Number(i.low_stock_threshold) > 0) meta.push(`حد التنبيه ${olvEsc(fmtQty(i.low_stock_threshold))}`);
+      if (i._st === "zero") meta.push("ما في كمية مسجّلة");
+      const open = openItem === i.id;
+      return `<div class="it s-${i._st}${open ? " open" : ""}" data-id="${olvEsc(i.id)}">
+        <button type="button" class="it-row" aria-expanded="${open}">
+          <span class="dot ${st.cls}" title="${st.label}"></span>
+          <span class="nm"><b title="${olvEsc(i.name)}">${olvEsc(i.name)}</b>${meta.length ? `<small><span class="olv-sr">${st.label}. </span>${meta.join(" · ")}</small>` : `<small class="olv-sr">${st.label}</small>`}</span>
+          <span class="q"><b>${olvEsc(fmtQty(i.current_stock))}</b><span>${olvEsc(i.unit || "")}</span></span>
+        </button>
+        ${open ? detailHtml(i) : ""}
+      </div>`;
+    }
+
+    function detailHtml(i) {
+      const catOpts = OLV_ING_CATS.map((c) => c.name);
+      const own = String(i.category || "").trim();
+      if (own && !catOpts.includes(own)) catOpts.push(own);
+      return `<div class="it-detail">
+        <div class="f"><label for="adj-${i.id}">زيد أو نقّص الكمية</label>
+          <div class="line">
+            <input type="number" step="any" inputmode="decimal" dir="ltr" placeholder="+/-" id="adj-${i.id}" data-adj>
+            <select data-reason aria-label="سبب التعديل"><option value="adjust">تعديل</option><option value="waste">هدر/تالف</option></select>
+            <button type="button" class="btn small gold" data-apply>سجّل</button>
+          </div></div>
+        <div class="f"><label for="thr-${i.id}">حد التنبيه (لما توصله بتصير «بدها طلب»)</label>
+          <div class="line"><input type="number" min="0" step="any" inputmode="decimal" dir="ltr" id="thr-${i.id}" data-thr value="${Number(i.low_stock_threshold) > 0 ? olvEsc(i.low_stock_threshold) : ""}" placeholder="—">
+          <span class="hint" style="margin:0; align-self:center;">${olvEsc(i.unit || "")}</span></div></div>
+        <div class="f"><label for="cat-${i.id}">القسم</label>
+          <div class="line"><select id="cat-${i.id}" data-cat-sel>
+            <option value=""${own ? "" : " selected"}>تلقائي (${olvEsc(olvIngGuessCategory(i.name))})</option>
+            ${catOpts.map((c) => `<option value="${olvEsc(c)}"${own === c ? " selected" : ""}>${olvEsc(c)}</option>`).join("")}
+          </select></div></div>
+        <div class="f del"><button type="button" class="btn small danger" data-del>${olvIcon("trash")}<span>حذف المادة</span></button></div>
+      </div>`;
+    }
+
+    // ===== التفاعل (كله من مكان واحد) =====
+    function setStatus(k) {
+      statusFilter = statusFilter === k && k !== "all" ? "all" : k;
+      renderStatusChart();
+      renderList();
+    }
+    $("st-legend").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-st]"); if (!b) return;
+      setStatus(b.dataset.st);
+      $("list-box").scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "start" });
+    });
+    $("status-chips").addEventListener("click", (e) => { const b = e.target.closest("button[data-st]"); if (b) setStatus(b.dataset.st); });
+    $("cat-bars").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-goto]"); if (!b) return;
+      statusFilter = "all"; $("inv-q").value = "";
+      openCats.add(b.dataset.goto);
+      renderStatusChart(); renderList();
+      const el = [...document.querySelectorAll("#cat-list .cat")].find((x) => x.dataset.cat === b.dataset.goto);
+      if (el) el.scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "start" });
+    });
+    $("toggle-all").addEventListener("click", () => {
+      const cats = [...new Set(visible().map((i) => i._cat))];
+      const allOpen = cats.every((c) => openCats.has(c));
+      cats.forEach((c) => allOpen ? openCats.delete(c) : openCats.add(c));
+      renderList();
+    });
+    $("inv-q").addEventListener("input", () => renderList());
+    $("inv-q").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.target.value = ""; renderList(); } });
+    // مادة جديدة انضافت: نمسح البحث والفلتر حتى تظهر بالقائمة
+    const clearInvFilter = () => { $("inv-q").value = ""; statusFilter = "all"; };
+
+    const findIng = (el) => { const w = el.closest(".it"); return w ? ingredients.find((i) => i.id === w.dataset.id) : null; };
+    $("cat-list").addEventListener("click", async (e) => {
+      const errBox = $("err");
+      const head = e.target.closest(".cat-h");
+      if (head) {
+        const cat = head.closest(".cat").dataset.cat;
+        // بنفتح/منسكّر هالقسم بس، بدون ما نعيد رسم الباقي
+        const wrap = head.closest(".cat"), body = wrap.querySelector(".cat-body");
+        const willOpen = body.hidden;
+        if (willOpen) {
+          const items = visible().filter((i) => i._cat === cat).sort((a, b) => ST_RANK[a._st] - ST_RANK[b._st] || a.name.localeCompare(b.name, "ar"));
+          body.innerHTML = items.map(itemHtml).join("");
+          openCats.add(cat);
+        } else openCats.delete(cat);
+        body.hidden = !willOpen;
+        wrap.classList.toggle("open", willOpen);
+        head.setAttribute("aria-expanded", String(willOpen));
+        return;
+      }
+      const row = e.target.closest(".it-row");
+      if (row) {
+        const ing = findIng(row); if (!ing) return;
+        openItem = openItem === ing.id ? null : ing.id;
+        const wrap = row.closest(".it");
+        wrap.outerHTML = itemHtml(ing);
+        if (openItem) { const f = document.querySelector(`#cat-list .it[data-id="${CSS.escape(ing.id)}"] [data-adj]`); if (f && window.matchMedia("(hover:hover)").matches) f.focus(); }
+        return;
+      }
+      const apply = e.target.closest("[data-apply]");
+      if (apply) {
+        const ing = findIng(apply); if (!ing) return;
+        const wrap = apply.closest(".it");
+        const delta = Number(wrap.querySelector("[data-adj]").value || 0);
+        if (!delta) return;
+        const reason = wrap.querySelector("[data-reason]").value;
+        if (reason === "waste" && delta > 0) { olvShowError(errBox, new Error("الهدر لازم يكون بالسالب (مثال: -2)")); return; }
+        // تعديل ذرّي على السيرفر + سطر بسجل الحركات (adjust_stock، schema-inventory-hardening.sql)
+        apply.disabled = true;
+        const { error } = await window.supabaseClient.rpc("adjust_stock", { p_kind: "ingredient", p_id: ing.id, p_delta: delta, p_reason: reason, p_note: null });
+        apply.disabled = false;
+        if (error) { olvShowError(errBox, error); return; }
+        await loadIngredients();
+        olvToast(`${ing.name}: ${delta > 0 ? "+" : ""}${fmtQty(delta)}`);
+        return;
+      }
+      const del = e.target.closest("[data-del]");
+      if (del) {
+        const ing = findIng(del); if (!ing) return;
+        // الحذف بيمسح سطور الوصفات المربوطة فيها تلقائيًا (ON DELETE CASCADE)، فالأصناف
+        // اللي كانت تنقص منها بتوقف تنقص من المخزون بدون أي تنبيه — نعدّها ونحذّر قبل
+        const [{ count: pCount }, { count: aCount }] = await Promise.all([
+          window.supabaseClient.from("product_ingredients").select("id", { count: "exact", head: true }).eq("ingredient_id", ing.id),
+          window.supabaseClient.from("addon_ingredients").select("id", { count: "exact", head: true }).eq("ingredient_id", ing.id),
+        ]);
+        const linked = (pCount || 0) + (aCount || 0);
+        const msg = linked
+          ? `"${ing.name}" مربوطة بـ ${linked} وصفة. الحذف بيشيلها من هالوصفات، والأصناف دي ما رح تنقص من المخزون بعدها.${ing.menu_enabled ? "\nوهي كمان معروضة على المنيو." : ""}\n\nمتأكد بدك تحذف؟`
+          : `حذف "${ing.name}"؟`;
+        if (!confirm(msg)) return;
+        const { error } = await window.supabaseClient.from("ingredients").delete().eq("id", ing.id);
+        if (error) { olvShowError(errBox, error); return; }
+        openItem = null;
+        await loadIngredients();
+        olvToast("تم حذف المادة");
+      }
+    });
+    $("cat-list").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.matches("[data-adj]")) { e.preventDefault(); e.target.closest(".it").querySelector("[data-apply]").click(); }
+    });
+    $("cat-list").addEventListener("change", async (e) => {
+      const errBox = $("err");
+      const ing = findIng(e.target); if (!ing) return;
+      if (e.target.matches("[data-thr]")) {
+        const inp = e.target;
+        const v = inp.value.trim() === "" ? 0 : Number(inp.value);
+        if (!Number.isFinite(v) || v < 0) { olvShowError(errBox, new Error("حد التنبيه لازم يكون رقم صفر أو أكثر")); inp.value = Number(ing.low_stock_threshold) > 0 ? ing.low_stock_threshold : ""; return; }
+        const { error } = await window.supabaseClient.from("ingredients").update({ low_stock_threshold: v }).eq("id", ing.id);
+        if (error) { olvShowError(errBox, error); return; }
+        ing.low_stock_threshold = v;
+        refreshItem(ing);
+        renderAll();
+        olvToast(v > 0 ? `حد تنبيه "${ing.name}" = ${fmtQty(v)}` : `انشال حد التنبيه عن "${ing.name}"`);
+      } else if (e.target.matches("[data-cat-sel]")) {
+        const v = e.target.value || null;
+        const { error } = await window.supabaseClient.from("ingredients").update({ category: v }).eq("id", ing.id);
+        if (error) { olvShowError(errBox, error); return; }
+        ing.category = v;
+        refreshItem(ing);
+        openCats.add(ing._cat);
+        renderAll();
+        olvToast(`"${ing.name}" صارت بقسم ${ing._cat}`);
+      }
+    });
 
     // يستخرج أسماء مواد خام محتملة من وصف المنتجات (مفصولة بفاصلة عادة،
     // متل "خبز طازج، لحمة مشوية، صلصة خاصة") ومن أسماء الإضافات (عادة
@@ -470,10 +866,11 @@
       }
     });
 
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
-      const errBox = document.getElementById("err");
+      const errBox = $("err");
       try {
         const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }] = await Promise.all([
           window.supabaseClient.from("products").select("*").order("name"),
