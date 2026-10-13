@@ -4,7 +4,7 @@
 // «إضافة المحدد»، وما في حذف ولا تعديل على كميات مواد موجودة.
 // الصفحات اللي بتضمّه: inventory.html، supplies.html، suppliers.html، menu-stock.html
 (function () {
-  const UNITS = ["كيلوغرام", "غرام", "لتر", "مليلتر", "قطعة", "علبة", "كيس", "زجاجة", "عبوة", "رول", "حزمة"];
+  const UNITS = ["كيلوغرام", "غرام", "لتر", "مليلتر", "قطعة", "علبة", "كيس", "زجاجة", "عبوة", "رول", "حزمة", "صندوق"];
   const KIND = { ingredient: "مادة خام", supply: "مستلزم" };
   const esc = (s) => (typeof olvEsc === "function" ? olvEsc(s) : String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
   const norm = (s) => (typeof olvSearchNorm === "function" ? olvSearchNorm(s) : String(s || "").trim().toLowerCase());

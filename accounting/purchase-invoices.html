@@ -550,6 +550,7 @@
       if (/لتر|ليتر/.test(n)) return "لتر";
       if (/علب/.test(n)) return "علبة";
       if (/كيس/.test(n)) return "كيس";
+      if (/صندوق|صناديق/.test(n)) return "صندوق";
       return "قطعة";
     }
     function unmatchedHelp(line) {
@@ -783,7 +784,7 @@
     // نافذة «إضافة مادة جديدة» من داخل الفاتورة: الاسم + النوع + الوحدة + السعر، وبتنربط بالسطر مباشرة
     function openNewItemDialog(init) {
       return new Promise((resolve) => {
-        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس"];
+        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس", "صندوق"];
         if (init.unit && !UNITS.includes(init.unit)) UNITS.unshift(init.unit);
         const back = document.createElement("div");
         back.className = "olv-modal-backdrop";
