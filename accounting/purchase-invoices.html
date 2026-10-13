@@ -435,7 +435,7 @@
     const round2 = (n) => Math.round(n * 100) / 100;
 
     function newLine(over) {
-      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", unmatchedName: "" }, over || {});
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
@@ -516,7 +516,9 @@
       if (!(get > 0) || !(per > 0) || !(q > 0)) return { total: 0, groups: 0 };
       const groups = Math.floor(q / per + 1e-9);
       const gu = line.bGetUnit || (line.unitMode === "purchase" ? "purchase" : "stock");
-      const inStock = gu === "purchase" && it && it.purchase_unit_factor ? get * Number(it.purchase_unit_factor) : get;
+      let inStock = get;
+      if (gu === "purchase" && it && it.purchase_unit_factor) inStock = get * Number(it.purchase_unit_factor);
+      else if (gu !== "stock" && gu !== "purchase") inStock = get * (Number(line.bFactor) || 0); // وحدة تانية: لازم نعرف كم بتساوي بوحدة المخزون
       return { total: r3(groups * inStock), groups };
     }
     const bonusOf = (line) => bonusInfo(line).total;
@@ -541,16 +543,19 @@
       const ratio = line.bMode === "ratio";
       const buyUnit = line.unitMode === "purchase" && hasPU ? it.purchase_unit : it.unit;
       const gu = line.bGetUnit || (line.unitMode === "purchase" ? "purchase" : "stock");
-      const getUnitHtml = hasPU
-        ? `<select data-f="bGetUnit" aria-label="وحدة البونص"><option value="stock"${gu === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option><option value="purchase"${gu === "purchase" ? " selected" : ""}>${olvEsc(it.purchase_unit)}</option></select>`
-        : `<span>${olvEsc(it.unit)}</span>`;
+      const extra = ["قطعة", "صندوق", "كيلو", "عدد"].filter((u) => u !== it.unit && u !== it.purchase_unit);
+      const opt = (v, label) => `<option value="${olvEsc(v)}"${gu === v ? " selected" : ""}>${olvEsc(label)}</option>`;
+      const getUnitHtml = `<select data-f="bGetUnit" aria-label="وحدة البونص">${opt("stock", it.unit)}${hasPU ? opt("purchase", it.purchase_unit) : ""}${extra.map((u) => opt(u, u)).join("")}${opt("other", "أخرى...")}</select>`;
+      const foreign = gu !== "stock" && gu !== "purchase";
+      const unitName = gu === "other" ? (line.bOther || "وحدة") : gu;
+      const factorHtml = foreign ? `<div class="pi-bonus-row"><span>${gu === "other" ? `<input type="text" data-f="bOther" value="${olvEsc(line.bOther)}" placeholder="اسم الوحدة" aria-label="اسم الوحدة" style="max-width:110px;">` : ""} 1 ${olvEsc(unitName)} =</span><input type="number" data-f="bFactor" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bFactor)}" placeholder="كم" aria-label="كم بتساوي"><span>${olvEsc(it.unit)}</span></div>` : "";
       const body = ratio
         ? `<div class="pi-bonus-row"><span>بونص</span>
             <input type="number" data-f="bGet" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bGet)}" placeholder="مثلًا 0.5" aria-label="كمية البونص">
             ${getUnitHtml}
             <span>لكل</span>
             <input type="number" data-f="bPer" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bPer)}" placeholder="مثلًا 10" aria-label="لكل كم مشتراة">
-            <span>${olvEsc(buyUnit)} مشتراة</span></div>`
+            <span>${olvEsc(buyUnit)} مشتراة</span></div>${factorHtml}`
         : `<div class="pi-bonus-row"><span>كم ${olvEsc(it.unit)} مجانًا بالمجموع؟</span>
             <input type="number" data-f="bonus" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bonus)}" placeholder="مثال: 7" aria-label="البونص"></div>`;
       return `<div class="pi-bonus" style="margin-top:6px;">
@@ -780,6 +785,8 @@
       else if (f === "price") line.price = e.target.value;
       else if (f === "bonus") line.bonus = e.target.value;
       else if (f === "bGet") line.bGet = e.target.value;
+      else if (f === "bFactor") line.bFactor = e.target.value;
+      else if (f === "bOther") line.bOther = e.target.value;
       else if (f === "bPer") line.bPer = e.target.value;
       const it = itemOf(line);
       const bs = tr.querySelector("[data-bonus-sum]"); if (bs && it) bs.innerHTML = bonusSum(line, it);
