@@ -59,76 +59,187 @@
 })();
 </script>
 <style>
-  .punch-time{white-space:nowrap;}
-  .punch-time .manual-badge{font-size:10.5px; color:var(--muted); margin-inline-start:4px;}
-  .open-shift{color:var(--gold-hi); font-weight:700;}
-  .shift-edit-row input[type="datetime-local"]{
-    background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
-    padding:8px; border-radius:8px; font-size:13.5px; font-family:'Tajawal',sans-serif; width:100%;
+  /* صفحة الحضور (2026-10): فترة ← 4 أرقام + «على الدوام هلأ» ← ساعات كل موظف ← السجل مجمّع باليوم.
+     القواعد بـ design-system/olv/pages/attendance.md */
+  .wrap.at-wrap{max-width:1120px;}
+  .at-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+  .at-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .at-head .at-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .at-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .btn.go:disabled{opacity:.6;}
+  .at-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; align-items:center;}
+  .at-chip{
+    min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);
+  }
+  .at-chip .icon{width:16px; height:16px;}
+  .at-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .at-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .at-chip:active{transform:scale(.97);}
+  @media (max-width:640px){ #period-chips{gap:6px;} #period-chips .at-chip{padding:0 11px; font-size:13.5px;} }
+  .at-emp{min-height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:14px; max-width:100%;}
+  .at-custom{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin:-4px 0 14px;}
+  .at-custom .field{margin:0; min-width:150px;}
+  .at-custom[hidden]{display:none;}
+  #punch-group[hidden]{display:none;}
+  .at-form-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;}
+  .at-form-head h2{margin:0;}
+  .at-note{color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.7;}
+  .at-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .at-actions .btn{min-height:48px; min-width:140px;}
+  .stats.at-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.at-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .stats.at-stats{gap:10px;}
+    .at-stats .stat{padding:13px;}
+    .at-stats .stat .stat-icon{display:none;}
+    .olv-glass .at-stats .stat .value{font-size:22px;}
+  }
+  .at-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  .at-stats .note.live{color:var(--olive); font-weight:700;}
+  .at-grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; margin-bottom:14px;}
+  .at-grid > *{min-width:0;}
+  .at-grid > .group{margin-bottom:0;}
+  @media (max-width:900px){ .at-grid{grid-template-columns:minmax(0,1fr);} }
+  .at-grid h2, .at-logh h2{display:flex; align-items:center; gap:8px;}
+  .at-grid h2 .icon, .at-logh h2 .icon{width:18px; height:18px; color:var(--gold-hi);}
+  .at-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
+  /* على الدوام هلأ */
+  .now-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .now-list li{display:flex; align-items:center; gap:12px; padding:8px 10px; border-radius:14px; background:var(--ink-3);}
+  .pulse{width:10px; height:10px; border-radius:50%; background:var(--olive); box-shadow:0 0 0 0 rgba(86,105,46,.5); animation:pulse 2s infinite; flex:none;}
+  @keyframes pulse{70%{box-shadow:0 0 0 8px rgba(86,105,46,0);} 100%{box-shadow:0 0 0 0 rgba(86,105,46,0);}}
+  .now-list .nm{flex:1; min-width:0; font-weight:700; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .now-list .since{color:var(--muted); font-size:12.5px; white-space:nowrap;}
+  .now-list .since b{color:var(--paper); font-variant-numeric:tabular-nums;}
+  .now-list .since.long b{color:var(--gold-hi);}
+  /* ساعات كل موظف */
+  .hr-bars{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+  .hr-bars li{padding:7px 8px;}
+  .hr-bars .row{display:flex; align-items:baseline; gap:8px; margin-bottom:6px; font-size:13.5px;}
+  .hr-bars .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .hr-bars .sh{color:var(--muted); font-size:12px; flex:none;}
+  .hr-bars .amt{font-weight:800; font-variant-numeric:tabular-nums; flex:none;}
+  .hr-bars .tr{display:block; height:7px; border-radius:999px; background:var(--ink-3); overflow:hidden;}
+  .hr-bars .tr i{display:block; height:100%; border-radius:999px; background:var(--gold); transform-origin:right; animation:bar-in .6s var(--spring) both;}
+  .hr-bars li:first-child .amt{color:var(--gold-hi);}
+  @keyframes bar-in{from{transform:scaleX(0);}}
+  /* السجل مجمّع باليوم */
+  .at-logh{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .at-logh h2{margin:0;}
+  .at-logh h2 .n{color:var(--muted); font-weight:500; font-size:14px;}
+  .day-h{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:16px 0 6px; padding:0 4px;}
+  .day-h:first-of-type{margin-top:8px;}
+  .day-h b{font-size:15px; font-weight:800;}
+  .day-h small{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .sh-list{list-style:none; margin:0; padding:0;}
+  .shf + .shf{border-top:1px solid var(--hair-soft);}
+  .shf.edit{background:var(--ink-3); border-radius:14px;}
+  .shf.edit + .shf, .shf + .shf.edit{border-top-color:transparent;}
+  .shf-row{display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:12px; min-height:56px; padding:8px;}
+  .shf-row .nm{min-width:0; font-weight:700; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .shf-row .nm small{display:block; color:var(--muted); font-size:11.5px; font-weight:500;}
+  .shf-row .tm{font-size:14px; font-variant-numeric:tabular-nums; white-space:nowrap; direction:ltr; unicode-bidi:isolate; color:var(--muted);}
+  .shf-row .tm b{color:var(--paper); font-weight:700;}
+  .shf-row .tm .open{color:var(--olive); font-weight:800;}
+  .shf-row .hrs{min-width:52px; text-align:left; font-weight:800; font-size:15px; font-variant-numeric:tabular-nums;}
+  .shf-row .hrs small{color:var(--muted); font-weight:500; font-size:11.5px;}
+  .shf-row .hrs.open{color:var(--olive);}
+  .shf-row .edit-btn{min-height:44px; min-width:44px; display:inline-grid; place-items:center; border-radius:12px; background:none; border:0; color:var(--muted); cursor:pointer;}
+  .shf-row .edit-btn:hover{background:rgba(var(--gold-rgb),.08); color:var(--paper);}
+  .shf-row .edit-btn:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .shf-row .edit-btn .icon{width:18px; height:18px;}
+  .shf-row.rw{grid-template-columns:minmax(0,1fr) auto auto auto;}
+  .manual{display:inline-block; font-size:10.5px; color:var(--gold-hi); font-weight:700; margin:0 4px; direction:rtl;}
+  .shf-edit{padding:2px 10px 14px;}
+  .shf-edit .two{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;}
+  .shf-edit label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px;}
+  .shf-edit input[type="datetime-local"]{width:100%; box-sizing:border-box; min-height:44px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
+    padding:8px; border-radius:12px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .shf-edit .hint{font-size:12px; color:var(--muted); margin:0 0 10px;}
+  @media (max-width:640px){
+    .shf-edit .two{grid-template-columns:1fr;}
+    .shf-row, .shf-row.rw{grid-template-columns:minmax(0,1fr) auto; gap:4px 10px;}
+    .shf-row .tm{grid-column:1; grid-row:2;}
+    .shf-row .hrs{grid-column:2; grid-row:1 / span 2;}
+    .shf-row .edit-btn{grid-column:3; grid-row:1 / span 2;}
+    .shf-row.rw{grid-template-columns:minmax(0,1fr) auto auto;}
+  }
+  .at-more{display:flex; justify-content:center; padding-top:10px;}
+  .at-more .btn{min-height:44px;}
+  @media (prefers-reduced-motion: reduce){
+    .at-chip{transition:none;} .at-chip:active{transform:none;}
+    .hr-bars .tr i, .pulse{animation:none;}
   }
 </style>
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap">
+  <div class="wrap at-wrap">
     <div class="err" id="err"></div>
 
-    <div class="group" id="manual-punch-group" hidden>
-      <h2>تصحيح بصمة يدويًا</h2>
-      <p class="hint" style="margin-bottom:14px;">
-        لموظف نسي يبصم دخوله/خروجه، أو حالة تعطّل مؤقت بجهاز البصمة — تُحفظ البصمة اليدوية
-        بنفس طريقة بصمة الجهاز، ويحدَّد كونها دخول أو خروج تلقائيًا حسب ترتيبها الزمني.
-      </p>
+    <header class="at-head">
+      <div>
+        <h1>الحضور</h1>
+        <div class="at-sub" id="at-sub">&nbsp;</div>
+      </div>
+      <button class="btn go" type="button" id="punch-toggle" aria-expanded="false" aria-controls="punch-group" hidden></button>
+    </header>
+
+    <!-- تصحيح بصمة: مسكّر لحد ما تكبس الزر (مالك/مدير) -->
+    <section class="group" id="punch-group" hidden>
+      <div class="at-form-head"><h2>تصحيح بصمة</h2><button class="btn small" type="button" id="punch-close">إغلاق</button></div>
+      <p class="at-note">لموظف نسي يبصم أو لو الجهاز تعطّل. بتنحفظ مثل بصمة الجهاز، والسيستم بيحدد لحاله دخول ولا خروج حسب ترتيبها بالوقت.</p>
       <form id="punch-form">
         <div class="row3">
-          <div class="field">
-            <label>الموظف</label>
-            <select id="p-employee" required></select>
-          </div>
-          <div class="field">
-            <label>وقت البصمة</label>
-            <input type="datetime-local" id="p-time" required>
-          </div>
-          <div class="field">
-            <label>ملاحظة (اختياري)</label>
-            <input type="text" id="p-note" placeholder="مثال: نسي يبصم خروج">
-          </div>
+          <div class="field"><label for="p-employee">الموظف</label><select id="p-employee" required></select></div>
+          <div class="field"><label for="p-time">وقت البصمة</label><input type="datetime-local" id="p-time" required></div>
+          <div class="field"><label for="p-note">ملاحظة (اختياري)</label><input type="text" id="p-note" placeholder="مثال: نسي يبصم خروج"></div>
         </div>
-        <button type="submit" class="btn gold">إضافة البصمة</button>
+        <div class="at-actions">
+          <button type="submit" class="btn go">إضافة البصمة</button>
+          <button type="button" class="btn" id="punch-cancel">إلغاء</button>
+        </div>
       </form>
+    </section>
+
+    <div class="at-chips" id="period-chips" role="group" aria-label="الفترة">
+      <button class="at-chip" type="button" data-period="today" aria-pressed="false">اليوم</button>
+      <button class="at-chip" type="button" data-period="yesterday" aria-pressed="false">أمس</button>
+      <button class="at-chip" type="button" data-period="week" aria-pressed="false">آخر 7 أيام</button>
+      <button class="at-chip" type="button" data-period="month" aria-pressed="true">هالشهر</button>
+      <button class="at-chip" type="button" data-period="custom" aria-pressed="false" id="custom-chip"></button>
+      <select class="at-emp" id="f-employee" aria-label="الموظف" hidden><option value="">كل الموظفين</option></select>
+    </div>
+    <div class="at-custom" id="custom-range" hidden>
+      <div class="field"><label for="from_date">من</label><input type="date" id="from_date"></div>
+      <div class="field"><label for="to_date">إلى</label><input type="date" id="to_date"></div>
+      <button class="btn go" type="button" id="custom-apply">عرض</button>
     </div>
 
-    <div class="group">
-      <h2>سجل الحضور</h2>
-      <div class="row3" id="filter-row">
-        <div class="field">
-          <label>من تاريخ</label>
-          <input type="date" id="from_date">
-        </div>
-        <div class="field">
-          <label>إلى تاريخ</label>
-          <input type="date" id="to_date">
-        </div>
-        <div class="field" id="employee-filter-field" hidden>
-          <label>الموظف</label>
-          <select id="f-employee"><option value="">كل الموظفين</option></select>
-        </div>
-      </div>
-      <button class="btn gold" id="run-btn">عرض</button>
-
-      <div class="table-wrap" style="margin-top:16px;">
-        <table>
-          <thead>
-            <tr>
-              <th>الموظف</th><th>التاريخ</th><th>دخول</th><th>خروج</th><th>عدد الساعات</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="shifts-body">
-            <tr class="empty-row"><td colspan="6">اختر فترة واضغط "عرض"</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="stats at-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-hrs"></div>
+        <div class="stat-body"><div class="label">ساعات العمل</div><div class="value" id="k-hrs">—</div><span class="note" id="k-hrs-note">&nbsp;</span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-shifts"></div>
+        <div class="stat-body"><div class="label">الورديات</div><div class="value" id="k-shifts">—</div><span class="note" id="k-shifts-note">&nbsp;</span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-people"></div>
+        <div class="stat-body"><div class="label">موظفين اشتغلوا</div><div class="value" id="k-people">—</div><span class="note" id="k-people-note">&nbsp;</span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-open"></div>
+        <div class="stat-body"><div class="label">على الدوام هلأ</div><div class="value" id="k-open">—</div><span class="note" id="k-open-note">&nbsp;</span></div></div></div>
     </div>
+
+    <div class="at-grid">
+      <section class="group"><h2 id="now-title"></h2><div id="now-box"><div class="at-empty">جاري التحميل...</div></div></section>
+      <section class="group"><h2 id="hrs-title"></h2><div id="hrs-box"><div class="at-empty">جاري التحميل...</div></div></section>
+    </div>
+
+    <section class="group">
+      <div class="at-logh"><h2 id="log-title"></h2></div>
+      <div id="log-box"><div class="at-empty">جاري التحميل...</div></div>
+      <div class="at-more" id="more" hidden><button class="btn" type="button" id="more-btn">عرض أيام أقدم</button></div>
+    </section>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -148,204 +259,304 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("attendance");
 
+    const $ = (id) => document.getElementById(id);
+    const errBox = $("err");
+    const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const DAYS_STEP = 10;
+    const LONG_SHIFT_H = 12;   // وردية مفتوحة أطول من هيك: غالبًا نسي يبصم خروج
     let myRole = null;
     let myId = null;
+    let canManage = false;
     let profilesById = new Map();
     let punches = [];
-    const editingKeys = new Set();
+    let period = "month";
+    let range = null;
+    let daysShown = DAYS_STEP;
+    let editingKey = null;
 
-    function fmtTime(iso) {
-      return new Date(iso).toLocaleString("ar-EG", {
-        hour: "2-digit", minute: "2-digit", numberingSystem: "latn",
-      });
-    }
-
-    function toLocalInputValue(iso) {
-      const d = new Date(iso);
+    // التواريخ بتوقيت الجهاز (olvToday بيرجع UTC وبعد نص الليل بيزيح يوم)
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const parse = (s) => new Date(s + "T00:00:00");
+    const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+    const todayIso = () => iso(new Date());
+    const shortDate = (s) => Number(s.slice(8, 10)) + "/" + Number(s.slice(5, 7));
+    const fmtTime = (t) => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const fmtHrs = (h) => { const v = Math.round(h * 10) / 10; return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)); };
+    function toLocalInputValue(t) {
+      const d = new Date(t);
       const pad = (n) => String(n).padStart(2, "0");
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    function dur(h) { const m = Math.max(0, Math.round(h * 60)); return m < 60 ? `${m} د` : `${Math.floor(m / 60)} س ${m % 60 ? (m % 60) + " د" : ""}`.trim(); }
+
+    $("punch-toggle").innerHTML = olvIcon("plus") + "<span>تصحيح بصمة</span>";
+    $("custom-chip").innerHTML = olvIcon("calendar") + "<span>فترة…</span>";
+    $("ic-hrs").innerHTML = olvIcon("clock");
+    $("ic-shifts").innerHTML = olvIcon("clipboard");
+    $("ic-people").innerHTML = olvIcon("people");
+    $("ic-open").innerHTML = olvIcon("bolt");
+    $("now-title").innerHTML = olvIcon("bolt") + " على الدوام هلأ";
+    $("hrs-title").innerHTML = olvIcon("barChart") + " ساعات كل موظف";
+    $("log-title").innerHTML = olvIcon("calendar") + ' السجل <span class="n" id="log-count"></span>';
+
+    function rangeFor(p) {
+      const t = todayIso();
+      if (p === "today") return { from: t, to: t };
+      if (p === "yesterday") { const y = addDays(t, -1); return { from: y, to: y }; }
+      if (p === "week") return { from: addDays(t, -6), to: t };
+      if (p === "month") return { from: t.slice(0, 8) + "01", to: t };
+      return { from: $("from_date").value || t, to: $("to_date").value || t };
     }
 
     async function loadProfiles() {
       const { data, error } = await window.supabaseClient.from("profiles").select("id, full_name").order("full_name");
       if (error) throw error;
       profilesById = new Map((data || []).map((p) => [p.id, p.full_name]));
-      const empSelects = [document.getElementById("p-employee"), document.getElementById("f-employee")];
       const optionsHtml = (data || []).map((p) => `<option value="${p.id}">${olvEsc(p.full_name)}</option>`).join("");
-      document.getElementById("p-employee").innerHTML = optionsHtml;
-      document.getElementById("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
+      $("p-employee").innerHTML = optionsHtml;
+      $("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
+    }
+    const nameOf = (id) => profilesById.get(id) || "—";
+
+    // olvComputeShifts (assets/shift-utils.js) بيحوّل البصمات لورديات دخول/خروج (نفس منطق view employee_shifts)
+    function shiftsList() {
+      return olvComputeShifts(punches).sort((a, b) =>
+        b.clockIn.punched_at.localeCompare(a.clockIn.punched_at));
+    }
+    const hoursOf = (s) => olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
+
+    function render() {
+      const shifts = shiftsList();
+      const done = shifts.filter((s) => s.clockOut);
+      const total = done.reduce((s, x) => s + hoursOf(x), 0);
+      const people = new Set(shifts.map((s) => s.profile_id));
+      const open = shifts.filter((s) => !s.clockOut);
+      const openNow = open.filter((s) => (Date.now() - new Date(s.clockIn.punched_at)) / 3600000 < 24);
+      $("k-hrs").textContent = fmtHrs(total);
+      $("k-hrs-note").textContent = done.length ? `متوسط الوردية ${fmtHrs(total / done.length)} ساعة` : "من ورديات مسكّرة بس";
+      $("k-shifts").textContent = shifts.length;
+      $("k-shifts-note").textContent = open.length ? `${open.length} لسا مفتوحة` : "كلها مسكّرة";
+      $("k-people").textContent = people.size;
+      $("k-people-note").textContent = people.size && done.length ? `متوسط ${fmtHrs(total / people.size)} ساعة للواحد` : " ";
+      $("k-open").textContent = openNow.length;
+      $("k-open-note").className = "note" + (openNow.length ? " live" : "");
+      $("k-open-note").textContent = openNow.length ? "بصموا دخول وما بصموا خروج" : "ما حدا بصم دخول هلأ";
+      $("at-sub").textContent = range.from === range.to ? `${DAY_NAMES[parse(range.from).getDay()]} ${shortDate(range.from)}` : `من ${shortDate(range.from)} لـ ${shortDate(range.to)}`;
+      renderNow(open);
+      renderHours(shifts, done);
+      renderLog(shifts);
     }
 
-    // olvComputeShifts (assets/shift-utils.js) بيحوّل البصمات المجرّدة
-    // لورديات دخول/خروج — نفس المنطق المستخدم بـview employee_shifts
-    // بالضبط، بس معاد حسابه هون حتى يبقى معنا معرّف (id) كل بصمة على حدة
-    function shiftsForPage() {
-      const shifts = olvComputeShifts(punches);
-      shifts.sort((a, b) => b.work_date.localeCompare(a.work_date) || (profilesById.get(a.profile_id) || "").localeCompare(profilesById.get(b.profile_id) || ""));
-      return shifts;
+    function renderNow(open) {
+      if (!open.length) { $("now-box").innerHTML = `<div class="at-empty">ما في ورديات مفتوحة بهالفترة.</div>`; return; }
+      const list = open.slice().sort((a, b) => a.clockIn.punched_at.localeCompare(b.clockIn.punched_at));
+      $("now-box").innerHTML = `<ul class="now-list">${list.map((s) => {
+        const h = (Date.now() - new Date(s.clockIn.punched_at)) / 3600000;
+        const long = h >= LONG_SHIFT_H;
+        return `<li><span class="pulse" aria-hidden="true"></span><span class="nm">${olvEsc(nameOf(s.profile_id))}</span>
+          <span class="since${long ? " long" : ""}">من <b>${fmtTime(s.clockIn.punched_at)}</b>${h >= 0 ? ` · ${dur(h)}` : ""}${long ? " · غالبًا نسي الخروج" : ""}</span></li>`;
+      }).join("")}</ul>`;
     }
 
-    function renderShifts() {
-      const body = document.getElementById("shifts-body");
-      const shifts = shiftsForPage();
-      const canEdit = myRole === "owner" || myRole === "manager";
+    function renderHours(shifts, done) {
+      const by = new Map();
+      done.forEach((s) => {
+        const e = by.get(s.profile_id) || { h: 0, n: 0 };
+        e.h += hoursOf(s); e.n += 1; by.set(s.profile_id, e);
+      });
+      const rows = [...by.entries()].sort((a, b) => b[1].h - a[1].h);
+      if (!rows.length) { $("hrs-box").innerHTML = `<div class="at-empty">ما في ورديات مسكّرة بهالفترة.</div>`; return; }
+      const max = rows[0][1].h || 1;
+      $("hrs-box").innerHTML = `<ol class="hr-bars">${rows.map(([id, e]) => `
+        <li><span class="row"><span class="nm">${olvEsc(nameOf(id))}</span><span class="sh">${e.n} وردية</span><span class="amt">${fmtHrs(e.h)} س</span></span>
+          <span class="tr"><i style="width:${Math.max(3, e.h / max * 100)}%"></i></span></li>`).join("")}</ol>`;
+    }
+
+    function rowHtml(s) {
+      const h = hoursOf(s);
+      const canEdit = canManage;
+      const man = (p) => p && p.source === "manual" ? '<span class="manual">يدوي</span>' : "";
+      const editing = editingKey === s.key;
+      return `
+        <li class="shf${editing ? " edit" : ""}" data-key="${s.key}">
+          <div class="shf-row${canEdit ? " rw" : ""}">
+            <span class="nm">${olvEsc(nameOf(s.profile_id))}</span>
+            <span class="tm"><b>${fmtTime(s.clockIn.punched_at)}</b>${man(s.clockIn)}&nbsp;←&nbsp;${s.clockOut ? `<b>${fmtTime(s.clockOut.punched_at)}</b>${man(s.clockOut)}` : '<span class="open">مفتوحة</span>'}</span>
+            <span class="hrs${h == null ? " open" : ""}">${h != null ? `${fmtHrs(h)}<small> س</small>` : "—"}</span>
+            ${canEdit ? `<button type="button" class="edit-btn" data-edit="${s.key}" aria-label="تعديل وردية ${olvEsc(nameOf(s.profile_id))}" aria-expanded="${editing}">${olvIcon("note")}</button>` : ""}
+          </div>
+          ${editing ? `
+          <div class="shf-edit">
+            <div class="two">
+              <div><label for="ei-${s.key}">دخول</label><input id="ei-${s.key}" type="datetime-local" data-edit-in value="${toLocalInputValue(s.clockIn.punched_at)}"></div>
+              <div><label for="eo-${s.key}">خروج</label><input id="eo-${s.key}" type="datetime-local" data-edit-out value="${s.clockOut ? toLocalInputValue(s.clockOut.punched_at) : ""}"></div>
+            </div>
+            <p class="hint">تفريغ خانة الخروج بيحذف بصمة الخروج (لو كانت زايدة أو غلط).</p>
+            <div class="at-actions"><button class="btn go" type="button" data-save="${s.key}">حفظ</button><button class="btn" type="button" data-cancel>إلغاء</button></div>
+          </div>` : ""}
+        </li>`;
+    }
+
+    function dayLabel(d) {
+      const t = todayIso();
+      if (d === t) return "اليوم";
+      if (d === addDays(t, -1)) return "أمس";
+      return `${DAY_NAMES[parse(d).getDay()]} ${shortDate(d)}`;
+    }
+
+    function renderLog(shifts) {
+      $("log-count").textContent = shifts.length ? `(${shifts.length} وردية)` : "";
       if (!shifts.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="6">لا يوجد بصمات بهذه الفترة</td></tr>`;
+        $("log-box").innerHTML = `<div class="at-empty">ما في بصمات بهالفترة.</div>`;
+        $("more").hidden = true;
         return;
       }
-      body.innerHTML = shifts.map((s) => {
-        if (editingKeys.has(s.key)) {
-          return `
-          <tr class="shift-edit-row" data-key="${s.key}">
-            <td>${profilesById.get(s.profile_id) || "—"}</td>
-            <td>${s.work_date}</td>
-            <td><input type="datetime-local" data-edit-in="${s.key}" value="${toLocalInputValue(s.clockIn.punched_at)}"></td>
-            <td><input type="datetime-local" data-edit-out="${s.key}" value="${s.clockOut ? toLocalInputValue(s.clockOut.punched_at) : ""}"></td>
-            <td>—</td>
-            <td>
-              <div style="display:flex; gap:6px;">
-                <button class="btn small gold" data-save="${s.key}">حفظ</button>
-                <button class="btn small" data-cancel="${s.key}">إلغاء</button>
-              </div>
-            </td>
-          </tr>`;
-        }
-        const hrs = olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
-        return `
-        <tr data-key="${s.key}">
-          <td>${profilesById.get(s.profile_id) || "—"}</td>
-          <td>${s.work_date}</td>
-          <td class="punch-time">${fmtTime(s.clockIn.punched_at)}${s.clockIn.source === "manual" ? '<span class="manual-badge">(يدوي)</span>' : ""}</td>
-          <td class="punch-time">${s.clockOut ? fmtTime(s.clockOut.punched_at) + (s.clockOut.source === "manual" ? '<span class="manual-badge">(يدوي)</span>' : "") : '<span class="open-shift">مفتوحة</span>'}</td>
-          <td>${hrs != null ? hrs.toFixed(1) : "—"}</td>
-          <td>${canEdit ? `<button class="btn small" data-edit="${s.key}">تعديل</button>` : ""}</td>
-        </tr>`;
+      const days = [];
+      const idx = new Map();
+      shifts.forEach((s) => {
+        const d = s.work_date;
+        if (!idx.has(d)) { idx.set(d, days.length); days.push({ d, list: [] }); }
+        days[idx.get(d)].list.push(s);
+      });
+      days.sort((a, b) => b.d.localeCompare(a.d));
+      const shown = days.slice(0, daysShown);
+      $("log-box").innerHTML = shown.map(({ d, list }) => {
+        const hrs = list.filter((s) => s.clockOut).reduce((a, s) => a + hoursOf(s), 0);
+        return `<div class="day-h"><b>${dayLabel(d)}</b><small>${list.length} وردية · ${fmtHrs(hrs)} ساعة</small></div>
+          <ul class="sh-list">${list.sort((a, b) => a.clockIn.punched_at.localeCompare(b.clockIn.punched_at)).map(rowHtml).join("")}</ul>`;
       }).join("");
-
-      body.querySelectorAll("button[data-edit]").forEach((btn) => {
-        btn.addEventListener("click", () => { editingKeys.add(btn.dataset.edit); renderShifts(); });
-      });
-      body.querySelectorAll("button[data-cancel]").forEach((btn) => {
-        btn.addEventListener("click", () => { editingKeys.delete(btn.dataset.cancel); renderShifts(); });
-      });
-      body.querySelectorAll("button[data-save]").forEach((btn) => {
-        btn.addEventListener("click", () => saveShiftEdit(btn.dataset.save, shifts));
-      });
+      $("more").hidden = days.length <= daysShown;
+      if (days.length > daysShown) $("more-btn").textContent = `عرض أيام أقدم (${days.length - daysShown})`;
+      const box = $("log-box");
+      box.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+        editingKey = editingKey === b.dataset.edit ? null : b.dataset.edit; renderLog(shiftsList());
+      }));
+      box.querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () => { editingKey = null; renderLog(shiftsList()); }));
+      box.querySelectorAll("[data-save]").forEach((b) => b.addEventListener("click", () => saveShiftEdit(b.dataset.save, b)));
     }
+    $("more-btn").addEventListener("click", () => { daysShown += DAYS_STEP; renderLog(shiftsList()); });
 
-    async function saveShiftEdit(key, shifts) {
-      const errBox = document.getElementById("err");
-      const shift = shifts.find((s) => s.key === key);
+    async function saveShiftEdit(key, btn) {
+      const shift = shiftsList().find((s) => s.key === key);
       if (!shift) return;
-      const inVal = document.querySelector(`input[data-edit-in="${key}"]`).value;
-      const outVal = document.querySelector(`input[data-edit-out="${key}"]`).value;
+      const li = btn.closest(".shf");
+      const inVal = li.querySelector("[data-edit-in]").value;
+      const outVal = li.querySelector("[data-edit-out]").value;
       if (!inVal) { olvShowError(errBox, new Error("وقت الدخول مطلوب")); return; }
+      btn.disabled = true;
       try {
         const newInIso = new Date(inVal).toISOString();
         if (newInIso !== shift.clockIn.punched_at) {
-          const { error } = await window.supabaseClient.from("employee_punches")
-            .update({ punched_at: newInIso }).eq("id", shift.clockIn.id);
+          const { error } = await window.supabaseClient.from("employee_punches").update({ punched_at: newInIso }).eq("id", shift.clockIn.id);
           if (error) throw error;
         }
         if (outVal) {
           const newOutIso = new Date(outVal).toISOString();
           if (shift.clockOut) {
             if (newOutIso !== shift.clockOut.punched_at) {
-              const { error } = await window.supabaseClient.from("employee_punches")
-                .update({ punched_at: newOutIso }).eq("id", shift.clockOut.id);
+              const { error } = await window.supabaseClient.from("employee_punches").update({ punched_at: newOutIso }).eq("id", shift.clockOut.id);
               if (error) throw error;
             }
           } else {
-            const { error } = await window.supabaseClient.from("employee_punches")
-              .insert({ profile_id: shift.profile_id, punched_at: newOutIso, source: "manual" });
+            const { error } = await window.supabaseClient.from("employee_punches").insert({ profile_id: shift.profile_id, punched_at: newOutIso, source: "manual" });
             if (error) throw error;
           }
         } else if (shift.clockOut) {
           // إفراغ حقل الخروج يعني حذف بصمة الخروج (تصحيح بصمة زايدة/خاطئة)
-          const { error } = await window.supabaseClient.from("employee_punches")
-            .delete().eq("id", shift.clockOut.id);
+          const { error } = await window.supabaseClient.from("employee_punches").delete().eq("id", shift.clockOut.id);
           if (error) throw error;
         }
-        editingKeys.delete(key);
+        editingKey = null;
+        olvToast("انحفظ التعديل", { type: "ok", icon: "check" });
         await runReport();
       } catch (err) {
-        if (err && err.code === "23505") {
-          err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
-        }
+        btn.disabled = false;
+        if (err && err.code === "23505") err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
         olvShowError(errBox, err);
       }
     }
 
     async function runReport() {
-      const errBox = document.getElementById("err");
       errBox.style.display = "none";
-      const from = document.getElementById("from_date").value;
-      const to = document.getElementById("to_date").value;
-      const toExclusive = new Date(new Date(to).getTime() + 86400000).toISOString().slice(0, 10);
-      const employeeId = document.getElementById("f-employee").value;
+      range = rangeFor(period);
+      const toExclusive = addDays(range.to, 1);
+      const employeeId = $("f-employee").value;
       try {
         let query = window.supabaseClient
           .from("employee_punches").select("id, profile_id, punched_at, source")
-          .gte("punched_at", from).lt("punched_at", toExclusive)
+          .gte("punched_at", range.from).lt("punched_at", toExclusive)
           .order("punched_at");
         if (employeeId) query = query.eq("profile_id", employeeId);
         const { data, error } = await query;
         if (error) throw error;
         punches = data || [];
-        editingKeys.clear();
-        renderShifts();
+        editingKey = null;
+        daysShown = DAYS_STEP;
+        render();
       } catch (err) {
         olvShowError(errBox, err);
       }
     }
 
-    document.getElementById("punch-form").addEventListener("submit", async (e) => {
+    function setPeriod(p) {
+      period = p;
+      document.querySelectorAll("#period-chips [data-period]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.period === p)));
+      $("custom-range").hidden = p !== "custom";
+      if (p !== "custom") runReport();
+    }
+    document.querySelectorAll("#period-chips [data-period]").forEach((b) => b.addEventListener("click", () => setPeriod(b.dataset.period)));
+    $("custom-apply").addEventListener("click", runReport);
+    $("f-employee").addEventListener("change", runReport);
+
+    function openPunch(open) {
+      $("punch-group").hidden = !open;
+      $("punch-toggle").setAttribute("aria-expanded", String(open));
+      if (open) $("p-employee").focus();
+    }
+    $("punch-toggle").addEventListener("click", () => openPunch($("punch-group").hidden));
+    $("punch-close").addEventListener("click", () => openPunch(false));
+    $("punch-cancel").addEventListener("click", () => openPunch(false));
+
+    $("punch-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("err");
       try {
-        const timeVal = document.getElementById("p-time").value;
+        const timeVal = $("p-time").value;
         if (!timeVal) throw new Error("وقت البصمة مطلوب");
         const { error } = await window.supabaseClient.from("employee_punches").insert({
-          profile_id: document.getElementById("p-employee").value,
+          profile_id: $("p-employee").value,
           punched_at: new Date(timeVal).toISOString(),
           source: "manual",
-          note: document.getElementById("p-note").value.trim() || null,
+          note: $("p-note").value.trim() || null,
         });
         if (error) throw error;
-        document.getElementById("punch-form").reset();
+        $("punch-form").reset();
+        openPunch(false);
+        olvToast("انضافت البصمة", { type: "ok", icon: "check" });
         await runReport();
       } catch (err) {
-        if (err && err.code === "23505") {
-          err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
-        }
+        if (err && err.code === "23505") err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
         olvShowError(errBox, err);
       }
     });
-
-    document.getElementById("run-btn").addEventListener("click", runReport);
 
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
       myId = session.user.id;
-      const { data: myProfile, error } = await window.supabaseClient
-        .from("profiles").select("role").eq("id", myId).single();
-      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      const { data: myProfile, error } = await window.supabaseClient.from("profiles").select("role").eq("id", myId).single();
+      if (error) { olvShowError(errBox, error); return; }
       myRole = myProfile ? myProfile.role : null;
-      const canManage = myRole === "owner" || myRole === "manager";
-      document.getElementById("manual-punch-group").hidden = !canManage;
-      document.getElementById("employee-filter-field").hidden = !canManage;
-
-      const today = new Date();
-      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      document.getElementById("from_date").value = firstOfMonth.toISOString().slice(0, 10);
-      document.getElementById("to_date").value = olvToday();
-
+      canManage = myRole === "owner" || myRole === "manager";
+      $("punch-toggle").hidden = !canManage;
+      $("f-employee").hidden = !canManage;
+      const t = todayIso();
+      $("from_date").value = t.slice(0, 8) + "01";
+      $("to_date").value = t;
       try {
         await loadProfiles();
         await runReport();
       } catch (err) {
-        olvShowError(document.getElementById("err"), err);
+        olvShowError(errBox, err);
       }
     })();
     });
