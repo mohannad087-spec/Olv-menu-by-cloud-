@@ -61,8 +61,14 @@ async function main() {
     });
     console.log(`✓ نجح — عدد الأحداث المسحوبة: ${events.length}`);
     if (events.length) {
-      console.log("\nأول 3 أحداث (كاملة، للفحص اليدوي):");
-      console.log(JSON.stringify(events.slice(0, 3), null, 2));
+      const fmt = (d) => new Date(d).toLocaleString("en-GB", { hour12: false });
+      console.log("\nوقت هذا الكمبيوتر الآن:", fmt(Date.now()));
+      console.log("آخر 8 أحداث (رقم الموظف | نوع الحدث | وقت الجهاز الخام | الوقت بتوقيت هذا الكمبيوتر):");
+      for (const e of events.slice(-8)) {
+        console.log(`  emp=${e.employeeNoString || "-"} | minor=${e.minor} | ${e.time} | ${fmt(e.time)}`);
+      }
+      console.log("\nأول حدث كامل (للفحص):");
+      console.log(JSON.stringify(events[events.length - 1], null, 2));
       const withEmployee = events.filter((e) => e.employeeNoString);
       console.log(`\nمنها ${withEmployee.length} حدث فيه رقم موظف (employeeNoString) — هاد الرقم لازم يتطابق مع "رقم الموظف على جهاز البصمة" بصفحة الموظفين.`);
     } else {

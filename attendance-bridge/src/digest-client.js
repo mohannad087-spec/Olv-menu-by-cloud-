@@ -67,7 +67,10 @@ function buildDigestAuthHeader({ challenge, username, password, method, path }) 
 // JSON تلقائيًا. بيرجع { statusCode, headers, body: string }
 async function digestRequest({ host, port, username, password, method, path, body }) {
   const bodyStr = body !== undefined ? JSON.stringify(body) : undefined;
-  const baseHeaders = bodyStr ? { "content-type": "application/json" } : {};
+  // Content-Length صريح: بدونه Node يرسل chunked، وأجهزة Hikvision ما بتدعمه (socket hang up)
+  const baseHeaders = bodyStr
+    ? { "content-type": "application/json", "content-length": Buffer.byteLength(bodyStr) }
+    : {};
 
   const first = await rawRequest({ host, port, method, path, headers: baseHeaders, body: bodyStr });
   if (first.statusCode !== 401) return first;
