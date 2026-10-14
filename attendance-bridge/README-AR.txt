@@ -6,8 +6,8 @@
 1) افتح الملف .env.example بالمفكرة (Notepad)، واحفظه باسم جديد: .env
    (اختر "All files" وقت الحفظ حتى ما يصير .env.txt)
 2) املأ فيه:
-   - SUPABASE_URL و SUPABASE_SERVICE_KEY: من Supabase > Project Settings > API
-     (المفتاح اسمه service_role. سري، لا تشاركه مع أحد ولا ترسله بأي محادثة.)
+   - SUPABASE_URL و BRIDGE_TOKEN: انسخهم من ملف bridge-token.txt (بدون أي مفتاح سري من Supabase).
+     (BRIDGE_TOKEN سطر جديد بآخر الملف. وSUPABASE_SERVICE_KEY مش مطلوب وقتها.)
    - DEVICE_IP: عنوان الجهاز. من شاشة الجهاز: الإعدادات > الشبكة. أو من برنامج SADP المجاني.
    - DEVICE_USER و DEVICE_PASSWORD: اسم المدير (admin) وكلمة السر اللي حطيتها وقت التفعيل.
 3) اضغط مرتين على test.bat. لازم يظهر ✓ . انسخ الناتج كله وابعته لي، حتى لو ظهر خطأ.

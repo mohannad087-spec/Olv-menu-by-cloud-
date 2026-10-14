@@ -139,3 +139,12 @@ pm2 startup
 خطوة `npm run test-connection` (الخطوة 5) مهمة جدًا — بتطبع الرد الخام
 الكامل من جهازك، فلو كان شكله مختلف عمّا هو متوقع، ابعت الناتج حتى
 تُصحَّح البرمجة على أساسه.
+
+## الحفظ بدون مفتاح سري (BRIDGE_TOKEN) — الطريقة المفضلة
+
+بدل ما نحط مفتاح `service_role` على كمبيوتر المحل، الجسر بيقدر يرسل البصمات
+لدالة `attendance-ingest` (مجلد `supabase/functions/attendance-ingest`) برمز
+خاص. الرمز نفسه ما بينحفظ بقاعدة البيانات، بس بصمته (SHA-256) بجدول
+`attendance_bridge_tokens` (انظر `accounting/schema-attendance-bridge-token.sql`).
+بملف `.env` ضيف سطرين: `SUPABASE_URL=...` و `BRIDGE_TOKEN=...`، و`SUPABASE_SERVICE_KEY`
+بيصير مش مطلوب. لإلغاء رمز: `update attendance_bridge_tokens set revoked = true where ...`.
