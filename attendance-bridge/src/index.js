@@ -15,7 +15,24 @@
 
 require("dotenv").config();
 const { searchAllAcsEvents } = require("./hikvision");
-const { supabase } = require("./supabase");
+
+// وضعان للحفظ: (1) الأبسط والأأمن: BRIDGE_TOKEN + SUPABASE_URL، الجسر بيرسل البصمات
+// لدالة attendance-ingest بالسحابة بدون أي مفتاح سري عالكمبيوتر. (2) القديم:
+// SUPABASE_SERVICE_KEY مباشرة.
+const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN;
+const USE_INGEST = !!(BRIDGE_TOKEN && process.env.SUPABASE_URL);
+const supabase = USE_INGEST ? null : require("./supabase").supabase;
+
+async function ingest(events) {
+  const res = await fetch(`${process.env.SUPABASE_URL.replace(/\/+$/, "")}/functions/v1/attendance-ingest`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-bridge-token": BRIDGE_TOKEN },
+    body: JSON.stringify({ events }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok || !out.ok) throw new Error(`رفضت السحابة البصمات (${res.status}): ${out.error || "رد غير متوقع"}`);
+  return out;
+}
 
 const DEVICE_IP = process.env.DEVICE_IP;
 const DEVICE_PORT = Number(process.env.DEVICE_PORT || 80);
@@ -48,7 +65,7 @@ async function tick() {
     const from = new Date(now.getTime() - LOOKBACK_HOURS * 3600000);
 
     const [userMap, events] = await Promise.all([
-      loadDeviceUserMap(),
+      USE_INGEST ? Promise.resolve(null) : loadDeviceUserMap(),
       searchAllAcsEvents({
         host: DEVICE_IP, port: DEVICE_PORT, username: DEVICE_USER, password: DEVICE_PASSWORD,
         startTime: from.toISOString(), endTime: now.toISOString(),
@@ -57,6 +74,21 @@ async function tick() {
 
     if (!events.length) {
       log("لا يوجد أحداث جديدة على الجهاز خلال آخر", LOOKBACK_HOURS, "ساعة.");
+      return;
+    }
+
+    if (USE_INGEST) {
+      const list = events
+        .filter((ev) => ev.employeeNoString && ev.time)
+        .map((ev) => ({ employeeNo: String(ev.employeeNoString).trim(), time: ev.time }));
+      if (!list.length) { log("لا يوجد بصمات مرتبطة بموظفين خلال هذه الدورة."); return; }
+      for (let i = 0; i < list.length; i += 500) {
+        const out = await ingest(list.slice(i, i + 500));
+        if (out.unmapped && out.unmapped.length) {
+          log(`تحذير: بصمات من رقم/أرقام موظفين غير مربوطة بأي حساب (${out.unmapped.join("، ")}) — اربط "رقم الموظف على جهاز البصمة" من صفحة الموظفين.`);
+        }
+        log(`أُرسلت ${out.received} بصمة، حُفظ منها ${out.saved} (المكرر يُتجاهل تلقائيًا).`);
+      }
       return;
     }
 
