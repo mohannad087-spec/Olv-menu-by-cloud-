@@ -3,6 +3,16 @@
 // السجل اللي بيتسجل فيه كل نجاح تحقق (وجه/بصمة/كرت/كلمة سر حسب الجهاز).
 const { digestRequest } = require("./digest-client");
 
+// ISAPI يتوقع وقت بصيغة 2026-10-14T20:00:00+03:00 (بدون أجزاء ثانية، مع إزاحة المنطقة الزمنية)
+function toIsapiTime(input) {
+  const d = new Date(input);
+  const pad = (n) => String(n).padStart(2, "0");
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? "+" : "-";
+  const abs = Math.abs(off);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
 // صفحة وحدة من سجل الأحداث بين وقتين، بترقيم position/maxResults حسب
 // معيار ISAPI (major=5 يعني "أحداث التحكم بالدخول" شاملة كل طرق التحقق)
 async function searchAcsEventsPage({ host, port, username, password, searchID, position, maxResults, startTime, endTime }) {
@@ -17,8 +27,8 @@ async function searchAcsEventsPage({ host, port, username, password, searchID, p
         maxResults,
         major: 5,
         minor: 0,
-        startTime,
-        endTime,
+        startTime: toIsapiTime(startTime),
+        endTime: toIsapiTime(endTime),
       },
     },
   });
