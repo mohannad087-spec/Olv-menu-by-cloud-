@@ -29,9 +29,28 @@ Deno.serve(async (req) => {
     .from("attendance_bridge_tokens").select("id, revoked").eq("token_sha256", await sha256(token)).maybeSingle();
   if (!tok || tok.revoked) return json({ ok: false, error: "رمز غير صالح" }, 401);
 
-  let body: { events?: { employeeNo?: unknown; time?: unknown }[] };
+  let body: { events?: { employeeNo?: unknown; time?: unknown }[]; users?: { employeeNo?: unknown; name?: unknown }[] };
   try { body = await req.json(); } catch { return json({ ok: false, error: "JSON غير صالح" }, 400); }
   const events = Array.isArray(body.events) ? body.events.slice(0, 1000) : [];
+
+  // ربط بالاسم: موظف بالتطبيق بدون device_user_id واسمه مطابق لاسم شخص على الجهاز (مطابقة وحيدة فقط)
+  const linked: string[] = [];
+  const users = Array.isArray(body.users) ? body.users.slice(0, 500) : [];
+  if (users.length) {
+    const norm = (s: unknown) => String(s ?? "").normalize("NFKC").replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim().toLowerCase();
+    const { data: all } = await admin.from("profiles").select("id, full_name, device_user_id");
+    const taken = new Set((all || []).filter((p) => p.device_user_id).map((p) => String(p.device_user_id)));
+    const free = (all || []).filter((p) => !p.device_user_id && norm(p.full_name));
+    for (const u of users) {
+      const no = String(u.employeeNo ?? "").trim();
+      const n = norm(u.name);
+      if (!no || !n || taken.has(no)) continue;
+      const hits = free.filter((p) => norm(p.full_name) === n);
+      if (hits.length !== 1) continue;
+      const { error } = await admin.from("profiles").update({ device_user_id: no }).eq("id", hits[0].id);
+      if (!error) { taken.add(no); linked.push(`${hits[0].full_name} (${no})`); free.splice(free.indexOf(hits[0]), 1); }
+    }
+  }
 
   const nos = [...new Set(events.map((e) => String(e.employeeNo ?? "").trim()).filter(Boolean))];
   const map = new Map<string, string>();
@@ -61,5 +80,5 @@ Deno.serve(async (req) => {
     if (error) return json({ ok: false, error: error.message }, 500);
   }
   await admin.from("attendance_bridge_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tok.id);
-  return json({ ok: true, received: events.length, saved: rows.length, unmapped: [...unmapped] });
+  return json({ ok: true, received: events.length, saved: rows.length, unmapped: [...unmapped], linked });
 });

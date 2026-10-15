@@ -66,4 +66,26 @@ async function searchAllAcsEvents({ host, port, username, password, startTime, e
   return all;
 }
 
-module.exports = { searchAllAcsEvents };
+// قائمة الأشخاص المسجّلين على الجهاز (الرقم الوظيفي + الاسم) لربطهم بالموظفين بالاسم
+async function listDeviceUsers({ host, port, username, password, pageSize = 30, maxPages = 50 }) {
+  const out = [];
+  const searchID = `olv-u-${Date.now()}`;
+  let position = 0;
+  for (let page = 0; page < maxPages; page++) {
+    const res = await digestRequest({
+      host, port, username, password,
+      method: "POST",
+      path: "/ISAPI/AccessControl/UserInfo/Search?format=json",
+      body: { UserInfoSearchCond: { searchID, searchResultPosition: position, maxResults: pageSize } },
+    });
+    if (res.statusCode !== 200) throw new Error(`تعذر قراءة أسماء الموظفين من الجهاز (HTTP ${res.statusCode})`);
+    const r = JSON.parse(res.body).UserInfoSearch || {};
+    const items = r.UserInfo || [];
+    for (const u of items) if (u.employeeNo) out.push({ employeeNo: String(u.employeeNo), name: String(u.name || "") });
+    position += items.length;
+    if (!items.length || items.length < pageSize || position >= Number(r.totalMatches || 0)) break;
+  }
+  return out;
+}
+
+module.exports = { searchAllAcsEvents, listDeviceUsers };

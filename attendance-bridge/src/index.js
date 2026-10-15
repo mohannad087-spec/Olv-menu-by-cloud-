@@ -14,7 +14,7 @@
 // البرنامج أو أعيد تشغيله أو الجهاز نفسه.
 
 require("dotenv").config();
-const { searchAllAcsEvents } = require("./hikvision");
+const { searchAllAcsEvents, listDeviceUsers } = require("./hikvision");
 
 // وضعان للحفظ: (1) الأبسط والأأمن: BRIDGE_TOKEN + SUPABASE_URL، الجسر بيرسل البصمات
 // لدالة attendance-ingest بالسحابة بدون أي مفتاح سري عالكمبيوتر. (2) القديم:
@@ -23,11 +23,11 @@ const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN;
 const USE_INGEST = !!(BRIDGE_TOKEN && process.env.SUPABASE_URL);
 const supabase = USE_INGEST ? null : require("./supabase").supabase;
 
-async function ingest(events) {
+async function ingest(events, users) {
   const res = await fetch(`${process.env.SUPABASE_URL.replace(/\/+$/, "")}/functions/v1/attendance-ingest`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-bridge-token": BRIDGE_TOKEN },
-    body: JSON.stringify({ events }),
+    body: JSON.stringify({ events, users }),
   });
   const out = await res.json().catch(() => ({}));
   if (!res.ok || !out.ok) throw new Error(`رفضت السحابة البصمات (${res.status}): ${out.error || "رد غير متوقع"}`);
@@ -59,8 +59,23 @@ async function loadDeviceUserMap() {
   return map;
 }
 
+// أسماء الموظفين على الجهاز: كل 10 دقايق، والسحابة بتربط بالاسم أي موظف لسا ما إله رقم
+let lastUsersSync = 0;
+async function syncUsers() {
+  if (!USE_INGEST || Date.now() - lastUsersSync < 10 * 60 * 1000) return;
+  lastUsersSync = Date.now();
+  try {
+    const users = await listDeviceUsers({ host: DEVICE_IP, port: DEVICE_PORT, username: DEVICE_USER, password: DEVICE_PASSWORD });
+    const out = await ingest([], users);
+    if (out.linked && out.linked.length) log(`تم ربط موظفين بالاسم مع رقمهم على الجهاز: ${out.linked.join("، ")}`);
+  } catch (err) {
+    log("تنبيه: ما قدرت أقرأ أسماء الموظفين من الجهاز:", err.message);
+  }
+}
+
 async function tick() {
   try {
+    await syncUsers();
     const now = new Date();
     const from = new Date(now.getTime() - LOOKBACK_HOURS * 3600000);
 
