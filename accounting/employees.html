@@ -161,6 +161,8 @@
             <div class="field"><label for="f-phone">رقم الهاتف (اختياري)</label><input type="tel" id="f-phone" dir="ltr"></div>
             <div class="field"><label for="f-wage">الأجر بالساعة (اختياري)</label><input type="number" id="f-wage" step="0.01" min="0" inputmode="decimal"></div>
           </div>
+          <div class="field"><label for="f-job">المسمّى الوظيفي (كاشير، ويتر، شيف، معلم أرجيلة...)</label><input type="text" id="f-job" list="job-titles" placeholder="اختار أو اكتب"></div>
+          <datalist id="job-titles"><option value="كاشير"><option value="ويتر"><option value="شيف"><option value="مساعد مطبخ"><option value="باريستا"><option value="معلم أرجيلة"><option value="مدير"></datalist>
           <span class="em-label" id="f-role-label">الدور</span>
           <div class="em-roles" id="f-roles" role="radiogroup" aria-labelledby="f-role-label"></div>
           <div class="em-actions">
@@ -182,6 +184,7 @@
             <div class="field"><label for="e-device-id">رقم الموظف على جهاز البصمة (اختياري)</label>
               <input type="text" id="e-device-id" dir="ltr" placeholder="مثال: 3"></div>
           </div>
+          <div class="field"><label for="e-job">المسمّى الوظيفي</label><input type="text" id="e-job" list="job-titles" placeholder="اختار أو اكتب"></div>
           <span class="em-label" id="e-role-label">الدور</span>
           <div class="em-roles" id="e-roles" role="radiogroup" aria-labelledby="e-role-label"></div>
           <p class="em-note">رقم البصمة هو الرقم الداخلي اللي أعطاه الجهاز للموظف وقت تسجيل بصمته (راجع دليل attendance-bridge)، ولازم يكون مختلف لكل موظف.</p>
@@ -226,7 +229,7 @@
     olvRenderNav("employees");
 
     const $ = (id) => document.getElementById(id);
-    const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "كاشير" };
+    const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "موظف" };
     let employees = [];
     let myRole = null;
     let myId = null;
@@ -307,7 +310,7 @@
       const groups = [
         ["owner", "أصحاب المطعم", active.filter((e) => e.role === "owner").sort(byName)],
         ["manager", "المدراء", active.filter((e) => e.role === "manager").sort(byName)],
-        ["staff", "الكاشير", active.filter((e) => e.role === "staff").sort(byName)],
+        ["staff", "الموظفون", active.filter((e) => e.role === "staff").sort(byName)],
         ["off", "موقوفين", off.sort(byName)],
       ].filter((g) => g[2].length);
       $("employees-box").innerHTML = groups.map(([id, label, list]) => `
@@ -327,7 +330,7 @@
           <div class="em-top">
             <span class="av ${e.is_active ? e.role : ""}" aria-hidden="true">${ini ? olvEsc(ini) : olvIcon("person")}</span>
             <span class="t"><b>${olvEsc(e.full_name) || "بدون اسم"}</b>
-              <small><span class="role-badge ${e.role}">${ROLE_LABELS[e.role] || olvEsc(e.role)}</span>${e.is_active ? "" : '<span class="role-badge off">موقوف</span>'}${e.id === myId ? '<span class="role-badge">إنت</span>' : ""}</small></span>
+              <small><span class="role-badge ${e.role}">${e.job_title ? olvEsc(e.job_title) : (ROLE_LABELS[e.role] || olvEsc(e.role))}</span>${e.is_active ? "" : '<span class="role-badge off">موقوف</span>'}${e.id === myId ? '<span class="role-badge">إنت</span>' : ""}</small></span>
           </div>
           <div class="em-facts">
             <div><span>الأجر/ساعة</span><b>${e.hourly_wage != null ? olvFormatMoney(e.hourly_wage) : "—"}</b></div>
@@ -371,6 +374,11 @@
           hourly_wage: $("f-wage").value || null,
           role: $("f-roles").dataset.value || "staff",
         });
+        const job = $("f-job").value.trim();
+        if (job && out.userId) {
+          const { error: jobErr } = await window.supabaseClient.from("profiles").update({ job_title: job }).eq("id", out.userId);
+          if (jobErr) olvToast("انضاف الموظف بس المسمّى ما انحفظ، عدّله من «تعديل»", { type: "danger", icon: "warning" });
+        }
         $("add-form").reset();
         openAdd(false);
         showTempPassword(out.tempPassword, name);
@@ -393,6 +401,7 @@
       $("e-phone").value = emp.phone || "";
       $("e-wage").value = emp.hourly_wage != null ? emp.hourly_wage : "";
       $("e-device-id").value = emp.device_user_id || "";
+      $("e-job").value = emp.job_title || "";
       rolesFor($("e-roles"), emp.role);
       $("edit-group").hidden = false;
       $("edit-group").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -413,6 +422,7 @@
           hourly_wage: $("e-wage").value || null,
           role: $("e-roles").dataset.value,
           device_user_id: $("e-device-id").value.trim() || null,
+          job_title: $("e-job").value.trim() || null,
         }).eq("id", editingId);
         if (error) throw error;
         closeEdit();
