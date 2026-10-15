@@ -128,7 +128,8 @@ async function tick() {
       log("لا يوجد بصمات جديدة مربوطة بموظفين خلال هذه الدورة.");
     }
   } catch (err) {
-    log("خطأ أثناء دورة فحص البصمة:", err.message);
+    const why = err.cause ? ` (${err.cause.code || err.cause.message})` : "";
+    log("خطأ أثناء دورة فحص البصمة:", err.message + why);
   } finally {
     setTimeout(tick, POLL_INTERVAL_MS);
   }
