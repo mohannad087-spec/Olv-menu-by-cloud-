@@ -186,8 +186,22 @@
         <h1>الحضور</h1>
         <div class="at-sub" id="at-sub">&nbsp;</div>
       </div>
-      <button class="btn go" type="button" id="punch-toggle" aria-expanded="false" aria-controls="punch-group" hidden></button>
+      <div class="at-actions">
+        <button class="btn" type="button" id="import-toggle" aria-expanded="false" aria-controls="import-group" hidden></button>
+        <button class="btn go" type="button" id="punch-toggle" aria-expanded="false" aria-controls="punch-group" hidden></button>
+      </div>
     </header>
+
+    <!-- استيراد بصمات من ملف تصدير الجهاز (حل احتياطي لو الجسر مطفي) -->
+    <section class="group" id="import-group" hidden>
+      <div class="at-form-head"><h2>استيراد بصمات من ملف</h2><button class="btn small" type="button" id="import-close">إغلاق</button></div>
+      <p class="at-note">من واجهة جهاز البصمة: Event Search ثم Export، وارفع الملف هون (CSV أو Excel). الربط بالرقم الوظيفي، والبصمة المحفوظة مسبقًا بتنتجاهل، فما في مشكلة لو رفعت نفس الملف مرتين.</p>
+      <div class="field"><label for="import-file">ملف البصمات</label><input type="file" id="import-file" accept=".csv,.xlsx,.xls,.txt"></div>
+      <div id="import-preview"></div>
+      <div class="at-actions">
+        <button type="button" class="btn go" id="import-save" hidden>استيراد</button>
+      </div>
+    </section>
 
     <!-- تصحيح بصمة: مسكّر لحد ما تكبس الزر (مالك/مدير) -->
     <section class="group" id="punch-group" hidden>
@@ -269,6 +283,7 @@
     let myId = null;
     let canManage = false;
     let profilesById = new Map();
+    let profilesByDeviceNo = new Map();
     let punches = [];
     let period = "month";
     let range = null;
@@ -291,6 +306,7 @@
     function dur(h) { const m = Math.max(0, Math.round(h * 60)); return m < 60 ? `${m} د` : `${Math.floor(m / 60)} س ${m % 60 ? (m % 60) + " د" : ""}`.trim(); }
 
     $("punch-toggle").innerHTML = olvIcon("plus") + "<span>تصحيح بصمة</span>";
+    $("import-toggle").innerHTML = olvIcon("clipboard") + "<span>استيراد من ملف</span>";
     $("custom-chip").innerHTML = olvIcon("calendar") + "<span>فترة…</span>";
     $("ic-hrs").innerHTML = olvIcon("clock");
     $("ic-shifts").innerHTML = olvIcon("clipboard");
@@ -310,9 +326,10 @@
     }
 
     async function loadProfiles() {
-      const { data, error } = await window.supabaseClient.from("profiles").select("id, full_name").order("full_name");
+      const { data, error } = await window.supabaseClient.from("profiles").select("id, full_name, device_user_id").order("full_name");
       if (error) throw error;
       profilesById = new Map((data || []).map((p) => [p.id, p.full_name]));
+      profilesByDeviceNo = new Map((data || []).filter((p) => p.device_user_id).map((p) => [String(p.device_user_id).trim(), p.id]));
       const optionsHtml = (data || []).map((p) => `<option value="${p.id}">${olvEsc(p.full_name)}</option>`).join("");
       $("p-employee").innerHTML = optionsHtml;
       $("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
@@ -540,6 +557,149 @@
       }
     });
 
+    // ===== استيراد بصمات من ملف تصدير الجهاز =====
+    let importRows = [];   // [{ profile_id, punched_at }] جاهزة للحفظ
+    const XLSX_SRC = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    function loadXlsx() {
+      if (window.XLSX) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = XLSX_SRC;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("تعذّر تحميل قارئ ملفات Excel، تأكد من الإنترنت وجرّب مرة ثانية"));
+        document.head.appendChild(s);
+      });
+    }
+    function openImport(open) {
+      $("import-group").hidden = !open;
+      $("import-toggle").setAttribute("aria-expanded", String(open));
+      if (!open) { $("import-file").value = ""; $("import-preview").innerHTML = ""; $("import-save").hidden = true; importRows = []; }
+    }
+    $("import-toggle").addEventListener("click", () => openImport($("import-group").hidden));
+    $("import-close").addEventListener("click", () => openImport(false));
+
+    // بيحدد أعمدة الرقم الوظيفي والوقت (أو تاريخ + وقت منفصلين) من صف العناوين
+    function findColumns(rows) {
+      for (let i = 0; i < Math.min(rows.length, 15); i++) {
+        const h = (rows[i] || []).map((c) => String(c == null ? "" : c).trim().toLowerCase());
+        const idCol = h.findIndex((c) => /employee\s*(no|id|number)|person\s*id|user\s*id|staff\s*id|الرقم|رقم الموظف/.test(c));
+        if (idCol < 0) continue;
+        const dtCol = h.findIndex((c) => /date\s*[&/]?\s*time|event\s*time|punch\s*time|^time$|الوقت/.test(c));
+        const dateCol = h.findIndex((c) => /^date$|التاريخ/.test(c));
+        const timeCol = h.findIndex((c, k) => k !== dtCol && /^time$|^الوقت$/.test(c));
+        if (dtCol < 0 && dateCol < 0) continue;
+        const resCol = h.findIndex((c) => /result|status|النتيجة/.test(c));
+        return { head: i, idCol, dtCol, dateCol, timeCol, resCol };
+      }
+      return null;
+    }
+    // نص تاريخ ووقت بصيغ الجهاز الشائعة. order: "ymd" | "dmy" | "mdy"
+    function parseStamp(s, order) {
+      s = String(s == null ? "" : s).trim();
+      let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      let y, mo, d;
+      if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+      else {
+        m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+        if (!m) return null;
+        y = +m[3];
+        if (order === "mdy") { mo = +m[1]; d = +m[2]; } else { d = +m[1]; mo = +m[2]; }
+      }
+      const dt = new Date(y, mo - 1, d, +m[4], +m[5], +(m[6] || 0));
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+    function guessOrder(texts) {
+      let a = false, b = false;
+      for (const s of texts) {
+        const m = String(s).match(/^(\d{1,2})[-/.](\d{1,2})[-/.]\d{4}/);
+        if (!m) continue;
+        if (+m[1] > 12) a = true;
+        if (+m[2] > 12) b = true;
+      }
+      return b && !a ? "mdy" : "dmy";
+    }
+
+    $("import-file").addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      const box = $("import-preview");
+      importRows = [];
+      $("import-save").hidden = true;
+      if (!file) { box.innerHTML = ""; return; }
+      errBox.style.display = "none";
+      box.innerHTML = '<div class="at-empty">جاري قراءة الملف...</div>';
+      try {
+        await loadXlsx();
+        const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "", dateNF: "yyyy-mm-dd hh:mm:ss" });
+        const cols = findColumns(rows);
+        if (!cols) throw new Error("ما لقيت أعمدة الرقم الوظيفي والوقت بالملف. لازم يكون فيه عمود مثل Employee ID وعمود وقت (Time)");
+        const body = rows.slice(cols.head + 1).filter((r) => r && r[cols.idCol] !== "" && r[cols.idCol] != null);
+        const stampOf = (r) => cols.dtCol >= 0 ? r[cols.dtCol] : (cols.timeCol >= 0 ? `${r[cols.dateCol]} ${r[cols.timeCol]}` : r[cols.dateCol]);
+        const order = guessOrder(body.map(stampOf));
+        const now = Date.now();
+        const seen = new Set();
+        const unmapped = new Map();
+        let badTime = 0, failed = 0, future = 0;
+        const perEmp = new Map();
+        for (const r of body) {
+          if (cols.resCol >= 0 && /fail|denied|فشل/i.test(String(r[cols.resCol]))) { failed++; continue; }
+          const dt = parseStamp(stampOf(r), order);
+          if (!dt) { badTime++; continue; }
+          if (dt.getTime() > now + 10 * 60 * 1000) { future++; continue; }
+          const no = String(r[cols.idCol]).trim();
+          const pid = profilesByDeviceNo.get(no);
+          if (!pid) { unmapped.set(no, (unmapped.get(no) || 0) + 1); continue; }
+          const at = dt.toISOString();
+          const key = pid + "|" + at;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          importRows.push({ profile_id: pid, punched_at: at, source: "fingerprint" });
+          perEmp.set(pid, (perEmp.get(pid) || 0) + 1);
+        }
+        let html = "";
+        if (importRows.length) {
+          const times = importRows.map((p) => p.punched_at).sort();
+          html += `<p class="at-note"><b>${importRows.length}</b> بصمة جاهزة، من ${shortDate(iso(new Date(times[0])))} إلى ${shortDate(iso(new Date(times[times.length - 1])))}:<br>` +
+            [...perEmp].map(([pid, n]) => `${olvEsc(nameOf(pid))}: ${n}`).join("، ") + "</p>";
+          $("import-save").hidden = false;
+        } else {
+          html += '<div class="at-empty">ما في بصمات قابلة للاستيراد بهالملف.</div>';
+        }
+        if (unmapped.size) {
+          html += `<p class="at-note">أرقام موظفين غير مربوطة بأي حساب وانتجاهلت: ${[...unmapped].map(([no, n]) => `${olvEsc(no)} (${n})`).join("، ")}. اربط «رقم الموظف على جهاز البصمة» من صفحة الموظفين وارفع الملف من جديد.</p>`;
+        }
+        if (badTime || failed || future) {
+          html += `<p class="at-note">انتجاهل: ${badTime ? badTime + " سطر بوقت غير مفهوم. " : ""}${failed ? failed + " محاولة فاشلة. " : ""}${future ? future + " بصمة بتاريخ مستقبلي." : ""}</p>`;
+        }
+        box.innerHTML = html;
+      } catch (err) {
+        box.innerHTML = "";
+        olvShowError(errBox, err);
+      }
+    });
+
+    $("import-save").addEventListener("click", async () => {
+      if (!importRows.length) return;
+      const btn = $("import-save");
+      btn.disabled = true;
+      try {
+        for (let i = 0; i < importRows.length; i += 500) {
+          const { error } = await window.supabaseClient.from("employee_punches")
+            .upsert(importRows.slice(i, i + 500), { onConflict: "profile_id,punched_at", ignoreDuplicates: true });
+          if (error) throw error;
+        }
+        const n = importRows.length;
+        openImport(false);
+        olvToast(`تم استيراد ${n} بصمة (المكرر انتجاهل)`, { type: "ok", icon: "check" });
+        await runReport();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
@@ -549,6 +709,7 @@
       myRole = myProfile ? myProfile.role : null;
       canManage = myRole === "owner" || myRole === "manager";
       $("punch-toggle").hidden = !canManage;
+      $("import-toggle").hidden = !canManage;
       $("f-employee").hidden = !canManage;
       const t = todayIso();
       $("from_date").value = t.slice(0, 8) + "01";
