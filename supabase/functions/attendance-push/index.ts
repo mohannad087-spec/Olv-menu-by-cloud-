@@ -18,6 +18,14 @@ const norm = (s: unknown) =>
   String(s ?? "").normalize("NFKC").replace(/[ً-ٰٟ]/g, "").replace(/[أإآ]/g, "ا")
     .replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim().toLowerCase();
 
+// اسم الجهاز يطابق اسم الموظف لو كل كلماته موجودة باسم الموظف (مثال: "ahmad" ضمن "ahmad shaheer")
+function nameMatches(dev: string, full: string): boolean {
+  if (!dev || !full) return false;
+  if (dev === full) return true;
+  const toks = new Set(full.split(" "));
+  return dev.split(" ").every((w) => toks.has(w));
+}
+
 // يطلّع كائن الحدث من جسم JSON عادي أو من multipart (الجهاز بيبعث event_log كجزء نصي)
 async function readEvent(req: Request): Promise<Record<string, unknown> | null> {
   const ct = req.headers.get("content-type") || "";
@@ -62,7 +70,7 @@ Deno.serve(async (req) => {
   if (!prof && ace.name) {
     const n = norm(ace.name);
     const { data: all } = await admin.from("profiles").select("id, full_name").is("device_user_id", null);
-    const hits = (all || []).filter((p) => norm(p.full_name) === n);
+    const hits = (all || []).filter((p) => nameMatches(n, norm(p.full_name)));
     if (n && hits.length === 1) {
       const { error } = await admin.from("profiles").update({ device_user_id: no }).eq("id", hits[0].id);
       if (!error) prof = { id: hits[0].id };

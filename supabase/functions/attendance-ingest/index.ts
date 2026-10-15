@@ -15,6 +15,14 @@ async function sha256(s: string): Promise<string> {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// اسم الجهاز يطابق اسم الموظف لو كل كلماته موجودة باسم الموظف (مثال: "ahmad" ضمن "ahmad shaheer")
+function nameMatches(dev: string, full: string): boolean {
+  if (!dev || !full) return false;
+  if (dev === full) return true;
+  const toks = new Set(full.split(" "));
+  return dev.split(" ").every((w) => toks.has(w));
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
 
@@ -45,7 +53,7 @@ Deno.serve(async (req) => {
       const no = String(u.employeeNo ?? "").trim();
       const n = norm(u.name);
       if (!no || !n || taken.has(no)) continue;
-      const hits = free.filter((p) => norm(p.full_name) === n);
+      const hits = free.filter((p) => nameMatches(n, norm(p.full_name)));
       if (hits.length !== 1) continue;
       const { error } = await admin.from("profiles").update({ device_user_id: no }).eq("id", hits[0].id);
       if (!error) { taken.add(no); linked.push(`${hits[0].full_name} (${no})`); free.splice(free.indexOf(hits[0]), 1); }
