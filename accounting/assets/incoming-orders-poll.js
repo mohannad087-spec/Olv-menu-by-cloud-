@@ -38,6 +38,10 @@ const OlvIncomingPoll = (function () {
     if (status === 403 && /Admin access required/i.test(msg || "")) {
       return "موقع المنيو رفض مفتاح الإدارة — المفتاح OLV_ADMIN_KEY بأسرار Supabase لازم يكون نفسه بالضبط بأسرار Cloudflare Pages (مشروع olv-menu). لحد ما يتصلّح ما رح توصل طلبات المنيو هون.";
     }
+    // موقع المنيو بيرجّع أحيانًا صفحة خطأ HTML (انقطاع لحظي من Cloudflare) بدل بيانات
+    if (/DOCTYPE|not valid JSON|Unexpected token/i.test(msg || "")) {
+      return "موقع المنيو ما ردّ صح للحظة (صفحة خطأ بدل البيانات) — عم نعيد المحاولة تلقائيًا، وإذا استمر أكتر من دقيقتين خبّرني.";
+    }
     if (status === 429) return "موقع المنيو قفل الاتصال مؤقتًا بسبب محاولات مفتاح غلط كثيرة — بيرجع لحاله خلال ربع ساعة.";
     return msg || "فشل الاتصال بموقع المنيو";
   }
@@ -60,6 +64,11 @@ const OlvIncomingPoll = (function () {
       }
       if (res.ok && out.ok !== false) return out;
       lastErr = new Error(friendlyError(res.status, out.error));
+      // خطأ لحظي من موقع المنيو (500 + رد غير JSON): ننتظر ثانية ونعيد مرة وحدة قبل ما نعرض خطأ
+      if (res.status >= 500 && attempt === 0 && /DOCTYPE|not valid JSON|Unexpected token/i.test(out.error || "")) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
       // 401 = رمز الدخول انتهى: نجدده ونعيد مرة وحدة
       if (res.status !== 401) break;
     }
