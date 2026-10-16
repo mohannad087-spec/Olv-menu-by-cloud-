@@ -519,6 +519,10 @@
     .pos-main{display:flex; flex-direction:column; min-height:0; padding:4px 0 0;}
     .pos-cat-sidebar, .pos-cart-panel{position:static; align-self:stretch; max-height:none; min-height:0;}
     .grid{margin-bottom:0; align-content:start;}
+    /* الشبكة ممدّدة لتملا الارتفاع: الصورة بتاخد الفرق، والنص والسعر بيضلوا بحجمهم */
+    .grid.fit .card{display:flex; flex-direction:column;}
+    .grid.fit .card .thumb, .grid.fit .card .thumb-fallback{flex:1 1 0; min-height:0; aspect-ratio:auto; height:auto;}
+    .grid.fit .card .info{flex:none;}
     .pos-pagination{margin-top:auto; padding-top:8px;}
   }
   @media (max-width:900px){
@@ -904,6 +908,14 @@
       }
       return window.innerHeight - (grid.getBoundingClientRect().top + window.scrollY) - 56;
     }
+    // عدد الصفوف: بالكمبيوتر منقرّب لأقرب عدد صحيح والبطاقات بتتمدّد/بتصغر شوي (لحد 80%)
+    // عشان الشبكة تملا الارتفاع؛ بالموبايل الصفحة بتتمرّر فمنقرّب لتحت
+    function pickRows(avail, h, desktop) {
+      if (!desktop) return Math.max(1, Math.floor((avail + GRID_GAP) / (h + GRID_GAP)));
+      let r = Math.max(1, Math.round((avail + GRID_GAP) / (h + GRID_GAP)));
+      if (r > 1 && (avail - GRID_GAP * (r - 1)) / r < h * 0.8) r--;
+      return r;
+    }
     function computeGridCapacity(rowsOverride) {
       const grid = document.getElementById("products-grid");
       const containerWidth = grid.clientWidth || 300;
@@ -912,7 +924,7 @@
       const cardWidth = (containerWidth - (columns - 1) * GRID_GAP) / columns;
       const cardHeight = measuredCardH || (cardWidth * 0.75 + 88);
       const availableHeight = Math.max(cardHeight, gridAvailableHeight(grid));
-      const rows = rowsOverride || Math.max(1, Math.floor((availableHeight + GRID_GAP) / (cardHeight + GRID_GAP)));
+      const rows = rowsOverride || pickRows(availableHeight, cardHeight, window.matchMedia("(min-width:901px)").matches);
       return { columns, itemsPerPage: columns * rows };
     }
 
@@ -990,6 +1002,8 @@
               .slice(0, 3)
           );
 
+      grid.classList.remove("fit");
+      grid.style.gridAutoRows = "";
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => {
         const fallbackIcon = categoryIconName(p.category);
@@ -1024,16 +1038,26 @@
       });
 
       syncCardQty(false);
-      // نتأكد إنو الصفوف المرسومة بتتسع بالضبط بالمكان المتاح (ما بتطلع منه، وما بيضل فراغ بيتسع لصف كامل)
+      // نتأكد إنو عدد الصفوف مناسب للمكان المتاح، وبعدها بالكمبيوتر منمدّد الصفوف لتملا الارتفاع بالضبط
       const rowsShown = Math.ceil(pageItems.length / columns);
       if (rowsShown && grid.offsetHeight) {
-        const actual = grid.offsetHeight;
+        const desktop = window.matchMedia("(min-width:901px)").matches;
+        const natural = grid.offsetHeight;
         const avail = gridAvailableHeight(grid);
-        measuredCardH = (actual - GRID_GAP * (rowsShown - 1)) / rowsShown;
+        measuredCardH = (natural - GRID_GAP * (rowsShown - 1)) / rowsShown;
         if (iter < 3) {
-          if (actual > avail + 1 && rowsShown > 1) return renderGrid(iter + 1, rowsShown - 1, true);
-          if (!noUp && pageItems.length === itemsPerPage && list.length > itemsPerPage &&
-              actual + measuredCardH + GRID_GAP <= avail) return renderGrid(iter + 1, rowsShown + 1, false);
+          const want = pickRows(avail, measuredCardH, desktop);
+          if (want < rowsShown) return renderGrid(iter + 1, want, true);
+          if (!noUp && want > rowsShown && pageItems.length === itemsPerPage && list.length > itemsPerPage) {
+            return renderGrid(iter + 1, want, false);
+          }
+        }
+        if (desktop && pageItems.length === itemsPerPage) {
+          const R = (avail - GRID_GAP * (rowsShown - 1)) / rowsShown;
+          if (R >= measuredCardH * 0.75 && Math.abs(R - measuredCardH) > 1) {
+            grid.classList.add("fit");
+            grid.style.gridAutoRows = Math.floor(R) + "px";
+          }
         }
       }
       pagination.hidden = totalPages <= 1;
