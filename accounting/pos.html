@@ -160,7 +160,7 @@
   }
   .card .best-badge .icon{width:11px; height:11px; stroke-width:2.5;}
   .card .thumb{
-    width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:var(--ink-3);
+    width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:var(--ink-3);
   }
   /* الصنف بدون صورة: بلاطة ملوّنة بلون دافئ (بيتبدّل بين 4 ألوان حسب ترتيب الكرت)
      بدل مربع رمادي، حتى الشبكة تبيّن حيّة ومريحة متل منيو كافيه */
@@ -510,6 +510,17 @@
     .cart-bar{background:transparent;}
     .pos-status-bar{background:var(--glass); border-top-color:var(--glass-line); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);}
   }
+  /* شاشة الكاشير بتملا النافذة بدون سكرول للصفحة: شريط الحالة تحت بيكفي، فنخفي حقوق الملكية هون */
+  @media (min-width:901px){
+    .olv-footer{display:none;}
+    /* الشاشة بتاخد ارتفاع النافذة بالضبط (--pos-h بيحسبه الجافاسكربت من مكان الشبكة الفعلي): لا سكرول للصفحة
+       ولا فراغ تحت الأصناف، والتصنيفات والتذكرة بيتمدّدوا لآخر النافذة وبيسكرولوا داخليًا */
+    .pos-layout{height:var(--pos-h, calc(100vh - 190px)); min-height:0; align-items:stretch; padding-bottom:12px; box-sizing:border-box;}
+    .pos-main{display:flex; flex-direction:column; min-height:0; padding:4px 0 0;}
+    .pos-cat-sidebar, .pos-cart-panel{position:static; align-self:stretch; max-height:none; min-height:0;}
+    .grid{margin-bottom:0; align-content:start;}
+    .pos-pagination{margin-top:auto; padding-top:8px;}
+  }
   @media (max-width:900px){
     .pos-cat-sidebar{background:transparent; border-bottom:0;}
   }
@@ -694,6 +705,24 @@
     updateStatusBarHeight();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateStatusBarHeight);
 
+    // ارتفاع الشاشة الفعلي بالكمبيوتر = النافذة - (أي شي فوق الشبكة: شريط النت/التنقل) - الشريط السفلي.
+    // لو تغيّر (ظهر/اختفى بانر النت، تغيّر حجم النافذة) منعيد الحساب ومنعيد توزيع الأصناف
+    let lastPosH = 0;
+    function updatePosHeight() {
+      const layout = document.querySelector(".pos-layout");
+      const bar = document.getElementById("pos-status-bar");
+      if (!layout) return;
+      const top = layout.getBoundingClientRect().top + window.scrollY;
+      const h = Math.max(320, Math.floor(window.innerHeight - top - (bar ? bar.offsetHeight : 0)));
+      document.documentElement.style.setProperty("--pos-h", h + "px");
+      if (lastPosH && Math.abs(h - lastPosH) > 2 && typeof renderGrid === "function" && products.length) renderGrid();
+      lastPosH = h;
+    }
+    updatePosHeight();
+    // لما ينحمّل الخط بتتغيّر أطوال النصوص (وارتفاع البطاقات): منعيد القياس والتوزيع
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { updatePosHeight(); if (products.length) renderGrid(); });
+    if (window.ResizeObserver) new ResizeObserver(updatePosHeight).observe(document.body);
+
     document.getElementById("psb-brand-icon").innerHTML = olvIcon("brand");
 
     // ساعة وتاريخ حيّين بأعلى شاشة بيع سريع — أرقام إنجليزية دايمًا
@@ -860,19 +889,30 @@
 
     // يحسب عدد الأعمدة/الصفوف اللي بتتسع فعليًا داخل الشاشة المفتوحة حاليًا
     // بدون سكرول، عشان باقي الأصناف تتوزع على صفحات بدل ما تتزاحم أو تختفي
-    function computeGridCapacity() {
+    // ارتفاع البطاقة الحقيقي بيتقاس بعد الرسم (يختلف حسب العرض وطول الأسماء)؛
+    // قبله منستعمل تقدير، وبعد الرسم renderGrid بيتأكد إنو الشبكة ما طلعت من المكان
+    // المتاح وما بقي فيها مكان لصف زيادة، وبيعدّل عدد الصفوف (3 محاولات كحد أقصى)
+    let measuredCardH = 0;
+    const GRID_GAP = 14;
+    function gridAvailableHeight(grid) {
+      // بالكمبيوتر العمود الأوسط بارتفاع ثابت: المتاح = ارتفاعه - مكان الشبكة داخله - أزرار الصفحات.
+      // بالموبايل الصفحة بتتمرّر عادي فمنخلي مساحة مريحة تحت الشبكة
+      const desktop = window.matchMedia("(min-width:901px)").matches;
+      if (desktop) {
+        const main = grid.closest(".pos-main");
+        return main.clientHeight - (grid.getBoundingClientRect().top - main.getBoundingClientRect().top) - 58;
+      }
+      return window.innerHeight - (grid.getBoundingClientRect().top + window.scrollY) - 56;
+    }
+    function computeGridCapacity(rowsOverride) {
       const grid = document.getElementById("products-grid");
       const containerWidth = grid.clientWidth || 300;
-      const gap = 14;
       const targetCardWidth = 150;
-      const columns = Math.max(1, Math.floor((containerWidth + gap) / (targetCardWidth + gap)));
-      const cardWidth = (containerWidth - (columns - 1) * gap) / columns;
-      const infoHeight = 88;
-      const cardHeight = cardWidth + infoHeight;
-      const gridTop = grid.getBoundingClientRect().top;
-      const reservedBottom = 56;
-      const availableHeight = Math.max(cardHeight, window.innerHeight - gridTop - reservedBottom);
-      const rows = Math.max(1, Math.floor((availableHeight + gap) / (cardHeight + gap)));
+      const columns = Math.max(1, Math.floor((containerWidth + GRID_GAP) / (targetCardWidth + GRID_GAP)));
+      const cardWidth = (containerWidth - (columns - 1) * GRID_GAP) / columns;
+      const cardHeight = measuredCardH || (cardWidth * 0.75 + 88);
+      const availableHeight = Math.max(cardHeight, gridAvailableHeight(grid));
+      const rows = rowsOverride || Math.max(1, Math.floor((availableHeight + GRID_GAP) / (cardHeight + GRID_GAP)));
       return { columns, itemsPerPage: columns * rows };
     }
 
@@ -914,7 +954,7 @@
       });
     }
 
-    function renderGrid() {
+    function renderGrid(iter = 0, rowsOverride = 0, noUp = false) {
       const grid = document.getElementById("products-grid");
       const pagination = document.getElementById("pos-pagination");
       let list;
@@ -934,7 +974,7 @@
         return;
       }
 
-      const { columns, itemsPerPage } = computeGridCapacity();
+      const { columns, itemsPerPage } = computeGridCapacity(rowsOverride);
       const totalPages = Math.max(1, Math.ceil(list.length / itemsPerPage));
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
@@ -984,6 +1024,18 @@
       });
 
       syncCardQty(false);
+      // نتأكد إنو الصفوف المرسومة بتتسع بالضبط بالمكان المتاح (ما بتطلع منه، وما بيضل فراغ بيتسع لصف كامل)
+      const rowsShown = Math.ceil(pageItems.length / columns);
+      if (rowsShown && grid.offsetHeight) {
+        const actual = grid.offsetHeight;
+        const avail = gridAvailableHeight(grid);
+        measuredCardH = (actual - GRID_GAP * (rowsShown - 1)) / rowsShown;
+        if (iter < 3) {
+          if (actual > avail + 1 && rowsShown > 1) return renderGrid(iter + 1, rowsShown - 1, true);
+          if (!noUp && pageItems.length === itemsPerPage && list.length > itemsPerPage &&
+              actual + measuredCardH + GRID_GAP <= avail) return renderGrid(iter + 1, rowsShown + 1, false);
+        }
+      }
       pagination.hidden = totalPages <= 1;
       document.getElementById("page-info").textContent = `${currentPage} / ${totalPages}`;
       document.getElementById("page-prev").disabled = currentPage <= 1;
@@ -1680,7 +1732,7 @@
       let resizeTimer = null;
       window.addEventListener("resize", () => {
         clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => { updateNavHeight(); updateStatusBarHeight(); renderGrid(); }, 200);
+        resizeTimer = setTimeout(() => { updateNavHeight(); updateStatusBarHeight(); updatePosHeight(); renderGrid(); }, 200);
       });
 
       syncCartPrices(); // مسودة محفوظة من قبل ممكن تكون بأسعار قديمة
