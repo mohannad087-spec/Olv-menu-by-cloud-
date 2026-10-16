@@ -518,12 +518,13 @@
     .pos-layout{height:var(--pos-h, calc(100vh - 190px)); min-height:0; align-items:stretch; padding-bottom:12px; box-sizing:border-box;}
     .pos-main{display:flex; flex-direction:column; min-height:0; padding:4px 0 0;}
     .pos-cat-sidebar, .pos-cart-panel{position:static; align-self:stretch; max-height:none; min-height:0;}
-    .grid{margin-bottom:0; align-content:start;}
+    .grid{margin:0 -6px; padding:6px; flex:1 1 0; min-height:0; overflow-y:auto; align-content:start; grid-auto-rows:max-content; overscroll-behavior:contain;}
     /* الشبكة ممدّدة لتملا الارتفاع: الصورة بتاخد الفرق، والنص والسعر بيضلوا بحجمهم */
     .grid.fit .card{display:flex; flex-direction:column;}
     .grid.fit .card .thumb, .grid.fit .card .thumb-fallback{flex:1 1 0; min-height:0; aspect-ratio:auto; height:auto;}
     .grid.fit .card .info{flex:none;}
     .pos-pagination{margin-top:auto; padding-top:8px;}
+    .pos-pagination[hidden]{display:none;}
   }
   @media (max-width:900px){
     .pos-cat-sidebar{background:transparent; border-bottom:0;}
@@ -990,7 +991,12 @@
       const totalPages = Math.max(1, Math.ceil(list.length / itemsPerPage));
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
-      const pageItems = list.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+      // بالكمبيوتر الأصناف كلها تنزل بالطول وتتسكرول داخل الشبكة (بدل صفحات)، بحجم البطاقة الطبيعي
+      const scrollMode = window.matchMedia("(min-width:901px)").matches;
+      const pageItems = scrollMode ? list : list.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+      const gridSig = activeCategory + "|" + searchTerm;
+      const keepScroll = renderGrid._sig === gridSig ? grid.scrollTop : 0;
+      renderGrid._sig = gridSig;
 
       // أول ٣ أصناف الأكثر مبيعًا بتاخد شارة مميزة بأي تصنيف — إلا وهي
       // بالتبويب المخصص لهم أصلًا (تكرار بلا داعي هناك)
@@ -1040,7 +1046,8 @@
       syncCardQty(false);
       // نتأكد إنو عدد الصفوف مناسب للمكان المتاح، وبعدها بالكمبيوتر منمدّد الصفوف لتملا الارتفاع بالضبط
       const rowsShown = Math.ceil(pageItems.length / columns);
-      if (rowsShown && grid.offsetHeight) {
+      if (scrollMode) grid.scrollTop = keepScroll;
+      if (!scrollMode && rowsShown && grid.offsetHeight) {
         const desktop = window.matchMedia("(min-width:901px)").matches;
         const natural = grid.offsetHeight;
         const avail = gridAvailableHeight(grid);
@@ -1060,7 +1067,7 @@
           }
         }
       }
-      pagination.hidden = totalPages <= 1;
+      pagination.hidden = scrollMode || totalPages <= 1;
       document.getElementById("page-info").textContent = `${currentPage} / ${totalPages}`;
       document.getElementById("page-prev").disabled = currentPage <= 1;
       document.getElementById("page-next").disabled = currentPage >= totalPages;
