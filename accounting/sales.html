@@ -378,7 +378,7 @@
         <h2 id="orders-title"></h2>
         <label class="s-search" id="search-wrap">
           <span class="olv-sr">بحث بالطلبات</span>
-          <input type="search" id="order-search" placeholder="رقم الطلب، صنف، زبون، طاولة" autocomplete="off">
+          <input type="search" id="order-search" placeholder="رقم الفاتورة (ب-12)، رقم الطلب، صنف، زبون" autocomplete="off">
         </label>
       </div>
       <div class="s-chips" id="filter-chips" hidden role="group" aria-label="تصفية الطلبات">
@@ -723,6 +723,8 @@
       if (!query) return true;
       const q = query.replace(/^#/, "");
       if (/^\d+$/.test(q) && String(r.order_no || "") === q) return true;
+      const dq = q.replace(/^ب-?/, "");
+      if (r.doc_no && /^\d+$/.test(dq) && Number(dq) === Number(r.doc_no)) return true;
       return [itemsText(r), r.customer_name, r.table_number, r.customer_phone, r.notes]
         .some((v) => v && String(v).toLowerCase().includes(q.toLowerCase()));
     }
@@ -755,7 +757,7 @@
         : `<span class="pm"><i class="${PAY[pay].cls}"></i>${PAY[pay].label}</span>`;
       return `<div class="order${voided ? " voided" : ""}${openId === r.id ? " open" : ""}" data-id="${r.id}">
         <button class="order-row" type="button" aria-expanded="${openId === r.id}" aria-controls="od-${r.id}">
-          <span class="tm">${timeOf(r)} <small style="font-weight:500; color:var(--muted); font-size:11px;">${ampm(r)}</small>${r.order_no ? `<span class="no">#${olvEsc(r.order_no)}</span>` : ""}</span>
+          <span class="tm">${timeOf(r)} <small style="font-weight:500; color:var(--muted); font-size:11px;">${ampm(r)}</small>${r.doc_no || r.order_no ? `<span class="no">${r.doc_no ? olvEsc(olvDocNo("sale", r.doc_no)) : ""}${r.doc_no && r.order_no ? " · " : ""}${r.order_no ? "#" + olvEsc(r.order_no) : ""}</span>` : ""}</span>
           <span class="it"><span class="it-names" title="${olvEsc(itemsText(r))}">${olvEsc(itemsText(r))}</span>${meta.length ? `<span class="it-meta">${meta.join("")}</span>` : ""}</span>
           <span class="am"><b>${olvFormatMoney(saleTotal(r))}</b>${payHtml}</span>
           ${olvIcon("chevronDown", "chev")}

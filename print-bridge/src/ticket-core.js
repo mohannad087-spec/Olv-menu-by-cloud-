@@ -295,6 +295,7 @@
       const o = scaled(34, 46, L.order_no_size / 34);
       t.center(`طلب رقم ${sale.order_no}`, `bold ${o.px}px ${BOLD}`, o.lh);
     }
+    if (sale.doc_no) t.center(`فاتورة رقم ب-${String(sale.doc_no).padStart(4, "0")}`, `bold ${info.px}px ${BOLD}`, info.lh);
     if (L.datetime_show) t.center(formatDateTime(sale.created_at), `${info.px}px ${REG}`, info.lh);
     const cashierName = sale.created_by_profile && sale.created_by_profile.full_name;
     if (L.cashier_show && cashierName) t.row("الكاشير", cashierName, `${infoSm.px}px ${REG}`, infoSm.lh);
