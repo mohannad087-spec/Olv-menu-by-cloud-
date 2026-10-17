@@ -164,6 +164,9 @@
   .pv-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
   .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
   #pi-form-group[hidden]{display:none;}
+  .pv-filters{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:10px 0;}
+  .pv-filters select, .pv-filters input[type=date]{min-height:40px; padding:0 10px; border:1px solid var(--line, rgba(0,0,0,.15)); border-radius:10px; background:var(--card, #fff); color:inherit; font:inherit;}
+  .pv-filters label{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted);}
   .pv-form-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
   .pv-form-head h2{margin:0;}
   .stats.pv-stats{grid-template-columns:repeat(3,1fr); margin-bottom:14px;}
@@ -367,11 +370,18 @@
         <div class="pv-search" id="pv-search-wrap"><input type="search" id="pv-q" placeholder="ابحث بالمورّد أو رقم الفاتورة (ش-12)" aria-label="بحث بالمورّد أو رقم الفاتورة" autocomplete="off"></div>
       </div>
       <div class="pv-chips" id="pv-chips" role="group" aria-label="نوع الفواتير"></div>
+      <div class="pv-filters" id="pv-filters">
+        <select id="pv-sup" aria-label="المورّد"><option value="">كل الموردين</option></select>
+        <label>من <input type="date" id="pv-from" dir="ltr"></label>
+        <label>إلى <input type="date" id="pv-to" dir="ltr"></label>
+        <button type="button" class="btn small" id="pv-clear" hidden>مسح الفلتر</button>
+        <button type="button" class="btn small" id="pv-export">تصدير Excel</button>
+      </div>
       <div class="hint" id="pi-tax-summary" hidden></div>
       <div id="pi-history"><div class="pv-empty">جاري التحميل...</div></div>
       <div class="pv-more" id="pv-more" hidden><button class="btn" type="button" id="pv-more-btn">عرض كمان</button></div>
       <p class="hint" style="margin-top:12px;">
-        الفاتورة ما بتتعدّل. إذا في غلطة، صاحب المطعم بيلغيها بسبب (بيرجع المخزون وبيشيل المصروف وقيد المورّد) وبتعيد تسجيلها صح.
+        إذا في غلطة، صاحب المطعم بيكبس «تعديل» على الفاتورة وبيصلّحها (المخزون وحساب المورّد بيتعدّلوا لحالهم)، أو «إلغاء» لو بدو يشيلها نهائيًا.
         دفعات المورّد اللاحقة بتنسجّل من صفحة <a href="suppliers.html" style="color:var(--gold-hi);">الموردين</a>.
         <a href="purchases.html" style="color:var(--muted);">المشتريات المفردة القديمة</a>
       </p>
@@ -417,6 +427,8 @@
     let catalogOnly = [];        // أصناف الكتالوج اللي لسا مش عندك (بتنضاف تلقائيًا أول ما تنختار)
     let lines = [];              // سطور الفاتورة الحالية
     let payMode = "cash";
+    let editingId = null;        // لو عم تعدّل فاتورة محفوظة: رقمها (بتنلغى القديمة وبتنحفظ الجديدة مكانها)
+    let editingAttach = null;
     let isOwner = false;
     let barcodes = new Map();    // الكود → { item_kind, item_id, unit_mode }
     const HISTORY_LIMIT = 60;
@@ -1354,6 +1366,7 @@
     }
     function saveDraft() {
       try {
+        if (editingId) return;
         if (draftIsEmpty()) { localStorage.removeItem(DRAFT_KEY); return; }
         const fields = {};
         DRAFT_IDS.forEach((id) => { fields[id] = document.getElementById(id).value; });
@@ -1432,7 +1445,7 @@
       const btn = document.getElementById("pi-save");
       btn.disabled = true;
       try {
-        const attachment = await uploadAttachment(document.getElementById("pi-file").files[0]);
+        const attachment = (await uploadAttachment(document.getElementById("pi-file").files[0])) || (editingId ? editingAttach : null);
         const payloadLines = active.map((l) => {
           const it = itemOf(l); const f = factorOf(l, it);
           const bonus = bonusOf(l);
@@ -1442,7 +1455,8 @@
           if (bonus > 0) { o.qty = Math.round((Number(l.qty) * f + bonus) * 1000) / 1000; o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8; }
           return o;
         });
-        const { error } = await window.supabaseClient.rpc("record_purchase_invoice", {
+        const { error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
+          ...(editingId ? { p_invoice_id: editingId } : {}),
           p_supplier_id: supplierId,
           p_invoice_no: document.getElementById("pi-no").value.trim() || null,
           p_invoice_date: document.getElementById("pi-date").value || olvToday(),
@@ -1462,6 +1476,8 @@
           const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
           if (!poErr) { const b = document.getElementById("pi-from-order"); if (b) b.remove(); fromOrderId = null; if (window.olvToast) olvToast("انعلّمت الطلبية كمستلمة"); }
         }
+        const wasEdit = !!editingId;
+        endEdit();
         clearDraft();
         const dBanner = document.getElementById("pi-draft-banner"); if (dBanner) dBanner.remove();
         lines = [newLine()];
@@ -1477,7 +1493,7 @@
         if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
         openForm(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
-        if (window.olvToast) olvToast("انحفظت الفاتورة", { type: "ok", icon: "check" });
+        if (window.olvToast) olvToast(wasEdit ? "انعدّلت الفاتورة" : "انحفظت الفاتورة", { type: "ok", icon: "check" });
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
@@ -1491,6 +1507,9 @@
     let invRows = [];
     let invChip = "all";
     let invQuery = "";
+    let invSup = "";
+    let invFrom = "";
+    let invTo = "";
     let invShown = 40;
     const openInv = new Set();
     const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
@@ -1501,8 +1520,11 @@
     async function loadHistory() {
       const errBox = document.getElementById("err");
       try {
-        const { data, error } = await window.supabaseClient
-          .from("purchase_invoices").select("*, suppliers(name)").order("created_at", { ascending: false }).limit(HISTORY_LIMIT);
+        let qy = window.supabaseClient.from("purchase_invoices").select("*, suppliers(name)");
+        if (invFrom) qy = qy.gte("invoice_date", invFrom);
+        if (invTo) qy = qy.lte("invoice_date", invTo);
+        // بدون فلتر تاريخ بنعرض آخر 60 فاتورة، ومع الفلتر كل الفواتير بالمدى
+        const { data, error } = await qy.order("created_at", { ascending: false }).limit(invFrom || invTo ? 1000 : HISTORY_LIMIT);
         if (error) throw error;
         const tpl = document.getElementById("pi-template");
         tpl.innerHTML = `<option value="">نسخ من فاتورة سابقة…</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
@@ -1528,6 +1550,18 @@
       } catch (err) { olvShowError(errBox, err); }
     }
 
+    function visibleInvoices() {
+      const q = invQuery.toLowerCase();
+      return invRows.filter((i) => {
+        if (invChip === "owing" && !i.owing) return false;
+        if (invChip === "cash" && !(!i.voided && (i.payment_type === "cash" || i.settledLater))) return false;
+        if (invChip === "voided" && !i.voided) return false;
+        if (invSup && (invSup === "__none__" ? i.supplier_id : i.supplier_id !== invSup)) return false;
+        if (!q) return true;
+        return ((i.suppliers && i.suppliers.name) || "").toLowerCase().includes(q) || String(i.invoice_no || "").toLowerCase().includes(q) || olvDocNo("purchase", i.doc_no).includes(invQuery) || (i.doc_no && /^\d+$/.test(q) && Number(q) === Number(i.doc_no));
+      }).sort((a, b) => String(b.invoice_date).localeCompare(String(a.invoice_date)) || String(b.created_at).localeCompare(String(a.created_at)));
+    }
+
     function renderHistory() {
       const box = document.getElementById("pi-history");
       const active = invRows.filter((i) => !i.voided);
@@ -1549,14 +1583,8 @@
         `<button class="pv-chip" type="button" data-chip="${id}" aria-pressed="${invChip === id}">${l} <span class="c">${counts[id]}</span></button>`).join("");
       document.getElementById("pv-chips").querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { invChip = b.dataset.chip; invShown = 40; renderHistory(); }));
 
-      const q = invQuery.toLowerCase();
-      const list = invRows.filter((i) => {
-        if (invChip === "owing" && !i.owing) return false;
-        if (invChip === "cash" && !(!i.voided && (i.payment_type === "cash" || i.settledLater))) return false;
-        if (invChip === "voided" && !i.voided) return false;
-        if (!q) return true;
-        return ((i.suppliers && i.suppliers.name) || "").toLowerCase().includes(q) || String(i.invoice_no || "").toLowerCase().includes(q) || olvDocNo("purchase", i.doc_no).includes(invQuery) || (i.doc_no && /^\d+$/.test(q) && Number(q) === Number(i.doc_no));
-      }).sort((a, b) => String(b.invoice_date).localeCompare(String(a.invoice_date)) || String(b.created_at).localeCompare(String(a.created_at)));
+      fillSupplierFilter();
+      const list = visibleInvoices();
       document.getElementById("pv-title").innerHTML = olvIcon("receipt") + ` سجل الفواتير <span class="n">${list.length === invRows.length ? `(${list.length})` : `(${list.length} من ${invRows.length})`}</span>`;
       if (!list.length) {
         box.innerHTML = `<div class="pv-empty">${invRows.length ? "ما في فواتير بهالفلتر." : "ما في فواتير مسجّلة لسا. اكبس «فاتورة جديدة» لتسجّل أول وحدة."}</div>`;
@@ -1606,10 +1634,11 @@
             ${Number(i.discount_amount) > 0 || Number(i.tax_amount) > 0
               ? `<div class="hint" style="margin-bottom:6px;">مجموع الأصناف <b>${money(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount)}</b>${Number(i.discount_amount) > 0 ? ` — خصم <b>${money(i.discount_amount)}</b>${i.discount_pct ? ` (${Number(i.discount_pct)}%)` : ""}` : ""}${Number(i.tax_amount) > 0 ? ` — ضريبة ${Number(i.tax_rate)}% = <b>${money(i.tax_amount)}</b> (${i.tax_inclusive ? "الأسعار كانت شاملة" : "أُضيفت فوق الأسعار"}، ${i.tax_recoverable === false ? "غير قابلة للاسترداد" : "قابلة للاسترداد"})` : ""}</div>` : ""}
             <div data-det-body>جاري التحميل...</div>
-            ${i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
+            ${i.voided && i.replaced_by ? `<div class="pi-warn">انعدّلت، الفاتورة الجديدة مكانها${(invRows.find((x) => x.id === i.replaced_by) || {}).doc_no ? " (" + olvDocNo("purchase", invRows.find((x) => x.id === i.replaced_by).doc_no) + ")" : ""}</div>` : i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
             <div class="pv-acts">
               ${i.showPay ? `<button class="btn go" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
               ${i.attachment_path ? `<button class="btn" data-file="${olvEsc(i.attachment_path)}">صورة الفاتورة</button>` : ""}
+              ${!i.voided && isOwner ? `<button class="btn" data-edit="${i.id}">تعديل</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
             </div>
           </div>
@@ -1635,6 +1664,52 @@
     document.getElementById("pv-q").addEventListener("input", (e) => {
       clearTimeout(invTimer);
       invTimer = setTimeout(() => { invQuery = e.target.value.trim(); invShown = 40; renderHistory(); }, 120);
+    });
+
+    // ---------- فلتر المورّد/التاريخ + تصدير ----------
+    function fillSupplierFilter() {
+      const sel = document.getElementById("pv-sup");
+      const cur = sel.value;
+      const names = new Map();
+      invRows.forEach((i) => { if (i.supplier_id) names.set(i.supplier_id, i.suppliers ? i.suppliers.name : "—"); });
+      sel.innerHTML = `<option value="">كل الموردين</option><option value="__none__">كاش من السوق (بدون مورّد)</option>`
+        + [...names].sort((a, b) => a[1].localeCompare(b[1], "ar")).map(([id, n]) => `<option value="${olvEsc(id)}">${olvEsc(n)}</option>`).join("");
+      sel.value = [...sel.options].some((o) => o.value === cur) ? cur : "";
+      invSup = sel.value;
+      document.getElementById("pv-clear").hidden = !(invSup || invFrom || invTo);
+    }
+    document.getElementById("pv-sup").addEventListener("change", (e) => { invSup = e.target.value; invShown = 40; document.getElementById("pv-clear").hidden = !(invSup || invFrom || invTo); renderHistory(); });
+    ["pv-from", "pv-to"].forEach((id) => document.getElementById(id).addEventListener("change", async (e) => {
+      if (id === "pv-from") invFrom = e.target.value; else invTo = e.target.value;
+      invShown = 40;
+      await loadHistory();
+      document.getElementById("pv-clear").hidden = !(invSup || invFrom || invTo);
+    }));
+    document.getElementById("pv-clear").addEventListener("click", async () => {
+      invSup = ""; invFrom = ""; invTo = ""; invShown = 40;
+      document.getElementById("pv-from").value = ""; document.getElementById("pv-to").value = ""; document.getElementById("pv-sup").value = "";
+      await loadHistory();
+      document.getElementById("pv-clear").hidden = true;
+    });
+    // تصدير الفواتير المعروضة (بنفس الفلتر) لملف CSV بيفتح بإكسل بالعربي
+    document.getElementById("pv-export").addEventListener("click", () => {
+      const list = visibleInvoices();
+      if (!list.length) { olvShowError(document.getElementById("err"), new Error("ما في فواتير بهالفلتر لتتصدّر")); return; }
+      const cell = (v) => { const t = String(v ?? ""); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+      const head = ["رقم الفاتورة", "رقم فاتورة المورّد", "التاريخ", "المورّد", "المجموع قبل الخصم", "الخصم", "الضريبة", "الإجمالي", "المدفوع", "الباقي", "الدفع", "الحالة", "ملاحظات"];
+      const rows = list.map((i) => [
+        olvDocNo("purchase", i.doc_no), i.invoice_no || "", i.invoice_date, i.suppliers ? i.suppliers.name : "كاش من السوق",
+        Number(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount), Number(i.discount_amount || 0), Number(i.tax_amount || 0),
+        Number(i.total_amount), Number(i.paid_amount), i.voided ? 0 : Math.max(0, Math.round(i.remaining * 100) / 100),
+        PAY_LABELS[i.payment_type] || "", i.voided ? (i.replaced_by ? "انعدّلت" : "ملغاة") : "فعّالة", i.notes || "",
+      ]);
+      const csv = "\ufeff" + [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      a.download = `purchase-invoices-${invFrom || "all"}-${invTo || olvToday()}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      if (window.olvToast) olvToast(`تصدّرت ${list.length} فاتورة`, { type: "ok" });
     });
 
     document.getElementById("pi-history").addEventListener("click", async (e) => {
@@ -1671,6 +1746,13 @@
         await loadHistory();
         return;
       }
+      const ed = e.target.closest("[data-edit]");
+      if (ed) {
+        ed.disabled = true;
+        try { await startEdit(ed.dataset.edit); } catch (err) { olvShowError(errBox, err); }
+        ed.disabled = false;
+        return;
+      }
       const v = e.target.closest("[data-void]");
       if (v) {
         const reason = prompt("سبب إلغاء الفاتورة (إلزامي). بيرجع المخزون وبيشيل المصروف وقيد المورّد:");
@@ -1683,6 +1765,63 @@
         renderLines();
       }
     });
+
+    // ---------- تعديل فاتورة محفوظة: بنحمّلها بالنموذج، والحفظ بيستبدلها بخطوة وحدة على السيرفر ----------
+    function endEdit() {
+      editingId = null; editingAttach = null;
+      const b = document.getElementById("pi-edit-banner"); if (b) b.remove();
+    }
+    function resetForm() {
+      lines = [newLine()];
+      ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+      document.getElementById("pi-file").value = "";
+      document.getElementById("pi-supplier").value = "";
+      document.querySelector('#pi-pay input[value="cash"]').checked = true;
+      payMode = "cash";
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+      document.getElementById("pi-partial-wrap").hidden = true;
+      renderLines();
+    }
+    async function startEdit(id) {
+      const inv = invRows.find((x) => x.id === id);
+      if (!inv || inv.voided) throw new Error("الفاتورة مش متاحة للتعديل");
+      if (!draftIsEmpty() && !confirm("في فاتورة جديدة نص مكتوبة بالنموذج. بتنمسح لو كمّلت التعديل. تكمّل؟")) return;
+      const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", id);
+      if (error) throw error;
+      const newLines = (data || []).map((p) => {
+        const key = p.ingredient_id ? "ingredient:" + p.ingredient_id : p.supply_id ? "supply:" + p.supply_id : null;
+        const price = p.list_price != null ? Number(p.list_price) : Number(p.unit_price);
+        return newLine({ itemKey: key && items.some((i) => i.kind + ":" + i.id === key) ? key : null, typed: p.item_name, unmatchedName: (key && items.some((i) => i.kind + ":" + i.id === key)) ? "" : p.item_name, unitMode: "stock", qty: String(Number(p.quantity)), price: String(price) });
+      });
+      if (!newLines.length) throw new Error("ما لقيت أصناف لهالفاتورة");
+      endEdit();
+      resetForm();
+      editingId = id; editingAttach = inv.attachment_path || null;
+      lines = newLines;
+      document.getElementById("pi-date").value = inv.invoice_date;
+      document.getElementById("pi-supplier").value = inv.supplier_id || "";
+      document.getElementById("pi-no").value = inv.invoice_no || "";
+      document.getElementById("pi-notes").value = inv.notes || "";
+      const pct = Number(inv.discount_pct) || 0;
+      document.getElementById("pi-discount-mode").value = pct ? "pct" : "amount";
+      document.getElementById("pi-discount").value = pct ? String(pct) : (Number(inv.discount_amount) > 0 ? String(Number(inv.discount_amount)) : "");
+      document.getElementById("pi-tax-rate").value = Number(inv.tax_rate) > 0 ? String(Number(inv.tax_rate)) : "";
+      document.getElementById("pi-tax-mode").value = inv.tax_inclusive ? "incl" : "excl";
+      document.getElementById("pi-tax-rec").checked = inv.tax_recoverable !== false;
+      payMode = inv.payment_type === "credit" ? "credit" : inv.payment_type === "partial" ? "partial" : "cash";
+      document.querySelector('#pi-pay input[value="' + payMode + '"]').checked = true;
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
+      document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      if (payMode === "partial") document.getElementById("pi-partial").value = String(Number(inv.paid_amount));
+      const banner = document.createElement("div");
+      banner.className = "pi-warn"; banner.id = "pi-edit-banner";
+      banner.innerHTML = `عم تعدّل ${inv.doc_no ? olvDocNo("purchase", inv.doc_no) : "فاتورة"}${inv.invoice_no ? " (مورّد #" + olvEsc(inv.invoice_no) + ")" : ""}. أول ما تحفظ، بتنلغى القديمة وبتنحفظ هاي مكانها (المخزون وحساب المورّد بيتعدّلوا لحالهم). <button type="button" class="btn" id="pi-edit-cancel" style="margin-inline-start:8px;">إلغاء التعديل</button>`;
+      document.getElementById("pi-supplier").closest(".field").before(banner);
+      document.getElementById("pi-edit-cancel").addEventListener("click", () => { endEdit(); resetForm(); openForm(false); });
+      renderLines();
+      openForm(true);
+      document.getElementById("pi-form-group").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 
     // استلام طلبية (purchase-orders.html): بنعبّي المورّد والسطور من الطلبية، وبعد حفظ الفاتورة بتتعلّم «مستلمة»
     let fromOrderId = null;
