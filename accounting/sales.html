@@ -842,7 +842,7 @@
         ? `<div class="od-reprints">${olvIcon("printer")} انطبعت كمان ${rp.length} ${rp.length === 1 ? "مرة" : "مرات"}:<br>${rp.map((x) =>
             `نسخة ${olvEsc(x.reprint_no)} · ${olvEsc(new Date(x.created_at).toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" }))} · ${olvEsc(x.printed_by_name || "—")} · ${olvEsc(x.reason)}`).join("<br>")}</div>`
         : "";
-      const label = `${r.order_no ? "طلب " + r.order_no : r.entry_date} — ${olvFormatMoney(saleTotal(r))}`;
+      const label = `${r.doc_no ? olvDocNo("sale", r.doc_no) : r.order_no ? "طلب " + r.order_no : r.entry_date} — ${olvFormatMoney(saleTotal(r))}`;
       const actions = voided ? "" : `<div class="od-actions">
           <button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(label)}">${olvIcon("printer")} إعادة طباعة</button>
           <button class="btn small danger" data-void="${r.id}">${olvIcon("x")} إلغاء الطلب</button>

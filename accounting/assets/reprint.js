@@ -116,7 +116,7 @@
       const { data: { session } } = await window.supabaseClient.auth.getSession();
       const { data: sales, error } = await window.supabaseClient
         .from("sales_entries")
-        .select("id, order_no, created_at, cash_amount, card_amount, delivery_amount, customer_name, table_number")
+        .select("id, order_no, doc_no, created_at, cash_amount, card_amount, delivery_amount, customer_name, table_number")
         .eq("created_by", session.user.id).eq("status", "completed")
         .order("created_at", { ascending: false }).limit(10);
       if (error) throw error;
@@ -132,10 +132,10 @@
         const who = [s.customer_name, s.table_number ? "طاولة " + s.table_number : ""].filter(Boolean).join(" — ");
         return `<div class="olv-rp-row${i === 0 ? " last" : ""}">
           <div>
-            <b>${s.order_no ? "طلب " + olvEsc(s.order_no) : "فاتورة"}</b>${i === 0 ? '<span class="olv-rp-tag">آخر فاتورة</span>' : ""}
+            <b>${s.doc_no ? olvEsc(olvDocNo("sale", s.doc_no)) + (s.order_no ? " · طلب " + olvEsc(s.order_no) : "") : s.order_no ? "طلب " + olvEsc(s.order_no) : "فاتورة"}</b>${i === 0 ? '<span class="olv-rp-tag">آخر فاتورة</span>' : ""}
             <div class="meta">${olvEsc(time)} — ${olvFormatMoney(total)}${who ? " — " + olvEsc(who) : ""}${counts[s.id] ? ` — أُعيدت ${counts[s.id]}×` : ""}</div>
           </div>
-          <button type="button" class="btn small gold" data-rp="${olvEsc(s.id)}" data-label="${olvEsc((s.order_no ? "طلب " + s.order_no : "فاتورة") + " — " + olvFormatMoney(total))}">${olvIcon("printer")} إعادة</button>
+          <button type="button" class="btn small gold" data-rp="${olvEsc(s.id)}" data-label="${olvEsc((s.doc_no ? olvDocNo("sale", s.doc_no) : s.order_no ? "طلب " + s.order_no : "فاتورة") + " — " + olvFormatMoney(total))}">${olvIcon("printer")} إعادة</button>
         </div>`;
       });
       modal.innerHTML = `<h2>إعادة طباعة فاتورة</h2>
