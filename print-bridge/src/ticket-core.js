@@ -340,7 +340,11 @@
     t.row("الإجمالي", formatMoney(total), `bold ${tot.px}px ${BOLD}`, tot.lh);
 
     const method = paymentMethodOf(sale);
-    if (L.payment_show && method) t.row("طريقة الدفع", PAYMENT_LABELS[method] || method, `${row24.px}px ${REG}`, row24.lh);
+    // دفع مقسوم (مثلًا كاش + شبكة): بنكتب كل جزء بمبلغه بدل ما نظهر طريقة وحدة بس
+    const parts = [["cash", sale.cash_amount], ["card", sale.card_amount], ["delivery", sale.delivery_amount]].filter(([, a]) => Number(a) > 0);
+    if (L.payment_show && parts.length > 1) {
+      parts.forEach(([k, a]) => t.row(PAYMENT_LABELS[k], formatMoney(a), `${row24.px}px ${REG}`, row24.lh));
+    } else if (L.payment_show && method) t.row("طريقة الدفع", PAYMENT_LABELS[method] || method, `${row24.px}px ${REG}`, row24.lh);
     if (L.cash_received_show && method === "cash" && sale.cash_received != null) {
       t.row("المبلغ المستلم", formatMoney(sale.cash_received), `${row24.px}px ${REG}`, row24.lh);
       t.row("الباقي", formatMoney(sale.change_due), `bold ${chg.px}px ${BOLD}`, chg.lh);
