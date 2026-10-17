@@ -116,6 +116,12 @@ async function olvLogout() {
   window.location.href = "login.html";
 }
 
+// رقم الفاتورة الدائم: ب-0001 للبيع، ش-0001 للشراء (schema-doc-numbers.sql)
+function olvDocNo(kind, n) {
+  if (n === null || n === undefined || n === "") return "";
+  return (kind === "purchase" ? "ش" : "ب") + "-" + String(n).padStart(4, "0");
+}
+
 // أدوات مساعدة عامة
 function olvFormatMoney(n) {
   const v = Number(n || 0);

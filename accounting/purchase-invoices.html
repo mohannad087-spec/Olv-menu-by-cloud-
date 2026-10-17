@@ -364,7 +364,7 @@
     <div class="group">
       <div class="pv-tools">
         <h2 id="pv-title"></h2>
-        <div class="pv-search" id="pv-search-wrap"><input type="search" id="pv-q" placeholder="ابحث بالمورّد أو رقم الفاتورة" aria-label="بحث بالمورّد أو رقم الفاتورة" autocomplete="off"></div>
+        <div class="pv-search" id="pv-search-wrap"><input type="search" id="pv-q" placeholder="ابحث بالمورّد أو رقم الفاتورة (ش-12)" aria-label="بحث بالمورّد أو رقم الفاتورة" autocomplete="off"></div>
       </div>
       <div class="pv-chips" id="pv-chips" role="group" aria-label="نوع الفواتير"></div>
       <div class="hint" id="pi-tax-summary" hidden></div>
@@ -1555,7 +1555,7 @@
         if (invChip === "cash" && !(!i.voided && (i.payment_type === "cash" || i.settledLater))) return false;
         if (invChip === "voided" && !i.voided) return false;
         if (!q) return true;
-        return ((i.suppliers && i.suppliers.name) || "").toLowerCase().includes(q) || String(i.invoice_no || "").toLowerCase().includes(q);
+        return ((i.suppliers && i.suppliers.name) || "").toLowerCase().includes(q) || String(i.invoice_no || "").toLowerCase().includes(q) || olvDocNo("purchase", i.doc_no).includes(invQuery) || (i.doc_no && /^\d+$/.test(q) && Number(q) === Number(i.doc_no));
       }).sort((a, b) => String(b.invoice_date).localeCompare(String(a.invoice_date)) || String(b.created_at).localeCompare(String(a.created_at)));
       document.getElementById("pv-title").innerHTML = olvIcon("receipt") + ` سجل الفواتير <span class="n">${list.length === invRows.length ? `(${list.length})` : `(${list.length} من ${invRows.length})`}</span>`;
       if (!list.length) {
@@ -1599,7 +1599,7 @@
         <li class="pv-inv${i.voided ? " void" : ""}">
           <button class="pv-row" type="button" data-toggle-inv="${i.id}" aria-expanded="false">
             <span class="dt">${shortDay(i.invoice_date)}<small>${dayName(i.invoice_date)}</small></span>
-            <span class="who"><b>${i.suppliers ? olvEsc(i.suppliers.name) : "كاش من السوق"}</b><small>${i.invoice_no ? `<span>#${olvEsc(i.invoice_no)}</span>` : ""}${payBadge}${tax}</small></span>
+            <span class="who"><b>${i.suppliers ? olvEsc(i.suppliers.name) : "كاش من السوق"}</b><small>${i.doc_no ? `<span>${olvDocNo("purchase", i.doc_no)}</span>` : ""}${i.invoice_no ? `<span>مورّد #${olvEsc(i.invoice_no)}</span>` : ""}${payBadge}${tax}</small></span>
             <span class="am">${money(i.total_amount)}</span>
           </button>
           <div class="pv-detail" id="det-${i.id}" hidden>
