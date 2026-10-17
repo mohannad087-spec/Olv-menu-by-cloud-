@@ -1079,6 +1079,15 @@
     function quickAddToCart(productId) {
       const product = products.find((p) => p.id === productId);
       if (!product) return;
+      // لو في إضافات بالنظام: نضيف الصنف كسطر جديد ونفتح نافذة اختيار الإضافات فورًا
+      // («إلغاء» بتخليه بدون إضافات، «حذف» بتشيله)
+      if (addons.length) {
+        OlvCart.add(product, [], 1, "");
+        olvHaptic();
+        renderCart();
+        openItemSheet(OlvCart.all().length - 1);
+        return;
+      }
       const cart = OlvCart.all();
       const existingIdx = cart.findIndex(
         (item) => item.productId === productId && item.addons.length === 0 && !item.note
