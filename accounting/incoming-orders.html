@@ -264,7 +264,10 @@
                 <button class="btn danger" data-reject="${olvEsc(o.id)}">رفض</button>
               </div>
               ${!mapped ? `<div class="hint" style="margin-top:8px;">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
-            ` : `<div class="io-waiting">${olvIcon("checkCircle")} انقبل وراح للمطبخ (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>`}
+            ` : `<div class="io-waiting">${olvIcon("checkCircle")} انقبل وراح للمطبخ (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>
+              <div class="io-actions" style="margin-top:10px;padding-top:10px;">
+                <button class="btn pay" data-done="${olvEsc(o.id)}">${olvIcon("checkCircle")} تم التسليم</button>
+              </div>`}
           </div>`;
       };
       const section = (icon, title, arr) => arr.length ? `
@@ -289,6 +292,9 @@
       });
       list.querySelectorAll("button[data-approve]").forEach((btn) => {
         btn.addEventListener("click", () => approveOrder(btn.dataset.approve, btn.dataset.method));
+      });
+      list.querySelectorAll("button[data-done]").forEach((btn) => {
+        btn.addEventListener("click", () => completeOrder(btn.dataset.done, btn));
       });
       list.querySelectorAll("button[data-reject]").forEach((btn) => {
         btn.addEventListener("click", () => rejectOrder(btn.dataset.reject));
@@ -338,6 +344,19 @@
       } catch (err) {
         olvShowError(errBox, err);
         card?.querySelectorAll("button").forEach((b) => { b.disabled = false; });
+      }
+    }
+
+    // الطلب المقبول كان يضل «قيد التحضير» للأبد لأنه ما في شي ينقله لمكتمل؛ هلق زر «تم التسليم» بيسكّره
+    async function completeOrder(orderId, btn) {
+      const errBox = document.getElementById("err");
+      btn.disabled = true;
+      try {
+        await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "completed" });
+        await OlvIncomingPoll.pollNow();
+      } catch (err) {
+        olvShowError(errBox, err);
+        btn.disabled = false;
       }
     }
 
