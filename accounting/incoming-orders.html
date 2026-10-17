@@ -352,6 +352,9 @@
       const errBox = document.getElementById("err");
       btn.disabled = true;
       try {
+        // موقع المنيو بيسمح بس preparing => ready => completed، فبنمرّ على «جاهز» أول
+        const cur = lastOrders.find((o) => o.id === orderId);
+        if (!cur || cur.status !== "ready") await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "ready" });
         await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "completed" });
         await OlvIncomingPoll.pollNow();
       } catch (err) {
