@@ -8,20 +8,22 @@ create sequence if not exists public.purchase_doc_seq;
 alter table public.sales_entries add column if not exists doc_no bigint;
 alter table public.purchase_invoices add column if not exists doc_no bigint;
 
--- ترقيم الفواتير القديمة بترتيب وقتها (مرة وحدة: بس الصفوف اللي لسا بدون رقم)
-with ordered as (
-  select id, row_number() over (order by created_at, id) as rn
-  from public.sales_entries where doc_no is null
-)
-update public.sales_entries s set doc_no = nextval('public.sale_doc_seq')
-from (select id from ordered order by rn) o where s.id = o.id and s.doc_no is null;
-
-with ordered as (
-  select id, row_number() over (order by created_at, id) as rn
-  from public.purchase_invoices where doc_no is null
-)
-update public.purchase_invoices p set doc_no = nextval('public.purchase_doc_seq')
-from (select id from ordered order by rn) o where p.id = o.id and p.doc_no is null;
+-- ترقيم الفواتير القديمة بترتيب وقتها (مرة وحدة: بس لو ما في ولا صف مرقّم)
+do $$
+begin
+  if not exists (select 1 from public.sales_entries where doc_no is not null) then
+    update public.sales_entries s set doc_no = o.rn
+    from (select id, row_number() over (order by created_at, id) rn from public.sales_entries) o where s.id = o.id;
+    perform setval('public.sale_doc_seq', greatest((select coalesce(max(doc_no), 0) from public.sales_entries), 1),
+                   (select count(*) > 0 from public.sales_entries));
+  end if;
+  if not exists (select 1 from public.purchase_invoices where doc_no is not null) then
+    update public.purchase_invoices p set doc_no = o.rn
+    from (select id, row_number() over (order by created_at, id) rn from public.purchase_invoices) o where p.id = o.id;
+    perform setval('public.purchase_doc_seq', greatest((select coalesce(max(doc_no), 0) from public.purchase_invoices), 1),
+                   (select count(*) > 0 from public.purchase_invoices));
+  end if;
+end $$;
 
 create unique index if not exists sales_entries_doc_no_key on public.sales_entries (doc_no);
 create unique index if not exists purchase_invoices_doc_no_key on public.purchase_invoices (doc_no);
