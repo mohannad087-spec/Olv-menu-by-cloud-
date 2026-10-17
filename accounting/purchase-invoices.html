@@ -1712,6 +1712,51 @@
       if (window.olvToast) olvToast(`تصدّرت ${list.length} فاتورة`, { type: "ok" });
     });
 
+    // نافذة تسديد فاتورة: المبلغ (مع «الباقي كله» و«النص») + ملاحظة اختيارية، بدل نافذة الكتابة البدائية
+    function openPayDialog(inv) {
+      return new Promise((resolve) => {
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:380px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true");
+        box.innerHTML = `
+          <h3 style="margin:0 0 4px; font-size:17px;">تسديد ${inv.no ? "الفاتورة #" + olvEsc(inv.no) : "الفاتورة"}</h3>
+          <div class="hint" style="margin-bottom:12px;">الباقي عليها <b>${money(inv.remaining)}</b></div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button type="button" class="btn small" data-q="all" style="flex:1;">الباقي كله</button>
+            <button type="button" class="btn small" data-q="half" style="flex:1;">النص</button>
+          </div>
+          <div class="field"><label for="pd-amount">المبلغ المدفوع</label><input type="number" id="pd-amount" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${inv.remaining.toFixed(2)}"></div>
+          <div class="field"><label for="pd-note">ملاحظة (اختياري)</label><input type="text" id="pd-note" maxlength="100" placeholder="مثال: حوالة، شيك رقم..."></div>
+          <div class="pi-warn bad" id="pd-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="pd-go" style="flex:1;">تسديد</button>
+            <button type="button" class="btn" id="pd-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const amt = box.querySelector("#pd-amount");
+        const err = box.querySelector("#pd-err");
+        box.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => {
+          amt.value = (b.dataset.q === "half" ? Math.round(inv.remaining * 50) / 100 : inv.remaining).toFixed(2);
+          err.textContent = "";
+        }));
+        box.querySelector("#pd-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        const go = () => {
+          const amount = Math.round(Number(String(amt.value).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[,،\s]/g, "")) * 100) / 100;
+          if (!(amount > 0)) { err.textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
+          if (amount > inv.remaining + 0.004) { err.textContent = `المبلغ أكبر من الباقي على الفاتورة (${money(inv.remaining)}). الزيادة سجّلها من صفحة الموردين.`; return; }
+          done({ amount, note: box.querySelector("#pd-note").value.trim() });
+        };
+        box.querySelector("#pd-go").addEventListener("click", go);
+        box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } if (e.key === "Escape") done(null); });
+        setTimeout(() => { amt.focus(); amt.select(); }, 50);
+      });
+    }
+
     document.getElementById("pi-history").addEventListener("click", async (e) => {
       const errBox = document.getElementById("err");
       const file = e.target.closest("[data-file]");
@@ -1726,18 +1771,15 @@
       if (payBtn) {
         const inv = payable[payBtn.dataset.pay];
         if (!inv) return;
-        const label = inv.no ? `الفاتورة #${inv.no}` : "هالفاتورة";
-        const raw = prompt(`قديش دفعت على ${label}؟ الباقي عليها ${money(inv.remaining)}`, inv.remaining.toFixed(2));
-        if (raw === null) return;
-        const amount = Math.round(Number(String(raw).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[,،\s]/g, "")) * 100) / 100;
-        if (!(amount > 0)) { olvShowError(errBox, new Error("اكتب مبلغ صحيح أكبر من صفر")); return; }
-        if (amount > inv.remaining + 0.004) { olvShowError(errBox, new Error(`المبلغ أكبر من الباقي على الفاتورة (${money(inv.remaining)}). الزيادة سجّلها من صفحة الموردين.`)); return; }
+        const picked = await openPayDialog(inv);
+        if (!picked) return;
+        const amount = picked.amount;
         payBtn.disabled = true;
         const { error } = await window.supabaseClient.from("supplier_transactions").insert({
           supplier_id: inv.supplierId,
           type: "payment",
           amount,
-          description: "تسديد " + (inv.no ? "فاتورة #" + inv.no : "فاتورة مشتريات"),
+          description: "تسديد " + (inv.no ? "فاتورة #" + inv.no : "فاتورة مشتريات") + (picked.note ? " — " + picked.note : ""),
           transaction_date: olvToday(),
           applies_to_invoice: payBtn.dataset.pay,
         });
