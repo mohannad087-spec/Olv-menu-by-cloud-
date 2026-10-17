@@ -1341,6 +1341,63 @@
       return path;
     }
 
+    // ---------- مسودة تلقائية: لو سكّرت الصفحة أو رن التلفون بنص الفاتورة، بترجع زي ما كانت ----------
+    const DRAFT_KEY = "olv_pi_draft_v1";
+    const DRAFT_IDS = ["pi-date", "pi-supplier", "pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount", "pi-discount-mode"];
+    let draftTimer = null;
+    function draftIsEmpty() {
+      return !lines.some((l) => l.itemKey || l.typed || l.unmatchedName || Number(l.qty) || Number(l.price));
+    }
+    function clearDraft() {
+      clearTimeout(draftTimer);
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* تجاهل */ }
+    }
+    function saveDraft() {
+      try {
+        if (draftIsEmpty()) { localStorage.removeItem(DRAFT_KEY); return; }
+        const fields = {};
+        DRAFT_IDS.forEach((id) => { fields[id] = document.getElementById(id).value; });
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), payMode, fields, lines }));
+      } catch (e) { /* تجاهل: التخزين ممكن يكون ممنوع */ }
+    }
+    function scheduleDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 600); }
+    ["input", "change", "click"].forEach((ev) => document.getElementById("pi-form-group").addEventListener(ev, scheduleDraft));
+    window.addEventListener("pagehide", saveDraft);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) saveDraft(); });
+
+    function restoreDraft() {
+      let d = null;
+      try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) { /* تجاهل */ }
+      if (!d || !Array.isArray(d.lines) || !d.lines.length || Date.now() - d.at > 3 * 24 * 3600 * 1000) { clearDraft(); return false; }
+      lines = d.lines.map((l) => newLine(l));
+      Object.keys(d.fields || {}).forEach((id) => { if (DRAFT_IDS.includes(id)) document.getElementById(id).value = d.fields[id]; });
+      payMode = ["cash", "credit", "partial"].includes(d.payMode) ? d.payMode : "cash";
+      const radio = document.querySelector('#pi-pay input[value="' + payMode + '"]');
+      if (radio) radio.checked = true;
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
+      document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      const banner = document.createElement("div");
+      banner.className = "pi-warn"; banner.id = "pi-draft-banner";
+      const mins = Math.max(1, Math.round((Date.now() - d.at) / 60000));
+      const ago = mins < 60 ? mins + " دقيقة" : mins < 1440 ? Math.round(mins / 60) + " ساعة" : Math.round(mins / 1440) + " يوم";
+      banner.innerHTML = `رجّعنا لك فاتورة لسا ما انحفظت (من قبل ${ago}). <button type="button" class="btn" id="pi-draft-drop" style="margin-inline-start:8px;">احذف المسودة</button>`;
+      document.getElementById("pi-supplier").closest(".field").before(banner);
+      document.getElementById("pi-draft-drop").addEventListener("click", () => {
+        if (!confirm("تحذف المسودة وتبدأ فاتورة فاضية؟")) return;
+        clearDraft();
+        banner.remove();
+        lines = [newLine()];
+        ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+        document.getElementById("pi-supplier").value = "";
+        document.querySelector('#pi-pay input[value="cash"]').checked = true;
+        payMode = "cash";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+        document.getElementById("pi-partial-wrap").hidden = true;
+        renderLines();
+      });
+      return true;
+    }
+
     document.getElementById("pi-save").addEventListener("click", async () => {
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
@@ -1405,6 +1462,8 @@
           const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
           if (!poErr) { const b = document.getElementById("pi-from-order"); if (b) b.remove(); fromOrderId = null; if (window.olvToast) olvToast("انعلّمت الطلبية كمستلمة"); }
         }
+        clearDraft();
+        const dBanner = document.getElementById("pi-draft-banner"); if (dBanner) dBanner.remove();
         lines = [newLine()];
         ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         document.getElementById("pi-file").value = "";
@@ -1665,7 +1724,8 @@
         await Promise.all([loadItems(), loadSuppliers()]);
         lines = [newLine()];
         const poId = new URLSearchParams(location.search).get("po");
-        if (poId) { try { await prefillFromOrder(poId); openForm(true); } catch (err) { olvShowError(document.getElementById("err"), err); } }
+        if (!poId) { if (restoreDraft()) openForm(true); }
+        else { try { await prefillFromOrder(poId); openForm(true); } catch (err) { olvShowError(document.getElementById("err"), err); } }
         renderLines();
         await loadHistory();
       } catch (err) { olvShowError(document.getElementById("err"), err); }
