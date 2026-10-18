@@ -260,7 +260,7 @@ tbody tr{transition:background .15s var(--ease);}
 /* ---- misc ---- */
 .err{
   display:none; background:rgba(193,88,63,.15); border:1px solid rgba(193,88,63,.4);
-  color:var(--danger-hi); padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:13px;
+  color:var(--danger-hi); padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:13px; overflow-wrap:anywhere;
 }
 .hint{color:var(--muted); font-size:12.5px; margin-top:4px;}
 .olv-config-warning{
