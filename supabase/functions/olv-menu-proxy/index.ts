@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       const r = await fetch(OLV_MENU_API, {
         method: "PATCH",
         headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
-        body: JSON.stringify({ id: body.id, status: body.status }),
+        body: JSON.stringify({ id: body.id, status: body.status, ...(typeof body.pickup === "string" ? { pickup: body.pickup } : {}) }),
       });
       const out = await r.json();
       return json(out, r.status);

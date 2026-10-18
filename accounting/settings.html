@@ -414,6 +414,21 @@
     </div>
 
     <div class="group">
+      <h2>إشعار «طلبك جاهز» لزبائن المنيو</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        لما الطلب يجهز، الكاشير بيكبس «أبلّغ الزبون» من اللوحة العائمة، فبتطلع للزبون صفحة برقم طلبه.
+        هون بتكتب وين بيستلم الزبون طلبه السفري. طلبات الصالة بتنكتب لحالها «رح نوصله لطاولتك».
+      </p>
+      <form id="pickup-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="field" style="flex:1; min-width:240px; margin-bottom:0;">
+          <label for="pickup-text">مكان استلام الطلب السفري</label>
+          <input type="text" id="pickup-text" maxlength="120" placeholder="استلم طلبك من الكاشير">
+        </div>
+        <button type="submit" class="btn gold">حفظ</button>
+      </form>
+    </div>
+
+    <div class="group">
       <h2>نشاط الكاشيرية — آخر 7 أيام</h2>
       <p class="hint" style="margin-bottom:10px;">
         راقب الأرقام الغريبة: كاشير نسبة إلغاءاته أو خصوماته أعلى بوضوح من زملائه
@@ -1407,6 +1422,23 @@
       ]);
       if (error) { olvShowError(errBox, error); return; }
       alert("تم حفظ حدود الكاشير");
+    });
+
+    (async () => {
+      try {
+        const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "menu_pickup_text").maybeSingle();
+        document.getElementById("pickup-text").value = (data && data.value) || "";
+      } catch (e) {}
+    })();
+    document.getElementById("pickup-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const { error } = await window.supabaseClient.from("app_settings").upsert([
+        { key: "menu_pickup_text", value: document.getElementById("pickup-text").value.trim().slice(0, 120) },
+      ]);
+      if (error) { olvShowError(errBox, error); return; }
+      alert("تم حفظ مكان الاستلام");
     });
 
     // الرقم السري بينفحص جوا الدالة نفسها على السيرفر (مش بالمتصفح)، مع حد لمحاولات التخمين
