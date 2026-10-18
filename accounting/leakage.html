@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>الهدر والرقابة — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  /* الهدر والرقابة (2026-10): أرقام فوق ← تنبيهات بكلام عادي ← كل موظف ← أكتر المواد ضياعًا
+     القواعد بـ design-system/olv/pages/leakage.md */
+  .wrap.lk-wrap{max-width:1120px;}
+  .lk-head{margin:4px 0 14px;}
+  .lk-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .lk-head .lk-sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
+  .lk-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
+  .lk-chip{min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
+    color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    transition:background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease);}
+  .lk-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .lk-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .lk-chip:active{transform:scale(.97);}
+  .stats.lk-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:900px){ .stats.lk-stats{grid-template-columns:repeat(2,1fr);} }
+  .lk-stats .stat .sub{font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;}
+  @media (max-width:560px){ .lk-stats .stat{padding:13px;} .lk-stats .stat .stat-icon{display:none;} .olv-glass .lk-stats .stat .value{font-size:22px;} }
+
+  .lk-alerts{list-style:none; margin:0; padding:0; display:grid; gap:8px;}
+  .lk-alerts li{display:flex; gap:11px; align-items:flex-start; padding:12px 14px; border-radius:14px; background:var(--ink-3);
+    border:1px solid var(--hair-soft); font-size:14.5px; line-height:1.65;}
+  .lk-alerts li .ai{flex:none; width:30px; height:30px; border-radius:10px; display:grid; place-items:center; background:var(--ink-2);}
+  .lk-alerts li .ai .icon{width:17px; height:17px;}
+  .lk-alerts li.warn .ai{color:var(--danger-hi);}
+  .lk-alerts li.ok .ai{color:var(--ok);}
+  .lk-alerts li b{font-weight:800;}
+
+  .lk-grid{display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:14px; margin-bottom:14px;}
+  .lk-grid > *{min-width:0;}
+  .lk-grid > .group{margin-bottom:0;}
+  @media (max-width:900px){ .lk-grid{grid-template-columns:minmax(0,1fr);} }
+
+  .lk-person{padding:12px 0; border-bottom:1px solid var(--hair-soft);}
+  .lk-person:last-child{border-bottom:0;}
+  .lk-person .top{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .lk-person .nm{font-weight:800; font-size:15.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%;}
+  .lk-flag{display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; font-size:12.5px; font-weight:800; background:var(--ink-3);}
+  .lk-flag.warn{color:var(--danger-hi);}
+  .lk-flag.ok{color:var(--ok);}
+  .lk-flag .icon{width:13px; height:13px;}
+  .lk-facts{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:13px; color:var(--muted); margin-top:7px;}
+  .lk-facts b{color:var(--paper); font-weight:700; font-variant-numeric:tabular-nums;}
+  .lk-facts .bad b{color:var(--danger-hi);}
+  .lk-bar{height:7px; border-radius:99px; background:var(--ink-3); overflow:hidden; margin-top:8px;}
+  .lk-bar i{display:block; height:100%; border-radius:99px; background:var(--danger-hi); min-width:2px;}
+
+  .lk-loss{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; padding:10px 0; border-bottom:1px solid var(--hair-soft); align-items:center;}
+  .lk-loss:last-child{border-bottom:0;}
+  .lk-loss .nm{font-weight:700; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lk-loss .v{font-weight:800; font-variant-numeric:tabular-nums; color:var(--danger-hi); white-space:nowrap;}
+  .lk-loss small{grid-column:1 / -1; color:var(--muted); font-size:12.5px;}
+  .lk-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
+  .lk-note{color:var(--muted); font-size:12.5px; line-height:1.7; margin:10px 0 0;}
+  @media (prefers-reduced-motion: reduce){ .lk-chip{transition:none;} .lk-chip:active{transform:none;} }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f1e6">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap lk-wrap">
+    <div class="err" id="err"></div>
+
+    <header class="lk-head">
+      <h1>الهدر والرقابة</h1>
+      <div class="lk-sub">وين بتضيع المصاري: إلغاءات وخصومات كل موظف، وهدر وفروقات الجرد. للمالك والمدير بس.</div>
+    </header>
+
+    <div class="lk-chips" role="group" aria-label="الفترة">
+      <button class="lk-chip" type="button" data-p="7">آخر 7 أيام</button>
+      <button class="lk-chip" type="button" data-p="30">آخر 30 يوم</button>
+      <button class="lk-chip" type="button" data-p="month">هذا الشهر</button>
+    </div>
+
+    <div class="stats lk-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-void"></div>
+        <div class="stat-body"><div class="label">طلبات ملغاة</div><div class="value" id="k-void">—</div><div class="sub" id="k-void-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-disc"></div>
+        <div class="stat-body"><div class="label">خصومات</div><div class="value" id="k-disc">—</div><div class="sub" id="k-disc-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-waste"></div>
+        <div class="stat-body"><div class="label">هدر مسجّل</div><div class="value" id="k-waste">—</div><div class="sub" id="k-waste-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-count"></div>
+        <div class="stat-body"><div class="label">نقص بالجرد</div><div class="value" id="k-count">—</div><div class="sub" id="k-count-s"></div></div></div></div>
+    </div>
+
+    <section class="group">
+      <h2 id="al-title"></h2>
+      <ul class="lk-alerts" id="alerts"><li><span class="ai"></span><span>جاري التحميل...</span></li></ul>
+    </section>
+
+    <div class="lk-grid">
+      <section class="group">
+        <h2 id="pp-title"></h2>
+        <div id="people"></div>
+        <p class="lk-note">الإلغاء بينحسب على اللي ألغى، والخصم على اللي باع. العلامة بتطلع إذا الإلغاء 5% أو أكتر من مبيعاته (وعلى الأقل 3 طلبات)، أو الخصم ضعف المعدل العام وفوق 3%.</p>
+      </section>
+      <section class="group">
+        <h2 id="ls-title"></h2>
+        <div id="losses"></div>
+        <p class="lk-note">القيمة = الكمية الناقصة × آخر سعر شراء للمادة. المواد بلا سعر شراء بتنعدّ بصفر.</p>
+      </section>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+    olvRenderNav("leakage");
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => olvFormatMoney(n);
+    const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+    const esc = (v) => olvEsc(v);
+    const errBox = $("err");
+
+    $("ic-void").innerHTML = olvIcon("x");
+    $("ic-disc").innerHTML = olvIcon("tag");
+    $("ic-waste").innerHTML = olvIcon("trash");
+    $("ic-count").innerHTML = olvIcon("clipboard");
+    $("al-title").innerHTML = olvIcon("warning") + " شو لازم تنتبه له";
+    $("pp-title").innerHTML = olvIcon("people") + " كل موظف";
+    $("ls-title").innerHTML = olvIcon("box") + " أكتر مواد ضايعة";
+
+    // حدود التنبيه (مكتوبة بملاحظة الصفحة، غيّرها هون إذا بدك)
+    const VOID_RATE = 0.05, VOID_MIN = 3;       // إلغاء 5%+ من مبيعاته وعلى الأقل 3 طلبات
+    const DISC_SHARE = 0.03, DISC_TIMES = 2;    // خصم 3%+ وضعف المعدل العام
+    const LATE_MIN = 60;                        // إلغاء بعد أكتر من ساعة من البيع
+
+    function shiftDay(dateStr, d) {
+      const t = new Date(dateStr + "T12:00:00Z");
+      t.setUTCDate(t.getUTCDate() + d);
+      return t.toISOString().slice(0, 10);
+    }
+    function fromDate(p) {
+      const today = olvToday();
+      return p === "month" ? today.slice(0, 8) + "01" : shiftDay(today, -(Number(p) - 1));
+    }
+    const saleTotal = (r) => (Number(r.cash_amount) || 0) + (Number(r.card_amount) || 0) + (Number(r.delivery_amount) || 0);
+    const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+
+    let period = "30", seq = 0;
+
+    async function load() {
+      const my = ++seq;
+      document.querySelectorAll(".lk-chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === period)));
+      const from = fromDate(period);
+      const db = window.supabaseClient;
+      const [sR, mR, pR, iR, uR] = await Promise.all([
+        db.from("sales_entries")
+          .select("id, created_at, status, void_reason, voided_at, voided_by, created_by, discount_amount, cash_amount, card_amount, delivery_amount")
+          .gte("entry_date", from).limit(5000),
+        db.from("stock_movements").select("item_kind, item_id, item_name, delta, reason, created_at")
+          .gte("created_at", from + "T00:00:00Z").in("reason", ["count", "waste"]).lt("delta", 0).limit(5000),
+        db.from("profiles").select("id, full_name"),
+        db.from("ingredients").select("id, unit, unit_price"),
+        db.from("supplies").select("id, unit, unit_price"),
+      ]);
+      if (my !== seq) return;
+      if (sR.error) throw sR.error;
+      const sales = sR.data || [];
+      const moves = mR.error ? [] : (mR.data || []);
+      const names = new Map((pR.data || []).map((p) => [p.id, (p.full_name || "").trim()]));
+      const price = new Map();
+      [iR, uR].forEach((r, k) => (r.data || []).forEach((x) => price.set((k ? "supply:" : "ingredient:") + x.id, { p: Number(x.unit_price) || 0, unit: x.unit || "" })));
+      const nameOf = (id) => (id && names.get(id)) || (id ? "موظف محذوف" : "غير معروف");
+
+      // ---- المبيعات: لكل موظف ----
+      const per = new Map();
+      const get = (id) => {
+        const k = id || "none";
+        if (!per.has(k)) per.set(k, { id, sold: 0, soldTotal: 0, voids: 0, voidVal: 0, late: 0, disc: 0, discOrders: 0 });
+        return per.get(k);
+      };
+      let done = 0, doneTotal = 0, voids = 0, voidVal = 0, late = 0, disc = 0, discOrders = 0;
+      sales.forEach((s) => {
+        if (s.status === "voided") {
+          const t = saleTotal(s);
+          const p = get(s.voided_by);
+          p.voids++; p.voidVal += t;
+          voids++; voidVal += t;
+          if (s.voided_at && s.created_at && (new Date(s.voided_at) - new Date(s.created_at)) / 6e4 > LATE_MIN) { p.late++; late++; }
+        } else {
+          const t = saleTotal(s), d = Number(s.discount_amount) || 0;
+          const p = get(s.created_by);
+          p.sold++; p.soldTotal += t;
+          done++; doneTotal += t;
+          if (d > 0) { p.disc += d; p.discOrders++; disc += d; discOrders++; }
+        }
+      });
+      const discShare = (doneTotal + disc) > 0 ? disc / (doneTotal + disc) : 0;
+
+      // ---- المخزون: هدر وفروقات جرد ----
+      const loss = new Map();
+      let wasteVal = 0, wasteN = 0, countVal = 0, countN = 0;
+      moves.forEach((m) => {
+        const key = m.item_kind + ":" + m.item_id;
+        const pr = price.get(key) || { p: 0, unit: "" };
+        const q = Math.abs(Number(m.delta) || 0), v = q * pr.p;
+        const o = loss.get(key) || { name: m.item_name || "مادة", unit: pr.unit, q: 0, v: 0, waste: 0, count: 0 };
+        o.q += q; o.v += v;
+        if (m.reason === "waste") { o.waste += q; wasteVal += v; wasteN++; } else { o.count += q; countVal += v; countN++; }
+        loss.set(key, o);
+      });
+
+      render({ done, doneTotal, voids, voidVal, late, disc, discOrders, discShare, per, nameOf, loss, wasteVal, wasteN, countVal, countN, movesErr: !!mR.error });
+    }
+
+    function render(d) {
+      $("k-void").textContent = money(d.voidVal);
+      $("k-void-s").textContent = `${d.voids} طلب (${pct(d.voids, d.voids + d.done)}% من الطلبات)`;
+      $("k-disc").textContent = money(d.disc);
+      $("k-disc-s").textContent = `${d.discOrders} طلب (${pct(d.disc, d.doneTotal + d.disc)}% من المبيعات)`;
+      $("k-waste").textContent = money(d.wasteVal);
+      $("k-waste-s").textContent = d.movesErr ? "ما في صلاحية تشوفها" : `${d.wasteN} تسجيل`;
+      $("k-count").textContent = money(d.countVal);
+      $("k-count-s").textContent = d.movesErr ? "ما في صلاحية تشوفها" : `${d.countN} تعديل جرد بالنقص`;
+
+      // ---- كل موظف ----
+      const rows = [...d.per.values()].filter((p) => p.sold || p.voids || p.disc)
+        .map((p) => {
+          const vr = p.sold + p.voids > 0 ? p.voids / (p.sold + p.voids) : 0;
+          const ds = (p.soldTotal + p.disc) > 0 ? p.disc / (p.soldTotal + p.disc) : 0;
+          const badVoid = p.voids >= VOID_MIN && vr >= VOID_RATE;
+          const badDisc = ds >= DISC_SHARE && ds >= DISC_TIMES * d.discShare && p.discOrders >= VOID_MIN;
+          return { ...p, vr, ds, badVoid, badDisc, name: d.nameOf(p.id) };
+        })
+        .sort((a, b) => (b.voidVal + b.disc) - (a.voidVal + a.disc));
+      const maxV = Math.max(1, ...rows.map((r) => r.voidVal + r.disc));
+      $("people").innerHTML = rows.length ? rows.map((r) => {
+        const flag = r.badVoid || r.badDisc
+          ? `<span class="lk-flag warn">${olvIcon("warning")}انتبه</span>`
+          : `<span class="lk-flag ok">${olvIcon("checkCircle")}عادي</span>`;
+        return `<div class="lk-person">
+          <div class="top"><span class="nm">${esc(r.name)}</span>${flag}</div>
+          <div class="lk-facts">
+            <span>باع <b>${r.sold}</b> طلب (${money(r.soldTotal)})</span>
+            <span class="${r.badVoid ? "bad" : ""}">ألغى <b>${r.voids}</b> (${money(r.voidVal)})</span>
+            <span class="${r.badDisc ? "bad" : ""}">خصم <b>${money(r.disc)}</b> (${Math.round(r.ds * 1000) / 10}%)</span>
+            ${r.late ? `<span class="bad">إلغاء متأخر <b>${r.late}</b></span>` : ""}
+          </div>
+          <div class="lk-bar" role="img" aria-label="حجم الإلغاء والخصم"><i style="width:${Math.max(2, Math.round((r.voidVal + r.disc) / maxV * 100))}%"></i></div>
+        </div>`;
+      }).join("") : `<div class="lk-empty">ما في مبيعات بهالفترة.</div>`;
+
+      // ---- المواد الضايعة ----
+      const top = [...d.loss.values()].sort((a, b) => b.v - a.v || b.q - a.q).slice(0, 8);
+      $("losses").innerHTML = top.length ? top.map((o) => `<div class="lk-loss">
+          <span class="nm">${esc(o.name)}</span><span class="v" dir="ltr">${o.v > 0 ? "−" + money(o.v) : "—"}</span>
+          <small>${o.waste ? `هدر ${+o.waste.toFixed(2)} ${esc(o.unit)}` : ""}${o.waste && o.count ? " · " : ""}${o.count ? `نقص جرد ${+o.count.toFixed(2)} ${esc(o.unit)}` : ""}</small>
+        </div>`).join("")
+        : `<div class="lk-empty">${d.movesErr ? "ما عندك صلاحية تشوف حركات المخزون." : "ما في هدر ولا نقص جرد مسجّل بهالفترة."}</div>`;
+
+      // ---- التنبيهات بكلام عادي ----
+      const A = [];
+      rows.forEach((r) => {
+        if (r.badVoid) A.push(["warn", "x", `<b>${esc(r.name)}</b> ألغى ${r.voids} طلب بقيمة ${money(r.voidVal)}، يعني ${Math.round(r.vr * 1000) / 10}% من طلباته. اسأله عن الأسباب.`]);
+        if (r.badDisc) A.push(["warn", "tag", `<b>${esc(r.name)}</b> عطى خصومات ${money(r.disc)} (${Math.round(r.ds * 1000) / 10}% من مبيعاته)، أكتر من ضعف معدل المحل (${Math.round(d.discShare * 1000) / 10}%).`]);
+      });
+      if (d.late >= 1) A.push(["warn", "clock", `<b>${d.late}</b> طلب انلغى بعد أكتر من ساعة من البيع. الإلغاء المتأخر هو الأكتر إثارة للشك، راجعهم من «المبيعات» (فلتر الملغاة).`]);
+      const bigLoss = [...d.loss.values()].filter((o) => o.v > 0).sort((a, b) => b.v - a.v)[0];
+      if (bigLoss && bigLoss.v >= 5) A.push(["warn", "box", `أكتر مادة ضايعة: <b>${esc(bigLoss.name)}</b> بقيمة ${money(bigLoss.v)}.`]);
+      if (!A.length) A.push(["ok", "checkCircle", d.done + d.voids ? "ما في شي مريب بهالفترة: الإلغاءات والخصومات والهدر ضمن المعقول." : "ما في بيانات كفاية بهالفترة."]);
+      $("alerts").innerHTML = A.map(([c, ic, t]) => `<li class="${c}"><span class="ai">${olvIcon(ic)}</span><span>${t}</span></li>`).join("");
+    }
+
+    document.querySelectorAll(".lk-chip").forEach((b) => b.addEventListener("click", () => {
+      period = b.dataset.p;
+      load().catch((e) => olvShowError(errBox, e));
+    }));
+
+    const session = await olvRequireAuth();
+    if (!session) return;
+    if (!window.olvRole || window.olvRole === "staff") { window.location.replace("pos.html"); return; }
+    try { await load(); } catch (e) { olvShowError(errBox, e); }
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
