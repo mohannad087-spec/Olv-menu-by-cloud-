@@ -564,9 +564,87 @@
   @media (prefers-reduced-transparency: reduce){
     .pos-cat-sidebar, .pos-status-bar{background:var(--ink-2) !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;}
   }
+
+  /* ---- وضع ملء الشاشة + تخفيف الثقل (2026-10) ----
+     الثقل كان من: هالة الخلفية المتحركة (بتعيد رسم الشاشة كل لحظة تحت الزجاج) وكل بطاقات
+     الأصناف بصورها بتنرسم دفعة وحدة. هلأ: الهالة ثابتة هون، والبطاقة برّا الشاشة ما بتنرسم
+     (content-visibility)، والصور بتنحمّل لما توصلها. وبالوضع الكامل: الشريط العلوي/السفلي
+     بيختفوا (بيطلعوا بسحبة من الحافة أو بزر)، والتصنيفات بتصير شريط شرائح فوق الأصناف */
+  body.pos-page::before{animation:none;}
+  .card{content-visibility:auto; contain-intrinsic-size:auto 190px;}
+  .pos-edge-handle, .pos-nav-backdrop{display:none;}
+  body.pos-focus .pos-edge-handle{
+    display:flex; position:fixed; top:0; inset-inline-start:50%; transform:translateX(-50%); z-index:46;
+    width:84px; height:26px; align-items:center; justify-content:center; padding:0;
+    border:1px solid var(--glass-line); border-top:0; border-radius:0 0 16px 16px;
+    background:var(--glass); color:var(--muted); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    box-shadow:0 6px 16px -10px rgba(47,36,22,.5);
+  }
+  body.pos-focus .pos-edge-handle .icon{width:18px; height:18px;}
+  body.pos-focus.pos-nav-open .pos-edge-handle{display:none;}
+  body.pos-focus #olv-nav{display:none;}
+  body.pos-focus.pos-nav-open #olv-nav{display:block; position:fixed; inset:0 0 auto 0; z-index:48;}
+  body.pos-focus.pos-nav-open .pos-nav-backdrop{display:block; position:fixed; inset:0; z-index:47; background:rgba(30,22,12,.3); animation:olv-fade-in .2s var(--ease) both;}
+  body.pos-focus.pos-nav-open #olv-nav .top{animation:olv-nav-drop .28s var(--spring) both;}
+  @keyframes olv-nav-drop{from{transform:translateY(-24px); opacity:0;}}
+  body.pos-focus .olv-footer{display:none;}
+  body.pos-focus .pos-layout{min-height:calc(100vh - var(--status-h, 0px));}
+  body.pos-focus .pos-toolbar{margin-bottom:8px;}
+  body.pos-focus .kbd-hint{display:none;}
+  /* التصنيفات: شريط شرائح أفقي فوق الأصناف (ولا صنف بيضيع، وكل تصنيف بلمسة) */
+  body.pos-focus .pos-cat-sidebar{
+    flex:none; width:auto; min-width:0; padding:0 0 8px; border:0; border-radius:0; background:transparent;
+    box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none; position:static; max-height:none;
+    overflow:visible; align-self:stretch;
+  }
+  body.pos-focus .cat-tabs{flex-direction:row; overflow-x:auto; gap:6px; padding-bottom:2px; scrollbar-width:none;}
+  body.pos-focus .cat-tabs::-webkit-scrollbar{display:none;}
+  body.pos-focus .cat-tab{
+    flex:none; width:auto; min-height:40px; flex-direction:row; gap:6px; padding:6px 14px; border-radius:999px;
+    font-size:13px;
+  }
+  body.pos-focus .cat-tab .cat-tab-icon .icon{width:17px; height:17px;}
+  body.pos-focus .cat-tab .cat-tab-label{display:block; -webkit-line-clamp:unset; white-space:nowrap;}
+  /* بطاقات أصغر: أصناف أكتر بالشاشة بدون ما نخسر شي */
+  body.pos-focus .grid{gap:10px;}
+  body.pos-focus .card{border-radius:18px;}
+  body.pos-focus .card .thumb{aspect-ratio:2/1;}
+  body.pos-focus .card .thumb-fallback{aspect-ratio:2/1; margin:6px 6px 0; border-radius:12px;}
+  body.pos-focus .card .thumb-fallback .icon{width:28px; height:28px;}
+  body.pos-focus .card .desc{display:none;}
+  body.pos-focus .card .info{padding:7px 8px 9px;}
+  body.pos-focus .card .name{font-size:14px; -webkit-line-clamp:2; line-clamp:2;}
+  body.pos-focus .card .add-btn{min-width:30px; min-height:30px; padding:0; justify-content:center; font-size:0;}
+  body.pos-focus .card .add-btn::before{content:"+"; font-size:20px; font-weight:700; line-height:1;}
+  @media (min-width:901px){
+    body.pos-focus .pos-layout{padding:8px 12px 0; height:var(--pos-h, calc(100vh - 60px));}
+    body.pos-focus .pos-main{padding-top:30px;}
+  }
+  @media (max-width:900px){
+    body.pos-focus .pos-main{padding:6px 14px 12px;}
+    body.pos-focus .pos-cat-sidebar{padding:34px 14px 6px;}
+  }
+  @media (min-width:641px){
+    body.pos-focus.pos-nav-open #olv-nav{
+      background:var(--material); -webkit-backdrop-filter:blur(24px) saturate(170%); backdrop-filter:blur(24px) saturate(170%);
+      border-radius:0 0 24px 24px; padding-bottom:8px; box-shadow:0 18px 40px -20px rgba(30,22,12,.5);
+    }
+  }
+  @media (max-width:640px){
+    body.pos-focus .pos-toolbar .btn-label, body.pos-focus .pos-clock{display:none;}
+    body.pos-focus{padding-bottom:0;}
+    body.pos-focus .pos-cart-panel{bottom:0;}
+    body.pos-focus.pos-nav-open #olv-nav .tabs{animation:olv-nav-rise .28s var(--spring) both;}
+    @keyframes olv-nav-rise{from{transform:translateY(100%);}}
+  }
+  @media (prefers-reduced-motion: reduce){
+    body.pos-focus.pos-nav-open #olv-nav .top, body.pos-focus.pos-nav-open #olv-nav .tabs{animation:none;}
+  }
 </style>
 </head>
-<body class="olv-glass">
+<body class="olv-glass pos-page">
+  <button type="button" class="pos-edge-handle" id="pos-edge-handle" aria-label="إظهار القوائم" title="إظهار القوائم (أو اسحب من فوق)"></button>
+  <div class="pos-nav-backdrop" id="pos-nav-backdrop"></div>
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
@@ -587,6 +665,7 @@
             <input type="search" id="product-search" placeholder="ابحث عن صنف..." enterkeyhint="done" autocomplete="off">
           </div>
           <button type="button" class="btn small" id="reprint-open-btn"></button>
+          <button type="button" class="btn small" id="focus-toggle-btn"></button>
         </div>
         <div class="kbd-hint" aria-hidden="true">
           <span><kbd>/</kbd> بحث</span><span><kbd>Enter</kbd> أضف أول نتيجة</span><span><kbd>+</kbd> <kbd>−</kbd> كمية آخر صنف</span><span><kbd>F2</kbd> الدفع</span><span><kbd>Esc</kbd> مسح البحث</span>
@@ -688,7 +767,7 @@
     olvRenderNav("pos");
     document.getElementById("search-icon").innerHTML = olvIcon("search");
     document.getElementById("discount-toggle-btn").innerHTML = olvIcon("tag") + "<span>إضافة خصم</span>";
-    document.getElementById("reprint-open-btn").innerHTML = olvIcon("printer") + " إعادة طباعة";
+    document.getElementById("reprint-open-btn").innerHTML = olvIcon("printer") + '<span class="btn-label">إعادة طباعة</span>';
     document.getElementById("reprint-open-btn").addEventListener("click", () => olvOpenReprintList());
     document.getElementById("discount-remove-btn").innerHTML = olvIcon("x");
 
@@ -696,10 +775,67 @@
     // كمتغيّر CSS، حتى تبدأ التذكرة والقائمة مباشرة تحته بدون أي فراغ
     function updateNavHeight() {
       const nav = document.getElementById("olv-nav");
-      if (nav) document.documentElement.style.setProperty("--nav-h", nav.offsetHeight + "px");
+      const hidden = document.body.classList.contains("pos-focus");
+      if (nav) document.documentElement.style.setProperty("--nav-h", (hidden ? 0 : nav.offsetHeight) + "px");
     }
     updateNavHeight();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateNavHeight);
+
+    // ---- وضع ملء الشاشة: الشريط العلوي/السفلي مخفي، بيطلع بزر أو بسحبة من حافة الشاشة ----
+    // الاختيار محفوظ لكل جهاز. افتراضيًا شغّال (الكاشير بده أكبر مساحة للأصناف)
+    const FOCUS_KEY = "olv_pos_focus_v1";
+    const catAside = document.querySelector(".pos-cat-sidebar");
+    const posLayout = document.querySelector(".pos-layout");
+    const posMain = document.querySelector(".pos-main");
+    let focusOn = true;
+    try { focusOn = localStorage.getItem(FOCUS_KEY) !== "off"; } catch (_) {}
+    function setNavOpen(open) {
+      document.body.classList.toggle("pos-nav-open", open && focusOn);
+    }
+    function placeCategories() {
+      // كمبيوتر + وضع كامل: التصنيفات بتنتقل لفوق الأصناف كشريط شرائح؛ غير هيك مكانها الأصلي
+      const wide = window.matchMedia("(min-width:901px)").matches;
+      if (focusOn && wide) {
+        if (catAside.parentElement !== posMain) posMain.insertBefore(catAside, document.getElementById("products-grid"));
+      } else if (catAside.parentElement !== posLayout) {
+        posLayout.insertBefore(catAside, posLayout.firstChild);
+      }
+    }
+    function setFocus(on, save) {
+      focusOn = on;
+      document.body.classList.toggle("pos-focus", on);
+      if (!on) document.body.classList.remove("pos-nav-open");
+      if (save) { try { localStorage.setItem(FOCUS_KEY, on ? "on" : "off"); } catch (_) {} }
+      const t = document.getElementById("focus-toggle-btn");
+      t.innerHTML = olvIcon(on ? "minimize" : "maximize") + `<span class="btn-label">${on ? "إظهار القوائم" : "ملء الشاشة"}</span>`;
+      t.title = on ? "رجّع الشريط العلوي والسفلي دايمًا" : "خبّي الشريط العلوي والسفلي";
+      placeCategories();
+      updateNavHeight();
+      if (typeof updatePosHeight === "function") updatePosHeight();
+      if (products.length) renderGrid();
+    }
+    document.getElementById("pos-edge-handle").innerHTML = olvIcon("chevronDown");
+    document.getElementById("pos-edge-handle").addEventListener("click", () => setNavOpen(true));
+    document.getElementById("pos-nav-backdrop").addEventListener("click", () => setNavOpen(false));
+    document.getElementById("focus-toggle-btn").addEventListener("click", () => setFocus(!focusOn, true));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("pos-nav-open")) setNavOpen(false); });
+    // سحبة من أعلى الشاشة لتحت = إظهار القوائم؛ سحبة لفوق على القوائم = إخفاءها
+    let swipe = null;
+    document.addEventListener("touchstart", (e) => {
+      if (!focusOn || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const open = document.body.classList.contains("pos-nav-open");
+      if (!open && t.clientY <= 28) swipe = { y: t.clientY, open: false };
+      else if (open && (t.clientY <= 140 || t.clientY >= window.innerHeight - 90)) swipe = { y: t.clientY, open: true, bottom: t.clientY >= window.innerHeight - 90 };
+      else swipe = null;
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => {
+      if (!swipe) return;
+      const dy = e.touches[0].clientY - swipe.y;
+      if (!swipe.open && dy > 36) { setNavOpen(true); swipe = null; }
+      else if (swipe.open && (swipe.bottom ? dy > 36 : dy < -36)) { setNavOpen(false); swipe = null; }
+    }, { passive: true });
+    document.addEventListener("touchend", () => { swipe = null; }, { passive: true });
 
     // نفس فكرة updateNavHeight بس للشريط السفلي — يختفي بالموبايل
     // (display:none)، فبيرجع ارتفاعه صفر تلقائيًا بدون أي كود إضافي
@@ -841,6 +977,7 @@
     let activeCategory = "الكل";
     let searchTerm = "";
     let currentPage = 1;
+    setFocus(focusOn, false); // تطبيق الوضع المحفوظ بعد ما تتعرّف المتغيرات
     const BEST_SELLERS = "الأكثر مبيعًا";
     const DRAFT_KEY = "olv_pos_draft";
     let discountMode = "percent"; // "percent" أو "fixed"
@@ -920,7 +1057,7 @@
     function computeGridCapacity(rowsOverride) {
       const grid = document.getElementById("products-grid");
       const containerWidth = grid.clientWidth || 300;
-      const targetCardWidth = 150;
+      const targetCardWidth = document.body.classList.contains("pos-focus") ? 132 : 150;
       const columns = Math.max(1, Math.floor((containerWidth + GRID_GAP) / (targetCardWidth + GRID_GAP)));
       const cardWidth = (containerWidth - (columns - 1) * GRID_GAP) / columns;
       const cardHeight = measuredCardH || (cardWidth * 0.75 + 88);
@@ -1019,7 +1156,7 @@
           <span class="q" aria-hidden="true"></span>
           ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
           ${src
-            ? `<img class="thumb" src="${src}" alt="${olvEsc(p.name)}" data-fallback-icon="${fallbackIcon}" onerror="olvHandleImageError(this)">`
+            ? `<img class="thumb" loading="lazy" decoding="async" src="${src}" alt="${olvEsc(p.name)}" data-fallback-icon="${fallbackIcon}" onerror="olvHandleImageError(this)">`
             : `<div class="thumb-fallback">${olvIcon(fallbackIcon)}</div>`
           }
           <div class="info">
@@ -1772,7 +1909,7 @@
       let resizeTimer = null;
       window.addEventListener("resize", () => {
         clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => { updateNavHeight(); updateStatusBarHeight(); updatePosHeight(); renderGrid(); }, 200);
+        resizeTimer = setTimeout(() => { placeCategories(); updateNavHeight(); updateStatusBarHeight(); updatePosHeight(); renderGrid(); }, 200);
       });
 
       syncCartPrices(); // مسودة محفوظة من قبل ممكن تكون بأسعار قديمة
