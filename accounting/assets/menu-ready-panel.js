@@ -1,11 +1,14 @@
 // لوحة عائمة صغيرة (شاشة البيع + الطلبات الواردة) لطلبات المنيو اللي انقبلت:
-//   جاهزة       = كل أقسام المطبخ/البار خلّصت. الكاشير بيكبس «أبلّغ الزبون» فبتطلع للزبون صفحة «طلبك جاهز» برقمه ومكان الاستلام.
+//   جاهزة       = كل أقسام المطبخ/البار خلّصت. الزبون بينبلّغ تلقائيًا (بتطلعله صفحة «طلبك جاهز» برقمه ومكان الاستلام)
+//                 بدون ما حدا يكبس إشي؛ زر «أبلّغ الزبون» بيضل احتياط لو التبليغ التلقائي فشل.
+// على شاشة المطبخ السكربت بيشتغل بدون واجهة (data-headless): أول ما يخلص الطلب هناك بينبلّغ الزبون بلحظتها.
 //   تم إبلاغ الزبون = الحالة صارت «ready» بموقع المنيو؛ زر «تسليم» بيسكّر الطلب.
 //   قيد التحضير = لسا في أصناف ما خلصت («باقي N من M»).
 // بتعتمد على OlvIncomingPoll (نفس فحص الطلبات الواردة) وعلى sales_entries.client_ref اللي بيربط الطلب بالبيع المسجّل عند القبول.
 // ما بتظهر أبدًا إذا ما في طلبات منيو نشطة، وبتنطوي لزر صغير (الحالة بتنحفظ على الجهاز).
 (function () {
   if (window.OlvMenuReady) return;
+  const HEADLESS = !!(document.currentScript && document.currentScript.hasAttribute("data-headless"));
 
   const REMEMBER_KEY = "olv-mrp-open";
   const DEFAULT_PICKUP = "استلم طلبك من الكاشير";
@@ -29,6 +32,7 @@
   let lastOrders = [];
   let pickupText = DEFAULT_PICKUP;
   let busy = false, again = false, refreshTimer = null;
+  const autoTried = new Map(); // رقم الطلب => وقت آخر محاولة تبليغ تلقائي (حتى ما نكرر كل فحص)
 
   const STYLE = `
   #mrp{position:fixed; z-index:44; inset-inline-end:auto; left:14px; bottom:16px; width:min(340px, calc(100vw - 28px)); direction:rtl; font-family:inherit; display:none; pointer-events:none;}
@@ -76,7 +80,7 @@
   }
 
   function ensureRoot() {
-    if (root) return root;
+    if (root || HEADLESS) return root;
     const st = document.createElement("style");
     st.textContent = STYLE;
     document.head.appendChild(st);
@@ -108,6 +112,7 @@
   }
 
   function render() {
+    if (HEADLESS) return;
     const r = ensureRoot();
     const { ready, notified, prep } = model;
     const total = ready.length + notified.length + prep.length;
@@ -148,10 +153,7 @@
     btn.disabled = true;
     try {
       if (nb) {
-        const payload = { action: "update", id, status: "ready" };
-        // مكان الاستلام بينكتب بالإعدادات للسفري. الصالة والتوصيل الصفحة عند الزبون بتختار الجملة المناسبة
-        if (o.mode !== "hall" && o.mode !== "delivery") payload.pickup = pickupText;
-        await OlvIncomingPoll.callProxy(payload);
+        await sendReady(o);
         if (typeof olvToast === "function") olvToast("انبعتت للزبون: طلبك #" + o.number + " جاهز", { type: "info" });
       } else {
         await OlvIncomingPoll.callProxy({ action: "update", id, status: "completed" });
@@ -163,6 +165,32 @@
     }
   }
 
+  function sendReady(o) {
+    const payload = { action: "update", id: o.id, status: "ready" };
+    // مكان الاستلام بينكتب بالإعدادات للسفري. الصالة والتوصيل الصفحة عند الزبون بتختار الجملة المناسبة
+    if (o.mode !== "hall" && o.mode !== "delivery") payload.pickup = pickupText;
+    return OlvIncomingPoll.callProxy(payload);
+  }
+
+  // كل طلب خلص بالمطبخ بينبلّغ زبونه لحاله. لو فشل (نت مثلًا) بنعيد بعد دقيقة، والزر اليدوي موجود
+  async function autoNotify(list) {
+    // نستنى نص مكان الاستلام من الإعدادات (لحد 3 ثواني) قبل أول تبليغ
+    await Promise.race([pickupLoaded, new Promise((r) => setTimeout(r, 3000))]);
+    let sent = false;
+    for (const o of list) {
+      const last = autoTried.get(o.id);
+      if (last && Date.now() - last < 60000) continue;
+      autoTried.set(o.id, Date.now());
+      try {
+        await sendReady(o);
+        sent = true;
+        if (!HEADLESS && typeof olvToast === "function") olvToast("طلب المنيو #" + o.number + " جاهز، وانبلّغ الزبون", { type: "info" });
+      } catch (e) { /* بيضل بقائمة «جاهزة» مع زر يدوي */ }
+    }
+    if (sent) OlvIncomingPoll.pollNow();
+  }
+
+  let pickupLoaded = Promise.resolve();
   async function loadPickup() {
     try {
       const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "menu_pickup_text").maybeSingle();
@@ -215,11 +243,12 @@
       if (knownReady !== null) {
         let fresh = false;
         readyIds.forEach((id) => { if (!knownReady.has(id)) fresh = true; });
-        if (fresh && typeof OlvSound !== "undefined" && OlvSound.playOrderReady) OlvSound.playOrderReady();
+        if (fresh && !HEADLESS && typeof OlvSound !== "undefined" && OlvSound.playOrderReady) OlvSound.playOrderReady();
       }
       knownReady = readyIds;
       model = next;
       render();
+      if (next.ready.length) autoNotify(next.ready);
     } catch (e) {
       /* اللوحة مساعدة، ما بنزعج الكاشير بخطأ منها */
     } finally {
@@ -241,14 +270,14 @@
     const tryRealtime = () => {
       if (!window.supabaseClient || !window.supabaseClient.channel) return setTimeout(tryRealtime, 1500);
       try {
-        window.supabaseClient.channel("menu-ready-panel")
+        window.supabaseClient.channel("menu-ready-panel-" + Math.random().toString(36).slice(2, 8))
           .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sales_entries" }, scheduleRefresh)
           .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sale_items" }, scheduleRefresh)
           .subscribe();
       } catch (e) {}
     };
     tryRealtime();
-    setTimeout(loadPickup, 1500);
+    pickupLoaded = loadPickup();
     setInterval(() => { if (model.ready.length || model.notified.length) render(); }, 60000); // يحدّث «من N د»
   }
 
