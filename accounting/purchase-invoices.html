@@ -259,6 +259,7 @@
         <div class="field">
           <label for="pi-supplier">المورّد</label>
           <select id="pi-supplier"></select>
+          <button type="button" class="btn small" id="pi-newsup-btn" style="margin-top:6px;">+ مورّد جديد</button>
         </div>
         <div class="field">
           <label for="pi-date">التاريخ</label>
@@ -1310,7 +1311,7 @@
         const n = norm(inv.supplier_name);
         const opt = [...document.getElementById("pi-supplier").options].find((o) => o.value && (norm(o.textContent).includes(n) || n.includes(norm(o.textContent))));
         if (opt) document.getElementById("pi-supplier").value = opt.value;
-        else supplierNote = ` — المورّد "${inv.supplier_name}" مو مسجّل عندك، أضفه من صفحة الموردين واخترْه`;
+        else supplierNote = ` — المورّد "${inv.supplier_name}" مو مسجّل عندك، اضغط «+ مورّد جديد» تحت المورّد`;
       }
       const parsed = (inv.items || []).map((it) => {
         const qty = it.qty;
@@ -1711,6 +1712,61 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
       if (window.olvToast) olvToast(`تصدّرت ${list.length} فاتورة`, { type: "ok" });
     });
+
+
+    // ---------- إضافة مورّد جديد بدون ما نطلع من الفاتورة ----------
+    function openNewSupplierDialog() {
+      const back = document.createElement("div");
+      back.className = "olv-modal-backdrop";
+      back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+      const box = document.createElement("div");
+      box.style.cssText = "width:100%; max-width:380px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+      box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true");
+      box.innerHTML = `
+        <h3 style="margin:0 0 4px; font-size:17px;">مورّد جديد</h3>
+        <div class="hint" style="margin-bottom:12px;">بينحفظ وبينختار بالفاتورة تلقائيًا، وما بتضيع البيانات اللي كتبتها.</div>
+        <div class="field"><label for="nsp-name">الاسم</label><input type="text" id="nsp-name" maxlength="120" placeholder="اسم المورّد أو الشركة"></div>
+        <div class="field"><label for="nsp-phone">الهاتف (اختياري)</label><input type="tel" id="nsp-phone" dir="ltr" inputmode="tel" placeholder="07XXXXXXXX"></div>
+        <div class="pi-warn bad" id="nsp-err" style="min-height:16px;"></div>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <button type="button" class="btn gold" id="nsp-go" style="flex:1;">إضافة واختياره</button>
+          <button type="button" class="btn" id="nsp-cancel">إلغاء</button>
+        </div>`;
+      back.appendChild(box); document.body.appendChild(back);
+      const close = () => (window.olvDismiss ? olvDismiss(back) : back.remove());
+      const err = box.querySelector("#nsp-err"), go = box.querySelector("#nsp-go");
+      box.querySelector("#nsp-cancel").addEventListener("click", close);
+      back.addEventListener("click", (e) => { if (e.target === back) close(); });
+      const save = async () => {
+        const name = box.querySelector("#nsp-name").value.trim(), phone = box.querySelector("#nsp-phone").value.trim();
+        if (name.length < 2) { err.textContent = "اكتب اسم المورّد"; return; }
+        const bad = typeof olvPhoneProblem === "function" ? olvPhoneProblem(phone) : null;
+        if (bad) { err.textContent = bad; return; }
+        const sel = document.getElementById("pi-supplier");
+        const dup = [...sel.options].find((o) => o.value && olvSearchNorm(o.textContent) === olvSearchNorm(name));
+        go.disabled = true;
+        try {
+          let id = dup && dup.value;
+          if (!id) {
+            const { data, error } = await window.supabaseClient.from("suppliers").insert({ name, phone: phone || null }).select("id, name");
+            if (error) throw error;
+            const sup = Array.isArray(data) ? data[0] : data;
+            const opt = new Option(sup.name, sup.id);
+            const after = [...sel.options].find((o) => o.value && o.textContent.localeCompare(sup.name, "ar") > 0);
+            sel.add(opt, after || null);
+            id = sup.id;
+          }
+          sel.value = id;
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+          close();
+          if (window.olvToast) olvToast(dup ? "المورّد موجود أصلًا — انختار" : `انضاف المورّد "${name}" وانختار`, { type: "ok" });
+        } catch (e) { err.textContent = e.message || String(e); go.disabled = false; }
+      };
+      go.addEventListener("click", save);
+      box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") close(); });
+      setTimeout(() => box.querySelector("#nsp-name").focus(), 50);
+    }
+    document.getElementById("pi-newsup-btn").addEventListener("click", openNewSupplierDialog);
 
     // نافذة تسديد فاتورة: المبلغ (مع «الباقي كله» و«النص») + ملاحظة اختيارية، بدل نافذة الكتابة البدائية
     function openPayDialog(inv) {
