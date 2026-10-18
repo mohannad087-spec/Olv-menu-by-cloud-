@@ -616,6 +616,8 @@
   body.pos-focus .card .name{font-size:14px; -webkit-line-clamp:2; line-clamp:2;}
   body.pos-focus .card .add-btn{min-width:30px; min-height:30px; padding:0; justify-content:center; font-size:0;}
   body.pos-focus .card .add-btn::before{content:"+"; font-size:20px; font-weight:700; line-height:1;}
+  /* التذكرة على اليمين (أول عنصر بالـ RTL) بدل أقصى الشمال */
+  @media (min-width:901px){ .pos-cart-panel{order:-1;} }
   @media (min-width:901px){
     body.pos-focus .pos-layout{padding:8px 12px 0; height:var(--pos-h, calc(100vh - 60px));}
     body.pos-focus .pos-main{padding-top:30px;}
