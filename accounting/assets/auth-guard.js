@@ -122,6 +122,12 @@ function olvDocNo(kind, n) {
   return (kind === "purchase" ? "ش" : "ب") + "-" + String(n).padStart(4, "0");
 }
 
+// رقم المورّد الدائم: م-001 (schema-supplier-no.sql)
+function olvSupNo(n) {
+  if (n === null || n === undefined || n === "") return "";
+  return "م-" + String(n).padStart(3, "0");
+}
+
 // أدوات مساعدة عامة
 function olvFormatMoney(n) {
   const v = Number(n || 0);

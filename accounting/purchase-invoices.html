@@ -503,11 +503,14 @@
         + catalogOnly.map((e) => `<option value="${olvEsc(catLabel(e))}"></option>`).join("");
     }
 
+    // اسم المورّد بدون « · م-001» اللي بنزيدها بالقائمة
+    const supOptName = (o) => o.textContent.replace(/ · م-\d+$/, "");
+
     async function loadSuppliers() {
-      const { data, error } = await window.supabaseClient.from("suppliers").select("id, name").order("name");
+      const { data, error } = await window.supabaseClient.from("suppliers").select("id, name, supplier_no").order("name");
       if (error) throw error;
       document.getElementById("pi-supplier").innerHTML =
-        `<option value="">— بدون مورّد (كاش من السوق) —</option>` + (data || []).map((s) => `<option value="${s.id}">${olvEsc(s.name)}</option>`).join("");
+        `<option value="">— بدون مورّد (كاش من السوق) —</option>` + (data || []).map((s) => `<option value="${s.id}">${olvEsc(s.name)}${s.supplier_no ? " · " + olvSupNo(s.supplier_no) : ""}</option>`).join("");
     }
 
     // ---------- رسم السطور ----------
@@ -1309,7 +1312,7 @@
       let supplierNote = "";
       if (inv.supplier_name && !document.getElementById("pi-supplier").value) {
         const n = norm(inv.supplier_name);
-        const opt = [...document.getElementById("pi-supplier").options].find((o) => o.value && (norm(o.textContent).includes(n) || n.includes(norm(o.textContent))));
+        const opt = [...document.getElementById("pi-supplier").options].find((o) => o.value && (norm(supOptName(o)).includes(n) || n.includes(norm(supOptName(o)))));
         if (opt) document.getElementById("pi-supplier").value = opt.value;
         else supplierNote = ` — المورّد "${inv.supplier_name}" مو مسجّل عندك، اضغط «+ مورّد جديد» تحت المورّد`;
       }
@@ -1743,16 +1746,16 @@
         const bad = typeof olvPhoneProblem === "function" ? olvPhoneProblem(phone) : null;
         if (bad) { err.textContent = bad; return; }
         const sel = document.getElementById("pi-supplier");
-        const dup = [...sel.options].find((o) => o.value && olvSearchNorm(o.textContent) === olvSearchNorm(name));
+        const dup = [...sel.options].find((o) => o.value && olvSearchNorm(supOptName(o)) === olvSearchNorm(name));
         go.disabled = true;
         try {
           let id = dup && dup.value;
           if (!id) {
-            const { data, error } = await window.supabaseClient.from("suppliers").insert({ name, phone: phone || null }).select("id, name");
+            const { data, error } = await window.supabaseClient.from("suppliers").insert({ name, phone: phone || null }).select("id, name, supplier_no");
             if (error) throw error;
             const sup = Array.isArray(data) ? data[0] : data;
-            const opt = new Option(sup.name, sup.id);
-            const after = [...sel.options].find((o) => o.value && o.textContent.localeCompare(sup.name, "ar") > 0);
+            const opt = new Option(sup.name + (sup.supplier_no ? " · " + olvSupNo(sup.supplier_no) : ""), sup.id);
+            const after = [...sel.options].find((o) => o.value && supOptName(o).localeCompare(sup.name, "ar") > 0);
             sel.add(opt, after || null);
             id = sup.id;
           }

@@ -351,7 +351,7 @@
       const qDigits = $("sup-q").value.replace(/\D/g, "");
       // الأكثر دين أول، بعدين حسب الاسم
       const rows = suppliers
-        .filter((s) => !q || norm(s.name).includes(q) || norm(s.notes).includes(q) || (qDigits.length >= 3 && String(s.phone || "").replace(/\D/g, "").includes(qDigits)))
+        .filter((s) => !q || norm(s.name).includes(q) || (s.supplier_no && olvSupNo(s.supplier_no).includes(q.replace(/\s/g, ""))) || norm(s.notes).includes(q) || (qDigits.length >= 3 && String(s.phone || "").replace(/\D/g, "").includes(qDigits)))
         .sort((a, b) => (balOf(b.id) - balOf(a.id)) || String(a.name).localeCompare(String(b.name), "ar"));
       if (!rows.length) { box.innerHTML = `<div class="hint">ما في مورّد بهالاسم.</div>`; return; }
       box.innerHTML = rows.map((s) => {
@@ -361,7 +361,7 @@
         return `
           <div class="sup-card${selectedSupplier === s.id ? " on" : ""}" data-select="${s.id}" role="button" tabindex="0">
             <div class="sup-main">
-              <div class="sup-name">${olvEsc(s.name)}</div>
+              <div class="sup-name">${olvEsc(s.name)}${s.supplier_no ? ` <small style="opacity:.6; font-weight:500;">${olvSupNo(s.supplier_no)}</small>` : ""}</div>
               <div class="sup-sub">${olvEsc(s.notes || s.phone || "")}</div>
             </div>
             <div class="sup-bal ${v.cls}">${v.text}<small>${v.label}</small></div>
