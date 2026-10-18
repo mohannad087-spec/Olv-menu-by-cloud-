@@ -473,6 +473,7 @@
       return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct };
     }
     const invoiceTotal = () => computeTotals().total;
+    const ROUND_TOL = 0.1; // أكبر فرق تقريب مقبول بين الورقة والمدخل (دينار)
 
     // ---------- تحميل ----------
     async function loadItems() {
@@ -781,12 +782,14 @@
       document.getElementById("pi-more-sum").textContent = more.join(" · ");
       const paper = document.getElementById("pi-paper-total").value;
       const warn = document.getElementById("pi-match-warn");
-      if (paper !== "" && Math.abs(Number(paper) - total) > 0.01) {
+      // فرق التقريب (أقل من 10 قروش، من قسمة الضريبة وتقريب السطور) مش خطأ بالفاتورة: ما بنحذّر عليه
+      if (paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL) {
         warn.hidden = false;
         warn.className = "pi-warn bad";
         warn.textContent = `⚠ فرق ${money(Math.abs(Number(paper) - total))} بين إجمالي الفاتورة الورقية (${money(Number(paper))}) والمدخل (${money(total)}) — راجع الكميات والأسعار`;
       } else if (paper !== "") {
-        warn.hidden = false; warn.className = "pi-warn"; warn.textContent = "✓ الإجمالي مطابق للفاتورة الورقية";
+        const dif = Math.abs(Number(paper) - total);
+        warn.hidden = false; warn.className = "pi-warn"; warn.textContent = dif > 0.001 ? `✓ الإجمالي مطابق للفاتورة الورقية (فرق تقريب ${money(dif)})` : "✓ الإجمالي مطابق للفاتورة الورقية";
       } else {
         warn.hidden = true;
       }
@@ -1501,7 +1504,7 @@
       if (payMode !== "cash" && !supplierId) { olvShowError(errBox, new Error("الدفع الآجل أو الجزئي لازم يكون معه مورّد")); return; }
       if (payMode === "partial" && !(paid > 0 && paid < total)) { olvShowError(errBox, new Error("الدفعة الجزئية لازم تكون أكبر من صفر وأقل من الإجمالي")); return; }
       const paper = document.getElementById("pi-paper-total").value;
-      if (paper !== "" && Math.abs(Number(paper) - total) > 0.01 && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
+      if (paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
 
       // تنبيه تغيّر كبير بالسعر (للأعلى أو للأسفل): تأكيد واحد بدل ما تنسى، مع أثره على سعر المنيو
       const jumps = active.filter((l) => isJump(l, itemOf(l)));
