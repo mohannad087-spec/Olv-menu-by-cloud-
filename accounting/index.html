@@ -187,6 +187,7 @@
       <div class="hello-acts">
         <span class="vs-chip" id="vs-chip" hidden></span>
         <a class="vs-chip down" id="margin-chip" href="product-recipes.html#profit" hidden></a>
+        <button class="btn small" id="morning-btn" hidden></button>
         <button class="btn small gold" id="share-day-btn"></button>
         <button class="btn small" id="pdf-btn"></button>
       </div>
@@ -274,6 +275,7 @@
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/day-report.js"></script>
+  <script defer src="assets/morning-brief.js"></script>
   <script defer src="assets/item-margins.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
@@ -289,6 +291,7 @@
     document.getElementById("recent-expenses-title").innerHTML = olvIcon("minusCircle") + "<span>آخر مصروفات مسجّلة</span>";
     document.getElementById("pdf-btn").innerHTML = olvIcon("download") + "<span>تصدير PDF</span>";
     document.getElementById("share-day-btn").innerHTML = olvIcon("share") + "<span>صورة تقرير اليوم</span>";
+    document.getElementById("morning-btn").innerHTML = olvIcon("sun") + "<span>ملخص الصباح</span>";
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // الرقم بيعدّ من صفر لقيمته (حوالي ثانية) — بس أول ما تفتح الصفحة
@@ -429,6 +432,8 @@
       document.getElementById("today-label").textContent = new Date().toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long", numberingSystem: "latn" }) + " · ملخص اليوم";
       document.getElementById("pdf-btn").addEventListener("click", exportPdf);
       document.getElementById("share-day-btn").addEventListener("click", () => olvOpenDayReport(olvToday()));
+      document.getElementById("morning-btn").addEventListener("click", () => olvOpenMorningBrief());
+      if (window.olvRole !== "staff") document.getElementById("morning-btn").hidden = false;
 
       try {
         const [
