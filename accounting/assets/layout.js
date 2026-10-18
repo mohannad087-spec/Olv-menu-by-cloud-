@@ -57,6 +57,8 @@ const OLV_ICON_PATHS = {
   people: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5.2a3.2 3.2 0 010 6.1M17.5 14.3c2 .8 3.5 2.9 3.5 5.7"/>',
   sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z"/>',
   chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  maximize: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  minimize: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
   chevronUp: '<path d="M6 15l6-6 6 6"/>',
 
   // ---- أيقونات تصنيفات المنيو (بدل الإيموجي الملوّن بتبويبات بيع سريع) ----
