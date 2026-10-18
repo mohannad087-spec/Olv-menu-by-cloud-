@@ -2,6 +2,18 @@ const path = require("path");
 const os = require("os");
 const { fetchDayData, buildWorkbook } = require("./report");
 const { uploadToDrive } = require("./drive");
+const { supabase } = require("./supabase");
+
+// بيسجّل نتيجة التشغيل بـ app_settings (key = last_backup) حتى تظهر بالإعدادات وبملخص الصباح.
+// فشل التسجيل ما بيفشّل النسخة نفسها
+async function recordRun(info) {
+  try {
+    const { error } = await supabase.from("app_settings").upsert({ key: "last_backup", value: JSON.stringify({ at: new Date().toISOString(), ...info }) });
+    if (error) console.warn("ما انسجّلت حالة النسخة:", error.message);
+  } catch (e) {
+    console.warn("ما انسجّلت حالة النسخة:", e.message);
+  }
+}
 
 // بيحسب تاريخ "أمس" باليوم المحاسبي الصحيح حسب منطقة المطعم الزمنية،
 // بغض النظر شو التوقيت اللي اشتغل فيه هذا السكربت فعليًا (GitHub Actions
@@ -34,7 +46,9 @@ function yesterdayInTimezone(timeZone) {
 
   const uploaded = await uploadToDrive(filePath, fileName);
   console.log(`تم الرفع لـ Google Drive: ${uploaded.webViewLink || uploaded.id}`);
-})().catch((err) => {
+  await recordRun({ ok: true, date: dateStr, link: uploaded.webViewLink || null, orders: data.sales.length });
+})().catch(async (err) => {
   console.error("فشل النسخ الاحتياطي:", err);
+  await recordRun({ ok: false, error: String((err && err.message) || err).slice(0, 200) });
   process.exit(1);
 });

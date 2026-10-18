@@ -65,6 +65,8 @@
     const bal = ok(bR);
     d.debt = bal ? bal.reduce((s, b) => s + Math.max(0, Number(b.balance) || 0), 0) : null;
     d.debtN = bal ? bal.filter((b) => Number(b.balance) > 0.005).length : 0;
+    d.backup = null;
+    if (window.olvLoadBackupStatus) { try { d.backup = await olvLoadBackupStatus(); } catch (_) {} }
     return d;
   }
 
@@ -89,6 +91,7 @@
     if (d.low && d.low.length) L.push(`• ناقص بالمخزون (${d.low.length}): ${d.low.slice(0, 4).join("، ")}${d.low.length > 4 ? "…" : ""}`);
     else if (d.low) L.push("• المخزون مزبوط، ما في ناقص");
     if (d.debt != null) L.push(d.debt > 0 ? `• ديون الموردين: ${money(d.debt)} (${d.debtN} مورد)` : "• ما في ديون للموردين");
+    if (d.backup && (d.backup.state === "failed" || d.backup.state === "old")) L.push(`• ⚠️ النسخة الاحتياطية: ${d.backup.text}`);
     return L.join("\n");
   }
 

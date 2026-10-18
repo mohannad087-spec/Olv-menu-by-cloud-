@@ -131,6 +131,12 @@
 
     <div class="settings-panel on" data-panel="general">
 
+    <div class="group" id="backup-group">
+      <h2>النسخة الاحتياطية</h2>
+      <div class="hint" style="margin-bottom:10px;">كل ليلة بينعمل ملف Excel بمبيعات ومصروفات أمس وبيتحفظ عند Google Drive.</div>
+      <div id="backup-line" style="font-size:14.5px; line-height:1.8;">جاري التحميل...</div>
+    </div>
+
     <div class="group">
       <h2>تصنيفات المصروفات</h2>
       <form id="cat-form" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
@@ -507,6 +513,7 @@
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="assets/backup-status.js"></script>
   <script defer src="../print-bridge/src/ticket-core.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
@@ -1315,6 +1322,16 @@
     };
     const AUDIT_OP_LABELS = { INSERT: "إضافة", UPDATE: "تعديل", DELETE: "حذف" };
 
+    async function loadBackup() {
+      const el = document.getElementById("backup-line");
+      try {
+        const st = await olvLoadBackupStatus();
+        const bad = st.state === "failed" || st.state === "old";
+        el.innerHTML = `<b style="color:${bad ? "var(--danger-hi)" : st.state === "ok" ? "var(--ok)" : "var(--muted)"};">${bad ? "⚠ انتبه: " : st.state === "ok" ? "✓ " : ""}</b>${olvEsc(st.text)}`
+          + (st.link ? ` <a href="${olvEsc(st.link)}" target="_blank" rel="noopener">افتح الملف</a>` : "");
+      } catch (e) { el.textContent = "ما قدرنا نقرا حالة النسخة الاحتياطية"; }
+    }
+
     async function loadSecurity() {
       const errBox = document.getElementById("err");
       try {
@@ -1450,6 +1467,7 @@
         loadPrinterSettings(),
         loadPrinters().then(loadPrintJobs),
         loadSecurity(),
+        loadBackup(),
       ]);
     })();
 
