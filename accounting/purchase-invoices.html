@@ -267,6 +267,7 @@
         </div>
       </div>
 
+      <div id="pi-bulk"></div>
       <div class="table-wrap">
         <table class="pi-lines">
           <thead><tr><th style="width:34%">الصنف</th><th style="width:15%">الوحدة</th><th style="width:12%">الكمية</th><th style="width:14%">السعر للوحدة</th><th style="width:13%">الإجمالي</th><th></th></tr></thead>
@@ -659,7 +660,75 @@
         </div>`;
     }
 
+    // مستلزم (تغليف، تنظيف، أدوات) ولا مادة خام (أكل وشرب)؟ تخمين من الاسم، والباقي مادة خام
+    const SUPPLY_RE = /كيس|اكياس|أكياس|علبة|علب|كاس|كاسات|كأس|كوب|اكواب|أكواب|غطاء|اغطية|أغطية|شفاط|شلمونة|ملعقة|ملاعق|شوك|سكاكين|صحن|صحون|مناديل|محارم|ورق|نايلون|رول|فويل|قفاز|كفوف|منظف|صابون|سائل جلي|جلي|معقم|كلور|فوط|اسفنج|إسفنج|مكنسة|ممسحة|فحم|قداحة|ولاعة|شمع|بطارية|اكياس|حاوية|كرتونة تغليف|ستيكر|لاصق|حراري|سلة|كيس زبالة|زبالة/;
+    const guessKind = (name) => (SUPPLY_RE.test(norm(name)) ? "supply" : "ingredient");
+    function bulkTargets() {
+      return lines.filter((l) => !itemOf(l) && String(l.unmatchedName || l.typed || "").trim());
+    }
+    function renderBulkBar() {
+      const box = document.getElementById("pi-bulk");
+      const t = bulkTargets();
+      if (t.length < 2) { box.innerHTML = ""; return; }
+      box.innerHTML = `<div class="pi-warn bad" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+        <span style="flex:1; min-width:180px;">${t.length} أصناف مش موجودة بالمخزون</span>
+        <button type="button" class="btn small gold" data-act="bulk">＋ أضفهم كلهم دفعة وحدة</button>
+        <span class="hint" style="flex-basis:100%; margin:0;">البرنامج بيقرر لحاله: مستلزم (أكياس، علب، منظفات...) أو مادة خام. تقدر تعدّل أي صنف بعدين من المخزون.</span>
+      </div>`;
+    }
+    document.getElementById("pi-bulk").addEventListener("click", async (e) => {
+      const btn = e.target.closest('button[data-act="bulk"]'); if (!btn) return;
+      btn.disabled = true;
+      const errBox = document.getElementById("err");
+      try {
+        const targets = bulkTargets();
+        const plan = new Map(); // اسم مطبّع -> { row, kind, lines }
+        const skipped = [];
+        const linked = [];
+        for (const line of targets) {
+          const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
+          const same = items.find((i) => norm(i.name) === norm(name));
+          if (same) { line.itemKey = same.kind + ":" + same.id; line.unmatchedName = ""; line.guessFrom = ""; line.typed = ""; line.unitMode = "stock"; linked.push(name); continue; }
+          const unit = unitFromInvoice(line.rawUnit || name);
+          // الصندوق لازم نعرف كم حبة فيه — بنتركه للإضافة اليدوية
+          if (unit === "صندوق") { skipped.push(name); continue; }
+          const k = norm(name);
+          if (!plan.has(k)) {
+            const row = { name, unit };
+            if (Number(line.price) > 0) row.unit_price = Number(line.price);
+            plan.set(k, { row, kind: guessKind(name), lines: [] });
+          }
+          plan.get(k).lines.push(line);
+        }
+        let nIng = 0, nSup = 0;
+        for (const kind of ["ingredient", "supply"]) {
+          const group = [...plan.values()].filter((g) => g.kind === kind);
+          if (!group.length) continue;
+          const { data, error } = await window.supabaseClient.from(kind === "ingredient" ? "ingredients" : "supplies").insert(group.map((g) => g.row)).select("id, name");
+          if (error) throw error;
+          group.forEach((g) => {
+            const created = (data || []).find((r) => norm(r.name) === norm(g.row.name)); if (!created) return;
+            g.lines.forEach((line) => { line.itemKey = kind + ":" + created.id; line.unmatchedName = ""; line.guessFrom = ""; line.typed = ""; line.unitMode = "stock"; });
+          });
+          if (kind === "ingredient") nIng = group.length; else nSup = group.length;
+        }
+        await loadItems();
+        renderLines();
+        const parts = [];
+        if (nIng) parts.push(`${nIng} مادة خام`);
+        if (nSup) parts.push(`${nSup} مستلزم`);
+        if (linked.length) parts.push(`${linked.length} انربطوا بأصناف موجودة`);
+        let msg = parts.length ? `انضافوا: ${parts.join("، ")}.` : "";
+        if (skipped.length) msg += ` ${skipped.length} بوحدة صندوق تركتهم، أضفهم لحاله لأني بدي أعرف كم حبة بالصندوق.`;
+        if (window.olvToast) olvToast(msg || "ما انضاف شي", { type: skipped.length ? "warn" : "success", ms: 8000 });
+      } catch (err) {
+        olvShowError(errBox, err);
+        btn.disabled = false;
+      }
+    });
+
     function renderLines() {
+      renderBulkBar();
       const body = document.getElementById("pi-lines");
       body.innerHTML = lines.map((line, idx) => {
         const it = itemOf(line);
