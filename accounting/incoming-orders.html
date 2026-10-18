@@ -158,6 +158,7 @@
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
   <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/menu-ready-panel.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
@@ -301,12 +302,8 @@
       });
     }
 
-    // UUID ثابت مشتق من رقم الطلب (SHA-256) حتى يكون نفس الطلب دايمًا بنفس المرجع
-    async function orderRef(id) {
-      const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("olv-online-order:" + id)));
-      const h = Array.from(d.slice(0, 16), (b) => b.toString(16).padStart(2, "0")).join("");
-      return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
-    }
+    // نفس المرجع بتستعمله لوحة «جاهز للزبون» لتربط الطلب بالبيع (menu-ready-panel.js)
+    const orderRef = (id) => window.olvMenuOrderRef(id);
 
     async function approveOrder(orderId, method) {
       const errBox = document.getElementById("err");
