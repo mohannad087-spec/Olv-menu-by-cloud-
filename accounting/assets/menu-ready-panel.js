@@ -60,6 +60,8 @@
   #mrp .mrp-btn{min-height:44px; padding:0 14px; border:0; border-radius:12px; background:var(--olive); color:var(--on-olive); font:800 13.5px inherit; cursor:pointer; white-space:nowrap; transition:transform .08s;}
   #mrp .mrp-btn:active{transform:scale(.96);}
   #mrp .mrp-btn.soft{background:var(--ink-3); color:var(--paper);}
+  #mrp a.mrp-btn{display:inline-flex; align-items:center; gap:4px; text-decoration:none;}
+  #mrp .mrp-wa{padding:0 10px; margin-inline-end:-4px;}
   #mrp .mrp-btn:disabled{opacity:.55; cursor:default;}
   #mrp .mrp-bar{height:5px; border-radius:99px; background:var(--ink-3); margin-top:6px; overflow:hidden;}
   #mrp .mrp-bar i{display:block; height:100%; background:var(--gold); border-radius:99px;}
@@ -92,6 +94,19 @@
     return root;
   }
 
+  // رابط واتساب مجاني (wa.me): بيفتح محادثة الزبون برسالة جاهزة، والكاشير بس بيكبس «إرسال»
+  function waLink(o) {
+    let d = String(o.phone || "").replace(/[^\d]/g, "");
+    if (d.startsWith("00")) d = d.slice(2);
+    else if (d.startsWith("0")) d = "962" + d.slice(1);
+    else if (d.length === 9 && d.startsWith("7")) d = "962" + d;
+    if (d.length < 10) return "";
+    const where = o.mode === "hall" ? "رح نوصله لطاولتك" + (o.table ? " رقم " + o.table : "")
+      : o.mode === "delivery" ? "وهو بطريقه إلك" : pickupText;
+    const text = "OLV: طلبك رقم #" + o.number + " جاهز ✅\n" + where;
+    return "https://wa.me/" + d + "?text=" + encodeURIComponent(text);
+  }
+
   function rowHtml(o, kind) {
     const sale = o._sale;
     let sub = esc(modeText(o)) + " · " + esc(typeof olvFormatMoney === "function" ? olvFormatMoney(o.total) : o.total);
@@ -107,6 +122,8 @@
       sub = esc(modeText(o)) + " · باقي " + o._left + " من " + o._total;
       extra = `<div class="mrp-bar"><i style="width:${o._total ? Math.round((done / o._total) * 100) : 0}%"></i></div>`;
     }
+    const wa = (kind === "ready" || kind === "notified") ? waLink(o) : "";
+    if (wa) btn = `<a class="mrp-btn soft mrp-wa" href="${esc(wa)}" target="_blank" rel="noopener" aria-label="بلّغه على واتساب">${icon("phone")} واتساب</a>` + btn;
     return `<div class="mrp-row${kind === "ready" ? " ready" : ""}">
       <div class="mrp-info"><div class="mrp-no">#${esc(o.number)}</div><div class="mrp-sub">${sub}</div>${extra}</div>${btn}</div>`;
   }
