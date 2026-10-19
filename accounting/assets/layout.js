@@ -373,6 +373,8 @@ function olvRenderNav(active) {
       <div class="actions">
         <span class="olv-user-badge" id="olv-user-badge" hidden>${olvIcon("person")}<span id="olv-user-name"></span></span>
         <button class="btn small" id="theme-toggle-btn" aria-label="تبديل الإضاءة" title="تبديل الإضاءة"></button>
+        <button class="btn small" type="button" id="olv-admin-link-btn" data-staff-hide aria-label="إدارة المنيو" title="إدارة المنيو">${olvIcon("link")}<span class="btn-label">إدارة المنيو</span></button>
+        <button class="btn small" type="button" id="olv-staff-link-btn" data-staff-hide aria-label="رابط الموظفين" title="نسخ رابط شاشة الموظفين">${olvIcon("link")}<span class="btn-label">رابط الموظفين</span></button>
         <a class="btn small" href="https://olv-menu.pages.dev" target="_blank" rel="noopener" aria-label="الموقع" title="الموقع">${olvIcon("externalLink")}<span class="btn-label">الموقع</span></a>
         <button class="btn small danger" id="olv-logout-btn" aria-label="خروج" title="خروج">${olvIcon("logOut")}<span class="btn-label">خروج</span></button>
       </div>
@@ -403,6 +405,10 @@ function olvRenderNav(active) {
     </div>
     ${hubHtml}
   `;
+  const adminLinkBtn = document.getElementById("olv-admin-link-btn");
+  if (adminLinkBtn) adminLinkBtn.addEventListener("click", () => olvOpenMenuLink("/admin.html"));
+  const staffLinkBtn = document.getElementById("olv-staff-link-btn");
+  if (staffLinkBtn) staffLinkBtn.addEventListener("click", () => olvOpenMenuLink("/waiter.html", { copy: true }));
   const logoutBtn = document.getElementById("olv-logout-btn");
   if (logoutBtn) logoutBtn.addEventListener("click", olvLogout);
   olvInitThemeToggle();
@@ -417,7 +423,36 @@ function olvRenderNav(active) {
 // تضل مخفية لحد ما يوصل رد الاسم فعليًا
 const OLV_ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "كاشير" };
 // الكاشير ما بيشوف روابط صفحات الإدارة أصلًا (والصفحة نفسها بتحوّله لو فتحها)
+// صفحات الإدارة والموظفين بموقع المنيو مقفولة عن الزباين: بتنفتح بس من هون عبر رابط تشغيل موقّع بيطلع من olv-menu-proxy.
+// copy = true: بينسخ الرابط (صالح 14 يوم) بدل ما يفتحه، لإرساله لجهاز موظف.
+async function olvOpenMenuLink(to, opts = {}) {
+  const w = opts.copy ? null : window.open("", "_blank");
+  try {
+    const { data } = await window.supabaseClient.auth.getSession();
+    const token = data && data.session && data.session.access_token;
+    if (!token) throw new Error("لا توجد جلسة دخول");
+    const base = ((window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "").replace(/\/$/, "");
+    const res = await fetch(base + "/functions/v1/olv-menu-proxy", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "staff_link", to, scope: opts.copy ? "staff" : "admin" }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out.url) throw new Error(out.error || "ما انعمل الرابط (تأكد إن olv-menu-proxy منشورة بآخر نسخة)");
+    if (opts.copy) {
+      await navigator.clipboard.writeText(out.url);
+      if (typeof olvToast === "function") olvToast("اننسخ رابط الموظفين (صالح 14 يوم)", { icon: "check" });
+    } else if (w) w.location = out.url;
+    else location.href = out.url;
+  } catch (e) {
+    if (w) w.close();
+    if (typeof olvToast === "function") olvToast(e.message || "تعذّر فتح الصفحة"); else alert(e.message);
+  }
+}
+window.olvOpenMenuLink = olvOpenMenuLink;
+
 function olvHideAdminLinks() {
+  document.querySelectorAll("#olv-nav [data-staff-hide]").forEach((el) => el.remove());
   const allowed = window.OLV_STAFF_PAGES || [];
   // رابط قسم الأصناف بيصير للكاشير "دليل تحضير المشروبات" (الصفحة الوحيدة المسموحة إله بالقسم)
   document.querySelectorAll("#olv-nav a[data-staff-href]").forEach((a) => {

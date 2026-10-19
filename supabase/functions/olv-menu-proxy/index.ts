@@ -14,6 +14,18 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
+const OLV_SITE = "https://olv-menu.pages.dev";
+
+// رابط تشغيل موقّع لصفحات الإدارة/الموظفين بموقع المنيو (بوابة functions/_go.js هناك بتتحقق منه).
+// نفس صيغة functions/_lib/gate.js: HMAC-SHA256(OLV_ADMIN_KEY, "olv-gate|go|<scope>|<exp>"). صلاحية رابط الإدارة 10 دقايق، ورابط الموظفين 14 يوم.
+async function launchLink(adminKey: string, scope: "admin" | "staff", to: string) {
+  const exp = Math.floor(Date.now() / 1000) + (scope === "admin" ? 600 : 14 * 86400);
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(adminKey), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = Array.from(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`olv-gate|go|${scope}|${exp}`))))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+  const page = /^\/[a-z-]+\.html$/.test(to) ? to : (scope === "admin" ? "/admin.html" : "/waiter.html");
+  return `${OLV_SITE}/_go?t=${scope}.${exp}.${sig}&to=${encodeURIComponent(page)}`;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,7 +184,13 @@ Deno.serve(async (req) => {
       return json({ ...out, count: items.length, in_stock: items.filter((i) => i.available).length }, r.status);
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock)" }, 400);
+    // رابط دخول لصفحات الإدارة/الموظفين (الموقع العام ما فيه أي رابط إلها). حساب "staff" بياخد رابط الموظفين بس.
+    if (body.action === "staff_link") {
+      const scope = body.scope === "staff" || profile.role === "staff" ? "staff" : "admin";
+      return json({ ok: true, url: await launchLink(adminKey, scope, String(body.to || "")) });
+    }
+
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو staff_link)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }
