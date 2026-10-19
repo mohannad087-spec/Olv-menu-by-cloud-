@@ -28,6 +28,52 @@ function json(data: unknown, status = 200) {
   });
 }
 
+// «طلبك جاهز» على واتساب تلقائي عبر WhatsApp Cloud API (Meta). بيشتغل بس لما تنضاف الأسرار:
+// WHATSAPP_TOKEN و WHATSAPP_PHONE_ID (واختياري WHATSAPP_TEMPLATE، الافتراضي order_ready، و WHATSAPP_LANG، الافتراضي ar).
+// القالب لازم يكون موافق عليه من Meta وفيه متغيرين: {{1}} رقم الطلب و {{2}} مكان الاستلام.
+// الكاشير والمطبخ ممكن يبلّغوا نفس الطلب سوا، فجدول menu_whatsapp_log بيضمن رسالة وحدة لكل طلب.
+// deno-lint-ignore no-explicit-any
+async function sendWhatsAppReady(admin: any, orderId: string, body: Record<string, unknown>) {
+  const token = (Deno.env.get("WHATSAPP_TOKEN") || "").trim();
+  const phoneId = (Deno.env.get("WHATSAPP_PHONE_ID") || "").trim();
+  if (!token || !phoneId) return { sent: false, reason: "not_configured" };
+  const to = String(body.wa_phone || "").replace(/[^\d]/g, "");
+  if (to.length < 10 || to.length > 15) return { sent: false, reason: "bad_phone" };
+  const { error: claimErr } = await admin.from("menu_whatsapp_log").insert({ order_id: orderId, phone: to });
+  if (claimErr) return { sent: false, reason: claimErr.code === "23505" ? "already_sent" : claimErr.message };
+  const clip = (v: unknown, n: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n) || "-";
+  try {
+    const r = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(phoneId)}/messages`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "template",
+        template: {
+          name: Deno.env.get("WHATSAPP_TEMPLATE") || "order_ready",
+          language: { code: Deno.env.get("WHATSAPP_LANG") || "ar" },
+          components: [{
+            type: "body",
+            parameters: [
+              { type: "text", text: clip(body.wa_number, 20) },
+              { type: "text", text: clip(body.wa_where, 120) },
+            ],
+          }],
+        },
+      }),
+    });
+    const out = await r.json().catch(() => ({}));
+    const err = r.ok ? null : clip(out?.error?.message || ("HTTP " + r.status), 300);
+    await admin.from("menu_whatsapp_log").update({ ok: r.ok, error: err }).eq("order_id", orderId);
+    return r.ok ? { sent: true } : { sent: false, reason: err };
+  } catch (e) {
+    const err = e instanceof Error ? e.message : "fetch failed";
+    await admin.from("menu_whatsapp_log").update({ ok: false, error: err }).eq("order_id", orderId);
+    return { sent: false, reason: err };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
@@ -77,6 +123,9 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ id: body.id, status: body.status, ...(typeof body.pickup === "string" ? { pickup: body.pickup } : {}) }),
       });
       const out = await r.json();
+      if (r.ok && body.status === "ready" && typeof body.wa_phone === "string") {
+        out.whatsapp = await sendWhatsAppReady(admin, String(body.id), body);
+      }
       return json(out, r.status);
     }
 
