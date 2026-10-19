@@ -1826,8 +1826,13 @@
       document.getElementById("customer-phone").addEventListener("blur", async (e) => {
         const phone = e.target.value.trim();
         if (!phone) return;
+        // نفس توحيد صيغة الرقم يلي بالقاعدة (07xxxxxxxx) حتى +962 و00962 يلاقوا الزبون
+        let norm = phone.replace(/\D/g, "");
+        if (norm.startsWith("00962")) norm = "0" + norm.slice(5);
+        else if (norm.startsWith("962") && norm.length === 12) norm = "0" + norm.slice(3);
+        else if (norm.length === 9 && norm.startsWith("7")) norm = "0" + norm;
         const { data } = await window.supabaseClient
-          .from("customers").select("name, visit_count, points_balance").eq("phone", phone).maybeSingle();
+          .from("customers").select("name, visit_count, points_balance").eq("phone", norm || phone).maybeSingle();
         if (data) {
           showToast(`عميل متكرر: ${data.name || phone} — زيارة رقم ${data.visit_count + 1}، ${data.points_balance} نقطة`, "var(--gold-dp)", "star");
         }

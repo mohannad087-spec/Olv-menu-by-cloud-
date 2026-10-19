@@ -185,6 +185,19 @@
   .cu-name-form{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
   .cu-name-form input{flex:1; min-width:180px; min-height:44px; font-size:16px;}
   .cu-name-form[hidden]{display:none;}
+  .cu-profile-form{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px;}
+  .cu-profile-form label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .cu-profile-form input[type=text],.cu-profile-form input[type=tel],.cu-profile-form input[type=date],.cu-profile-form textarea{width:100%; min-height:44px; font-size:16px;}
+  .cu-profile-form .wide{grid-column:1 / -1;}
+  .cu-profile-form .chk{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--paper);}
+  .cu-profile-form .chk input{width:20px; height:20px;}
+  .cu-profile-form .acts{display:flex; gap:8px; flex-wrap:wrap;}
+  .cu-profile-form[hidden]{display:none;}
+  .cu-add-card{margin-bottom:14px;}
+  .cu-info{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; color:var(--muted); margin:0 0 10px; line-height:1.6;}
+  .cu-info b{color:var(--paper); font-weight:700;}
+  .cu-info .nomsg{color:var(--danger); font-weight:700;}
+  @media (max-width:640px){ .cu-profile-form{grid-template-columns:1fr;} }
   .cu-more{display:flex; justify-content:center; padding-top:10px;}
   .cu-more .btn{min-height:44px;}
   .cu-more[hidden]{display:none;}
@@ -210,8 +223,16 @@
         <h1>العملاء والولاء</h1>
         <div class="cu-sub">الزبون بينسجّل لحاله لما الكاشير يكتب رقمه بالبيع السريع، وبياخد نقطة عن كل دينار.</div>
       </div>
-      <a class="btn small" id="pos-link" href="pos.html"></a>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn go" type="button" id="add-btn" hidden></button>
+        <a class="btn small" id="pos-link" href="pos.html"></a>
+      </div>
     </header>
+
+    <section class="group cu-add-card" id="add-card" hidden>
+      <h2 id="add-title"></h2>
+      <form class="cu-profile-form" id="add-form" autocomplete="off"></form>
+    </section>
 
     <div class="stats cu-stats">
       <div class="stat">
@@ -473,7 +494,7 @@
     function detailHtml(c) {
       const d = detailCache[c.phone];
       const avg = c.visit_count ? c.total_spent / c.visit_count : 0;
-      const wa = waNumber(c.phone);
+      const wa = c.marketing_ok === false ? "" : waNumber(c.phone);
       const tel = String(c.phone || "").replace(/[^\d+]/g, "");
       let body;
       if (!d) body = `<p class="cu-fav"><span>جاري تحميل طلباته...</span></p>`;
@@ -486,6 +507,7 @@
             : `<p class="cu-fav"><span>ما في طلبات مكتملة مسجّلة على رقمه.</span></p>`);
       }
       return `
+        ${infoHtml(c)}
         <div class="cu-facts">
           <div><span>الزيارات</span><b>${c.visit_count}</b></div>
           <div><span>متوسط الطلب</span><b>${olvFormatMoney(avg)}</b></div>
@@ -496,21 +518,44 @@
         <div class="cu-acts">
           ${tel ? `<a class="btn" href="tel:${olvEsc(tel)}">${olvIcon("phone")}<span>اتصال</span></a>` : ""}
           ${wa ? `<a class="btn go" href="https://wa.me/${wa}" target="_blank" rel="noopener">${olvIcon("message")}<span>واتساب</span></a>` : ""}
-          ${isAdmin() ? `<button class="btn" type="button" data-act="rename">${olvIcon("note")}<span>${c.name ? "عدّل الاسم" : "ضيف اسم"}</span></button>` : ""}
+          ${isAdmin() ? `<button class="btn" type="button" data-act="rename">${olvIcon("note")}<span>عدّل الملف</span></button>` : ""}
           ${isAdmin() ? `<button class="btn danger" type="button" data-act="delete">${olvIcon("trash")}<span>احذف الزبون</span></button>` : ""}
         </div>
-        <form class="cu-name-form" hidden>
-          <input type="text" maxlength="60" value="${olvEsc(c.name || "")}" placeholder="اسم الزبون" aria-label="اسم الزبون">
-          <button class="btn go" type="submit">حفظ</button>
-          <button class="btn" type="button" data-act="cancel">إلغاء</button>
-        </form>`;
+        <form class="cu-profile-form" hidden>${profileFields(c)}</form>`;
+    }
+
+    const SOURCES = { pos: "الكاشير", menu: "المنيو", manual: "إضافة يدوية", reservation: "حجز" };
+    function infoHtml(c) {
+      const bits = [];
+      if (c.birthday) bits.push(`<span>🎂 <b>${fmtDate(c.birthday)}</b></span>`);
+      if (c.address) bits.push(`<span>العنوان: <b>${olvEsc(c.address)}</b></span>`);
+      if (c.notes) bits.push(`<span>ملاحظة: <b>${olvEsc(c.notes)}</b></span>`);
+      bits.push(`<span>المصدر: <b>${SOURCES[c.source] || "الكاشير"}</b></span>`);
+      if (c.marketing_ok === false) bits.push(`<span class="nomsg">ما بدو رسائل</span>`);
+      return `<p class="cu-info">${bits.join("")}</p>`;
+    }
+    // حقول ملف الزبون (للتعديل ولإضافة زبون جديد)
+    function profileFields(c, withPhone) {
+      c = c || {};
+      return `
+        ${withPhone ? `<div><label>رقم الهاتف</label><input type="tel" name="phone" inputmode="tel" placeholder="07xxxxxxxx" required></div>` : ""}
+        <div><label>الاسم</label><input type="text" name="name" maxlength="60" value="${olvEsc(c.name || "")}" placeholder="اسم الزبون"></div>
+        <div><label>تاريخ الميلاد</label><input type="date" name="birthday" value="${olvEsc(c.birthday || "")}"></div>
+        <div><label>العنوان</label><input type="text" name="address" maxlength="200" value="${olvEsc(c.address || "")}" placeholder="مثال: عبدون، قرب..."></div>
+        <div class="wide"><label>ملاحظات</label><textarea name="notes" rows="2" maxlength="500" placeholder="مثال: بيحب القهوة بدون سكر">${olvEsc(c.notes || "")}</textarea></div>
+        <label class="chk wide"><input type="checkbox" name="marketing_ok" ${c.marketing_ok === false ? "" : "checked"}> مسموح نبعتله رسائل وعروض</label>
+        <div class="acts wide"><button class="btn go" type="submit">حفظ</button><button class="btn" type="button" data-act="cancel">إلغاء</button></div>`;
+    }
+    function readProfile(form) {
+      const v = (n) => (form.elements[n].value || "").trim() || null;
+      return { name: v("name"), birthday: v("birthday"), address: v("address"), notes: v("notes"), marketing_ok: form.elements.marketing_ok.checked };
     }
 
     function bindDetail() {
       const li = $("list").querySelector(".cu.open");
       if (!li) return;
       const c = customers.find((x) => x.phone === li.dataset.phone);
-      const form = li.querySelector(".cu-name-form");
+      const form = li.querySelector(".cu-profile-form");
       const rename = li.querySelector('[data-act="rename"]');
       if (rename) rename.addEventListener("click", () => { form.hidden = false; form.querySelector("input").focus(); });
       const del = li.querySelector('[data-act="delete"]');
@@ -529,12 +574,12 @@
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button[type="submit"]');
-        const name = form.querySelector("input").value.trim() || null;
+        const fields = readProfile(form);
         btn.disabled = true;
         try {
-          const { error } = await window.supabaseClient.from("customers").update({ name }).eq("id", c.id);
+          const { error } = await window.supabaseClient.from("customers").update(fields).eq("id", c.id);
           if (error) throw error;
-          c.name = name;
+          Object.assign(c, fields);
           olvToast("انحفظ الاسم", { type: "ok", icon: "check" });
           renderSummary(); renderList();
         } catch (err) {
@@ -615,11 +660,40 @@
       qTimer = setTimeout(() => { query = e.target.value.trim(); shown = STEP; renderList(); }, 120);
     });
 
+    // إضافة زبون يدويًا (للمدير): الرقم بينحفظ بصيغة وحدة تلقائيًا من قاعدة البيانات
+    $("add-btn").innerHTML = olvIcon("person") + "<span>زبون جديد</span>";
+    $("add-title").innerHTML = olvIcon("person") + " زبون جديد";
+    $("add-btn").addEventListener("click", () => {
+      const card = $("add-card");
+      card.hidden = !card.hidden;
+      if (!card.hidden) { $("add-form").innerHTML = profileFields({}, true); $("add-form").querySelector("input").focus(); }
+    });
+    $("add-form").addEventListener("click", (e) => {
+      if (e.target.closest('[data-act="cancel"]')) $("add-card").hidden = true;
+    });
+    $("add-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('button[type="submit"]');
+      const phone = form.elements.phone.value.trim();
+      btn.disabled = true;
+      try {
+        const { error } = await window.supabaseClient.from("customers").insert({ phone, ...readProfile(form), source: "manual" });
+        if (error) throw error.code === "23505" ? new Error("هالرقم مسجّل أصلًا") : error;
+        $("add-card").hidden = true;
+        olvToast("انضاف الزبون", { type: "ok", icon: "check" });
+        await load();
+      } catch (err) {
+        btn.disabled = false;
+        olvShowError(errBox, err);
+      }
+    });
+
     async function load() {
       try {
         const { data, error } = await window.supabaseClient
           .from("customers")
-          .select("id, phone, name, visit_count, total_spent, points_balance, created_at, last_visit_at")
+          .select("id, phone, name, visit_count, total_spent, points_balance, created_at, last_visit_at, birthday, address, notes, source, marketing_ok")
           .order("visit_count", { ascending: false });
         if (error) throw error;
         customers = (data || []).map((c) => ({ ...c, visit_count: Number(c.visit_count || 0), total_spent: Number(c.total_spent || 0) }));
@@ -634,6 +708,7 @@
     (async () => {
       const session = await olvRequireAuth();
       if (!session) return;
+      if (isAdmin()) $("add-btn").hidden = false;
       await load();
     })();
     });
