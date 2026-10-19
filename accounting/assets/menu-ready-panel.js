@@ -94,16 +94,25 @@
     return root;
   }
 
-  // رابط واتساب مجاني (wa.me): بيفتح محادثة الزبون برسالة جاهزة، والكاشير بس بيكبس «إرسال»
-  function waLink(o) {
+  // رقم الزبون بصيغة دولية (07… → 9627…)، أو "" إذا مش رقم صالح
+  function waPhone(o) {
     let d = String(o.phone || "").replace(/[^\d]/g, "");
     if (d.startsWith("00")) d = d.slice(2);
     else if (d.startsWith("0")) d = "962" + d.slice(1);
     else if (d.length === 9 && d.startsWith("7")) d = "962" + d;
-    if (d.length < 10) return "";
-    const where = o.mode === "hall" ? "رح نوصله لطاولتك" + (o.table ? " رقم " + o.table : "")
+    return d.length < 10 ? "" : d;
+  }
+
+  function waWhere(o) {
+    return o.mode === "hall" ? "رح نوصله لطاولتك" + (o.table ? " رقم " + o.table : "")
       : o.mode === "delivery" ? "وهو بطريقه إلك" : pickupText;
-    const text = "OLV: طلبك رقم #" + o.number + " جاهز ✅\n" + where;
+  }
+
+  // رابط واتساب مجاني (wa.me): بيفتح محادثة الزبون برسالة جاهزة، والكاشير بس بيكبس «إرسال»
+  function waLink(o) {
+    const d = waPhone(o);
+    if (!d) return "";
+    const text = "OLV: طلبك رقم #" + o.number + " جاهز ✅\n" + waWhere(o);
     return "https://wa.me/" + d + "?text=" + encodeURIComponent(text);
   }
 
@@ -186,6 +195,9 @@
     const payload = { action: "update", id: o.id, status: "ready" };
     // مكان الاستلام بينكتب بالإعدادات للسفري. الصالة والتوصيل الصفحة عند الزبون بتختار الجملة المناسبة
     if (o.mode !== "hall" && o.mode !== "delivery") payload.pickup = pickupText;
+    // واتساب تلقائي (WhatsApp Business): السيرفر ببعته مرة وحدة بس لكل طلب، وإذا مش مضبوط بيتجاهله
+    const phone = waPhone(o);
+    if (phone) Object.assign(payload, { wa_phone: phone, wa_number: String(o.number || ""), wa_where: waWhere(o) });
     return OlvIncomingPoll.callProxy(payload);
   }
 
