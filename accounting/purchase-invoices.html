@@ -1502,7 +1502,7 @@
         const noQty = !(Number(bad.qty) > 0);
         const noPrice = bad.price === "" || !(Number(bad.price) >= 0);
         const what = [noQty ? "الكمية" : "", noPrice ? "السعر" : ""].filter(Boolean).join(" و");
-        olvShowError(errBox, new Error(`السطر ${idx + 1} («${itemLabel(itemOf(bad))}») ناقصه ${what}. عبّيها أو احذف السطر بزر ✕`));
+        olvShowError(errBox, new Error(`السطر ${idx + 1} («${itemOf(bad).name}») ناقصه ${what}. عبّيها أو احذف السطر بزر ✕`));
         const tr = document.querySelector(`#pi-lines tr[data-idx="${idx}"]`);
         if (tr) {
           const fields = [noQty ? "qty" : "", noPrice ? "price" : ""].filter(Boolean).map((f) => tr.querySelector(`[data-f="${f}"]`)).filter(Boolean);
