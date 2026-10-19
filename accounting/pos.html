@@ -764,6 +764,7 @@
   <script defer src="assets/menu-ready-panel.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/menu-products.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -1039,6 +1040,8 @@
     // المتاح وما بقي فيها مكان لصف زيادة، وبيعدّل عدد الصفوف (3 محاولات كحد أقصى)
     let measuredCardH = 0;
     const GRID_GAP = 14;
+    // أقصى عدد أصناف بالصفحة الوحدة؛ الباقي بصفحات مرقّمة تحت الشبكة (بالموبايل والكمبيوتر)
+    const MAX_PER_PAGE = 16;
     function gridAvailableHeight(grid) {
       // بالكمبيوتر العمود الأوسط بارتفاع ثابت: المتاح = ارتفاعه - مكان الشبكة داخله - أزرار الصفحات.
       // بالموبايل الصفحة بتتمرّر عادي فمنخلي مساحة مريحة تحت الشبكة
@@ -1066,7 +1069,7 @@
       const cardHeight = measuredCardH || (cardWidth * 0.75 + 88);
       const availableHeight = Math.max(cardHeight, gridAvailableHeight(grid));
       const rows = rowsOverride || pickRows(availableHeight, cardHeight, window.matchMedia("(min-width:901px)").matches);
-      return { columns, itemsPerPage: columns * rows };
+      return { columns, itemsPerPage: Math.min(columns * rows, MAX_PER_PAGE) };
     }
 
     function sortByPopularity(list) {
@@ -1132,7 +1135,7 @@
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
       // بالكمبيوتر الأصناف كلها تنزل بالطول وتتسكرول داخل الشبكة (بدل صفحات)، بحجم البطاقة الطبيعي
-      const scrollMode = window.matchMedia("(min-width:901px)").matches;
+      const scrollMode = false;
       const pageItems = scrollMode ? list : list.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
       const gridSig = activeCategory + "|" + searchTerm;
       const keepScroll = renderGrid._sig === gridSig ? grid.scrollTop : 0;
@@ -1153,7 +1156,7 @@
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => {
         const fallbackIcon = categoryIconName(p.category);
-        const src = p.image_url || productPhotoUrl(p.name, p.category);
+        const src = OlvMenuProducts.imageUrl(p.image_url) || productPhotoUrl(p.name, p.category);
         return `
         <div class="card" data-id="${p.id}" data-sound="add">
           <span class="q" aria-hidden="true"></span>
@@ -1195,7 +1198,7 @@
         if (iter < 3) {
           const want = pickRows(avail, measuredCardH, desktop);
           if (want < rowsShown) return renderGrid(iter + 1, want, true);
-          if (!noUp && want > rowsShown && pageItems.length === itemsPerPage && list.length > itemsPerPage) {
+          if (!noUp && want > rowsShown && pageItems.length === itemsPerPage && itemsPerPage < MAX_PER_PAGE && list.length > itemsPerPage) {
             return renderGrid(iter + 1, want, false);
           }
         }
@@ -1814,6 +1817,8 @@
           olvShowError(errBox, err);
         }
       }
+      // سحب الأصناف والصور من منيو الموقع (حسابات المدير بس، بالخلفية وبدون ما يوقف الشاشة)
+      OlvMenuProducts.autoSync().then((done) => { if (done) refreshMenu(); });
       updateOrderTypeFields();
       restoreDraftIfAny();
       applyTableFromLink();
