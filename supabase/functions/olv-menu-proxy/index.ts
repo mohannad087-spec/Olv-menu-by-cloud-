@@ -15,6 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
 const OLV_SITE = "https://olv-menu.pages.dev";
+const OLV_MENU_JSON = "https://olv-menu.pages.dev/data/menu.json";
 
 // رابط تشغيل موقّع لصفحات الإدارة/الموظفين بموقع المنيو (بوابة functions/_go.js هناك بتتحقق منه).
 // نفس صيغة functions/_lib/gate.js: HMAC-SHA256(OLV_ADMIN_KEY, "olv-gate|go|<scope>|<exp>"). صلاحية رابط الإدارة 10 دقايق، ورابط الموظفين 14 يوم.
@@ -184,13 +185,58 @@ Deno.serve(async (req) => {
       return json({ ...out, count: items.length, in_stock: items.filter((i) => i.available).length }, r.status);
     }
 
+    // أصناف شاشة البيع (products) من منيو الموقع: الاسم، السعر، التصنيف، الصورة (رابط كامل)، الوصف والترتيب.
+    // بتنعمل هون بصلاحية السيرفر حتى تشتغل من أي حساب فعّال (الكاشير كمان)، لأنها بس بتنسخ المنيو العام.
+    // صنف انحذف من المنيو بينخفي (is_active=false) بدل ما ينحذف، حتى ما تضيع مبيعاته.
+    if (body.action === "sync_products") {
+      const r = await fetch(OLV_MENU_JSON, { headers: { "cache-control": "no-cache" } });
+      if (!r.ok) return json({ ok: false, error: "تعذّر تحميل منيو الموقع" }, 502);
+      // deno-lint-ignore no-explicit-any
+      const menu: any = await r.json();
+      const catById: Record<string, string> = {};
+      // deno-lint-ignore no-explicit-any
+      (menu.categories || []).forEach((c: any) => { catById[c.id] = c.ar || c.en || "عام"; });
+      // deno-lint-ignore no-explicit-any
+      const items = (menu.items || []).filter((it: any) => it.id && it.ar && it.price != null);
+      if (!items.length) return json({ ok: false, error: "ما في أصناف بمنيو الموقع" }, 502);
+      const abs = (u: string) => /^https?:/i.test(u) ? u : `${OLV_SITE}/${String(u).replace(/^\/+/, "")}`;
+      // deno-lint-ignore no-explicit-any
+      const payload = items.map((it: any, i: number) => {
+        const row: Record<string, unknown> = {
+          external_id: it.id,
+          name: it.ar,
+          price: Number(it.price),
+          category: catById[it.cat] || "عام",
+          is_active: it.available !== false,
+          sort_order: i,
+        };
+        if (it.image) row.image_url = abs(it.image);
+        if (it.descAr) row.description = it.descAr;
+        return row;
+      });
+      const { data: before, error: e1 } = await admin.from("products").select("id, external_id, is_active").not("external_id", "is", null);
+      if (e1) return json({ ok: false, error: e1.message }, 500);
+      const { error: e2 } = await admin.from("products").upsert(payload, { onConflict: "external_id" });
+      if (e2) return json({ ok: false, error: e2.message }, 500);
+      // deno-lint-ignore no-explicit-any
+      const inMenu = new Set(items.map((it: any) => it.id));
+      const known = new Set((before || []).map((p) => p.external_id));
+      const gone = (before || []).filter((p) => !inMenu.has(p.external_id) && p.is_active).map((p) => p.id);
+      if (gone.length) {
+        const { error: e3 } = await admin.from("products").update({ is_active: false }).in("id", gone);
+        if (e3) return json({ ok: false, error: e3.message }, 500);
+      }
+      // deno-lint-ignore no-explicit-any
+      return json({ ok: true, count: payload.length, added: items.filter((it: any) => !known.has(it.id)).length, hidden: gone.length });
+    }
+
     // رابط دخول لصفحات الإدارة/الموظفين (الموقع العام ما فيه أي رابط إلها). حساب "staff" بياخد رابط الموظفين بس.
     if (body.action === "staff_link") {
       const scope = body.scope === "staff" || profile.role === "staff" ? "staff" : "admin";
       return json({ ok: true, url: await launchLink(adminKey, scope, String(body.to || "")) });
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو staff_link)" }, 400);
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو staff_link)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }

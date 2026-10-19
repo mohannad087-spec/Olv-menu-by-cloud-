@@ -825,11 +825,7 @@
       try {
         const r = await OlvMenuProducts.sync();
         let msg = `تمت مزامنة ${r.count} صنف من منيو الموقع الحقيقي (مع الصور).`;
-        if (r.corrected.length) {
-          msg += `\n\nصُحِّح ${r.corrected.length} ربط كان غلط تلقائيًا:\n` +
-            r.corrected.map((c) => `• "${c.from}" ← صار اسمه "${c.to}"`).join("\n");
-        }
-        if (r.added.length) msg += `\n\nصنف جديد انضاف: ${r.added.length}`;
+        if (r.added) msg += `\n\nصنف جديد انضاف: ${r.added}`;
         if (r.hidden) msg += `\n\nانخفى ${r.hidden} صنف لأنه انحذف من المنيو.`;
         alert(msg);
         await loadProducts();

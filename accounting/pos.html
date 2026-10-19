@@ -1817,7 +1817,7 @@
           olvShowError(errBox, err);
         }
       }
-      // سحب الأصناف والصور من منيو الموقع (حسابات المدير بس، بالخلفية وبدون ما يوقف الشاشة)
+      // سحب الأصناف والصور من منيو الموقع (بالخلفية وبدون ما يوقف الشاشة، من أي حساب)
       OlvMenuProducts.autoSync().then((done) => { if (done) refreshMenu(); });
       updateOrderTypeFields();
       restoreDraftIfAny();
