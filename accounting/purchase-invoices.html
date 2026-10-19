@@ -1496,7 +1496,22 @@
       const bad = active.find((l) => !itemOf(l) || !(Number(l.qty) > 0) || !(Number(l.price) >= 0) || l.price === "");
       const unlinked = active.filter((l) => !itemOf(l)).length;
       if (unlinked) { olvShowError(errBox, new Error(`في ${unlinked} سطر لسا مش مربوط بصنف من المخزون — اختر من القائمة أو اضغط «＋ إضافة مادة جديدة للمخزون» تحت السطر`)); return; }
-      if (bad) { olvShowError(errBox, new Error("في سطر ناقص: لازم صنف من القائمة + كمية أكبر من صفر + سعر")); return; }
+      if (bad) {
+        // نحدد أي سطر وشو الناقص بالضبط، ونلوّن الخانة ونروح عليها
+        const idx = lines.indexOf(bad);
+        const noQty = !(Number(bad.qty) > 0);
+        const noPrice = bad.price === "" || !(Number(bad.price) >= 0);
+        const what = [noQty ? "الكمية" : "", noPrice ? "السعر" : ""].filter(Boolean).join(" و");
+        olvShowError(errBox, new Error(`السطر ${idx + 1} («${itemLabel(itemOf(bad))}») ناقصه ${what}. عبّيها أو احذف السطر بزر ✕`));
+        const tr = document.querySelector(`#pi-lines tr[data-idx="${idx}"]`);
+        if (tr) {
+          const fields = [noQty ? "qty" : "", noPrice ? "price" : ""].filter(Boolean).map((f) => tr.querySelector(`[data-f="${f}"]`)).filter(Boolean);
+          fields.forEach((el) => el.classList.add("bad"));
+          tr.scrollIntoView({ block: "center", behavior: "smooth" });
+          if (fields[0]) fields[0].focus({ preventScroll: true });
+        }
+        return;
+      }
       const supplierId = document.getElementById("pi-supplier").value || null;
       const T = computeTotals();
       const total = T.total;
