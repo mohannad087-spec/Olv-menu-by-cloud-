@@ -535,6 +535,7 @@
   <script defer src="assets/incoming-orders-poll.js"></script>
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/menu-products.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -822,56 +823,14 @@
       const originalLabel = btn.innerHTML;
       btn.textContent = "جاري المزامنة...";
       try {
-        const res = await fetch("https://olv-menu.pages.dev/data/menu.json", { cache: "no-store" });
-        if (!res.ok) throw new Error("تعذّر تحميل منيو الموقع الحقيقي");
-        const menu = await res.json();
-        const catById = {};
-        (menu.categories || []).forEach((c) => { catById[c.id] = c.ar || c.en || "عام"; });
-
-        const items = (menu.items || []).filter((it) => it.id && it.ar && it.price != null);
-        if (!items.length) throw new Error("لم يتم العثور على أصناف بمنيو الموقع");
-
-        // نجيب الحالة الحالية قبل المزامنة، حتى نعرف نبلّغ إذا صنف كان
-        // مربوط غلط (external_id موجود بمنتج بإسم مختلف عن اسمه الحقيقي)
-        // — مزامنته بتصحح اسمه/سعره تلقائيًا لأنها upsert بنفس external_id
-        const { data: existing, error: exErr } = await window.supabaseClient
-          .from("products").select("id, name, external_id").not("external_id", "is", null);
-        if (exErr) throw exErr;
-        const existingByExternalId = {};
-        (existing || []).forEach((p) => { existingByExternalId[p.external_id] = p; });
-
-        // نحط image_url بالـ payload بس إذا الموقع الحقيقي فعليًا معه صورة
-        // لهذا الصنف — لو تركناه فاضي دايمًا كـ null، كل مزامنة كانت رح
-        // تمسح أي صورة ضفتها إنت يدويًا بالإعدادات (upsert ما بيلمس عمود
-        // غير موجود بالـ payload أصلًا)
-        const payload = items.map((it) => {
-          const row = {
-            external_id: it.id,
-            name: it.ar,
-            price: Number(it.price),
-            category: catById[it.cat] || "عام",
-            is_active: it.available !== false,
-          };
-          if (it.image) row.image_url = it.image;
-          return row;
-        });
-
-        const { error: syncErr } = await window.supabaseClient
-          .from("products").upsert(payload, { onConflict: "external_id" });
-        if (syncErr) throw syncErr;
-
-        const corrected = items.filter((it) => {
-          const prev = existingByExternalId[it.id];
-          return prev && prev.name !== it.ar;
-        });
-        const added = items.filter((it) => !existingByExternalId[it.id]);
-
-        let msg = `تمت مزامنة ${payload.length} صنف من منيو الموقع الحقيقي.`;
-        if (corrected.length) {
-          msg += `\n\nصُحِّح ${corrected.length} ربط كان غلط تلقائيًا:\n` +
-            corrected.map((it) => `• "${existingByExternalId[it.id].name}" ← صار اسمه "${it.ar}"`).join("\n");
+        const r = await OlvMenuProducts.sync();
+        let msg = `تمت مزامنة ${r.count} صنف من منيو الموقع الحقيقي (مع الصور).`;
+        if (r.corrected.length) {
+          msg += `\n\nصُحِّح ${r.corrected.length} ربط كان غلط تلقائيًا:\n` +
+            r.corrected.map((c) => `• "${c.from}" ← صار اسمه "${c.to}"`).join("\n");
         }
-        if (added.length) msg += `\n\nصنف جديد انضاف: ${added.length}`;
+        if (r.added.length) msg += `\n\nصنف جديد انضاف: ${r.added.length}`;
+        if (r.hidden) msg += `\n\nانخفى ${r.hidden} صنف لأنه انحذف من المنيو.`;
         alert(msg);
         await loadProducts();
       } catch (err) {
