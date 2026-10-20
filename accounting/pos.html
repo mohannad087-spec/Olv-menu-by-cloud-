@@ -415,6 +415,13 @@
   }
   .cart-item-remove .icon{width:16px; height:16px;}
   .cart-item-remove:hover{opacity:1; background:rgba(193,88,63,.12); border-color:rgba(193,88,63,.3);}
+  .cart-clear-btn{
+    min-height:44px; padding:0 14px; border-radius:12px; border:1px solid rgba(179,65,42,.4); background:transparent;
+    color:var(--danger-hi); font-size:14px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
+  }
+  .cart-clear-btn[hidden]{display:none;}
+  .cart-clear-btn:active{transform:scale(.96);}
+  .cart-clear-btn.confirm{background:var(--danger-hi); color:#fff; border-color:transparent;}
   .cart-empty{color:var(--muted); font-size:14px; text-align:center; padding:60px 0;}
   .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .ticket-header h2{margin:0;}
@@ -670,7 +677,7 @@
   .card .price{font-size:16px;}
   .pos-pagination button{width:52px; height:52px;}
   @media (min-width:901px){
-    .pos-cart-panel{flex-basis:30%; min-width:310px; max-width:400px; display:flex; flex-direction:column; overflow:hidden;}
+    .pos-cart-panel{flex-basis:26%; min-width:270px; max-width:330px; display:flex; flex-direction:column; overflow:hidden;}
     .cart-panel-inner{flex:1 1 auto; min-height:0; padding:14px 14px 0; overflow-y:auto; overscroll-behavior:contain;}
     .cart-panel-inner .field{margin-bottom:8px !important;}
     /* رقم الطاولة + اسم الزبون جنب بعض (بيوفّروا ارتفاع)، والباقي بعرض كامل */
@@ -750,6 +757,7 @@
           <div class="ticket-header" id="ticket-header">
             <h2>التذكرة</h2>
             <span style="display:inline-flex; align-items:center; gap:10px;">
+              <button type="button" class="cart-clear-btn" id="cart-clear-btn" hidden>مسح الكل</button>
               <span class="cart-chevron" id="cart-chevron"></span>
               <span class="ticket-badge" id="ticket-badge">0</span>
             </span>
@@ -1512,6 +1520,28 @@
       }
     }
 
+    // «مسح الكل»: ضغطة أولى بتطلب تأكيد (3 ثواني)، والثانية بتشطب كل الأصناف
+    let clearTimer = null;
+    function resetClearBtn() {
+      clearTimeout(clearTimer);
+      const b = document.getElementById("cart-clear-btn");
+      b.classList.remove("confirm");
+      b.textContent = "مسح الكل";
+    }
+    function onClearBtn(e) {
+      e.stopPropagation();
+      const b = document.getElementById("cart-clear-btn");
+      if (!b.classList.contains("confirm")) {
+        b.classList.add("confirm");
+        b.textContent = "تأكيد المسح؟";
+        clearTimer = setTimeout(resetClearBtn, 3000);
+        return;
+      }
+      resetClearBtn();
+      OlvCart.clear();
+      renderCart();
+    }
+
     function renderCart() {
       const cart = OlvCart.all();
       syncCardQty();
@@ -1521,6 +1551,9 @@
       const itemCount = cart.reduce((s, item) => s + item.qty, 0);
       document.getElementById("ticket-badge").textContent = itemCount;
       document.getElementById("psb-item-count").textContent = cart.length;
+      const clearBtn = document.getElementById("cart-clear-btn");
+      clearBtn.hidden = !cart.length;
+      if (!cart.length) resetClearBtn();
       document.getElementById("psb-qty-count").textContent = itemCount;
       if (!cart.length) {
         list.innerHTML = `<div class="cart-empty">السلة فارغة — اختر أصنافًا من القائمة</div>`;
@@ -1925,6 +1958,9 @@
         }
       });
       document.getElementById("save-draft-btn").addEventListener("click", saveDraft);
+      const clearBtnEl = document.getElementById("cart-clear-btn");
+      clearBtnEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+      clearBtnEl.addEventListener("click", onClearBtn);
       document.getElementById("discount-toggle-btn").addEventListener("click", () => {
         const form = document.getElementById("discount-form");
         form.hidden = !form.hidden;
