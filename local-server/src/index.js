@@ -16,7 +16,7 @@ const ROOT = path.join(__dirname, "..");
 let cfg = {};
 try { cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "config.json"), "utf8")); } catch (_) { /* الافتراضي */ }
 const PORT = Number(process.env.PORT || cfg.port || 8080);
-const SITE = String(process.env.OLV_SITE || cfg.site || "https://mohannad087-spec.github.io/olv-menu-by-cloud-/").replace(/\/?$/, "/");
+const SITE = String(process.env.OLV_SITE || cfg.site || "https://mohannad087-spec.github.io/Olv-menu-by-cloud-/").replace(/\/?$/, "/");
 const DATA = path.join(ROOT, "data");
 const CACHE = path.join(DATA, "site-cache");
 fs.mkdirSync(CACHE, { recursive: true });
