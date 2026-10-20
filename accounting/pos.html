@@ -1194,7 +1194,12 @@
         const desktop = window.matchMedia("(min-width:901px)").matches;
         const natural = grid.offsetHeight;
         const avail = gridAvailableHeight(grid);
-        measuredCardH = (natural - GRID_GAP * (rowsShown - 1)) / rowsShown;
+        // ارتفاع الكرت الفعلي من أول كرت (مش من ارتفاع الشبكة: الشبكة ممدّدة لآخر الشاشة، فلو الصفحة فيها صف واحد
+        // بس كان بيطلع ارتفاع الكرت = ارتفاع الشاشة كله وبعدها الكروت بتتمدّد طويلة جدًا)
+        const firstCard = grid.querySelector(".card");
+        measuredCardH = firstCard && firstCard.offsetHeight
+          ? firstCard.offsetHeight
+          : (natural - GRID_GAP * (rowsShown - 1)) / rowsShown;
         if (iter < 3) {
           const want = pickRows(avail, measuredCardH, desktop);
           if (want < rowsShown) return renderGrid(iter + 1, want, true);
@@ -1204,7 +1209,8 @@
         }
         if (desktop && pageItems.length === itemsPerPage) {
           const R = (avail - GRID_GAP * (rowsShown - 1)) / rowsShown;
-          if (R >= measuredCardH * 0.75 && Math.abs(R - measuredCardH) > 1) {
+          // سقف للتمديد: بدون سقف، لو الصفحة فيها صف واحد بس (مثلًا ٣ أصناف) الكرت بيتمدّد لكل ارتفاع الشاشة
+          if (R >= measuredCardH * 0.75 && R <= measuredCardH * 1.4 && Math.abs(R - measuredCardH) > 1) {
             grid.classList.add("fit");
             grid.style.gridAutoRows = Math.floor(R) + "px";
           }
