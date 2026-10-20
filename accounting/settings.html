@@ -377,7 +377,10 @@
       <div style="height:20px;"></div>
       <div style="display:flex; align-items:center; justify-content:space-between;">
         <h3 style="margin:0; font-size:15px; color:var(--muted);">آخر عمليات الطباعة</h3>
-        <button type="button" class="btn small" id="refresh-print-jobs-btn">تحديث</button>
+        <span style="display:flex; gap:8px;">
+          <button type="button" class="btn small danger" id="clear-failed-jobs-btn">مسح الفاشلة</button>
+          <button type="button" class="btn small" id="refresh-print-jobs-btn">تحديث</button>
+        </span>
       </div>
       <div class="table-wrap" style="margin-top:10px;">
         <table>
@@ -1281,6 +1284,15 @@
     });
 
     document.getElementById("refresh-print-jobs-btn").addEventListener("click", loadPrintJobs);
+
+    // بيشطب عمليات الطباعة اللي ما نجحت (خطأ / متأخرة / الطابعة غير مفعّلة)؛ اللي انطبعت أو لسا قيد الإرسال ما بتتأثر
+    document.getElementById("clear-failed-jobs-btn").addEventListener("click", async () => {
+      if (!confirm("مسح كل عمليات الطباعة الفاشلة (خطأ / متأخرة / الطابعة غير مفعّلة)؟ ما رح تنطبع وما بتنرجع.")) return;
+      const { error } = await window.supabaseClient
+        .from("print_jobs").delete().in("status", ["error", "stale", "skipped"]);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      await loadPrintJobs();
+    });
 
     let myRole = null;
 
