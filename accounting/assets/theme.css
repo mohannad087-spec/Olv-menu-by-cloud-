@@ -483,24 +483,20 @@ tbody tr{transition:background .15s var(--ease);}
   --glass:rgba(255,253,248,.62); --glass:color-mix(in srgb, var(--ink-2) 62%, transparent);
   --glass-line:rgba(255,255,255,.7);
   --glass-shadow:0 18px 40px -22px rgba(80,60,25,.45);
-  --aura-1:rgba(var(--gold-rgb),.32); --aura-2:rgba(86,105,46,.22); --aura-3:rgba(222,160,120,.22);
+  --bg-top:#fbf7ef; --bg-bottom:#f1e9d9;
   --on-olive:#fff;
 }
 :root[data-theme="dark"]{
   --glass-line:rgba(255,235,200,.09);
   --glass-shadow:0 18px 40px -20px rgba(0,0,0,.7);
-  --aura-1:rgba(var(--gold-rgb),.17); --aura-2:rgba(143,160,85,.15); --aura-3:rgba(170,90,60,.14);
+  --bg-top:#1d1710; --bg-bottom:#130f0a;
   --on-olive:#11160a;
 }
+/* خلفية هادئة ومرتبة (2026-10-20): كريمي ثابت بتدرّج خفيف جدًا من فوق لتحت، بدون هالات ملونة ولا حركة */
 body.olv-glass::before{
-  content:""; position:fixed; inset:-12%; z-index:-1; pointer-events:none;
-  background:
-    radial-gradient(38% 34% at 88% 8%, var(--aura-1), transparent 70%),
-    radial-gradient(34% 40% at 8% 88%, var(--aura-2), transparent 70%),
-    radial-gradient(30% 30% at 48% 52%, var(--aura-3), transparent 70%);
-  animation:olv-aura 30s ease-in-out infinite alternate;
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:linear-gradient(180deg, var(--bg-top) 0%, var(--ink) 38%, var(--bg-bottom) 100%);
 }
-@keyframes olv-aura{to{transform:translate3d(-3%,2.5%,0) scale(1.06);}}
 .olv-glass .top{
   margin:10px 12px 0; top:10px; border-radius:22px;
   background:var(--glass); -webkit-backdrop-filter:blur(22px) saturate(180%); backdrop-filter:blur(22px) saturate(180%);
@@ -509,9 +505,6 @@ body.olv-glass::before{
 .olv-glass .tabs{background:transparent; border-bottom:0;}
 @media (max-width:640px){
   .olv-glass .top{margin:8px 8px 0; top:8px; border-radius:18px;}
-}
-@media (prefers-reduced-motion: reduce){
-  body.olv-glass::before{animation:none;}
 }
 @media (prefers-reduced-transparency: reduce){
   .olv-glass .top{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
