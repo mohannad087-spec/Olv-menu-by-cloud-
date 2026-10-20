@@ -87,7 +87,7 @@
 
 - الحذف العادي (سطر بجدول) ما بيسأل «متأكد؟»: `olvUndoDelete(btn, {msg, run, after})` بيخفي السطر وبيطلع إشعار فيه «تراجع» لـ 6 ثواني. «متأكد؟» بس للإجراءات الكبيرة أو اللي ما بترجع (إلغاء فاتورة، حذف مورّد، جرد).
 
-- **منيو الزباين (`index.html`/`olv-menu.html`) فيه مكتبات حركة بمجلد `motion/`:** GSAP + ScrollTrigger + SplitText، وLenis للسكرول الناعم (مربوط بساعة GSAP، وعلى الموبايل بيضل سكرول الجهاز الأصلي)، ونسخ JavaScript عادية من React Bits (`motion/react-bits.js`: Aurora، SplitText، BlurText، ShinyText، StarBorder، ClickSpark). كل الربط بـ `motion/olv-motion.js`.
+- **منيو الزباين (`olv-menu.html`) فيه مكتبات حركة بمجلد `motion/`:** GSAP + ScrollTrigger + SplitText، وLenis للسكرول الناعم (مربوط بساعة GSAP، وعلى الموبايل بيضل سكرول الجهاز الأصلي)، ونسخ JavaScript عادية من React Bits (`motion/react-bits.js`: Aurora، SplitText، BlurText، ShinyText، StarBorder، ClickSpark). كل الربط بـ `motion/olv-motion.js`.
   - النص العربي بيتقسّم **كلمات** بس (تقسيم الحروف بيقطع وصلها). ShinyText بحاجة padding فوق وتحت عشان التنوين ما يختفي.
   - ما في Lenis ولا حركة سكرول بالـPOS والمطبخ وصفحات المحاسبة: السرعة والقراءة أهم.
 
