@@ -9,7 +9,7 @@ The owner writes Levantine Arabic. All UI text, comments and README content are 
 - `supabase/functions/*` — Deno edge functions (Gemini AI features, employee management, menu proxy). Secrets come from `Deno.env` only.
 - `print-bridge/`, `attendance-bridge/`, `drive-backup/` — small Node programs that run on the restaurant's own PC / in Actions; each has its own README and `.env.example`.
 - `local-server/` — «سيرفر المحل» on the POS PC: serves the app over the venue LAN (proxying GitHub Pages, cached for offline) and keeps kitchen orders so cashier → kitchen/bar works with the internet down. No DB credentials; pages sync to Supabase themselves. Front-end side: `assets/local-server.js` (`window.OLV_LOCAL`), `sale-cart.js`, `kitchen.html`.
-- `index.html` / `olv-menu.html` — the public customer menu (identical copies); `olv-admin.html` edits it.
+- `index.html` — redirects the site root (app.olvcafe.com) to `accounting/login.html`. `olv-menu.html` — OLD unused copy of the customer menu (the real one is the olv-menu repo on Cloudflare Pages); `olv-admin.html` edits it.
 - `motion/` — animation for the customer menu only: vendored GSAP (+ScrollTrigger, SplitText) and Lenis in `motion/vendor/`, plain-JS ports of React Bits effects in `motion/react-bits.js` (the app has no React, don't add it), wiring in `motion/olv-motion.js`. Keep it off POS/kitchen.
 
 ## Deploy
