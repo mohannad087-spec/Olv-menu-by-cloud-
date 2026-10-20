@@ -345,6 +345,7 @@
     color:var(--olive-hi,#9dab63); font-size:12.5px; font-weight:600; padding:8px; cursor:pointer;
   }
   .discount-toggle-btn.active{border-style:solid; border-color:var(--gold); color:var(--gold-hi);}
+  .discount-form[hidden]{display:none;}
   .discount-form{
     display:flex; flex-direction:column; gap:8px; background:var(--ink-3); border:1px solid var(--hair);
     border-radius:10px; padding:10px; margin-top:8px;
@@ -616,8 +617,7 @@
   body.pos-focus .card .name{font-size:14px; -webkit-line-clamp:2; line-clamp:2;}
   body.pos-focus .card .add-btn{min-width:30px; min-height:30px; padding:0; justify-content:center; font-size:0;}
   body.pos-focus .card .add-btn::before{content:"+"; font-size:20px; font-weight:700; line-height:1;}
-  /* التذكرة على اليمين (أول عنصر بالـ RTL) بدل أقصى الشمال */
-  @media (min-width:901px){ .pos-cart-panel{order:-1;} }
+  /* التذكرة على أقصى الشمال (آخر عنصر بالـ RTL) — الكاشير متعوّد عليها هناك */
   @media (min-width:901px){
     body.pos-focus .pos-layout{padding:8px 12px 0; height:var(--pos-h, calc(100vh - 60px));}
     body.pos-focus .pos-main{padding-top:30px;}
@@ -641,6 +641,68 @@
   }
   @media (prefers-reduced-motion: reduce){
     body.pos-focus.pos-nav-open #olv-nav .top, body.pos-focus.pos-nav-open #olv-nav .tabs{animation:none;}
+  }
+
+  /* ---- راحة اللمس (2026-10-20، شاشة الكاشير باللمس) ----
+     كل هدف ضغط 44px على الأقل (الأفضل 48+)، والأزرار الصغيرة (+ / ± / حذف / شرائح التصنيف)
+     أكبر، ونوع الطلب أزرار بدل قائمة منسدلة، وزرّا حفظ/الدفع دايمًا ظاهرين تحت التذكرة */
+  .seg{display:flex; gap:6px; background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; padding:4px;}
+  .seg button{
+    flex:1; min-height:48px; border:0; border-radius:10px; background:transparent; color:var(--muted);
+    font-size:16px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
+    transition:background .18s var(--spring), color .18s var(--spring), transform .12s var(--spring);
+  }
+  .seg button:active{transform:scale(.96);}
+  .seg button.on{background:var(--olive); color:var(--on-olive);}
+  .field input:not([type=checkbox]):not([type=radio]), .field select{min-height:48px;}
+  .qty-stepper button{width:44px; height:44px; font-size:22px;}
+  .qty-stepper .qty-value{min-width:30px; font-size:16px;}
+  .cart-item-remove{width:44px; height:44px; border-radius:12px;}
+  .cart-item-remove .icon{width:20px; height:20px;}
+  .discount-toggle-btn{min-height:44px; font-size:14px;}
+  .discount-remove-btn{width:44px; height:44px;}
+  .discount-input-wrap input{min-height:44px;}
+  .discount-mode-tab{min-height:44px;}
+  .cart-bar .actions .btn{min-height:56px; font-size:17px;}
+  .cart-bar .total{font-size:26px;}
+  .card .add-btn{min-height:44px; min-width:44px; padding:8px 14px; font-size:14px;}
+  .card .name{font-size:16px;}
+  .card .price{font-size:16px;}
+  .pos-pagination button{width:52px; height:52px;}
+  @media (min-width:901px){
+    .pos-cart-panel{flex-basis:30%; min-width:310px; max-width:400px; display:flex; flex-direction:column; overflow:hidden;}
+    .cart-panel-inner{flex:1 1 auto; min-height:0; padding:14px 14px 0; overflow-y:auto; overscroll-behavior:contain;}
+    .cart-panel-inner .field{margin-bottom:8px !important;}
+    /* رقم الطاولة + اسم الزبون جنب بعض (بيوفّروا ارتفاع)، والباقي بعرض كامل */
+    .cart-panel-inner{display:grid; grid-template-columns:1fr 1fr; column-gap:8px; align-content:start; grid-auto-rows:min-content;}
+    .cart-panel-inner > *{grid-column:1 / -1;}
+    .cart-panel-inner > #table-number-field, .cart-panel-inner > #customer-name-field{grid-column:auto;}
+    .cart-panel-inner > #table-number-field[hidden] + #customer-name-field{grid-column:1 / -1;}
+    .cart-panel-inner .field label{display:none;}
+    .cart-list{min-height:60px;}
+    /* حفظ/الدفع والإجمالي ثابتين تحت التذكرة حتى لو الحقول والأصناف طوّلت */
+    .cart-bar{position:sticky; bottom:0; z-index:2; margin-top:8px; padding:10px 0 14px; gap:8px; background:var(--ink-2);}
+    .cart-bar .actions .btn{min-height:52px;}
+    .pos-toolbar{gap:10px;}
+    .pos-toolbar .btn, .pos-toolbar input[type=search]{min-height:52px;}
+    .pos-clock{min-height:52px;}
+    .cat-tab{min-height:64px; font-size:13.5px; padding:10px 6px;}
+    .cat-tab .cat-tab-icon .icon{width:26px; height:26px;}
+    .pos-cat-sidebar{flex-basis:150px; min-width:150px;}
+    body.pos-focus .cat-tab{min-height:52px; padding:8px 18px; font-size:15px; gap:8px;}
+    body.pos-focus .cat-tab .cat-tab-icon .icon{width:20px; height:20px;}
+    body.pos-focus .cat-tabs{gap:8px; padding-bottom:4px;}
+    body.pos-focus .card .name{font-size:15.5px;}
+    body.pos-focus .card .add-btn{min-width:44px; min-height:44px;}
+    body.pos-focus .card .add-btn::before{font-size:26px;}
+    body.pos-focus .card .info{padding:8px 10px 10px;}
+  }
+  /* شاشة كاش قصيرة: نختصر صف المجموع الفرعي (الإجمالي يكفي) ونضيّق الفراغات */
+  @media (min-width:901px) and (max-height:700px){
+    .cart-bar .cart-total-row:not(.grand):not(.discount){display:none;}
+    .cart-bar .cart-total-row.grand{padding-top:0; border-top:0;}
+    .cart-bar{padding:8px 0 10px;}
+    .cart-bar .total{font-size:24px;}
   }
 </style>
 </head>
@@ -694,11 +756,16 @@
           </div>
           <div class="field" style="margin-bottom:12px;">
             <label>نوع الطلب</label>
-            <select id="order-type">
+            <select id="order-type" hidden>
               <option value="صالة">صالة</option>
               <option value="سفري">سفري</option>
               <option value="توصيل">توصيل</option>
             </select>
+            <div class="seg" id="order-type-seg" role="group" aria-label="نوع الطلب">
+              <button type="button" data-type="صالة">صالة</button>
+              <button type="button" data-type="سفري">سفري</button>
+              <button type="button" data-type="توصيل">توصيل</button>
+            </div>
           </div>
           <div class="field" id="table-number-field" style="margin-bottom:12px;" hidden>
             <label>رقم الطاولة</label>
@@ -1063,7 +1130,7 @@
     function computeGridCapacity(rowsOverride) {
       const grid = document.getElementById("products-grid");
       const containerWidth = grid.clientWidth || 300;
-      const targetCardWidth = document.body.classList.contains("pos-focus") ? 132 : 150;
+      const targetCardWidth = document.body.classList.contains("pos-focus") ? 150 : 165;
       const columns = Math.max(1, Math.floor((containerWidth + GRID_GAP) / (targetCardWidth + GRID_GAP)));
       const cardWidth = (containerWidth - (columns - 1) * GRID_GAP) / columns;
       const cardHeight = measuredCardH || (cardWidth * 0.75 + 88);
@@ -1347,6 +1414,7 @@
     // ما تنتقل بيانات طلب سابق بالغلط لطلب من نوع مختلف
     function updateOrderTypeFields() {
       const type = document.getElementById("order-type").value;
+      document.querySelectorAll("#order-type-seg button").forEach((b) => b.classList.toggle("on", b.dataset.type === type));
       const tableField = document.getElementById("table-number-field");
       const nameField = document.getElementById("customer-name-field");
       tableField.hidden = type !== "صالة";
@@ -1358,6 +1426,7 @@
       // الأنواع عشان يقدر الكاشير يسجّل نقاط ولاء حتى لزبون صالة/سفري
       document.getElementById("customer-phone-label").textContent =
         type === "توصيل" ? "رقم تلفون الزبون" : "رقم تلفون الزبون (اختياري — لبرنامج الولاء)";
+      document.getElementById("customer-phone").placeholder = type === "توصيل" ? "رقم تلفون الزبون (إجباري)" : "رقم تلفون الزبون — اختياري (07xxxxxxxx)";
     }
 
     function saveDraft() {
@@ -1831,6 +1900,13 @@
       loadTableOptions();
       renderCart();
       document.getElementById("order-type").addEventListener("change", updateOrderTypeFields);
+      document.getElementById("order-type-seg").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-type]");
+        if (!b) return;
+        const sel = document.getElementById("order-type");
+        sel.value = b.dataset.type;
+        sel.dispatchEvent(new Event("change"));
+      });
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
       // فحص سريع (مو إجباري) لما الكاشير يخلص كتابة رقم هاتف — لو الرقم
       // لزبون متكرر موجود أصلًا ببرنامج الولاء، بيطلعله تنبيه ترحيبي
