@@ -375,6 +375,7 @@ function olvRenderNav(active) {
         <button class="btn small" id="theme-toggle-btn" aria-label="تبديل الإضاءة" title="تبديل الإضاءة"></button>
         <button class="btn small" type="button" id="olv-admin-link-btn" data-staff-hide aria-label="إدارة المنيو" title="إدارة المنيو">${olvIcon("link")}<span class="btn-label">إدارة المنيو</span></button>
         <button class="btn small" type="button" id="olv-staff-link-btn" data-staff-hide aria-label="رابط الموظفين" title="نسخ رابط شاشة الموظفين">${olvIcon("link")}<span class="btn-label">رابط الموظفين</span></button>
+        <a class="btn small" href="settings.html" data-staff-hide aria-label="الإعدادات" title="الإعدادات">${olvIcon("gear")}</a>
         <a class="btn small" href="https://olv-menu.pages.dev" target="_blank" rel="noopener" aria-label="الموقع" title="الموقع">${olvIcon("externalLink")}<span class="btn-label">الموقع</span></a>
         <button class="btn small danger" id="olv-logout-btn" aria-label="خروج" title="خروج">${olvIcon("logOut")}<span class="btn-label">خروج</span></button>
       </div>
