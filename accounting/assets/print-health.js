@@ -23,7 +23,7 @@ const OlvPrintHealth = (function () {
 
   function show(msg) {
     const el = banner();
-    el.innerHTML = `${msg} — <a href="settings.html" style="color:inherit; text-decoration:underline;">فحص الطباعة</a>`;
+    el.innerHTML = `${msg} — <a href="printer-check.html" style="color:inherit; text-decoration:underline;">فحص الطباعة</a>`;
     el.classList.add("show");
   }
 

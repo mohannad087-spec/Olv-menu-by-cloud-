@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>فحص الطابعات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  /* فحص الطابعات (2026-10): للكاشير والمدير، تجربة طباعة بدون أي تعديل للإعدادات */
+  .wrap.pc-wrap{max-width:820px;}
+  .pc-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:4px 0 0;}
+  .pc-head .pc-sub{color:var(--muted); font-size:13.5px; margin:4px 0 14px; line-height:1.6;}
+  .pc-bridge{display:flex; gap:10px; align-items:center; padding:12px 14px; border-radius:14px; background:var(--ink-3); font-size:14.5px; margin-bottom:14px;}
+  .pc-bridge.ok{color:var(--ok);} .pc-bridge.bad{color:var(--danger-hi);}
+  .pc-bridge .icon{width:18px; height:18px; flex:none;}
+  .pc-list{display:grid; gap:10px;}
+  .pc-card{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; align-items:center; padding:14px; border-radius:16px; background:var(--ink-3); border:1px solid var(--hair-soft);}
+  .pc-card .nm{font-weight:800; font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pc-card .st{grid-column:1; font-size:13.5px; color:var(--muted); min-height:20px;}
+  .pc-card .st.ok{color:var(--ok);} .pc-card .st.bad{color:var(--danger-hi);}
+  .pc-card .btn{min-height:44px; grid-row:1 / span 2; grid-column:2;}
+  .pc-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
+  .pc-note{color:var(--muted); font-size:12.5px; line-height:1.7; margin:10px 0 0;}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f1e6">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap pc-wrap">
+    <div class="err" id="err"></div>
+
+    <header class="pc-head">
+      <h1>فحص الطابعات</h1>
+      <div class="pc-sub">اضغط «طباعة تجريبية» وانظر إذا طلعت ورقة من الطابعة. هالصفحة للفحص بس، ما بتغيّر أي إعداد.</div>
+    </header>
+
+    <div class="pc-bridge" id="bridge">جاري الفحص...</div>
+
+    <section class="group">
+      <h2 id="pr-title"></h2>
+      <div class="pc-list" id="printers"><div class="pc-empty">جاري التحميل...</div></div>
+      <p class="pc-note">إذا الطابعة شغّالة وما طلعت ورقة، تأكد من الورق وإنها مفتوحة، وإذا ضلّت المشكلة خبّر المدير. أما تعديل العنوان (IP) فمن الإعدادات للمالك والمدير بس.</p>
+    </section>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+    olvRenderNav("printer-check");
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => olvEsc(v);
+    const errBox = $("err");
+    const sb = () => window.supabaseClient;
+    $("pr-title").innerHTML = olvIcon("printer") + " الطابعات";
+
+    const session = await olvRequireAuth();
+    if (!session) return;
+
+    async function loadBridge() {
+      const el = $("bridge");
+      const { data } = await sb().from("app_settings").select("value").eq("key", "print_bridge_heartbeat").maybeSingle();
+      const hb = data && data.value ? new Date(data.value).getTime() : 0;
+      const ok = hb && Date.now() - hb < 120000;
+      el.className = "pc-bridge " + (ok ? "ok" : "bad");
+      el.innerHTML = ok
+        ? olvIcon("check") + " برنامج الطباعة شغّال"
+        : olvIcon("warning") + " برنامج الطباعة متوقف — تأكد إن كمبيوتر الطباعة شغّال";
+    }
+
+    async function loadPrinters() {
+      const { data, error } = await sb().from("printers").select("id, name, enabled").order("sort_order").order("created_at");
+      if (error) { olvShowError(errBox, error); return; }
+      const box = $("printers");
+      if (!data || !data.length) { box.innerHTML = `<div class="pc-empty">ما في طابعات معرّفة بعد.</div>`; return; }
+      box.innerHTML = data.map((p) => `
+        <div class="pc-card" data-id="${esc(p.id)}">
+          <div class="nm">${esc(p.name)}${p.enabled ? "" : " (معطّلة)"}</div>
+          <div class="st" aria-live="polite"></div>
+          <button type="button" class="btn gold" data-test="${esc(p.id)}">${olvIcon("printer")} طباعة تجريبية</button>
+        </div>`).join("");
+      box.querySelectorAll("[data-test]").forEach((b) => b.addEventListener("click", () => runTest(b)));
+    }
+
+    async function runTest(btn) {
+      const card = btn.closest(".pc-card");
+      const st = card.querySelector(".st");
+      const setSt = (cls, t) => { st.className = "st " + cls; st.textContent = t; };
+      btn.disabled = true;
+      setSt("", "جاري الإرسال...");
+      const { data: jobId, error } = await sb().rpc("staff_test_print", { p_printer_id: btn.dataset.test });
+      if (error) { setSt("bad", error.message || "تعذّر الإرسال"); btn.disabled = false; return; }
+      setSt("", "بانتظار الطابعة...");
+      const t0 = Date.now();
+      while (Date.now() - t0 < 30000) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const { data: j } = await sb().from("print_jobs").select("status, error_message").eq("id", jobId).maybeSingle();
+        if (!j) continue;
+        if (j.status === "printed") { setSt("ok", "انرسلت للطابعة — شوف إذا طلعت الورقة"); btn.disabled = false; return; }
+        if (j.status === "error") { setSt("bad", "فشلت: " + (j.error_message || "الطابعة ما ردّت")); btn.disabled = false; return; }
+        if (j.status === "skipped") { setSt("bad", "الطابعة معطّلة"); btn.disabled = false; return; }
+      }
+      setSt("bad", "ما وصل ردّ خلال ٣٠ ثانية — تأكد من برنامج الطباعة والطابعة");
+      btn.disabled = false;
+    }
+
+    await Promise.all([loadBridge(), loadPrinters()]);
+    });
+  </script>
+</body>
+</html>
