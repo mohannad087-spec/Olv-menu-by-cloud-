@@ -97,6 +97,7 @@
   .at-form-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;}
   .at-form-head h2{margin:0;}
   .at-note{color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.7;}
+  .row4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}
   .at-actions{display:flex; gap:10px; flex-wrap:wrap;}
   .at-actions .btn{min-height:48px; min-width:140px;}
   .stats.at-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
@@ -125,6 +126,21 @@
   .now-list .since{color:var(--muted); font-size:12.5px; white-space:nowrap;}
   .now-list .since b{color:var(--paper); font-variant-numeric:tabular-nums;}
   .now-list .since.long b{color:var(--gold-hi);}
+  .now-list li.col{flex-wrap:wrap;}
+  .now-list li.col .nm{flex:1 1 120px; min-width:120px; white-space:normal;}
+  .now-list li.col .since{white-space:normal; flex:1 1 100%; order:3;}
+  .now-list li.col .now-acts{margin-inline-start:auto;}
+  .now-acts{display:flex; gap:6px; flex:none;}
+  .now-acts .btn{min-height:44px; padding:0 14px;}
+  .now-close{flex-basis:100%; display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; padding:6px 0 2px;}
+  .now-close .field{margin:0; flex:1; min-width:200px;}
+  .now-close label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px;}
+  .now-close input[type="datetime-local"]{width:100%; box-sizing:border-box; min-height:44px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:8px; border-radius:12px; font-size:16px; font-family:'Tajawal',sans-serif;}
+  .now-bulk{display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-top:12px; padding:10px 12px; border-radius:14px; border:1px dashed var(--hair);}
+  .now-bulk p{margin:0; font-size:13px; color:var(--muted); line-height:1.6; flex:1; min-width:180px;}
+  .now-bulk .bulk-h{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted);}
+  .now-bulk .bulk-h input{width:64px; min-height:44px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); text-align:center; font-size:16px; font-family:inherit;}
+  .btn.warn{border-color:var(--danger); color:var(--danger-hi);}
   /* ساعات كل موظف */
   .hr-bars{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
   .hr-bars li{padding:7px 8px;}
@@ -215,12 +231,13 @@
 
     <!-- تصحيح بصمة: مسكّر لحد ما تكبس الزر (مالك/مدير) -->
     <section class="group" id="punch-group" hidden>
-      <div class="at-form-head"><h2>تصحيح بصمة</h2><button class="btn small" type="button" id="punch-close">إغلاق</button></div>
-      <p class="at-note">لموظف نسي يبصم أو لو الجهاز تعطّل. بتنحفظ مثل بصمة الجهاز، والسيستم بيحدد لحاله دخول ولا خروج حسب ترتيبها بالوقت.</p>
+      <div class="at-form-head"><h2>إضافة وردية أو بصمة</h2><button class="btn small" type="button" id="punch-close">إغلاق</button></div>
+      <p class="at-note">لموظف نسي يبصم أو لو الجهاز تعطّل. عبّي الدخول والخروج وردية كاملة، أو الدخول بس. بتنحفظ مثل بصمة الجهاز ومعلّمة «يدوي»، والسيستم بيحدد دخول ولا خروج حسب الترتيب بالوقت، وخروج الوردية لازم يكون بنفس يوم الدخول.</p>
       <form id="punch-form">
-        <div class="row3">
+        <div class="row3 row4">
           <div class="field"><label for="p-employee">الموظف</label><select id="p-employee" required></select></div>
-          <div class="field"><label for="p-time">وقت البصمة</label><input type="datetime-local" id="p-time" required></div>
+          <div class="field"><label for="p-time">الدخول</label><input type="datetime-local" id="p-time" required></div>
+          <div class="field"><label for="p-out">الخروج (اختياري)</label><input type="datetime-local" id="p-out"></div>
           <div class="field"><label for="p-note">ملاحظة (اختياري)</label><input type="text" id="p-note" placeholder="مثال: نسي يبصم خروج"></div>
         </div>
         <div class="at-actions">
@@ -309,6 +326,9 @@
     let range = null;
     let daysShown = DAYS_STEP;
     let editingKey = null;
+    let closingKey = null;
+    const utcDay = (t) => new Date(t).toISOString().slice(0, 10);
+    const MANAGER_NOTE = "تسكير من المدير";
 
     // التواريخ بتوقيت الجهاز (olvToday بيرجع UTC وبعد نص الليل بيزيح يوم)
     const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -325,7 +345,7 @@
     }
     function dur(h) { const m = Math.max(0, Math.round(h * 60)); return m < 60 ? `${m} د` : `${Math.floor(m / 60)} س ${m % 60 ? (m % 60) + " د" : ""}`.trim(); }
 
-    $("punch-toggle").innerHTML = olvIcon("plus") + "<span>تصحيح بصمة</span>";
+    $("punch-toggle").innerHTML = olvIcon("plus") + "<span>إضافة وردية</span>";
     $("import-toggle").innerHTML = olvIcon("clipboard") + "<span>استيراد من ملف</span>";
     $("custom-chip").innerHTML = olvIcon("calendar") + "<span>فترة…</span>";
     $("ic-hrs").innerHTML = olvIcon("clock");
@@ -399,12 +419,102 @@
     function renderNow(open) {
       if (!open.length) { $("now-box").innerHTML = `<div class="at-empty">ما في ورديات مفتوحة بهالفترة.</div>`; return; }
       const list = open.slice().sort((a, b) => a.clockIn.punched_at.localeCompare(b.clockIn.punched_at));
+      const stale = list.filter((s) => (Date.now() - new Date(s.clockIn.punched_at)) / 3600000 >= LONG_SHIFT_H);
       $("now-box").innerHTML = `<ul class="now-list">${list.map((s) => {
         const h = (Date.now() - new Date(s.clockIn.punched_at)) / 3600000;
         const long = h >= LONG_SHIFT_H;
-        return `<li><span class="pulse" aria-hidden="true"></span><span class="nm">${olvEsc(nameOf(s.profile_id))}</span>
-          <span class="since${long ? " long" : ""}">من <b>${fmtTime(s.clockIn.punched_at)}</b>${h >= 0 ? ` · ${dur(h)}` : ""}${long ? " · غالبًا نسي الخروج" : ""}</span></li>`;
-      }).join("")}</ul>`;
+        const closing = canManage && closingKey === s.key;
+        return `<li class="${canManage ? "col" : ""}" data-key="${s.key}"><span class="pulse" aria-hidden="true"></span><span class="nm">${olvEsc(nameOf(s.profile_id))}</span>
+          <span class="since${long ? " long" : ""}">من <b>${fmtTime(s.clockIn.punched_at)}</b>${h >= 0 ? ` · ${dur(h)}` : ""}${long ? " · غالبًا نسي الخروج" : ""}</span>
+          ${canManage ? `<span class="now-acts"><button type="button" class="btn small" data-close="${s.key}" aria-expanded="${closing}">سكّر</button>
+            <button type="button" class="btn small warn" data-del-open="${s.key}" aria-label="حذف بصمة الدخول لـ ${olvEsc(nameOf(s.profile_id))} (ضغط مطوّل)">${olvIcon("trash")}</button></span>` : ""}
+          ${closing ? `<div class="now-close">
+            <div class="field"><label for="cl-${s.key}">وقت الخروج</label><input id="cl-${s.key}" type="datetime-local" data-close-time value="${toLocalInputValue(defaultCloseTime(s))}"></div>
+            <button type="button" class="btn go" data-close-save="${s.key}">حفظ الخروج</button>
+            <button type="button" class="btn" data-close-cancel>إلغاء</button>
+          </div>` : ""}</li>`;
+      }).join("")}</ul>
+      ${canManage && stale.length ? `<div class="now-bulk"><p>${stale.length} ${stale.length === 1 ? "وردية مفتوحة قديمة" : "ورديات مفتوحة قديمة"} (أكثر من ${LONG_SHIFT_H} ساعة). بتتسكّر كلها بطول وردية واحد.</p>
+        <label class="bulk-h">طول الوردية <input type="number" id="bulk-hrs" min="1" max="16" step="0.5" value="8" inputmode="decimal"> س</label>
+        <button type="button" class="btn warn" id="bulk-close" title="ضغط مطوّل للتأكيد">سكّر القديمة</button></div>` : ""}`;
+      const box = $("now-box");
+      box.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => { closingKey = closingKey === b.dataset.close ? null : b.dataset.close; renderNow(open); }));
+      box.querySelectorAll("[data-close-cancel]").forEach((b) => b.addEventListener("click", () => { closingKey = null; renderNow(open); }));
+      box.querySelectorAll("[data-close-save]").forEach((b) => b.addEventListener("click", () => closeShift(b.dataset.closeSave, b)));
+      box.querySelectorAll("[data-del-open]").forEach((b) => olvHoldConfirm(b, () => deleteShift(b.dataset.delOpen), { hint: "اضغط مطوّلًا لحذف بصمة الدخول" }));
+      const bulk = $("bulk-close");
+      if (bulk) olvHoldConfirm(bulk, () => closeStale(stale), { hint: "اضغط مطوّلًا لتسكير كل الورديات القديمة" });
+    }
+
+    // وقت الخروج المقترح: لو الوردية قديمة بعد 8 ساعات من الدخول، غير هيك الآن (بشرط نفس يوم الدخول)
+    function defaultCloseTime(s) {
+      const inT = new Date(s.clockIn.punched_at).getTime();
+      const t = (Date.now() - inT) / 3600000 >= LONG_SHIFT_H ? inT + 8 * 3600000 : Date.now();
+      return sameDayOrNull(s, new Date(t).toISOString()) || new Date(inT + 60000).toISOString();
+    }
+    // نظام الورديات (olvComputeShifts) بيزوّج البصمات بنفس تاريخ UTC، فخروج بيوم تاني بيطلع وردية مفتوحة جديدة
+    function sameDayOrNull(s, outIso) {
+      return utcDay(outIso) === utcDay(s.clockIn.punched_at) && outIso > s.clockIn.punched_at ? outIso : null;
+    }
+    async function insertClockOut(s, outIso) {
+      const { error } = await window.supabaseClient.from("employee_punches")
+        .insert({ profile_id: s.profile_id, punched_at: outIso, source: "manual", note: MANAGER_NOTE });
+      if (error) throw error;
+    }
+
+    async function closeShift(key, btn) {
+      const s = shiftsList().find((x) => x.key === key);
+      if (!s) return;
+      const v = btn.closest("li").querySelector("[data-close-time]").value;
+      if (!v) { olvShowError(errBox, new Error("وقت الخروج مطلوب")); return; }
+      const outIso = new Date(v).toISOString();
+      if (outIso <= s.clockIn.punched_at) { olvShowError(errBox, new Error("وقت الخروج لازم يكون بعد وقت الدخول")); return; }
+      if (!sameDayOrNull(s, outIso)) { olvShowError(errBox, new Error("الخروج لازم يكون بنفس يوم الدخول (حسب حساب الورديات والرواتب). للوردية اللي بتعدّي نص الليل عدّل الدخول والخروج من السجل")); return; }
+      btn.disabled = true;
+      try {
+        await insertClockOut(s, outIso);
+        closingKey = null;
+        olvToast("انسكّرت الوردية", { type: "ok", icon: "check" });
+        await runReport();
+      } catch (err) {
+        btn.disabled = false;
+        if (err && err.code === "23505") err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
+        olvShowError(errBox, err);
+      }
+    }
+
+    async function closeStale(stale) {
+      const hrs = Math.min(16, Math.max(1, Number($("bulk-hrs").value) || 8));
+      let done = 0, skipped = 0;
+      try {
+        for (const s of stale) {
+          const outIso = sameDayOrNull(s, new Date(new Date(s.clockIn.punched_at).getTime() + hrs * 3600000).toISOString());
+          if (!outIso) { skipped++; continue; }
+          await insertClockOut(s, outIso);
+          done++;
+        }
+        olvToast(`انسكّرت ${done} وردية${skipped ? ` (${skipped} تخطّيتها لأنها بتعدّي نص الليل، سكّرها لحالها)` : ""}`, { type: skipped ? "info" : "ok", icon: "check", ms: skipped ? 6000 : undefined });
+      } catch (err) {
+        if (err && err.code === "23505") err = new Error("وردية ما انسكّرت: في بصمة بنفس الوقت تمامًا. جرّب طول وردية مختلف");
+        olvShowError(errBox, err);
+      }
+      await runReport();
+    }
+
+    // بيحذف الوردية كاملة (دخول + خروج إن وجد). لوردية مفتوحة بيحذف بصمة الدخول الوحيدة
+    async function deleteShift(key) {
+      const s = shiftsList().find((x) => x.key === key);
+      if (!s) return;
+      try {
+        const ids = [s.clockIn.id].concat(s.clockOut ? [s.clockOut.id] : []);
+        const { error } = await window.supabaseClient.from("employee_punches").delete().in("id", ids);
+        if (error) throw error;
+        editingKey = null; closingKey = null;
+        olvToast("انحذفت الوردية", { type: "info", icon: "check" });
+        await runReport();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
     }
 
     function renderHours(shifts, done) {
@@ -441,7 +551,7 @@
               <div><label for="eo-${s.key}">خروج</label><input id="eo-${s.key}" type="datetime-local" data-edit-out value="${s.clockOut ? toLocalInputValue(s.clockOut.punched_at) : ""}"></div>
             </div>
             <p class="hint">تفريغ خانة الخروج بيحذف بصمة الخروج (لو كانت زايدة أو غلط).</p>
-            <div class="at-actions"><button class="btn go" type="button" data-save="${s.key}">حفظ</button><button class="btn" type="button" data-cancel>إلغاء</button></div>
+            <div class="at-actions"><button class="btn go" type="button" data-save="${s.key}">حفظ</button><button class="btn" type="button" data-cancel>إلغاء</button><button class="btn warn" type="button" data-del="${s.key}" title="ضغط مطوّل للحذف">حذف الوردية</button></div>
           </div>` : ""}
         </li>`;
     }
@@ -482,6 +592,7 @@
       }));
       box.querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () => { editingKey = null; renderLog(shiftsList()); }));
       box.querySelectorAll("[data-save]").forEach((b) => b.addEventListener("click", () => saveShiftEdit(b.dataset.save, b)));
+      box.querySelectorAll("[data-del]").forEach((b) => olvHoldConfirm(b, () => deleteShift(b.dataset.del), { hint: "اضغط مطوّلًا لحذف الوردية كاملة" }));
     }
     $("more-btn").addEventListener("click", () => { daysShown += DAYS_STEP; renderLog(shiftsList()); });
 
@@ -492,6 +603,9 @@
       const inVal = li.querySelector("[data-edit-in]").value;
       const outVal = li.querySelector("[data-edit-out]").value;
       if (!inVal) { olvShowError(errBox, new Error("وقت الدخول مطلوب")); return; }
+      if (outVal && utcDay(new Date(outVal).toISOString()) !== utcDay(new Date(inVal).toISOString())) {
+        olvShowError(errBox, new Error("الخروج لازم يكون بنفس يوم الدخول (حسب حساب الورديات والرواتب)")); return;
+      }
       btn.disabled = true;
       try {
         const newInIso = new Date(inVal).toISOString();
@@ -540,6 +654,7 @@
         if (error) throw error;
         punches = data || [];
         editingKey = null;
+        closingKey = null;
         daysShown = DAYS_STEP;
         render();
       } catch (err) {
@@ -571,16 +686,21 @@
       try {
         const timeVal = $("p-time").value;
         if (!timeVal) throw new Error("وقت البصمة مطلوب");
-        const { error } = await window.supabaseClient.from("employee_punches").insert({
-          profile_id: $("p-employee").value,
-          punched_at: new Date(timeVal).toISOString(),
-          source: "manual",
-          note: $("p-note").value.trim() || null,
-        });
+        const inIso = new Date(timeVal).toISOString();
+        const outVal = $("p-out").value;
+        const note = $("p-note").value.trim() || null;
+        const rows = [{ profile_id: $("p-employee").value, punched_at: inIso, source: "manual", note }];
+        if (outVal) {
+          const outIso = new Date(outVal).toISOString();
+          if (outIso <= inIso) throw new Error("وقت الخروج لازم يكون بعد وقت الدخول");
+          if (utcDay(outIso) !== utcDay(inIso)) throw new Error("الخروج لازم يكون بنفس يوم الدخول (حسب حساب الورديات والرواتب)");
+          rows.push({ profile_id: rows[0].profile_id, punched_at: outIso, source: "manual", note });
+        }
+        const { error } = await window.supabaseClient.from("employee_punches").insert(rows);
         if (error) throw error;
         $("punch-form").reset();
         openPunch(false);
-        olvToast("انضافت البصمة", { type: "ok", icon: "check" });
+        olvToast("انضافت الوردية", { type: "ok", icon: "check" });
         await runReport();
       } catch (err) {
         if (err && err.code === "23505") err = new Error("في بصمة مسجّلة مسبقًا لهذا الموظف بنفس هذا الوقت تمامًا");
