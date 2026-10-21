@@ -459,7 +459,7 @@
     const round2 = (n) => Math.round(n * 100) / 100;
 
     function newLine(over) {
-      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
@@ -471,6 +471,7 @@
       const pct = document.getElementById("pi-discount-mode").value === "pct";
       return { pct: pct ? Math.min(Math.max(v, 0), 100) : null, amount: pct ? 0 : Math.max(v, 0) };
     }
+    const lineRate = (l, def) => (l.tax === "" || l.tax == null || !Number.isFinite(Number(l.tax))) ? def : Math.min(Math.max(Number(l.tax), 0), 100);
     function computeTotals() {
       const subtotal = subtotalOf();
       const d = discountInputs();
@@ -478,7 +479,17 @@
       const net = round2(subtotal - discount);
       const rate = Math.min(Math.max(Number(document.getElementById("pi-tax-rate").value) || 0, 0), 100);
       const inclusive = document.getElementById("pi-tax-mode").value === "incl";
-      const tax = inclusive ? round2(net - net / (1 + rate / 100)) : round2(net * rate / 100);
+      // ضريبة كل سطر: نسبته الخاصة لو انكتبت، وإلا نسبة الفاتورة (نفس حساب السيرفر؛ الخصم موزّع بالتناسب)
+      let taxRaw = 0;
+      if (subtotal > 0) {
+        const share = net / subtotal;
+        lines.forEach((l) => {
+          const r = lineRate(l, rate);
+          const base = lineTotal(l) * share;
+          taxRaw += inclusive ? base - base / (1 + r / 100) : base * r / 100;
+        });
+      } else taxRaw = 0;
+      const tax = round2(taxRaw);
       const total = inclusive ? net : round2(net + tax);
       return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct };
     }
@@ -738,6 +749,17 @@
       }
     });
 
+    // نسبة الضريبة الفعلية للفاتورة (بتختلف عن النسبة العامة لو في سطور بنسب خاصة)
+    function effTaxRate(i) {
+      const base = i.tax_inclusive ? Number(i.total_amount) - Number(i.tax_amount) : Number(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount) - Number(i.discount_amount || 0);
+      const eff = base > 0 ? Math.round(Number(i.tax_amount) / base * 10000) / 100 : Number(i.tax_rate);
+      return Math.abs(eff - Number(i.tax_rate)) < 0.05 ? Number(i.tax_rate) : eff;
+    }
+    // ضريبة خاصة بالسطر (اختياري): فاضي = نسبة الفاتورة، 0 = معفى
+    function taxHtml(line) {
+      if (!line.taxOpen && line.tax === "") return `<button type="button" class="pi-newbtn" data-act="tax-open">％ ضريبة مختلفة لهالمادة؟</button>`;
+      return `<div class="pi-bonus-row"><span>ضريبة هالمادة %</span><input type="number" data-f="tax" min="0" max="100" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.tax)}" placeholder="نسبة الفاتورة" aria-label="نسبة ضريبة هالمادة"><small class="hint">فاضي = نسبة الفاتورة، 0 = معفاة</small></div>`;
+    }
     function renderLines() {
       renderBulkBar();
       const body = document.getElementById("pi-lines");
@@ -758,6 +780,7 @@
             <div data-stock>${stockNote(line, it)}</div>
             <div data-warn>${priceWarning(line, it)}</div>
             ${bonusHtml(line, it)}
+            ${taxHtml(line)}
           </td>
           <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
           <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}" placeholder="الكمية" aria-label="الكمية"></td>
@@ -882,6 +905,7 @@
       } else if (f === "qty") line.qty = e.target.value;
       else if (f === "price") line.price = e.target.value;
       else if (f === "bonus") line.bonus = e.target.value;
+      else if (f === "tax") line.tax = e.target.value;
       else if (f === "bGet") line.bGet = e.target.value;
       else if (f === "bFactor") line.bFactor = e.target.value;
       else if (f === "bOther") line.bOther = e.target.value;
@@ -936,6 +960,7 @@
       const btn = e.target.closest("[data-act]"); if (!btn) return;
       const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
       if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
+      if (btn.dataset.act === "tax-open") { line.taxOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="tax"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-mode") {
         if (line.bMode === "ratio") { const t = bonusOf(line); line.bonus = t > 0 ? String(t) : ""; line.bMode = "total"; }
@@ -1596,6 +1621,7 @@
           const o = { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1e8) / 1e8 };
           // بونص: الكمية = المشتراة + المجانية، والسعر = المدفوع ÷ الكمية (بدقة عالية حتى يضل إجمالي السطر نفسه بالضبط)
           if (bonus > 0) { o.qty = Math.round((Number(l.qty) * f + bonus) * 1000) / 1000; o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8; }
+          if (l.tax !== "" && l.tax != null && Number.isFinite(Number(l.tax))) o.tax_rate = lineRate(l, 0);
           return o;
         });
         const { error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
@@ -1775,7 +1801,7 @@
           </button>
           <div class="pv-detail" id="det-${i.id}" hidden>
             ${Number(i.discount_amount) > 0 || Number(i.tax_amount) > 0
-              ? `<div class="hint" style="margin-bottom:6px;">مجموع الأصناف <b>${money(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount)}</b>${Number(i.discount_amount) > 0 ? ` — خصم <b>${money(i.discount_amount)}</b>${i.discount_pct ? ` (${Number(i.discount_pct)}%)` : ""}` : ""}${Number(i.tax_amount) > 0 ? ` — ضريبة ${Number(i.tax_rate)}% = <b>${money(i.tax_amount)}</b> (${i.tax_inclusive ? "الأسعار كانت شاملة" : "أُضيفت فوق الأسعار"}، ${i.tax_recoverable === false ? "غير قابلة للاسترداد" : "قابلة للاسترداد"})` : ""}</div>` : ""}
+              ? `<div class="hint" style="margin-bottom:6px;">مجموع الأصناف <b>${money(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount)}</b>${Number(i.discount_amount) > 0 ? ` — خصم <b>${money(i.discount_amount)}</b>${i.discount_pct ? ` (${Number(i.discount_pct)}%)` : ""}` : ""}${Number(i.tax_amount) > 0 ? ` — ضريبة ${effTaxRate(i)}% = <b>${money(i.tax_amount)}</b> (${i.tax_inclusive ? "الأسعار كانت شاملة" : "أُضيفت فوق الأسعار"}، ${i.tax_recoverable === false ? "غير قابلة للاسترداد" : "قابلة للاسترداد"})` : ""}</div>` : ""}
             <div data-det-body>جاري التحميل...</div>
             ${i.voided && i.replaced_by ? `<div class="pi-warn">انعدّلت، الفاتورة الجديدة مكانها${(invRows.find((x) => x.id === i.replaced_by) || {}).doc_no ? " (" + olvDocNo("purchase", invRows.find((x) => x.id === i.replaced_by).doc_no) + ")" : ""}</div>` : i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
             <div class="pv-acts">
@@ -2031,7 +2057,7 @@
       const newLines = (data || []).map((p) => {
         const key = p.ingredient_id ? "ingredient:" + p.ingredient_id : p.supply_id ? "supply:" + p.supply_id : null;
         const price = p.list_price != null ? Number(p.list_price) : Number(p.unit_price);
-        return newLine({ itemKey: key && items.some((i) => i.kind + ":" + i.id === key) ? key : null, typed: p.item_name, unmatchedName: (key && items.some((i) => i.kind + ":" + i.id === key)) ? "" : p.item_name, unitMode: "stock", qty: String(Number(p.quantity)), price: String(price) });
+        return newLine({ itemKey: key && items.some((i) => i.kind + ":" + i.id === key) ? key : null, typed: p.item_name, unmatchedName: (key && items.some((i) => i.kind + ":" + i.id === key)) ? "" : p.item_name, unitMode: "stock", qty: String(Number(p.quantity)), price: String(price), tax: p.line_tax_rate != null ? String(Number(p.line_tax_rate)) : "" });
       });
       if (!newLines.length) throw new Error("ما لقيت أصناف لهالفاتورة");
       endEdit();
