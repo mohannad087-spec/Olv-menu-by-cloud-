@@ -68,7 +68,17 @@
   .at-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px;}
   .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
   .btn.go:disabled{opacity:.6;}
+  .at-bar{display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .at-bar .at-chips{margin-bottom:0;}
   .at-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; align-items:center;}
+  .at-tabs{display:flex; gap:4px; padding:4px; margin-bottom:14px; border-radius:16px; background:var(--ink-3); width:fit-content; max-width:100%;}
+  .at-tab{min-height:44px; padding:0 20px; border:0; border-radius:12px; background:none; color:var(--muted); font:inherit; font-size:14.5px; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), color .15s var(--ease);}
+  .at-tab .icon{width:17px; height:17px;}
+  .at-tab .n{font-size:12.5px; font-variant-numeric:tabular-nums; opacity:.8;}
+  .at-tab[aria-selected="true"]{background:var(--ink-2); color:var(--paper); font-weight:800; box-shadow:0 1px 4px rgba(47,36,22,.12);}
+  .at-tab:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  [role="tabpanel"][hidden]{display:none;}
+  @media (max-width:640px){ .at-tabs{width:100%;} .at-tab{flex:1; justify-content:center; padding:0 10px;} }
   .at-chip{
     min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2);
     color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
@@ -130,8 +140,8 @@
   .at-logh{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
   .at-logh h2{margin:0;}
   .at-logh h2 .n{color:var(--muted); font-weight:500; font-size:14px;}
-  .day-h{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:16px 0 6px; padding:0 4px;}
-  .day-h:first-of-type{margin-top:8px;}
+  .day-card{margin-bottom:12px; padding:14px 16px 8px;}
+  .day-h{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:0 0 4px; padding:0 4px 8px; border-bottom:1px solid var(--hair-soft);}
   .day-h b{font-size:15px; font-weight:800;}
   .day-h small{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
   .sh-list{list-style:none; margin:0; padding:0;}
@@ -220,19 +230,28 @@
       </form>
     </section>
 
+    <div class="at-bar">
     <div class="at-chips" id="period-chips" role="group" aria-label="الفترة">
       <button class="at-chip" type="button" data-period="today" aria-pressed="false">اليوم</button>
       <button class="at-chip" type="button" data-period="yesterday" aria-pressed="false">أمس</button>
       <button class="at-chip" type="button" data-period="week" aria-pressed="false">آخر 7 أيام</button>
       <button class="at-chip" type="button" data-period="month" aria-pressed="true">هالشهر</button>
       <button class="at-chip" type="button" data-period="custom" aria-pressed="false" id="custom-chip"></button>
-      <select class="at-emp" id="f-employee" aria-label="الموظف" hidden><option value="">كل الموظفين</option></select>
+    </div>
+    <select class="at-emp" id="f-employee" aria-label="الموظف" hidden><option value="">كل الموظفين</option></select>
     </div>
     <div class="at-custom" id="custom-range" hidden>
       <div class="field"><label for="from_date">من</label><input type="date" id="from_date"></div>
       <div class="field"><label for="to_date">إلى</label><input type="date" id="to_date"></div>
       <button class="btn go" type="button" id="custom-apply">عرض</button>
     </div>
+
+    <div class="at-tabs" role="tablist" aria-label="أقسام الحضور">
+      <button class="at-tab" type="button" role="tab" id="tab-overview" aria-selected="true" aria-controls="pane-overview" data-tab="overview"></button>
+      <button class="at-tab" type="button" role="tab" id="tab-log" aria-selected="false" aria-controls="pane-log" data-tab="log" tabindex="-1"></button>
+    </div>
+
+    <div id="pane-overview" role="tabpanel" aria-labelledby="tab-overview">
 
     <div class="stats at-stats">
       <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-hrs"></div>
@@ -250,11 +269,12 @@
       <section class="group"><h2 id="hrs-title"></h2><div id="hrs-box"><div class="at-empty">جاري التحميل...</div></div></section>
     </div>
 
-    <section class="group">
-      <div class="at-logh"><h2 id="log-title"></h2></div>
+    </div>
+
+    <div id="pane-log" role="tabpanel" aria-labelledby="tab-log" hidden>
       <div id="log-box"><div class="at-empty">جاري التحميل...</div></div>
       <div class="at-more" id="more" hidden><button class="btn" type="button" id="more-btn">عرض أيام أقدم</button></div>
-    </section>
+    </div>
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -314,7 +334,18 @@
     $("ic-open").innerHTML = olvIcon("bolt");
     $("now-title").innerHTML = olvIcon("bolt") + " على الدوام هلأ";
     $("hrs-title").innerHTML = olvIcon("barChart") + " ساعات كل موظف";
-    $("log-title").innerHTML = olvIcon("calendar") + ' السجل <span class="n" id="log-count"></span>';
+    $("tab-overview").innerHTML = olvIcon("barChart") + "<span>نظرة عامة</span>";
+    $("tab-log").innerHTML = olvIcon("calendar") + '<span>السجل</span> <span class="n" id="log-count"></span>';
+    function setTab(t) {
+      document.querySelectorAll(".at-tab").forEach((b) => {
+        const on = b.dataset.tab === t;
+        b.setAttribute("aria-selected", String(on));
+        b.tabIndex = on ? 0 : -1;
+      });
+      $("pane-overview").hidden = t !== "overview";
+      $("pane-log").hidden = t !== "log";
+    }
+    document.querySelectorAll(".at-tab").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
 
     function rangeFor(p) {
       const t = todayIso();
@@ -423,7 +454,7 @@
     }
 
     function renderLog(shifts) {
-      $("log-count").textContent = shifts.length ? `(${shifts.length} وردية)` : "";
+      $("log-count").textContent = shifts.length ? `(${shifts.length})` : "";
       if (!shifts.length) {
         $("log-box").innerHTML = `<div class="at-empty">ما في بصمات بهالفترة.</div>`;
         $("more").hidden = true;
@@ -440,8 +471,8 @@
       const shown = days.slice(0, daysShown);
       $("log-box").innerHTML = shown.map(({ d, list }) => {
         const hrs = list.filter((s) => s.clockOut).reduce((a, s) => a + hoursOf(s), 0);
-        return `<div class="day-h"><b>${dayLabel(d)}</b><small>${list.length} وردية · ${fmtHrs(hrs)} ساعة</small></div>
-          <ul class="sh-list">${list.sort((a, b) => a.clockIn.punched_at.localeCompare(b.clockIn.punched_at)).map(rowHtml).join("")}</ul>`;
+        return `<section class="group day-card"><div class="day-h"><b>${dayLabel(d)}</b><small>${list.length} وردية · ${fmtHrs(hrs)} ساعة</small></div>
+          <ul class="sh-list">${list.sort((a, b) => a.clockIn.punched_at.localeCompare(b.clockIn.punched_at)).map(rowHtml).join("")}</ul></section>`;
       }).join("");
       $("more").hidden = days.length <= daysShown;
       if (days.length > daysShown) $("more-btn").textContent = `عرض أيام أقدم (${days.length - daysShown})`;
