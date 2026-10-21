@@ -9,6 +9,9 @@ const INIT = Buffer.from([ESC, 0x40]); // إعادة ضبط الطابعة
 const FEED_LINES = (n) => Buffer.from([ESC, 0x64, n]); // تغذية ورق
 const CUT = Buffer.from([GS, 0x56, 0x42, 0x00]); // قص الورق (جزئي)
 
+// نبضة فتح درج الكاش (ESC p): المخرج 0، نبضة 50ms ثم 500ms راحة
+const DRAWER_KICK = Buffer.from([ESC, 0x70, 0x00, 0x19, 0xfa]);
+
 // يحوّل عنصر canvas (من napi-rs/canvas) إلى أمر GS v 0 (طباعة صورة نقطية)
 // كل بكسل أغمق من العتبة يُعتبر نقطة سوداء
 function canvasToRaster(canvas, threshold = 160) {
@@ -40,12 +43,13 @@ function canvasToRaster(canvas, threshold = 160) {
 }
 
 // يبني رسالة الطباعة الكاملة الجاهزة للإرسال إلى الطابعة عبر TCP
-function buildTicketBuffer(canvas) {
+function buildTicketBuffer(canvas, openDrawer = false) {
   return Buffer.concat([
     INIT,
     canvasToRaster(canvas),
     FEED_LINES(4),
     CUT,
+    ...(openDrawer ? [DRAWER_KICK] : []),
   ]);
 }
 

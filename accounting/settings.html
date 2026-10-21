@@ -359,6 +359,9 @@
         <div class="field">
           <label><input type="checkbox" id="pi-enabled" checked> مفعّلة</label>
         </div>
+        <div class="field" id="pi-drawer-field" hidden>
+          <label><input type="checkbox" id="pi-drawer"> درج الكاش موصول بهالطابعة — افتحه مع كل فاتورة بيع</label>
+        </div>
         <div id="pi-station-fields">
           <div class="field">
             <label>التصنيفات اللي بتطبعها هالمحطة</label>
@@ -946,7 +949,7 @@
         body.innerHTML = printersList.map((p) => `
           <tr${p.enabled ? "" : ' style="opacity:.55;"'}>
             <td>${esc(p.name)}${p.enabled ? "" : " (معطّلة)"}${p.ticket_layout && Object.keys(p.ticket_layout).length ? '<span class="layout-badge">تصميم مخصّص</span>' : ""}</td>
-            <td>${p.kind === "receipt" ? "كاشير — فاتورة كاملة" : "محطة تحضير"}</td>
+            <td>${p.kind === "receipt" ? "كاشير — فاتورة كاملة" + (p.open_drawer ? " + درج" : "") : "محطة تحضير"}</td>
             <td dir="ltr" style="text-align:right;">${esc(p.ip || "—")}:${p.port}</td>
             <td>${p.kind === "receipt" ? "كل الأصناف" : (
               [...(p.categories || []).map(esc), ...(p.catch_unassigned ? ["أي صنف غير موزّع"] : [])].join("، ") || "—"
@@ -1140,7 +1143,9 @@
     });
 
     function syncPrinterFormKind() {
-      document.getElementById("pi-station-fields").hidden = document.getElementById("pi-kind").value !== "station";
+      const isStation = document.getElementById("pi-kind").value === "station";
+      document.getElementById("pi-station-fields").hidden = !isStation;
+      document.getElementById("pi-drawer-field").hidden = isStation;
     }
 
     function openPrinterForm(id) {
@@ -1153,6 +1158,7 @@
       document.getElementById("pi-port").value = p ? p.port : 9100;
       document.getElementById("pi-enabled").checked = p ? p.enabled : true;
       document.getElementById("pi-catch").checked = p ? p.catch_unassigned : false;
+      document.getElementById("pi-drawer").checked = p ? !!p.open_drawer : false;
       const selected = new Set(p ? (p.categories || []) : []);
       const allCats = [...new Set([...productCategories, ...selected])];
       document.getElementById("pi-categories").innerHTML = allCats.length
@@ -1185,6 +1191,7 @@
           ? [...document.querySelectorAll("#pi-categories input[data-pi-cat]:checked")].map((c) => c.dataset.piCat)
           : [],
         catch_unassigned: kind === "station" && document.getElementById("pi-catch").checked,
+        open_drawer: kind === "receipt" && document.getElementById("pi-drawer").checked,
       };
       try {
         const q = editingPrinterId

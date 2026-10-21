@@ -163,7 +163,11 @@ async function processJob(job, settings, printers, saleCache) {
       }
     }
 
-    const buffer = buildTicketBuffer(canvas);
+    // درج الكاش موصول بطابعة الكاشير: بينفتح مع فاتورة البيع (مش إعادة الطباعة)
+    // وبالطباعة التجريبية حتى تتأكد إنو الدرج شغّال
+    const openDrawer = !!(printer && printer.open_drawer &&
+      ((job.job_type === "receipt" && !job.reprint_no) || isTest));
+    const buffer = buildTicketBuffer(canvas, openDrawer);
     await sendToPrinter(target.ip, target.port || 9100, buffer);
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
