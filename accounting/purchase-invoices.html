@@ -93,6 +93,15 @@
   .pi-snap-ic{font-size:28px; line-height:1;}
   .pi-snap b{display:block; font-size:16px; color:var(--gold-hi);}
   .pi-snap small{display:block; font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .pi-pages{display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; align-items:center;}
+  .pi-pages[hidden]{display:none;}
+  .pi-page{position:relative; width:72px; height:92px; border-radius:12px; overflow:hidden; border:1.5px solid var(--gold); background:rgba(var(--gold-rgb),.07); display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted);}
+  .pi-page img{width:100%; height:100%; object-fit:cover;}
+  .pi-page i{position:absolute; bottom:3px; inset-inline-start:3px; min-width:20px; padding:0 5px; border-radius:10px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; font-style:normal; text-align:center; line-height:20px;}
+  .pi-page button{position:absolute; top:3px; inset-inline-end:3px; width:26px; height:26px; border:0; border-radius:50%; background:rgba(0,0,0,.65); color:#fff; font-size:15px; line-height:1; cursor:pointer;}
+  .pi-page-add{width:72px; height:92px; border-radius:12px; border:1.5px dashed var(--gold); background:transparent; color:var(--gold-hi); font:inherit; font-size:12px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;}
+  .pi-page-add b{font-size:22px; line-height:1;}
+  .pi-read{margin-top:10px; width:100%;}
   .pi-snaps{display:grid; grid-template-columns:1fr; gap:10px;}
   @media(min-width:700px){ .pi-snaps{grid-template-columns:1fr 1fr;} }
   button.pi-snap{width:100%; font:inherit; color:inherit; text-align:right;}
@@ -244,15 +253,16 @@
       <div class="pi-snaps">
         <label class="pi-snap" for="pi-file">
           <span class="pi-snap-ic">📷</span>
-          <span><b>صوّر الفاتورة</b><small>بيقرأها ويعبّي الأصناف والأسعار، وأنت بتراجع قبل الحفظ</small></span>
+          <span><b>صوّر الفاتورة</b><small>بيقرأها ويعبّي الأصناف والأسعار. الفاتورة طويلة؟ زيد صورة ثانية وثالثة</small></span>
         </label>
         <button type="button" class="pi-snap scan" id="pi-scan">
           <span class="pi-snap-ic" aria-hidden="true">▥</span>
           <span><b>امسح الباركود</b><small>بكاميرا التلفون، أو امسح بجهاز الماسح مباشرة بأي وقت. كل مسحة = حبة</small></span>
         </button>
       </div>
-      <input type="file" id="pi-file" accept="image/*,application/pdf" hidden>
-      <button type="button" id="pi-ai-btn" hidden disabled></button>
+      <input type="file" id="pi-file" accept="image/*,application/pdf" multiple hidden>
+      <div class="pi-pages" id="pi-pages" hidden></div>
+      <button type="button" class="btn go pi-read" id="pi-ai-btn" hidden disabled></button>
       <div class="hint" id="pi-ai-status" style="margin:8px 0 0;"></div>
 
       <div class="row2" style="margin-top:14px;">
@@ -1310,9 +1320,40 @@
     const aiBtn = document.getElementById("pi-ai-btn");
     const aiStatus = document.getElementById("pi-ai-status");
     // اختيار الصورة بيقرأها فورًا (بدون زر ثاني)
-    document.getElementById("pi-file").addEventListener("change", (e) => {
-      aiBtn.disabled = !e.target.files[0];
-      if (e.target.files[0]) aiBtn.click();
+    // صفحات الفاتورة (صورة أو أكتر): كل اختيار بينضاف للقائمة، وبعدين زر «اقرأ» بيقرأهم كلهم مع بعض
+    const MAX_PAGES = 6;
+    const pagesBox = document.getElementById("pi-pages");
+    const fileInput = document.getElementById("pi-file");
+    let pages = [];          // { file, url }
+    let lastAiLines = null;  // أسطر القراءة السابقة: بنستبدلها لو قرأ تاني حتى ما تتكرر
+    function renderPages() {
+      pagesBox.hidden = !pages.length;
+      aiBtn.hidden = !pages.length;
+      aiBtn.disabled = !pages.length;
+      aiBtn.textContent = pages.length > 1 ? `اقرأ الفاتورة (${pages.length} صور)` : "اقرأ الفاتورة";
+      pagesBox.innerHTML = pages.map((p, i) => `<div class="pi-page">${p.url ? `<img src="${p.url}" alt="صفحة ${i + 1}">` : "PDF"}<i>${i + 1}</i><button type="button" data-rm="${i}" aria-label="شيل الصورة ${i + 1}">×</button></div>`).join("")
+        + (pages.length < MAX_PAGES ? `<button type="button" class="pi-page-add" id="pi-page-add"><b>+</b>صورة ثانية</button>` : "");
+    }
+    function clearPages() {
+      pages.forEach((p) => p.url && URL.revokeObjectURL(p.url));
+      pages = []; lastAiLines = null; fileInput.value = "";
+      renderPages();
+    }
+    fileInput.addEventListener("change", (e) => {
+      const room = MAX_PAGES - pages.length;
+      const picked = [...e.target.files];
+      picked.slice(0, room).forEach((f) => pages.push({ file: f, url: f.type.startsWith("image/") && f.type !== "image/heic" ? URL.createObjectURL(f) : null }));
+      fileInput.value = "";
+      if (picked.length > room) olvShowError(document.getElementById("err"), new Error(`الحد الأقصى ${MAX_PAGES} صور للفاتورة`));
+      renderPages();
+    });
+    pagesBox.addEventListener("click", (e) => {
+      if (e.target.closest("#pi-page-add")) { fileInput.click(); return; }
+      const rm = e.target.closest("[data-rm]");
+      if (!rm) return;
+      const [gone] = pages.splice(Number(rm.dataset.rm), 1);
+      if (gone && gone.url) URL.revokeObjectURL(gone.url);
+      renderPages();
     });
     document.getElementById("pi-no").addEventListener("input", updateTotals);
 
@@ -1345,17 +1386,18 @@
     aiBtn.addEventListener("click", async () => {
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
-      const file = document.getElementById("pi-file").files[0];
-      if (!file) return;
+      if (!pages.length) return;
       if (!navigator.onLine) { olvShowError(errBox, new Error("قراءة الفاتورة بتحتاج اتصال بالإنترنت")); return; }
       aiBtn.disabled = true;
-      aiStatus.textContent = "عم يقرأ الفاتورة... (10–30 ثانية)";
+      aiStatus.textContent = pages.length > 1 ? `عم يقرأ ${pages.length} صور... (ممكن ياخد حتى دقيقة)` : "عم يقرأ الفاتورة... (10–30 ثانية)";
       // السيرفر بيرد دايمًا خلال دقيقتين تقريبًا؛ هاد احتياط إذا النت نفسه علق، حتى ما يضل يلفّ عالفاضي
       const ctrl = new AbortController();
       const slowTimer = setTimeout(() => { aiStatus.textContent = "لسا عم يقرأ... الخدمة المجانية بطيئة هلق، استنى شوي"; }, 35000);
       const abortTimer = setTimeout(() => ctrl.abort(), 140000);
       try {
-        const payload = await fileToPayload(file);
+        const images = [];
+        for (const p of pages) images.push(await fileToPayload(p.file));
+        const payload = { images };
         const { data: { session } } = await window.supabaseClient.auth.getSession();
         const cfg = window.OLV_ACCOUNTING_CONFIG || {};
         const res = await fetch(cfg.SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/read-invoice", {
@@ -1372,7 +1414,7 @@
         olvShowError(errBox, err && err.name === "AbortError" ? new Error("قراءة الفاتورة طوّلت كتير وما وصل رد — تأكد من النت وجرّب كمان مرة") : err);
       } finally {
         clearTimeout(slowTimer); clearTimeout(abortTimer);
-        aiBtn.disabled = !document.getElementById("pi-file").files[0];
+        aiBtn.disabled = !pages.length;
       }
     });
 
@@ -1394,7 +1436,11 @@
         if ((price == null) && it.line_total != null && qty > 0) price = Math.round(it.line_total / qty * 1000) / 1000;
         return { name: it.name, qty: qty == null ? "" : qty, price: price == null ? "" : price, unit: it.unit };
       });
+      // قراءة ثانية (بعد زيادة صورة): منشيل أسطر القراءة السابقة قبل ما نضيف الجديدة، حتى ما تتكرر
+      if (lastAiLines) lines = lines.filter((l) => !lastAiLines.has(l));
+      const before = new Set(lines);
       addParsedLines(parsed);
+      lastAiLines = new Set(lines.filter((l) => !before.has(l)));
       const unmatched = lines.filter((l) => !itemOf(l) && l.unmatchedName).length;
       const guessed = lines.filter((l) => itemOf(l) && l.guessFrom).length;
       aiStatus.textContent = `تمت القراءة: ${parsed.length} صنف${guessed ? ` (${guessed} انربط بالأقرب — تأكد منه)` : ""}${unmatched ? ` (${unmatched} مش موجود بالمخزون — بالأحمر، اختر أو أضفه بضغطة)` : ""}${supplierNote}. راجع كل سطر قبل الحفظ.`;
@@ -1418,6 +1464,12 @@
     });
 
     // ---------- الحفظ ----------
+    // أكتر من صورة: المسارات بتنحفظ بنفس العمود مفصولة بـ "|" (الحد 6 صور حتى تضل تحت 300 حرف)
+    async function uploadAttachments(files) {
+      const paths = [];
+      for (const f of files) paths.push(await uploadAttachment(f));
+      return paths.length ? paths.join("|") : null;
+    }
     async function uploadAttachment(file) {
       if (!file) return null;
       if (file.size > 8 * 1024 * 1024) throw new Error("حجم الملف أكبر من 8 ميغا — صغّر الصورة أو استخدم PDF أصغر");
@@ -1536,7 +1588,7 @@
       const btn = document.getElementById("pi-save");
       btn.disabled = true;
       try {
-        const attachment = (await uploadAttachment(document.getElementById("pi-file").files[0])) || (editingId ? editingAttach : null);
+        const attachment = (await uploadAttachments(pages.map((p) => p.file))) || (editingId ? editingAttach : null);
         const payloadLines = active.map((l) => {
           const it = itemOf(l); const f = factorOf(l, it);
           const bonus = bonusOf(l);
@@ -1573,7 +1625,7 @@
         const dBanner = document.getElementById("pi-draft-banner"); if (dBanner) dBanner.remove();
         lines = [newLine()];
         ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
-        document.getElementById("pi-file").value = "";
+        clearPages();
         document.getElementById("pi-supplier").value = "";
         document.querySelector('#pi-pay input[value="cash"]').checked = true;
         payMode = "cash";
@@ -1728,7 +1780,7 @@
             ${i.voided && i.replaced_by ? `<div class="pi-warn">انعدّلت، الفاتورة الجديدة مكانها${(invRows.find((x) => x.id === i.replaced_by) || {}).doc_no ? " (" + olvDocNo("purchase", invRows.find((x) => x.id === i.replaced_by).doc_no) + ")" : ""}</div>` : i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
             <div class="pv-acts">
               ${i.showPay ? `<button class="btn go" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
-              ${i.attachment_path ? `<button class="btn" data-file="${olvEsc(i.attachment_path)}">صورة الفاتورة</button>` : ""}
+              ${i.attachment_path ? i.attachment_path.split("|").map((pth, n, all) => `<button class="btn" data-file="${olvEsc(pth)}">${all.length > 1 ? "صورة " + (n + 1) : "صورة الفاتورة"}</button>`).join("") : ""}
               ${!i.voided && isOwner ? `<button class="btn" data-edit="${i.id}">تعديل</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
             </div>
@@ -1962,7 +2014,7 @@
     function resetForm() {
       lines = [newLine()];
       ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
-      document.getElementById("pi-file").value = "";
+      clearPages();
       document.getElementById("pi-supplier").value = "";
       document.querySelector('#pi-pay input[value="cash"]').checked = true;
       payMode = "cash";

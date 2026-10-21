@@ -29,6 +29,9 @@ function json(data: unknown, status = 200) {
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"]);
 // حد أقصى ~6 ميغا بعد ترميز base64 (الواجهة بتصغّر الصور قبل الإرسال)
 const MAX_BASE64_CHARS = 8_000_000;
+// فاتورة طويلة ممكن تنصوّر بأكتر من صورة: حد أقصى 6 صور ومجموع ~16 ميغا
+const MAX_IMAGES = 6;
+const MAX_TOTAL_CHARS = 16_000_000;
 
 const PROMPT = `أنت قارئ فواتير مشتريات لمطعم. اقرأ فاتورة المورّد المرفقة (عربية أو إنجليزية، مطبوعة أو بخط اليد)
 وأرجع البيانات بدقة. القواعد:
@@ -37,7 +40,8 @@ const PROMPT = `أنت قارئ فواتير مشتريات لمطعم. اقرأ
 - إذا كان سعر الوحدة غير مكتوب واستطعت حسابه من إجمالي السطر ÷ الكمية فاحسبه. إذا لم تكن متأكدًا اترك الحقل null.
 - لا تخترع أصنافًا أو أرقامًا غير موجودة بالصورة، ولا تدمج سطرين.
 - تجاهل سطور المجاميع والضريبة والخصم والملاحظات (لا تضعها ضمن الأصناف). ضع الإجمالي النهائي للفاتورة في total.
-- التاريخ بصيغة YYYY-MM-DD إن وُجد. رقم الفاتورة واسم المورّد إن وُجدا.`;
+- التاريخ بصيغة YYYY-MM-DD إن وُجد. رقم الفاتورة واسم المورّد إن وُجدا.
+- إذا أُرفق أكثر من صورة فهي صفحات/أجزاء من نفس الفاتورة بالترتيب. اقرأها كفاتورة واحدة وأرجع قائمة أصناف واحدة. قد يتكرر جزء من الأسطر في آخر صورة وأول التي بعدها (تداخل التصوير): لا تكرّر السطر إذا ظهر مرتين لنفس الصنف والكمية والسعر عند الحدّ بين صورتين، لكن سطرين متطابقين فعلًا داخل نفس الصورة يبقيان سطرين. الإجمالي النهائي عادةً بآخر صورة.`;
 
 const RESPONSE_SCHEMA = {
   type: "OBJECT",
@@ -91,14 +95,19 @@ Deno.serve(async (req) => {
   } catch {
     return json({ ok: false, error: "طلب غير صالح" }, 400);
   }
-  const mime = String(body.mime_type || "");
-  const data = String(body.data || "");
-  if (!ALLOWED_MIME.has(mime)) return json({ ok: false, error: "نوع الملف غير مدعوم (صورة JPG/PNG/WebP أو PDF)" }, 400);
-  if (!data || data.length > MAX_BASE64_CHARS) return json({ ok: false, error: "الملف فاضي أو كبير زيادة (الحد ~6 ميغا)" }, 400);
+  // images: [{mime_type, data}] — وللتوافق مع القديم: mime_type + data لصورة وحدة
+  const rawImages = Array.isArray(body.images) ? body.images : [{ mime_type: body.mime_type, data: body.data }];
+  if (!rawImages.length || rawImages.length > MAX_IMAGES) return json({ ok: false, error: `من صورة لحد ${MAX_IMAGES} صور للفاتورة` }, 400);
+  const images = rawImages.map((im: any) => ({ mime: String(im?.mime_type || ""), data: String(im?.data || "") }));
+  for (const im of images) {
+    if (!ALLOWED_MIME.has(im.mime)) return json({ ok: false, error: "نوع الملف غير مدعوم (صورة JPG/PNG/WebP أو PDF)" }, 400);
+    if (!im.data || im.data.length > MAX_BASE64_CHARS) return json({ ok: false, error: "الملف فاضي أو كبير زيادة (الحد ~6 ميغا)" }, 400);
+  }
+  if (images.reduce((n, im) => n + im.data.length, 0) > MAX_TOTAL_CHARS) return json({ ok: false, error: "الصور كبيرة زيادة مجتمعة — صوّرها بحجم أصغر" }, 400);
 
   // المهلة وإعادة المحاولة والموديل البديل كلهم بـ_shared/gemini.ts
   try {
-    const ai = await callGemini(GEMINI_KEY, [{ text: PROMPT }, { inline_data: { mime_type: mime, data } }], { temperature: 0, responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA }, { tag: "read-invoice" });
+    const ai = await callGemini(GEMINI_KEY, [{ text: PROMPT }, ...images.map((im) => ({ inline_data: { mime_type: im.mime, data: im.data } }))], { temperature: 0, responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA }, { tag: "read-invoice" });
     if (!ai.ok) {
       if (ai.status === 429) return json({ ok: false, error: "وصلت الحد المجاني لقراءة الفواتير حاليًا — جرّب بعد دقيقة (أو بكرا) أو أدخلها يدويًا" }, 429);
       if (ai.timedOut) return json({ ok: false, error: "خدمة جوجل طوّلت كتير وما ردّت — جرّب كمان مرة بعد شوي" }, 504);
