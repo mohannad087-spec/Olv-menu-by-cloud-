@@ -1,7 +1,7 @@
 // شريط تحذير أحمر لو الطباعة "ساكتة" بمشكلة: برنامج الطباعة (print-bridge)
 // متوقف، أو مهمة طباعة عالقة أكتر من دقيقة، أو مهام فشلت مؤخرًا. بدون هالشي،
 // الكاشير بيشوف "تم البيع" والمطبخ ما بيوصله شي وما حدا بيعرف. بيتحقق كل
-// ٢٠ ثانية من أي صفحة، وما بيعرض شي لو الطباعة الآلية غير مفعّلة أصلًا.
+// ٢٠ ثانية من أي صفحة (فشل الطباعة التجريبية ما بيطلّع الشريط)، وما بيعرض شي لو الطباعة الآلية غير مفعّلة أصلًا.
 const OlvPrintHealth = (function () {
   const CHECK_MS = 20000;
   const STUCK_PENDING_SEC = 60;
@@ -42,7 +42,7 @@ const OlvPrintHealth = (function () {
         sb.from("printers").select("enabled"),
         sb.from("printer_settings").select("kitchen_enabled, receipt_enabled").eq("id", 1).maybeSingle(),
         sb.from("print_jobs").select("id, created_at").eq("status", "pending"),
-        sb.from("print_jobs").select("id, created_at").eq("status", "error"),
+        sb.from("print_jobs").select("id, created_at").eq("status", "error").neq("job_type", "test"),
         sb.from("print_jobs").select("id, created_at").eq("status", "stale"),
         sb.from("app_settings").select("value").eq("key", "print_bridge_heartbeat").maybeSingle(),
       ]);
