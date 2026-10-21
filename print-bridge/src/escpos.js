@@ -54,4 +54,9 @@ function buildTicketBuffer(canvas, openDrawer = false) {
   ]);
 }
 
-module.exports = { canvasToRaster, buildTicketBuffer };
+// فحص الدرج: بس أمر الفتح بدون ورقة
+function buildDrawerBuffer() {
+  return Buffer.concat([INIT, DRAWER_KICK]);
+}
+
+module.exports = { canvasToRaster, buildTicketBuffer, buildDrawerBuffer };

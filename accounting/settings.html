@@ -956,7 +956,7 @@
             )}</td>
             <td><div style="display:flex; gap:6px;">
               <button class="btn small gold" data-layout-printer="${p.id}">تخصيص الفاتورة</button>
-              <button class="btn small" data-test-printer="${p.id}">طباعة تجريبية</button>
+              <button class="btn small" data-test-printer="${p.id}">طباعة تجريبية</button>${p.kind === "receipt" ? `<button class="btn small" data-test-drawer="${p.id}">فحص الدرج</button>` : ""}
               <button class="btn small" data-edit-printer="${p.id}">تعديل</button>
               <button class="btn small danger" data-del-printer="${p.id}">حذف</button>
             </div></td>
@@ -967,6 +967,12 @@
         const { error } = await window.supabaseClient.rpc("staff_test_print", { p_printer_id: b.dataset.testPrinter });
         if (error) { olvShowError(document.getElementById("err"), error); return; }
         alert("أُرسلت طباعة تجريبية — لازم تطلع الورقة خلال ثواني. إذا ما طلعت، تحقق من الـIP والطابعة وتشغيل برنامج الطباعة");
+        await loadPrintJobs();
+      }));
+      body.querySelectorAll("[data-test-drawer]").forEach((b) => b.addEventListener("click", async () => {
+        const { error } = await window.supabaseClient.rpc("test_drawer", { p_printer_id: b.dataset.testDrawer });
+        if (error) { olvShowError(document.getElementById("err"), error); return; }
+        alert("أُرسل أمر فتح الدرج — لازم ينفتح خلال ثواني (بدون ورقة). إذا ما انفتح: تأكد إن برنامج الطباعة محدّث ومشغّل، وإن سلك الدرج بمنفذ الدرج (DK/RJ11) بالطابعة");
         await loadPrintJobs();
       }));
       body.querySelectorAll("[data-layout-printer]").forEach((b) => b.addEventListener("click", () => openLayoutEditor(b.dataset.layoutPrinter)));

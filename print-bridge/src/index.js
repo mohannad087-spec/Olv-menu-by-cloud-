@@ -6,7 +6,7 @@
 
 const { supabase } = require("./supabase");
 const { sendToPrinter } = require("./printer");
-const { buildTicketBuffer } = require("./escpos");
+const { buildTicketBuffer, buildDrawerBuffer } = require("./escpos");
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { buildReceiptTicket } = require("./ticket-receipt");
 const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
@@ -127,6 +127,13 @@ async function processJob(job, settings, printers, saleCache) {
   }
 
   try {
+    // فحص الدرج: بدون ورقة، بس أمر الفتح
+    if (isTest && job.test_layout && job.test_layout.drawer_only) {
+      await sendToPrinter(target.ip, target.port || 9100, buildDrawerBuffer());
+      await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
+      log(`✓ أمر فتح الدرج أُرسل لـ"${label}"`);
+      return;
+    }
     let canvas;
     // تصميم الطابعة (ticket_layout) — null = الشكل الافتراضي (والمسار القديم بلا طابعات)
     const layout = printer ? printer.ticket_layout : null;
