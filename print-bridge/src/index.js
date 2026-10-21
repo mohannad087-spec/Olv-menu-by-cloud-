@@ -171,7 +171,7 @@ async function processJob(job, settings, printers, saleCache) {
     await sendToPrinter(target.ip, target.port || 9100, buffer);
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
-    log(`✓ تمت الطباعة (${job.job_type}) على "${label}"${job.sale_id ? ` لعملية بيع ${job.sale_id}` : ""}`);
+    log(`✓ تمت الطباعة (${job.job_type}) على "${label}"${job.sale_id ? ` لعملية بيع ${job.sale_id}` : ""}${openDrawer ? " + أمر فتح الدرج" : ""}`);
   } catch (err) {
     await markJob(job.id, { status: "error", error_message: err.message });
     log(`✗ فشلت الطباعة على "${label}":`, err.message);

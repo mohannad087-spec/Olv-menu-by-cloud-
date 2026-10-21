@@ -9,8 +9,9 @@ const INIT = Buffer.from([ESC, 0x40]); // إعادة ضبط الطابعة
 const FEED_LINES = (n) => Buffer.from([ESC, 0x64, n]); // تغذية ورق
 const CUT = Buffer.from([GS, 0x56, 0x42, 0x00]); // قص الورق (جزئي)
 
-// نبضة فتح درج الكاش (ESC p): المخرج 0، نبضة 50ms ثم 500ms راحة
-const DRAWER_KICK = Buffer.from([ESC, 0x70, 0x00, 0x19, 0xfa]);
+// نبضة فتح درج الكاش (ESC p): بنبعتها على المخرجين (0 و1) لأن الدرج ممكن
+// يكون موصول على أي منهم حسب الطابعة. نبضة 50ms ثم 500ms راحة
+const DRAWER_KICK = Buffer.from([ESC, 0x70, 0x00, 0x19, 0xfa, ESC, 0x70, 0x01, 0x19, 0xfa]);
 
 // يحوّل عنصر canvas (من napi-rs/canvas) إلى أمر GS v 0 (طباعة صورة نقطية)
 // كل بكسل أغمق من العتبة يُعتبر نقطة سوداء
