@@ -302,6 +302,37 @@
   .change-row.insufficient .value{color:var(--danger-hi);}
 
   .checkout-confirm{width:100%; min-height:52px; font-size:16px;}
+  /* عرض الشاشة: عمودين (الملخص + طرق الدفع | لوحة المبلغ) بدل عمود طويل */
+  @media (min-width:700px){
+    .checkout-backdrop{padding:12px;}
+    .checkout-modal{max-width:min(1040px,96vw); padding:16px 22px 16px;}
+    .checkout-head{margin-bottom:8px;}
+    .checkout-body.has-cash{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:22px; align-items:start;}
+    .checkout-total{padding:6px 0 10px;}
+    .checkout-total .amount{font-size:40px;}
+    .checkout-summary{max-height:22vh; margin-bottom:12px;}
+    .pm-tiles{margin-bottom:0; gap:8px;}
+    .pm-tile{min-height:60px; padding:8px 6px;}
+    .received-row{margin-bottom:8px;}
+    .received-row .value{font-size:26px;}
+    .quick-amounts{margin-bottom:8px;}
+    .quick-amounts button{min-height:44px; padding:6px 4px;}
+    .keypad{gap:6px; margin-bottom:10px;}
+    .keypad button{min-height:46px;}
+    .change-row{margin-bottom:0; padding:8px 14px;}
+    .cash-panel{margin-bottom:0;}
+    .checkout-confirm{margin-top:12px; min-height:50px;}
+  }
+  @media (min-width:700px) and (max-height:640px){
+    .checkout-modal{padding:10px 18px;}
+    .checkout-head h2{font-size:16px;}
+    .checkout-total .amount{font-size:32px;}
+    .keypad{gap:5px; margin-bottom:6px;}
+    .keypad button{min-height:40px; font-size:17px;}
+    .quick-amounts button{min-height:38px;}
+    .checkout-confirm{margin-top:8px; min-height:46px;}
+  }
+
   /* زر الدفع بلون الزيتون من الشعار: أهم زر بالشاشة، فبيتميّز عن باقي الأزرار الذهبية */
   .btn.gold.pay, .btn.gold.checkout-confirm{background:var(--olive); color:#fff; box-shadow:0 8px 18px -10px rgba(86,105,46,.8); font-size:16px;}
   :root[data-theme="dark"] .btn.gold.pay, :root[data-theme="dark"] .btn.gold.checkout-confirm{color:#11160a;}
@@ -1678,6 +1709,8 @@
             <h2>إتمام الدفع</h2>
             <button type="button" class="checkout-close" id="checkout-close">${olvIcon("x")}</button>
           </div>
+          <div class="checkout-body${method === "cash" ? " has-cash" : ""}">
+          <div class="checkout-info">
           <div class="checkout-total">
             <div class="label">الإجمالي المطلوب</div>
             <div class="amount" dir="ltr">${olvFormatMoney(exact)}</div>
@@ -1695,6 +1728,7 @@
             <button type="button" class="pm-tile${method === "cash" ? " on" : ""}" data-method="cash">${olvIcon("banknote")}كاش</button>
             <button type="button" class="pm-tile${method === "card" ? " on" : ""}" data-method="card">${olvIcon("creditCard")}شبكة</button>
             <button type="button" class="pm-tile${method === "delivery" ? " on" : ""}" data-method="delivery">${olvIcon("mapPin")}توصيل</button>
+          </div>
           </div>
           ${method === "cash" ? `
             <div class="cash-panel">
@@ -1714,6 +1748,7 @@
               </div>
             </div>
           ` : ""}
+          </div>
           <button type="button" class="btn gold checkout-confirm" id="checkout-confirm"${canConfirm ? "" : " disabled"}>تأكيد الدفع</button>
           <div class="checkout-success" id="checkout-success">
             <div class="check">${olvIcon("check")}</div>
