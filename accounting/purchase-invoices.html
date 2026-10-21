@@ -102,6 +102,10 @@
   .pi-page-add{width:72px; height:92px; border-radius:12px; border:1.5px dashed var(--gold); background:transparent; color:var(--gold-hi); font:inherit; font-size:12px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;}
   .pi-page-add b{font-size:22px; line-height:1;}
   .pi-read{margin-top:10px; width:100%;}
+  .pi-drop{margin-top:10px; padding:12px 14px; border:1.5px dashed var(--line,#d8cdb5); border-radius:12px; font-size:13px; color:var(--muted); text-align:center; display:none;}
+  .pi-drop.over{border-color:var(--gold); background:rgba(var(--gold-rgb),.1); color:var(--gold-hi);}
+  @media(hover:hover) and (pointer:fine){ .pi-drop{display:block;} }
+  .pi-drop button{font:inherit; font-weight:700; color:var(--gold-hi); background:none; border:0; text-decoration:underline; cursor:pointer; padding:0;}
   .pi-snaps{display:grid; grid-template-columns:1fr; gap:10px;}
   @media(min-width:700px){ .pi-snaps{grid-template-columns:1fr 1fr;} }
   button.pi-snap{width:100%; font:inherit; color:inherit; text-align:right;}
@@ -260,6 +264,7 @@
           <span><b>امسح الباركود</b><small>بكاميرا التلفون، أو امسح بجهاز الماسح مباشرة بأي وقت. كل مسحة = حبة</small></span>
         </button>
       </div>
+      <div class="pi-drop" id="pi-drop">على الكمبيوتر: <button type="button" id="pi-pick">اختر صور من الجهاز</button> أو اسحبها وفلّتها هون، أو الصقها بـ Ctrl+V</div>
       <input type="file" id="pi-file" accept="image/*,application/pdf" multiple hidden>
       <div class="pi-pages" id="pi-pages" hidden></div>
       <button type="button" class="btn go pi-read" id="pi-ai-btn" hidden disabled></button>
@@ -1364,13 +1369,26 @@
       pages = []; lastAiLines = null; fileInput.value = "";
       renderPages();
     }
-    fileInput.addEventListener("change", (e) => {
+    function addPicked(list) {
       const room = MAX_PAGES - pages.length;
-      const picked = [...e.target.files];
+      const picked = [...list].filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
+      if (!picked.length) return;
       picked.slice(0, room).forEach((f) => pages.push({ file: f, url: f.type.startsWith("image/") && f.type !== "image/heic" ? URL.createObjectURL(f) : null }));
-      fileInput.value = "";
       if (picked.length > room) olvShowError(document.getElementById("err"), new Error(`الحد الأقصى ${MAX_PAGES} صور للفاتورة`));
       renderPages();
+    }
+    fileInput.addEventListener("change", (e) => { addPicked(e.target.files); fileInput.value = ""; });
+    // كمبيوتر: زر اختيار + سحب وإفلات + لصق صورة من الحافظة (لقطة شاشة مثلًا)
+    document.getElementById("pi-pick").addEventListener("click", () => fileInput.click());
+    const dropBox = document.getElementById("pi-drop");
+    const formGroup = document.getElementById("pi-form-group");
+    ["dragenter", "dragover"].forEach((ev) => formGroup.addEventListener(ev, (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); dropBox.classList.add("over"); } }));
+    ["dragleave", "drop"].forEach((ev) => formGroup.addEventListener(ev, () => dropBox.classList.remove("over")));
+    formGroup.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length) { e.preventDefault(); addPicked(e.dataTransfer.files); } });
+    document.addEventListener("paste", (e) => {
+      if (formGroup.hidden) return;
+      const files = [...(e.clipboardData ? e.clipboardData.files : [])];
+      if (files.length) { e.preventDefault(); addPicked(files); }
     });
     pagesBox.addEventListener("click", (e) => {
       if (e.target.closest("#pi-page-add")) { fileInput.click(); return; }
