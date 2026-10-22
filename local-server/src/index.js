@@ -151,6 +151,8 @@ function isLoopback(req) {
   return a === "127.0.0.1" || a === "::1" || a === "::ffff:127.0.0.1";
 }
 function paired(req) {
+  // المتصفح اللي على كمبيوتر المحل نفسه (localhost) مربوط تلقائيًا: ما في خطر منه، والربط للأجهزة التانية على الشبكة بس
+  if (isLoopback(req)) return true;
   const m = /(?:^|;\s*)olv_local=([^;]+)/.exec(req.headers.cookie || "");
   return !!m && m[1] === PAIR_KEY;
 }
