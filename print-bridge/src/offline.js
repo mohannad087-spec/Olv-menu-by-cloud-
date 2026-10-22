@@ -118,14 +118,18 @@ async function printJob(job, cfg, log) {
   partial.delete(job.id);
 }
 
-// بتنادى كل دورة. بتشتغل بدون نت لأنها بتحكي مع سيرفر المحل بس. تذكرة طبعت مرة ما بتنعاد حتى لو طابعة تانية فشلت
+// بتنادى كل ثانية تقريباً. بتشتغل بدون نت لأنها بتحكي مع سيرفر المحل بس. تذكرة طبعت مرة ما بتنعاد حتى لو طابعة تانية فشلت
 // المهمة بتنعاد لحد ما كل الطابعات تنجح (بدون ما نعيد الطباعة على اللي نجحت)
+let lastNoCacheLog = 0; // الحلقة سريعة: لا نكرر الرسالة كل ثانية
 async function runLocalQueue(cloudCfg, log) {
   let jobs;
   try { jobs = (await localCall("print-queue")).jobs || []; } catch (_) { return; } // سيرفر المحل مش شغّال: عادي
   if (!jobs.length) return;
   const cfg = cloudCfg || loadCache();
-  if (!cfg) { log("طباعة بدون نت: ما في نسخة محفوظة من الطابعات (لازم الجسر يشتغل مرة والنت شغّال)"); return; }
+  if (!cfg) {
+    if (Date.now() - lastNoCacheLog > 60000) { lastNoCacheLog = Date.now(); log("طباعة بدون نت: ما في نسخة محفوظة من الطابعات (لازم الجسر يشتغل مرة والنت شغّال)"); }
+    return;
+  }
   for (const job of jobs) {
     try {
       await printJob(job, cfg, log);

@@ -200,9 +200,14 @@ async function sendHeartbeat() {
   if (error) log("تعذّر إرسال نبضة الحياة:", error.message);
 }
 
-async function tick() {
-  // أول شي: طلبات انحفظت بسيرفر المحل وقت انقطاع النت (بتشتغل بدون نت)
+// طلبات سيرفر المحل بحلقة سريعة لحالها: ما بتنتظر السحابة (ولا مهلة النت المفصول) وبتطبع خلال ثانية
+const LOCAL_POLL_MS = Number(process.env.LOCAL_POLL_MS || 1000);
+async function localTick() {
   try { await runLocalQueue(null, log); } catch (err) { log("خطأ بطباعة الطلبات المحلية:", err.message); }
+  finally { setTimeout(localTick, LOCAL_POLL_MS); }
+}
+
+async function tick() {
   try {
     await sendHeartbeat();
     await recoverStuckJobs();
@@ -227,4 +232,5 @@ async function tick() {
 
 log("بدء تشغيل برنامج جسر الطباعة...");
 log(`يفحص الطلبات الجديدة كل ${POLL_INTERVAL_MS / 1000} ثانية. اتركه يعمل باستمرار.`);
+localTick();
 tick();
