@@ -8,6 +8,7 @@ const { supabase } = require("./supabase");
 const { sendToPrinter } = require("./printer");
 const { buildTicketBuffer, buildDrawerBuffer } = require("./escpos");
 const { buildKitchenTicket } = require("./ticket-kitchen");
+const { saveCache, runLocalQueue, wasPrintedLocally } = require("./offline");
 const { buildReceiptTicket } = require("./ticket-receipt");
 const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
 
@@ -148,6 +149,12 @@ async function processJob(job, settings, printers, saleCache) {
       }
       const sale = saleCache.get(job.sale_id);
       if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
+      // البيع انطبع أصلًا من سيرفر المحل وقت انقطاع النت، ورجع النت ووصل للسحابة: ما منطبعه مرتين
+      // (إعادة الطباعة اليدوية reprint_no بتنطبع عادي)
+      if (!job.reprint_no && wasPrintedLocally(sale.client_ref)) {
+        await markJob(job.id, { status: "skipped", error_message: "انطبعت أصلًا وقت انقطاع النت" });
+        return;
+      }
 
       const itemIds = job.item_ids ? new Set(job.item_ids) : null;
       const jobItems = (sale.sale_items || []).filter((it) => !itemIds || itemIds.has(it.id));
@@ -194,11 +201,14 @@ async function sendHeartbeat() {
 }
 
 async function tick() {
+  // أول شي: طلبات انحفظت بسيرفر المحل وقت انقطاع النت (بتشتغل بدون نت)
+  try { await runLocalQueue(null, log); } catch (err) { log("خطأ بطباعة الطلبات المحلية:", err.message); }
   try {
     await sendHeartbeat();
     await recoverStuckJobs();
     const settings = await loadPrinterSettings();
     const printers = await loadPrinters();
+    saveCache(settings, printers); // نسخة للطباعة بدون نت
     const { data: jobs, error } = await supabase
       .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(20);
     if (error) throw error;
