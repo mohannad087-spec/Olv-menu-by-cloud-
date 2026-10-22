@@ -97,7 +97,10 @@ async function serveSite(req, res, rel) {
       : "هالصفحة لسا ما انحفظت على كمبيوتر المحل، وما في نت. افتحها مرة والنت شغّال."}</div>`);
     return;
   }
-  if (rel.endsWith(".html")) body = patchHtml(body, !(got && got.status === 200));
+  // «بدون نت» بس إذا فعلًا ما نجح أي اتصال بالموقع الأصلي من أكتر من دقيقة. فشلة وحدة (مهلة، ملف تأخر)
+  // ما لازم تخلي الصفحة تعتبر النت مقطوع: كانت تمنع تسجيل الدخول. وصفحة الدخول بدها نت أصلًا
+  const offline = !(got && got.status === 200) && Date.now() - lastOnlineAt > 60000 && !/(^|\/)login\.html$/.test(rel);
+  if (rel.endsWith(".html")) body = patchHtml(body, offline);
   // no-cache: المتصفح بيسأل كل مرة، فالتحديثات بتوصل فورًا (والسيرفر قريب فما في بطء)
   res.writeHead(200, { "content-type": typeOf(rel), "cache-control": "no-cache" });
   res.end(body);
