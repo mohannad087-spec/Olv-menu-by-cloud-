@@ -1586,6 +1586,14 @@
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
       if (!navigator.onLine) { olvShowError(errBox, new Error("فواتير المشتريات بتحتاج اتصال بالإنترنت (بترفع الصورة وبتتحقق من التكرار) — حاول لما يرجع النت")); return; }
+      // سطر "شبح": فيه كمية أو سعر بس بدون صنف ولا اسم — منشيله تلقائيًا بدل ما يمنع الحفظ
+      const ghosts = lines.filter((l) => !itemOf(l) && !String(l.typed || "").trim() && !String(l.unmatchedName || "").trim() && (Number(l.qty) || Number(l.price)));
+      if (ghosts.length) {
+        lines = lines.filter((l) => !ghosts.includes(l));
+        if (!lines.length) lines = [newLine()];
+        renderLines();
+        if (window.olvToast) olvToast(`انشال ${ghosts.length} سطر بدون اسم صنف`);
+      }
       const active = lines.filter((l) => itemOf(l) || Number(l.qty) || Number(l.price));
       if (!active.length) { olvShowError(errBox, new Error("أضف صنف واحد على الأقل")); return; }
       const bad = active.find((l) => !itemOf(l) || !(Number(l.qty) > 0) || !(Number(l.price) >= 0) || l.price === "");
