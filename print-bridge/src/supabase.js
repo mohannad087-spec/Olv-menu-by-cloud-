@@ -9,8 +9,13 @@ if (!url || !key) {
   process.exit(1);
 }
 
+// مهلة 10 ثواني لكل طلب: لو النت مقطوع أو معلّق، الدورة ما بتعلق وطباعة الطلبات المحلية بتضل شغّالة
+const fetchWithTimeout = (input, init = {}) =>
+  fetch(input, init.signal ? init : { ...init, signal: AbortSignal.timeout(10000) });
+
 const supabase = createClient(url, key, {
   auth: { persistSession: false },
+  global: { fetch: fetchWithTimeout },
 });
 
 module.exports = { supabase };

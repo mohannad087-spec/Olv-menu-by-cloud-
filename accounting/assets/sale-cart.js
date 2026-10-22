@@ -127,6 +127,21 @@ const OlvCart = (function () {
           order_type: orderType || null,
           table_number: tableNumber ?? null,
           customer_name: customerName ?? null,
+          // بيانات الطباعة: جسر الطباعة على كمبيوتر المحل بيطبع الفاتورة وتذاكر الأقسام من غير نت
+          print: {
+            customer_phone: customerPhone ?? null,
+            cash_amount: args.p_cash, card_amount: args.p_card, delivery_amount: args.p_delivery,
+            discount_amount: discount, cash_received: cashReceived ?? null, change_due: changeDue ?? null,
+            items: sentItems.map((item) => ({
+              product_name: item.name,
+              qty: item.qty,
+              unit_price: item.unitBase,
+              addons_total: item.addons.reduce((s, a) => s + a.price, 0),
+              addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
+              note: item.note || null,
+              category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+            })),
+          },
           items: sentItems.map((item) => ({
             product_name: item.name,
             qty: item.qty,

@@ -13,7 +13,7 @@ const KEEP_DIRTY_HOURS = 72;
 
 function createStore(dataDir) {
   const file = path.join(dataDir, "orders.json");
-  let state = { seq: 0, seqDay: "", orders: {} };
+  let state = { seq: 0, seqDay: "", orders: {}, prints: {} };
   try { state = Object.assign(state, JSON.parse(fs.readFileSync(file, "utf8"))); } catch (_) { /* أول تشغيل */ }
 
   let saveT = null;
@@ -37,6 +37,9 @@ function createStore(dataDir) {
     for (const [k, o] of Object.entries(state.orders)) {
       const h = hoursOld(o);
       if (h > KEEP_DIRTY_HOURS || (h > KEEP_HOURS && !isDirty(o))) { delete state.orders[k]; changed = true; }
+    }
+    for (const [k, p] of Object.entries(state.prints || {})) {
+      if ((Date.now() - new Date(p.created_at).getTime()) / 3600e3 > KEEP_DIRTY_HOURS) { delete state.prints[k]; changed = true; }
     }
     if (changed) save();
   }
@@ -79,8 +82,45 @@ function createStore(dataDir) {
     };
     o.order_no = "م" + o.local_no;
     state.orders[key] = o;
+    if (t.print && typeof t.print === "object") {
+      state.prints = state.prints || {};
+      state.prints[ref] = { id: ref, order_no: o.order_no, created_at: o.created_at, attempts: 0, done: false, sale: cleanPrint(t.print, o) };
+    }
     save();
     return o;
+  }
+
+  // بيانات الطباعة اللي بيحتاجها جسر الطباعة ليرسم الفاتورة وتذاكر الأقسام (نفس حقول sales_entries/sale_items)
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  function cleanPrint(p, o) {
+    return {
+      order_no: o.order_no, created_at: o.created_at, order_type: o.order_type,
+      table_number: o.table_number, customer_name: o.customer_name,
+      customer_phone: str(p.customer_phone, 30), cashier_name: str(p.cashier_name, 80),
+      cash_amount: num(p.cash_amount), card_amount: num(p.card_amount), delivery_amount: num(p.delivery_amount),
+      discount_amount: num(p.discount_amount),
+      cash_received: p.cash_received == null ? null : num(p.cash_received),
+      change_due: p.change_due == null ? null : num(p.change_due),
+      items: (Array.isArray(p.items) ? p.items : []).slice(0, 100).map((it) => ({
+        product_name: str(it.product_name, 120) || "صنف", qty: num(it.qty) || 1,
+        unit_price: num(it.unit_price), addons_total: num(it.addons_total),
+        addons_summary: str(it.addons_summary, 300), note: str(it.note, 300), category: str(it.category, 80),
+      })),
+    };
+  }
+
+  // مهام الطباعة اللي لسا ما انطبعت (جسر الطباعة على نفس الكمبيوتر بيسحبها). بعد 5 محاولات فاشلة بنتركها
+  // (لما يرجع النت وبترفع المبيعات للسحابة، السحابة بتطبعها بالطريقة العادية)
+  function printPending() {
+    return Object.values(state.prints || {}).filter((p) => !p.done && p.attempts < 5)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(0, 20);
+  }
+  function printDone(id, ok, error) {
+    const p = (state.prints || {})[String(id)];
+    if (!p) return;
+    if (ok) { p.done = true; p.done_at = now(); }
+    else { p.attempts += 1; p.last_error = str(error, 200); }
+    save();
   }
 
   // صورة طلبات «قيد التحضير» من السحابة (نفس شكل sales_entries + sale_items)
@@ -191,7 +231,7 @@ function createStore(dataDir) {
     save();
   }
 
-  return { addLocalOrder, applySnapshot, setDone, kitchenView, dirtyList, markSynced, prune, flush };
+  return { addLocalOrder, applySnapshot, setDone, kitchenView, dirtyList, markSynced, prune, flush, printPending, printDone };
 }
 
 module.exports = { createStore };

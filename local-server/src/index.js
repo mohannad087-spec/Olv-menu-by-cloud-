@@ -143,6 +143,10 @@ function json(res, status, obj) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   res.end(JSON.stringify(obj));
 }
+function isLoopback(req) {
+  const a = req.socket.remoteAddress || "";
+  return a === "127.0.0.1" || a === "::1" || a === "::ffff:127.0.0.1";
+}
 function paired(req) {
   const m = /(?:^|;\s*)olv_local=([^;]+)/.exec(req.headers.cookie || "");
   return !!m && m[1] === PAIR_KEY;
@@ -168,7 +172,15 @@ async function handleLocal(req, res, url) {
     res.end();
     return;
   }
-  if (route === "ping") return json(res, 200, { ok: true, paired: paired(req), online: Date.now() - lastOnlineAt < 60000 });
+  if (route === "ping") return json(res, 200, { ok: true, paired: paired(req), online: Date.now() - lastOnlineAt < 60000, print_pending: store.printPending().length });
+  // جسر الطباعة (نفس الكمبيوتر) بيسحب مهام الطباعة وقت انقطاع النت. من نفس الجهاز بس، بدون ربط
+  if (route === "print-queue" || route === "print-done") {
+    if (!isLoopback(req)) return json(res, 403, { error: "من كمبيوتر المحل بس" });
+    if (route === "print-queue") return json(res, 200, { jobs: store.printPending() });
+    const b = await readBody(req);
+    store.printDone(b.id, !!b.ok, b.error);
+    return json(res, 200, { ok: true });
+  }
   if (!paired(req)) return json(res, 401, { error: "هالجهاز مش مربوط بكمبيوتر المحل. افتح رابط الربط مرة وحدة." });
 
   if (req.method === "GET" && route === "kitchen") return json(res, 200, store.kitchenView());
