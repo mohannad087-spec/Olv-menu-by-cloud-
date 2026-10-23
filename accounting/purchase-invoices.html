@@ -72,6 +72,9 @@
   .pi-bonus-row{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:13px;}
   .pi-bonus-row input{max-width:84px;}
   .pi-warn.bad{color:var(--danger-hi);}
+  .pi-kind{display:inline-flex; gap:0; margin-bottom:6px; border:1px solid var(--hair); border-radius:999px; overflow:hidden; background:var(--ink-2);}
+  .pi-kind button{font:inherit; font-size:13px; padding:6px 14px; min-height:34px; border:0; background:none; color:var(--muted); cursor:pointer;}
+  .pi-kind button.on{background:var(--olive,var(--gold)); color:var(--on-gold,#fff); font-weight:700;}
   .pi-sugg{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
   .pi-sugg button{font:inherit; font-size:12px; padding:5px 10px; border-radius:999px; border:1px solid var(--gold-hi); background:var(--surface,#fff); color:var(--text); cursor:pointer; min-height:32px;}
   .pi-sugg button.new{border-style:dashed; color:var(--olive,var(--gold-hi));}
@@ -467,6 +470,8 @@
       return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
+    // نوع السطر: مادة خام ولا مستلزم. الصنف المربوط هو المرجع، وغير هيك اللي اختاره المستخدم (أو تخمين من الاسم للسطور المقروءة من الصورة)
+    const kindOf = (line) => { const it = itemOf(line); return it ? it.kind : (line.kind || (line.unmatchedName ? guessKind(line.unmatchedName) : "ingredient")); };
     const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
     // كل سطر فيه كمية وسعر بينحسب، حتى لو لسا مش مربوط بصنف — هيك الإجمالي بيطابق الورقة من أول ما تنقرا
     const subtotalOf = () => round2(lines.reduce((s, l) => s + lineTotal(l), 0));
@@ -671,7 +676,7 @@
       return "قطعة";
     }
     function unmatchedHelp(line) {
-      const c = candidatesFor(line.unmatchedName);
+      const c = candidatesFor(line.unmatchedName).filter((x) => !line.kind || x.it.kind === line.kind); // لو المستخدم حدد النوع ما منقترح من النوع التاني
       const top = c.length ? c[0].score : 0;
       const close = c.filter((x) => x.score >= top - 0.05 && x.score >= 0.4);
       const unit = unitFromInvoice(line.rawUnit || line.unmatchedName);
@@ -682,8 +687,7 @@
       const many = close.length > 4 ? `<div class="pi-warn">في ${close.length} صنف مشابه بالمخزون (نكهات أو أحجام) والفاتورة ما حددت أي واحد — اكتب النوع بالخانة واختاره</div>` : "";
       return `<div class="pi-warn bad">ما لقيت "${olvEsc(line.unmatchedName)}" بالمخزون</div>${many}
         <div class="pi-sugg">${sugg}
-          <button type="button" class="new" data-act="new" data-kind="ingredient" data-unit="${olvEsc(unit)}">＋ أضفه مادة خام (${olvEsc(unit)})</button>
-          <button type="button" class="new" data-act="new" data-kind="supply" data-unit="${olvEsc(unit)}">＋ أضفه مستلزم (${olvEsc(unit)})</button>
+          <button type="button" class="new" data-act="new" data-kind="${kindOf(line)}" data-unit="${olvEsc(unit)}">＋ أضفه ${kindOf(line) === "supply" ? "مستلزم" : "مادة خام"} (${olvEsc(unit)})</button>
         </div>`;
     }
 
@@ -723,7 +727,7 @@
           if (!plan.has(k)) {
             const row = { name, unit };
             if (Number(line.price) > 0) row.unit_price = Number(line.price);
-            plan.set(k, { row, kind: guessKind(name), lines: [] });
+            plan.set(k, { row, kind: kindOf(line), lines: [] });
           }
           plan.get(k).lines.push(line);
         }
@@ -778,6 +782,7 @@
           : `<option value="stock">اختر الصنف أولًا</option>`;
         return `<tr data-idx="${idx}">
           <td>
+            <div class="pi-kind" role="group" aria-label="نوع البند"><button type="button" data-act="kind" data-kind="ingredient" class="${kindOf(line) === "ingredient" ? "on" : ""}" aria-pressed="${kindOf(line) === "ingredient"}">مادة خام</button><button type="button" data-act="kind" data-kind="supply" class="${kindOf(line) === "supply" ? "on" : ""}" aria-pressed="${kindOf(line) === "supply"}">مستلزم</button></div>
             <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="pi-ac-list" aria-label="الصنف" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
             ${line.unmatchedName && !it ? unmatchedHelp(line) : ""}
             ${!it ? `<button type="button" class="pi-newbtn" data-act="newdlg">＋ إضافة مادة جديدة للمخزون</button>` : ""}
@@ -840,10 +845,10 @@
       if (ac.input) { ac.input.setAttribute("aria-expanded", "false"); ac.input.removeAttribute("aria-activedescendant"); }
       if (ac.box) { ac.box.remove(); ac.box = null; } ac.input = null; ac.opts = []; ac.idx = -1;
     }
-    function acOptions(q) {
+    function acOptions(q, kind) {
       if (!String(q).trim()) return [];
-      const mine = items.filter((it) => olvSearchMatch(itemLabel(it), q)).slice(0, 8).map((it) => ({ label: itemLabel(it), name: it.name, meta: it.kind === "ingredient" ? "مادة خام" : "مستلزم" }));
-      const cat = catalogOnly.filter((e) => olvSearchMatch(e.name + " " + (e.hay || ""), q)).slice(0, 6).map((e) => ({ label: catLabel(e), name: e.name, meta: "من الكتالوج (بتنضاف للمخزون)" }));
+      const mine = items.filter((it) => (!kind || it.kind === kind) && olvSearchMatch(itemLabel(it), q)).slice(0, 8).map((it) => ({ label: itemLabel(it), name: it.name, meta: it.kind === "ingredient" ? "مادة خام" : "مستلزم" }));
+      const cat = catalogOnly.filter((e) => (!kind || (e.kind === "s" ? "supply" : "ingredient") === kind) && olvSearchMatch(e.name + " " + (e.hay || ""), q)).slice(0, 6).map((e) => ({ label: catLabel(e), name: e.name, meta: "من الكتالوج (بتنضاف للمخزون)" }));
       return mine.concat(cat);
     }
     function acRender() {
@@ -868,7 +873,8 @@
     document.addEventListener("input", (e) => {
       const t = e.target; if (!t.matches || !t.matches('#pi-lines input[data-f="item"]')) return;
       const exact = labelToItem().has(t.value) || catalogOnly.some((c) => catLabel(c) === t.value);
-      ac.input = t; ac.idx = -1; ac.opts = exact ? [] : acOptions(t.value); acRender();
+      ac.input = t; ac.idx = -1; const tl = lines[Number(t.closest("tr").dataset.idx)];
+      ac.opts = exact ? [] : acOptions(t.value, tl ? kindOf(tl) : null); acRender();
     });
     document.addEventListener("keydown", (e) => {
       const t = e.target; if (!ac.box || ac.box.hidden || t !== ac.input) return;
@@ -906,7 +912,7 @@
         }
         const hit = labelToItem().get(e.target.value);
         if (hit) { line.itemKey = hit.kind + ":" + hit.id; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock"; if (!line.price && hit.unit_price) line.price = String(hit.unit_price); renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus(); return; }
-        line.itemKey = null;
+        line.kind = kindOf(line); line.itemKey = null;
       } else if (f === "qty") line.qty = e.target.value;
       else if (f === "price") line.price = e.target.value;
       else if (f === "bonus") line.bonus = e.target.value;
@@ -965,6 +971,18 @@
       const btn = e.target.closest("[data-act]"); if (!btn) return;
       const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
       if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
+      if (btn.dataset.act === "kind") {
+        const k = btn.dataset.kind; const cur = itemOf(line);
+        if (kindOf(line) === k) return;
+        line.kind = k;
+        if (cur) {
+          // نفس الاسم موجود بالنوع التاني؟ بنربط فيه، وإلا بنفك الربط وبنعرض زر الإضافة بالنوع الجديد
+          const twin = items.find((i) => i.kind === k && norm(i.name) === norm(cur.name));
+          if (twin) { line.itemKey = twin.kind + ":" + twin.id; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock"; }
+          else { line.itemKey = null; line.typed = cur.name; line.unmatchedName = cur.name; line.guessFrom = ""; line.unitMode = "stock"; line.rawUnit = cur.unit; }
+        }
+        renderLines(); return;
+      }
       if (btn.dataset.act === "tax-open") { line.taxOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="tax"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-mode") {
@@ -1027,6 +1045,7 @@
           </div>`;
         back.appendChild(box); document.body.appendChild(back);
         const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        if (init.kind) box.querySelector("#ni-kind").value = init.kind;
         const nameEl = box.querySelector("#ni-name");
         box.querySelector("#ni-cancel").addEventListener("click", () => done(null));
         back.addEventListener("click", (e) => { if (e.target === back) done(null); });
@@ -1052,7 +1071,7 @@
     async function addNewItemForLine(line, btn) {
       const name0 = String(line.unmatchedName || line.typed || "").trim();
       const guess = unitFromInvoice(line.rawUnit || name0);
-      const res = await openNewItemDialog({ name: name0, unit: guess, price: line.price !== "" && line.unitMode === "stock" ? String(line.price) : "" });
+      const res = await openNewItemDialog({ kind: kindOf(line), name: name0, unit: guess, price: line.price !== "" && line.unitMode === "stock" ? String(line.price) : "" });
       if (!res) return false;
       if (btn) btn.disabled = true;
       const errBox = document.getElementById("err");
