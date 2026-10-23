@@ -1869,6 +1869,7 @@
               ${i.attachment_path ? i.attachment_path.split("|").map((pth, n, all) => `<button class="btn" data-file="${olvEsc(pth)}">${all.length > 1 ? "صورة " + (n + 1) : "صورة الفاتورة"}</button>`).join("") : ""}
               ${!i.voided && isOwner ? `<button class="btn" data-edit="${i.id}">تعديل</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
+              ${i.voided && isOwner ? `<button class="btn danger" data-del="${i.id}">حذف نهائي</button>` : ""}
             </div>
           </div>
         </li>`;
@@ -2077,6 +2078,17 @@
         ed.disabled = true;
         try { await startEdit(ed.dataset.edit); } catch (err) { olvShowError(errBox, err); }
         ed.disabled = false;
+        return;
+      }
+      const dl = e.target.closest("[data-del]");
+      if (dl) {
+        if (!confirm("تحذف هالفاتورة الملغاة نهائيًا من السجل؟ ما بتنرجع. المخزون والحسابات ما بتتأثر (الإلغاء أصلًا رجّعها).")) return;
+        dl.disabled = true;
+        const { error } = await window.supabaseClient.rpc("delete_voided_purchase_invoice", { p_invoice_id: dl.dataset.del });
+        if (error) { dl.disabled = false; olvShowError(errBox, error); return; }
+        openInv.delete(dl.dataset.del);
+        await loadHistory();
+        if (window.olvToast) olvToast("انحذفت الفاتورة الملغاة", { type: "ok", icon: "check" });
         return;
       }
       const v = e.target.closest("[data-void]");
