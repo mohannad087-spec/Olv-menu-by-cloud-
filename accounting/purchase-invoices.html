@@ -84,6 +84,8 @@
   .pi-mini{border:1px solid var(--hair); background:var(--ink-3); color:var(--muted); border-radius:8px; padding:8px 10px; font-size:13px; transition:transform .16s var(--spring); -webkit-tap-highlight-color:transparent;}
   .pi-mini:active{transform:scale(.96); transition-duration:.08s;}
   .pi-total-box{background:var(--ink-3); border:1px solid var(--hair); border-radius:12px; padding:14px 16px;}
+  .pi-diff{margin-top:8px; border:1px solid var(--hair); border-radius:12px; padding:10px 12px; background:var(--ink-2); font-size:14px; line-height:1.7;}
+  .pi-diff ul{margin:4px 0 0; padding-inline-start:18px;}
   .pi-total-box .row[hidden]{display:none;}
   .pi-total-box .row{display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:14px;}
   .pi-total-box .big{font-family:'Tajawal',sans-serif; font-weight:800; font-size:28px; font-weight:700; color:var(--gold-hi);}
@@ -337,6 +339,12 @@
           </div>
           <div class="row2">
             <div class="field">
+              <label for="pi-paper-qty">مجموع القطع/الكميات بالورقة (للمطابقة)</label>
+              <input type="number" id="pi-paper-qty" min="0" step="any" dir="ltr" inputmode="decimal">
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
               <label for="pi-discount">الخصم</label>
               <div style="display:flex; gap:6px;">
                 <input type="number" id="pi-discount" min="0" step="0.01" dir="ltr" placeholder="0" style="flex:1;">
@@ -364,13 +372,15 @@
 
       <div style="margin-top:16px;">
         <div class="pi-total-box">
-          <div class="row"><span><b id="pi-count">0</b> صنف</span><b id="pi-subtotal">0.00</b></div>
+          <div class="row"><span><b id="pi-count">0</b> صنف · مجموع الكميات <b id="pi-qty">0</b></span><b id="pi-subtotal">0.00</b></div>
           <div class="row" id="pi-row-discount" hidden><span>الخصم</span><b id="pi-discount-val" style="color:var(--ok);">0.00</b></div>
           <div class="row" id="pi-row-tax" hidden><span>ضريبة المشتريات</span><b id="pi-tax-val">0.00</b></div>
           <div class="row"><span>الإجمالي المستحق</span><span class="big" id="pi-total">0.00</span></div>
           <div class="row" id="pi-row-paid" hidden><span>المدفوع</span><b id="pi-paid">0.00</b></div>
           <div class="row" id="pi-row-remaining" hidden><span>المتبقي على المورّد (آجل)</span><b id="pi-remaining">0.00</b></div>
           <div class="pi-warn" id="pi-match-warn" hidden></div>
+          <button type="button" class="btn" id="pi-diff-btn" hidden style="width:100%; margin-top:8px;">🔎 دوّر على الفرق بالذكاء الاصطناعي</button>
+          <div id="pi-diff" class="pi-diff" hidden></div>
           <button type="button" class="btn gold" id="pi-save" style="width:100%; margin-top:12px; min-height:50px;">حفظ الفاتورة</button>
         </div>
       </div>
@@ -802,11 +812,15 @@
       updateTotals();
     }
 
+    // مجموع الكميات المكتوبة بالسطور (بوحدة الفاتورة، من غير البونص) — نفس اللي بيطلع عادةً أسفل الفاتورة الورقية
+    const qtyOfLines = () => Math.round(lines.reduce((sum, l) => sum + (Number(l.qty) || 0), 0) * 1000) / 1000;
     function updateTotals() {
       const T = computeTotals();
       const total = T.total;
       let paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
       document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l) || lineTotal(l) > 0).length;
+      const qtySum = qtyOfLines();
+      document.getElementById("pi-qty").textContent = String(qtySum);
       document.getElementById("pi-subtotal").textContent = money(T.subtotal);
       document.getElementById("pi-row-discount").hidden = !(T.discount > 0);
       document.getElementById("pi-discount-val").textContent = "- " + money(T.discount);
@@ -836,6 +850,19 @@
       } else {
         warn.hidden = true;
       }
+      // مطابقة عدد القطع مع الورقة
+      const paperQty = document.getElementById("pi-paper-qty").value;
+      const qtyDiff = paperQty !== "" && Math.abs(Number(paperQty) - qtySum) > 0.0005;
+      if (qtyDiff) {
+        warn.hidden = false; warn.className = "pi-warn bad";
+        warn.textContent = (warn.textContent ? warn.textContent + " | " : "") + `⚠ فرق ${Math.round(Math.abs(Number(paperQty) - qtySum) * 1000) / 1000} بمجموع الكميات: الورقة ${Number(paperQty)} والمدخل ${qtySum}`;
+      } else if (paperQty !== "" && warn.hidden) {
+        warn.hidden = false; warn.className = "pi-warn"; warn.textContent = "✓ مجموع الكميات مطابق للفاتورة الورقية";
+      }
+      const moneyDiff = paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL;
+      const dBtn = document.getElementById("pi-diff-btn");
+      dBtn.hidden = !((moneyDiff || qtyDiff) && pages.length);
+      if (!moneyDiff && !qtyDiff) { const d = document.getElementById("pi-diff"); d.hidden = true; }
     }
 
     // ---------- قائمة اقتراحات بحث بالكلمات (بدل datalist اللي بيطابق نص متصل بس) ----------
@@ -1302,6 +1329,7 @@
       el.addEventListener("change", () => { if (id.startsWith("pi-tax")) saveTaxPrefs(); updateTotals(); });
     });
     document.getElementById("pi-paper-total").addEventListener("input", updateTotals);
+    document.getElementById("pi-paper-qty").addEventListener("input", updateTotals);
 
     // ---------- لصق أصناف ----------
     document.getElementById("pi-paste-toggle").addEventListener("click", () => { const b = document.getElementById("pi-paste-box"); b.hidden = !b.hidden; });
@@ -1382,6 +1410,7 @@
       aiBtn.textContent = pages.length > 1 ? `اقرأ الفاتورة (${pages.length} صور)` : "اقرأ الفاتورة";
       pagesBox.innerHTML = pages.map((p, i) => `<div class="pi-page">${p.url ? `<img src="${p.url}" alt="صفحة ${i + 1}">` : "PDF"}<i>${i + 1}</i><button type="button" data-rm="${i}" aria-label="شيل الصورة ${i + 1}">×</button></div>`).join("")
         + (pages.length < MAX_PAGES ? `<button type="button" class="pi-page-add" id="pi-page-add"><b>+</b>صورة ثانية</button>` : "");
+      if (typeof updateTotals === "function" && typeof lines !== "undefined") updateTotals();
     }
     function clearPages() {
       pages.forEach((p) => p.url && URL.revokeObjectURL(p.url));
@@ -1508,6 +1537,73 @@
       aiStatus.textContent = `تمت القراءة: ${parsed.length} صنف${guessed ? ` (${guessed} انربط بالأقرب — تأكد منه)` : ""}${unmatched ? ` (${unmatched} مش موجود بالمخزون — بالأحمر، اختر أو أضفه بضغطة)` : ""}${supplierNote}. راجع كل سطر قبل الحفظ.`;
     }
 
+    // ---------- البحث عن سبب الفرق: بنقرا الصورة من جديد بالذكاء الاصطناعي وبنقارنها بالسطور المكتوبة ----------
+    const diffBtn = document.getElementById("pi-diff-btn");
+    const diffBox = document.getElementById("pi-diff");
+    const lineName = (l) => { const it = itemOf(l); return it ? it.name : String(l.typed || l.unmatchedName || "").trim(); };
+    const nz = (n) => Math.round(Number(n) * 1000) / 1000;
+    diffBtn.addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      if (!pages.length) return;
+      if (!navigator.onLine) { olvShowError(errBox, new Error("البحث بالذكاء الاصطناعي بيحتاج اتصال بالإنترنت")); return; }
+      diffBtn.disabled = true;
+      diffBox.hidden = false;
+      diffBox.textContent = "عم يقرأ الفاتورة ويقارنها بالسطور... (10–60 ثانية)";
+      const ctrl = new AbortController();
+      const abortTimer = setTimeout(() => ctrl.abort(), 140000);
+      try {
+        const images = [];
+        for (const p of pages) images.push(await fileToPayload(p.file));
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+        const res = await fetch(cfg.SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/read-invoice", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token, apikey: cfg.SUPABASE_ANON_KEY },
+          body: JSON.stringify({ images }),
+          signal: ctrl.signal,
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.ok) throw new Error(out.error || "فشلت قراءة الفاتورة (" + res.status + ")");
+        renderDiff(out.invoice);
+      } catch (err) {
+        diffBox.hidden = true;
+        olvShowError(errBox, err && err.name === "AbortError" ? new Error("القراءة طوّلت كتير — جرّب كمان مرة") : err);
+      } finally {
+        clearTimeout(abortTimer);
+        diffBtn.disabled = false;
+      }
+    });
+    function renderDiff(inv) {
+      const ai = (inv.items || []).filter((x) => x && x.name);
+      const mine = lines.filter((l) => lineName(l) || Number(l.qty) || Number(l.price));
+      const used = new Set();
+      const notes = [];
+      const missing = [];
+      ai.forEach((a) => {
+        let best = null, bs = 0;
+        mine.forEach((l) => { if (used.has(l)) return; const sc = simScore(a.name, lineName(l)); if (sc > bs) { bs = sc; best = l; } });
+        if (!best || bs < 0.4) { missing.push(a); return; }
+        used.add(best);
+        const aq = a.qty == null ? null : Number(a.qty);
+        const ap = a.unit_price != null ? Number(a.unit_price) : (a.line_total != null && aq > 0 ? a.line_total / aq : null);
+        if (aq != null && Math.abs(aq - (Number(best.qty) || 0)) > 0.0005) notes.push(`«${olvEsc(lineName(best))}»: الكمية بالورقة ${nz(aq)} وأنت كاتب ${nz(best.qty || 0)}`);
+        else if (ap != null && best.price !== "" && Math.abs(ap - Number(best.price)) > 0.01 && Math.abs(ap - Number(best.price)) / Math.max(ap, 0.001) > 0.02) notes.push(`«${olvEsc(lineName(best))}»: السعر بالورقة ${nz(ap)} وأنت كاتب ${nz(best.price)}`);
+      });
+      const extra = mine.filter((l) => !used.has(l) && lineName(l));
+      const items = [];
+      missing.forEach((a) => items.push(`<li>موجود بالورقة وناقص عندك: «${olvEsc(a.name)}»${a.qty != null ? " × " + nz(a.qty) : ""}${a.line_total != null ? " (" + money(a.line_total) + ")" : ""}</li>`));
+      extra.forEach((l) => items.push(`<li>مكتوب عندك وما لقيته بالورقة: «${olvEsc(lineName(l))}»${l.qty ? " × " + nz(l.qty) : ""}</li>`));
+      notes.forEach((n) => items.push(`<li>${n}</li>`));
+      const aiQty = nz(ai.reduce((sum, a) => sum + (Number(a.qty) || 0), 0));
+      const head = `الذكاء الاصطناعي قرأ ${ai.length} صنف بمجموع كميات ${aiQty}، وعندك ${mine.length} سطر بمجموع ${qtyOfLines()}.`;
+      const tail = inv.total != null && Math.abs(Number(inv.total) - computeTotals().total) > ROUND_TOL && !items.length
+        ? "<div>السطور متطابقة، فالفرق غالبًا من الخصم أو الضريبة أو التقريب — راجع خانات «رقم الفاتورة، خصم، ضريبة».</div>" : "";
+      diffBox.innerHTML = `<div><b>نتيجة البحث عن الفرق</b></div><div>${head}</div>`
+        + (items.length ? `<ul>${items.join("")}</ul>` : (tail || "<div>ما لقيت فرق واضح بالسطور.</div>"))
+        + `<div class="hint" style="margin-top:6px;">القراءة بالذكاء الاصطناعي ممكن تغلط، فتأكد من الورقة قبل ما تعدّل.</div>`;
+    }
+
     // ---------- نسخ من فاتورة سابقة ----------
     document.getElementById("pi-template").addEventListener("change", async (e) => {
       const id = e.target.value; if (!id) return;
@@ -1545,7 +1641,7 @@
 
     // ---------- مسودة تلقائية: لو سكّرت الصفحة أو رن التلفون بنص الفاتورة، بترجع زي ما كانت ----------
     const DRAFT_KEY = "olv_pi_draft_v1";
-    const DRAFT_IDS = ["pi-date", "pi-supplier", "pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount", "pi-discount-mode"];
+    const DRAFT_IDS = ["pi-date", "pi-supplier", "pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount", "pi-discount-mode"];
     let draftTimer = null;
     function draftIsEmpty() {
       return !lines.some((l) => l.itemKey || l.typed || l.unmatchedName || Number(l.qty) || Number(l.price));
@@ -1590,7 +1686,7 @@
         clearDraft();
         banner.remove();
         lines = [newLine()];
-        ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+        ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         document.getElementById("pi-supplier").value = "";
         document.querySelector('#pi-pay input[value="cash"]').checked = true;
         payMode = "cash";
@@ -1710,7 +1806,7 @@
         clearDraft();
         const dBanner = document.getElementById("pi-draft-banner"); if (dBanner) dBanner.remove();
         lines = [newLine()];
-        ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+        ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         clearPages();
         document.getElementById("pi-supplier").value = "";
         document.querySelector('#pi-pay input[value="cash"]').checked = true;
@@ -2099,7 +2195,7 @@
     }
     function resetForm() {
       lines = [newLine()];
-      ["pi-no", "pi-notes", "pi-paper-total", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+      ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
       clearPages();
       document.getElementById("pi-supplier").value = "";
       document.querySelector('#pi-pay input[value="cash"]').checked = true;
