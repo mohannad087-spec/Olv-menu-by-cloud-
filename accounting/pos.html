@@ -125,6 +125,12 @@
   }
   .pos-toolbar input[type=search]:focus{outline:none; border-color:var(--gold);}
   .cat-tabs{display:flex; flex-direction:column; gap:8px;}
+  /* تصنيفات القسم المختار: صف أفقي واحد قصير فوق الأصناف */
+  .cat-sub{display:flex; gap:8px; overflow-x:auto; padding:2px 0 8px; scrollbar-width:none; flex:none;}
+  .cat-sub::-webkit-scrollbar{display:none;}
+  .cat-sub[hidden]{display:none;}
+  .cat-chip{flex:none; white-space:nowrap; min-height:44px; padding:0 18px; border-radius:999px; border:1px solid var(--hair-soft); background:var(--ink-2); color:var(--muted); font-size:15px; font-family:inherit;}
+  .cat-chip.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .cat-tab{
     flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px;
     background:var(--ink-3); border:1px solid var(--hair); color:var(--muted);
@@ -772,6 +778,7 @@
         <div class="kbd-hint" aria-hidden="true">
           <span><kbd>/</kbd> بحث</span><span><kbd>Enter</kbd> أضف أول نتيجة</span><span><kbd>+</kbd> <kbd>−</kbd> كمية آخر صنف</span><span><kbd>F2</kbd> الدفع</span><span><kbd>Esc</kbd> مسح البحث</span>
         </div>
+        <div class="cat-sub" id="cat-sub" hidden></div>
         <div class="grid" id="products-grid">
           <div class="hint">جاري التحميل...</div>
         </div>
@@ -1190,23 +1197,51 @@
       });
     }
 
+    // نفس الأقسام الأربعة تبع منيو الزبون؛ التصنيف اللي مش معروف بينحط بـ«المزيد»
+    const CAT_GROUPS = [
+      { id: "food", name: "الأكل", cats: ["برغر", "سناكات", "ساندويشات", "ساندويشات الصباح", "بيتزا ومعجنات", "باستا", "سلطات"], icon: "burger" },
+      { id: "drinks", name: "المشروبات", cats: ["مشروبات ساخنة", "مشروبات باردة", "كوكتيل", "عصائر", "ميلك شيك"], icon: "cup" },
+      { id: "sweet", name: "الحلو", cats: ["حلويات", "بوظة", "دونات", "وافل", "كريب"], icon: "cake" },
+      { id: "shisha", name: "الأرجيلة", cats: ["أرجيلة"], icon: "shisha" },
+    ];
+    function liveGroups() {
+      const present = new Set(products.map((p) => p.category));
+      const known = new Set(CAT_GROUPS.flatMap((g) => g.cats));
+      const groups = CAT_GROUPS.map((g) => ({ ...g, cats: g.cats.filter((c) => present.has(c)) }));
+      const extra = [...present].filter((c) => c && !known.has(c)).sort((a, b) => a.localeCompare(b, "ar"));
+      if (extra.length) groups.push({ id: "more", name: "المزيد", cats: extra, icon: "grid" });
+      return groups.filter((g) => g.cats.length);
+    }
+    function groupOfActive(groups) {
+      if (activeCategory.startsWith("g:")) return groups.find((g) => "g:" + g.id === activeCategory) || null;
+      return groups.find((g) => g.cats.includes(activeCategory)) || null;
+    }
+
     function renderCategoryTabs() {
       const hasBestSellers = Object.keys(popularity).length > 0;
-      // ترتيب التصنيفات أبجديًا (بدل ترتيب الإدخال العشوائي بقاعدة
-      // البيانات)، مع تثبيت "الكل" و"الأكثر مبيعًا" بالبداية دايمًا
-      const realCats = [...new Set(products.map((p) => p.category))].sort((a, b) => a.localeCompare(b, "ar"));
-      const cats = [
-        "الكل",
-        ...(hasBestSellers ? [BEST_SELLERS] : []),
-        ...realCats,
+      const groups = liveGroups();
+      const cur = groupOfActive(groups);
+      const tabs = [
+        { k: "الكل", t: "الكل", icon: olvIcon("grid"), on: activeCategory === "الكل" },
+        ...(hasBestSellers ? [{ k: BEST_SELLERS, t: BEST_SELLERS, icon: olvIcon("star"), on: activeCategory === BEST_SELLERS }] : []),
+        ...groups.map((g) => ({ k: "g:" + g.id, t: g.name, icon: olvIcon(g.icon), on: !!cur && cur.id === g.id })),
       ];
-      document.getElementById("cat-tabs").innerHTML = cats.map((c) => `
-        <button class="cat-tab${c === activeCategory ? " on" : ""}" data-cat="${olvEsc(c)}">
-          <span class="cat-tab-icon">${c === "الكل" ? olvIcon("grid") : c === BEST_SELLERS ? olvIcon("star") : olvIcon(categoryIconName(c))}</span>
-          <span class="cat-tab-label">${olvEsc(c)}</span>
+      document.getElementById("cat-tabs").innerHTML = tabs.map((c) => `
+        <button class="cat-tab${c.on ? " on" : ""}" data-cat="${olvEsc(c.k)}">
+          <span class="cat-tab-icon">${c.icon}</span>
+          <span class="cat-tab-label">${olvEsc(c.t)}</span>
         </button>
       `).join("");
-      document.querySelectorAll(".cat-tab").forEach((btn) => {
+      const sub = document.getElementById("cat-sub");
+      if (cur) {
+        sub.hidden = false;
+        sub.innerHTML = [`<button class="cat-chip${activeCategory === "g:" + cur.id ? " on" : ""}" data-cat="g:${cur.id}">كل ${olvEsc(cur.name)}</button>`]
+          .concat(cur.cats.map((c) => `<button class="cat-chip${activeCategory === c ? " on" : ""}" data-cat="${olvEsc(c)}">${olvEsc(c)}</button>`)).join("");
+      } else {
+        sub.hidden = true;
+        sub.innerHTML = "";
+      }
+      document.querySelectorAll(".cat-tab, .cat-chip").forEach((btn) => {
         btn.addEventListener("click", () => {
           activeCategory = btn.dataset.cat;
           currentPage = 1;
@@ -1224,6 +1259,10 @@
         list = sortByPopularity(products);
       } else if (activeCategory === BEST_SELLERS) {
         list = sortByPopularity(products.filter((p) => popularity[p.id])).slice(0, 12);
+      } else if (activeCategory.startsWith("g:")) {
+        const g = liveGroups().find((x) => "g:" + x.id === activeCategory);
+        const cs = new Set(g ? g.cats : []);
+        list = sortByPopularity(products.filter((p) => cs.has(p.category)));
       } else {
         list = sortByPopularity(products.filter((p) => p.category === activeCategory));
       }
