@@ -233,6 +233,8 @@ Deno.serve(async (req) => {
           category: catById[it.cat] || "عام",
           is_active: it.available !== false,
           sort_order: i,
+          // سعر الصالة من المنيو (hallPrice)؛ null يمسحه لو انشال من المنيو
+          hall_price: Number(it.hallPrice) > 0 ? Number(it.hallPrice) : null,
         };
         if (it.image) row.image_url = abs(it.image);
         if (it.descAr) row.description = it.descAr;
