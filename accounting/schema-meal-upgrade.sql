@@ -1,8 +1,7 @@
--- تحويل الصنف لوجبة بالبيع السريع: الوجبة = «إضافة» عادية بعلامة is_meal
--- (سعرها = الزيادة على الصنف، ووصفتها بشاشة وصفات المنتجات بتنزّل البطاطا/المشروب من المخزون).
--- التصنيفات المسموح تتحول وجبة بتنحفظ بـ app_settings (مفتاح meal_categories، فاضي = كل الأصناف).
+-- تحويل الصنف لوجبة بالبيع السريع.
+-- كل صنف بيقبل التحويل بيدخل الكاشير/المدير «سعر الوجبة» على بطاقة المنتج بالإعدادات؛ وهيك بيتولّد تلقائيًا
+-- «إضافة وجبة» خاصة بالصنف (سعرها = سعر الوجبة − سعر الصنف) فالسيرفر (record_sale) بيحسب السعر والمخزون
+-- من نفس جدول الإضافات بدون أي تغيير بالدالة. وصفة الإضافة (بطاطا/مشروب) بتنربط من «وصفات المنتجات».
 alter table public.addons add column if not exists is_meal boolean not null default false;
-
-insert into public.app_settings (key, value)
-values ('meal_categories', '')
-on conflict (key) do nothing;
+alter table public.products add column if not exists meal_price numeric(12,2);
+alter table public.products add column if not exists meal_addon_id uuid references public.addons(id) on delete set null;
