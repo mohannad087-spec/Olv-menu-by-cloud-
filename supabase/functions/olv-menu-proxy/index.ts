@@ -225,6 +225,26 @@ Deno.serve(async (req) => {
       const items = (menu.items || []).filter((it: any) => it.id && it.ar && it.price != null);
       if (!items.length) return json({ ok: false, error: "ما في أصناف بمنيو الموقع" }, 502);
       const abs = (u: string) => /^https?:/i.test(u) ? u : `${OLV_SITE}/${String(u).replace(/^\/+/, "")}`;
+      // الحجم الكبير: إضافة «كبير» خاصة بالصنف سعرها = فرق السعر عن الصغير (نفس فكرة وجبة)، فنقطة البيع والسيرفر
+      // بيحسبوا الحجم من جدول الإضافات بدون تغيير بدالة record_sale. سعر الصالة بيطلع بنفس الفرق.
+      // deno-lint-ignore no-explicit-any
+      const sized = items.filter((it: any) => Number(it.large?.price) > Number(it.price));
+      const sizeAddonByItem: Record<string, string> = {};
+      if (sized.length) {
+        // deno-lint-ignore no-explicit-any
+        const rows = sized.map((it: any) => ({
+          external_id: `size:${it.id}`,
+          name: "كبير",
+          price: Math.round((Number(it.large.price) - Number(it.price)) * 100) / 100,
+          is_active: true,
+          is_size: true,
+        }));
+        const { error: ea } = await admin.from("addons").upsert(rows, { onConflict: "external_id" });
+        if (ea) return json({ ok: false, error: ea.message }, 500);
+        const { data: got, error: eb } = await admin.from("addons").select("id, external_id").in("external_id", rows.map((r: { external_id: string }) => r.external_id));
+        if (eb) return json({ ok: false, error: eb.message }, 500);
+        (got || []).forEach((g: { id: string; external_id: string }) => { sizeAddonByItem[g.external_id.slice(5)] = g.id; });
+      }
       // deno-lint-ignore no-explicit-any
       const payload = items.map((it: any, i: number) => {
         const row: Record<string, unknown> = {
@@ -237,6 +257,7 @@ Deno.serve(async (req) => {
           // سعر الصالة من المنيو (hallPrice)؛ null يمسحه لو انشال من المنيو
           hall_price: Number(it.hallPrice) > 0 ? Number(it.hallPrice) : null,
         };
+        row.large_addon_id = sizeAddonByItem[it.id] ?? null;
         if (it.image) row.image_url = abs(it.image);
         if (it.descAr) row.description = it.descAr;
         return row;

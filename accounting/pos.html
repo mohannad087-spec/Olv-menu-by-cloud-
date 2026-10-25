@@ -1127,6 +1127,21 @@
     };
     const mealOk = (item) => !isHookah(itemCat(item)) && OlvMeal.eligible(products.find((x) => x.id === item.productId));
     const mealKindOf = (item) => (["double", "meal"].find((k) => { const a = mealAddonFor(item, k); return a && item.addons.some((x) => x.id === a.id); })) || "";
+    // الحجم الكبير: إضافة «كبير» خاصة بالصنف (بتتولّد من المنيو، سعرها = فرق السعر)؛ الصغير = بدونها
+    const sizeAddonFor = (item) => {
+      const p = products.find((x) => x.id === item.productId);
+      return p && p.large_addon_id ? addons.find((a) => a.id === p.large_addon_id) || null : null;
+    };
+    const isLargeItem = (item) => { const a = sizeAddonFor(item); return !!a && item.addons.some((x) => x.id === a.id); };
+    function setSizeKind(idx, large) {
+      const item = OlvCart.all()[idx];
+      const a = item && sizeAddonFor(item);
+      if (!a) return;
+      const rest = item.addons.filter((x) => x.id !== a.id);
+      OlvCart.updateAt(idx, { addons: large ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
+      olvHaptic();
+      renderCart();
+    }
     function setMealKind(idx, kind) {
       const item = OlvCart.all()[idx];
       if (!item) return;
@@ -1503,7 +1518,7 @@
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
       const flavorList = hookah ? flavorsFor(item) : [];
-      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal);
+      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size);
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
@@ -1749,6 +1764,10 @@
               </div>
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
+            ${sizeAddonFor(item) ? `
+            <div class="seg meal-seg" role="group" aria-label="الحجم: صغير أو كبير">
+              ${[[0, "صغير"], [1, "كبير"]].map(([k, l]) => `<button type="button" class="${(isLargeItem(item) ? 1 : 0) === k ? "on" : ""}" data-size="${idx}:${k}">${l}</button>`).join("")}
+            </div>` : ""}
             ${mealOk(item) ? `
             <div class="seg meal-seg" role="group" aria-label="نوع الطلب: ساندويش أو وجبة">
               ${[["", "ساندويش"], ["meal", "وجبة"], ["double", "وجبة دبل"]].map(([k, l]) => `<button type="button" class="${mealKindOf(item) === k ? "on" : ""}" data-meal="${idx}:${k}">${l}</button>`).join("")}
@@ -1772,6 +1791,9 @@
             OlvCart.incrementQtyAt(Number(btn.dataset.inc), 1);
             renderCart();
           });
+        });
+        list.querySelectorAll("[data-size]").forEach((btn) => {
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k === "1"); });
         });
         list.querySelectorAll("[data-meal]").forEach((btn) => {
           btn.addEventListener("click", () => { const [i, k] = btn.dataset.meal.split(":"); setMealKind(Number(i), k); });
