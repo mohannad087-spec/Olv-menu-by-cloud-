@@ -87,6 +87,32 @@ async function sendWhatsAppReady(admin: any, orderId: string, body: Record<strin
   }
 }
 
+// يقرأ رد موقع المنيو كنص أول، فإذا رجع صفحة HTML (خطأ من Cloudflare مثلًا) ما بنكسر على r.json():
+// بنسجّل الحالة وبداية الصفحة بسجلات الدالة ونرجّع 502 برسالة فيها السبب الحقيقي. فحص "list" (قراءة فقط) بيعيد مرة وحدة.
+async function olvFetchJson(url: string, init: RequestInit, retries = 0): Promise<{ status: number; out: Record<string, unknown> }> {
+  let last = { status: 502, out: { ok: false, error: "موقع المنيو ما رد" } as Record<string, unknown> };
+  for (let i = 0; i <= retries; i++) {
+    let r: Response;
+    try {
+      r = await fetch(url, init);
+    } catch (e) {
+      last = { status: 502, out: { ok: false, error: "تعذّر الاتصال بموقع المنيو: " + (e instanceof Error ? e.message : "fetch failed") } };
+      if (i < retries) await new Promise((res) => setTimeout(res, 700));
+      continue;
+    }
+    const text = await r.text();
+    try {
+      return { status: r.status, out: JSON.parse(text) };
+    } catch {
+      const snippet = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
+      console.error(`olv-menu non-JSON ${r.status} ${url} cf-ray=${r.headers.get("cf-ray") || "-"} :: ${snippet}`);
+      last = { status: 502, out: { ok: false, error: `موقع المنيو رجّع صفحة خطأ بدل البيانات (HTTP ${r.status}): ${snippet || "فاضي"}` } };
+      if (i < retries) await new Promise((res) => setTimeout(res, 700));
+    }
+  }
+  return last;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
@@ -123,23 +149,21 @@ Deno.serve(async (req) => {
 
   try {
     if (body.action === "list") {
-      const r = await fetch(OLV_MENU_API, { headers: { "x-olv-admin-key": adminKey } });
-      const out = await r.json();
-      return json(out, r.status);
+      const { status, out } = await olvFetchJson(OLV_MENU_API, { headers: { "x-olv-admin-key": adminKey } }, 2);
+      return json(out, status);
     }
 
     if (body.action === "update") {
       if (!body.id || !body.status) return json({ ok: false, error: "id و status مطلوبين" }, 400);
-      const r = await fetch(OLV_MENU_API, {
+      const { status, out } = await olvFetchJson(OLV_MENU_API, {
         method: "PATCH",
         headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
         body: JSON.stringify({ id: body.id, status: body.status, ...(typeof body.pickup === "string" ? { pickup: body.pickup } : {}) }),
       });
-      const out = await r.json();
-      if (r.ok && body.status === "ready" && typeof body.wa_phone === "string") {
+      if (status < 400 && body.status === "ready" && typeof body.wa_phone === "string") {
         out.whatsapp = await sendWhatsAppReady(admin, String(body.id), body);
       }
-      return json(out, r.status);
+      return json(out, status);
     }
 
     // مزامنة أصناف المخزون (مشروبات وبضاعة جاهزة) مع المنيو العام: كل مادة معلّمة menu_enabled
