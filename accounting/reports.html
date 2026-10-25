@@ -210,6 +210,7 @@
       <button class="btn gold" id="run-btn">عرض التقرير</button>
       <button class="btn" id="pdf-btn"></button>
       <button class="btn" id="csv-btn"></button>
+      <a class="btn" id="daily-link" href="daily-report.html"></a>
     </div>
 
     <div class="stats">
@@ -322,6 +323,11 @@
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("reports");
     document.getElementById("pdf-btn").innerHTML = olvIcon("download") + "<span>تصدير PDF</span>";
+    document.getElementById("daily-link").innerHTML = olvIcon("calendar") + "<span>التقرير اليومي</span>";
+    document.getElementById("daily-link").addEventListener("click", (e) => {
+      e.preventDefault();
+      location.href = "daily-report.html?date=" + encodeURIComponent(document.getElementById("to_date").value || olvToday());
+    });
     document.getElementById("csv-btn").innerHTML = olvIcon("download") + "<span>تصدير Excel (CSV)</span>";
 
     function renderBars(containerId, items) {
