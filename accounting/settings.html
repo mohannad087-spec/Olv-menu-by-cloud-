@@ -256,6 +256,9 @@
       <h3 style="margin-top:18px;">أي تصنيفات بتتحول لوجبة؟</h3>
       <p class="hint">اختار التصنيفات (مثل برغر، ساندويش). إذا ما اخترت ولا واحد، كل الأصناف بتقبل التحويل. سعر الوجبة = سعر إضافة الوجبة فوق. وبشاشة «وصفات المنتجات» اربط إضافة الوجبة بالبطاطا والمشروب عشان تنزل من المخزون.</p>
       <div id="meal-cats" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+      <h3 style="margin-top:18px;">نكهات الأرجيلة</h3>
+      <p class="hint">اكتب كل نكهة بسطر. بالبيع السريع، صنف الأرجيلة بيفتح اختيار النكهة (بدل الإضافات) والنكهة بتوصل لتذكرة الأرجيلة.</p>
+      <textarea id="hookah-flavors" rows="6" style="width:100%; min-height:120px;" placeholder="تفاحتين&#10;علكة&#10;نعنع"></textarea>
     </div>
 
     </div>
@@ -854,6 +857,14 @@
           const { error } = await window.supabaseClient.from("app_settings").upsert({ key: "meal_categories", value: val });
           if (error) olvShowError(document.getElementById("err"), error);
         }));
+        const fl = await window.supabaseClient.from("app_settings").select("value").eq("key", "hookah_flavors").maybeSingle();
+        const ta = document.getElementById("hookah-flavors");
+        ta.value = ((fl.data && fl.data.value) || "").split("|").join("\n");
+        ta.addEventListener("change", async () => {
+          const val = ta.value.split("\n").map((x) => x.trim().replace(/\|/g, "")).filter(Boolean).join("|");
+          const { error } = await window.supabaseClient.from("app_settings").upsert({ key: "hookah_flavors", value: val });
+          if (error) olvShowError(document.getElementById("err"), error);
+        });
       } catch (err) { /* القسم اختياري */ }
     }
 
