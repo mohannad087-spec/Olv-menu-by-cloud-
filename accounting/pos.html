@@ -452,15 +452,7 @@
   }
   .flavor-chip.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
   .flavor-chip:active{transform:scale(.96);}
-  .meal-btn{
-    min-height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--olive); background:transparent;
-    color:var(--olive-hi,#9dab63); font-size:14px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
-    display:inline-flex; align-items:center; gap:6px; margin-inline-end:auto;
-  }
-  .meal-btn[hidden]{display:none;}
-  .meal-btn.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
-  .meal-btn:active{transform:scale(.96);}
-  .addon-row.meal{background:rgba(125,142,74,.12); border-radius:12px; padding:12px 10px; font-weight:700; min-height:48px;}
+  .meal-seg{margin-top:10px;} .meal-seg button{min-height:44px; font-size:14.5px;}
   .cart-item-remove{
     width:32px; height:32px; border-radius:8px; border:1px solid transparent; background:transparent;
     color:var(--danger-hi); font-size:15px; flex:none; opacity:.75;
@@ -886,6 +878,7 @@
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/sale-cart.js"></script>
+  <script defer src="assets/meal-pricing.js"></script>
   <script defer src="assets/reprint.js"></script>
   <script defer src="assets/notify-sound.js"></script>
   <script defer src="assets/connection-status.js"></script>
@@ -1126,22 +1119,65 @@
     const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
     const itemCat = (item) => item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId));
     const flavorPrefix = "نكهة: ";
-    // الوجبة: لكل صنف «إضافة وجبة» خاصة فيه (products.meal_addon_id، بتنولّد من سعر الوجبة ببطاقة المنتج)
-    const mealAddonOf = (item) => {
+    // ساندويش | وجبة | وجبة دبل (OlvMeal): السعر بيتخزن على المنتج ويتعدّل يدويًا من الكاشير
+    const mealAddonFor = (item, kind) => {
       const p = products.find((x) => x.id === item.productId);
-      return p && p.meal_addon_id ? addons.find((a) => a.id === p.meal_addon_id) || null : null;
+      const id = p && p[OlvMeal.KINDS[kind].addon];
+      return id ? addons.find((a) => a.id === id) || null : null;
     };
-    const mealOk = (item) => !!mealAddonOf(item) && !isHookah(itemCat(item));
-    const isMeal = (item) => { const m = mealAddonOf(item); return !!m && item.addons.some((a) => a.id === m.id); };
-    // زر «وجبة» على سطر السلة: تبديل مباشر
-    function toggleMeal(idx) {
+    const mealOk = (item) => !isHookah(itemCat(item)) && OlvMeal.eligible(products.find((x) => x.id === item.productId));
+    const mealKindOf = (item) => (["double", "meal"].find((k) => { const a = mealAddonFor(item, k); return a && item.addons.some((x) => x.id === a.id); })) || "";
+    function setMealKind(idx, kind) {
       const item = OlvCart.all()[idx];
-      const m = item && mealAddonOf(item);
-      if (!m) return;
-      if (isMeal(item)) OlvCart.updateAt(idx, { addons: item.addons.filter((a) => a.id !== m.id) });
-      else OlvCart.updateAt(idx, { addons: [...item.addons, { id: m.id, name: m.name, price: Number(m.price) }] });
+      if (!item) return;
+      const strip = item.addons.filter((x) => !["meal", "double"].some((k) => { const a = mealAddonFor(item, k); return a && a.id === x.id; }));
+      if (!kind) { OlvCart.updateAt(idx, { addons: strip }); olvHaptic(); renderCart(); return; }
+      const a = mealAddonFor(item, kind);
+      if (!a) { askMealPrice(idx, kind); return; }
+      OlvCart.updateAt(idx, { addons: [...strip, { id: a.id, name: a.name, price: Number(a.price) }] });
       olvHaptic();
       renderCart();
+    }
+    // نافذة صغيرة لإدخال/تعديل سعر الوجبة الإجمالي يدويًا
+    function askMealPrice(idx, kind) {
+      const item = OlvCart.all()[idx];
+      const p = item && products.find((x) => x.id === item.productId);
+      if (!p) return;
+      const k = OlvMeal.KINDS[kind];
+      const backdrop = document.createElement("div");
+      backdrop.className = "sheet-backdrop";
+      const sheet = document.createElement("div");
+      sheet.className = "sheet";
+      sheet.innerHTML = `
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <h2 style="margin-bottom:6px;">${olvEsc(k.label)} — ${olvEsc(p.name)}</h2>
+        <div class="hint" style="margin-bottom:10px;">سعر الصنف لحاله ${olvFormatMoney(p.price)}. اكتب سعر ${olvEsc(k.label)} الإجمالي (بيتحفظ للمرات الجاية وبتقدر تعدّله).</div>
+        <div class="field"><input type="number" inputmode="decimal" step="0.05" min="0" id="meal-total" placeholder="مثال: 3.50" value="${p[k.price] || ""}"></div>
+        <button class="btn gold" id="meal-ok" style="width:100%;">تأكيد</button>
+        <button class="btn" id="meal-cancel" style="width:100%; margin-top:8px;">إلغاء</button>`;
+      const close = () => { backdrop.remove(); sheet.remove(); };
+      backdrop.addEventListener("click", close);
+      sheet.querySelector("#meal-cancel").addEventListener("click", close);
+      sheet.querySelector("#meal-ok").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        const total = Number(sheet.querySelector("#meal-total").value || 0);
+        if (!(total > 0)) { sheet.querySelector("#meal-total").focus(); return; }
+        btn.disabled = true;
+        try {
+          const { addon } = await OlvMeal.save(p, kind, total);
+          const at = addons.findIndex((a) => a.id === addon.id);
+          if (at >= 0) addons[at] = addon; else addons.push(addon);
+          saveMenuCache();
+          close();
+          setMealKind(idx, kind);
+        } catch (err) {
+          btn.disabled = false;
+          olvToast(err.message || "ما انحفظ سعر الوجبة — تأكد من النت");
+        }
+      });
+      document.body.appendChild(backdrop);
+      document.body.appendChild(sheet);
+      sheet.querySelector("#meal-total").focus();
     }
     let popularity = {}; // product_id -> إجمالي الكمية المباعة تاريخيًا
     let activeCategory = "الكل";
@@ -1467,8 +1503,7 @@
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
       const flavorList = hookah ? flavorsFor(item) : [];
-      const mealA = hookah ? null : mealAddonOf(item);
-      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal || (mealA && a.id === mealA.id));
+      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal);
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
@@ -1482,8 +1517,8 @@
             </div>` : ""}
           ${sheetAddons.length ? `
             <div style="margin-bottom:10px;">
-              ${[...sheetAddons.filter((a) => a.is_meal), ...sheetAddons.filter((a) => !a.is_meal)].map((a) => `
-                <label class="addon-row${a.is_meal ? " meal" : ""}" for="addon-${a.id}">
+              ${sheetAddons.map((a) => `
+                <label class="addon-row" for="addon-${a.id}">
                   <input type="checkbox" data-addon="${a.id}" id="addon-${a.id}" ${selectedAddons.has(a.id) ? "checked" : ""}>
                   <span class="addon-name">${olvEsc(a.name)}</span>
                   <span class="a-price">+${olvFormatMoney(a.price)}</span>
@@ -1711,13 +1746,17 @@
               </div>
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
+            ${mealOk(item) ? `
+            <div class="seg meal-seg" role="group" aria-label="نوع الطلب: ساندويش أو وجبة">
+              ${[["", "ساندويش"], ["meal", "وجبة"], ["double", "وجبة دبل"]].map(([k, l]) => `<button type="button" class="${mealKindOf(item) === k ? "on" : ""}" data-meal="${idx}:${k}">${l}</button>`).join("")}
+              ${mealKindOf(item) ? `<button type="button" class="meal-edit" data-meal-edit="${idx}" aria-label="تعديل سعر الوجبة" style="flex:none; width:48px;">✎</button>` : ""}
+            </div>` : ""}
             <div class="cart-item-controls">
               <div class="qty-stepper">
                 <button type="button" data-dec="${idx}">−</button>
                 <span class="qty-value">${item.qty}</span>
                 <button type="button" data-inc="${idx}">+</button>
               </div>
-              <button type="button" class="meal-btn${isMeal(item) ? " on" : ""}" data-meal="${idx}" ${mealOk(item) ? "" : "hidden"}>${isMeal(item) ? "✓ وجبة" : "حوّل لوجبة"}</button>
               <button type="button" class="cart-item-remove" data-remove="${idx}" data-sound="remove" aria-label="حذف الصنف">${olvIcon("trash")}</button>
             </div>
           </div>
@@ -1732,7 +1771,10 @@
           });
         });
         list.querySelectorAll("[data-meal]").forEach((btn) => {
-          btn.addEventListener("click", () => toggleMeal(Number(btn.dataset.meal)));
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.meal.split(":"); setMealKind(Number(i), k); });
+        });
+        list.querySelectorAll("[data-meal-edit]").forEach((btn) => {
+          btn.addEventListener("click", () => { const i = Number(btn.dataset.mealEdit); askMealPrice(i, mealKindOf(OlvCart.all()[i])); });
         });
         list.querySelectorAll("[data-dec]").forEach((btn) => {
           btn.addEventListener("click", () => {

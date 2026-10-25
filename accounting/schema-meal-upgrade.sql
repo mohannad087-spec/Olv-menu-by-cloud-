@@ -5,3 +5,7 @@
 alter table public.addons add column if not exists is_meal boolean not null default false;
 alter table public.products add column if not exists meal_price numeric(12,2);
 alter table public.products add column if not exists meal_addon_id uuid references public.addons(id) on delete set null;
+
+-- «وجبة دبل» بجانب «وجبة»
+alter table public.products add column if not exists double_meal_price numeric(12,2);
+alter table public.products add column if not exists double_addon_id uuid references public.addons(id) on delete set null;
