@@ -6,7 +6,7 @@
 
 const { supabase } = require("./supabase");
 const { sendToPrinter } = require("./printer");
-const { buildTicketBuffer, buildDrawerBuffer } = require("./escpos");
+const { buildTicketBuffer, buildDrawerBuffer, kitchenCopies } = require("./escpos");
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { saveCache, runLocalQueue, wasPrintedLocally } = require("./offline");
 const { buildReceiptTicket } = require("./ticket-receipt");
@@ -181,7 +181,8 @@ async function processJob(job, settings, printers, saleCache) {
     // وبالطباعة التجريبية حتى تتأكد إنو الدرج شغّال
     const openDrawer = !!(printer && printer.open_drawer &&
       ((job.job_type === "receipt" && !job.reprint_no) || isTest));
-    const buffer = buildTicketBuffer(canvas, openDrawer);
+    // تذكرة القسم الحقيقية (مش تجريبي) بتنطبع نسختين؛ الفاتورة والإلغاء نسخة وحدة
+    const buffer = buildTicketBuffer(canvas, openDrawer, job.job_type === "kitchen" && !isTest ? kitchenCopies() : 1);
     await sendToPrinter(target.ip, target.port || 9100, buffer);
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
