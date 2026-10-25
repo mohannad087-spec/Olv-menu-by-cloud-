@@ -327,8 +327,7 @@
     let daysShown = DAYS_STEP;
     let editingKey = null;
     let closingKey = null;
-    const utcDay = (t) => new Date(t).toISOString().slice(0, 10);
-    const MANAGER_NOTE = "تسكير من المدير";
+        const MANAGER_NOTE = "تسكير من المدير";
 
     // التواريخ بتوقيت الجهاز (olvToday بيرجع UTC وبعد نص الليل بيزيح يوم)
     const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -387,12 +386,12 @@
     }
     const nameOf = (id) => profilesById.get(id) || "—";
 
-    // olvComputeShifts (assets/shift-utils.js) بيحوّل البصمات لورديات دخول/خروج (نفس منطق view employee_shifts)
+    // olvComputeShifts (assets/shift-utils.js): وردية وحدة لكل موظف باليوم = أول بصمة دخول وآخر بصمة خروج (باقي البصمات بتنتجاهل)
     function shiftsList() {
       return olvComputeShifts(punches).sort((a, b) =>
         b.clockIn.punched_at.localeCompare(a.clockIn.punched_at));
     }
-    const hoursOf = (s) => olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
+    const hoursOf = olvShiftHours;
 
     function render() {
       const shifts = shiftsList();
@@ -452,9 +451,9 @@
       const t = (Date.now() - inT) / 3600000 >= LONG_SHIFT_H ? inT + 8 * 3600000 : Date.now();
       return sameDayOrNull(s, new Date(t).toISOString()) || new Date(inT + 60000).toISOString();
     }
-    // نظام الورديات (olvComputeShifts) بيزوّج البصمات بنفس تاريخ UTC، فخروج بيوم تاني بيطلع وردية مفتوحة جديدة
+    // الخروج لازم يقع بنفس يوم الدوام (يبدأ 4 الفجر)، وإلا بينحسب لليوم اللي بعده
     function sameDayOrNull(s, outIso) {
-      return utcDay(outIso) === utcDay(s.clockIn.punched_at) && outIso > s.clockIn.punched_at ? outIso : null;
+      return olvWorkDay(outIso) === s.work_date && outIso > s.clockIn.punched_at ? outIso : null;
     }
     async function insertClockOut(s, outIso) {
       const { error } = await window.supabaseClient.from("employee_punches")
@@ -501,12 +500,12 @@
       await runReport();
     }
 
-    // بيحذف الوردية كاملة (دخول + خروج إن وجد). لوردية مفتوحة بيحذف بصمة الدخول الوحيدة
+    // بيحذف كل بصمات اليوم لهالموظف (الدخول والخروج وأي بصمات بينهم)
     async function deleteShift(key) {
       const s = shiftsList().find((x) => x.key === key);
       if (!s) return;
       try {
-        const ids = [s.clockIn.id].concat(s.clockOut ? [s.clockOut.id] : []);
+        const ids = s.ids;
         const { error } = await window.supabaseClient.from("employee_punches").delete().in("id", ids);
         if (error) throw error;
         editingKey = null; closingKey = null;
@@ -553,6 +552,7 @@
             <span class="nm">${olvEsc(nameOf(s.profile_id))}</span>
             <span class="tm"><b>${fmtTime(s.clockIn.punched_at)}</b>${man(s.clockIn)}&nbsp;←&nbsp;${s.clockOut ? `<b>${fmtTime(s.clockOut.punched_at)}</b>${man(s.clockOut)}` : '<span class="open">مفتوحة</span>'}</span>
             <span class="hrs${h == null ? " open" : ""}">${h != null ? `${fmtHrs(h)}<small> س</small>` : "—"}</span>
+            ${s.ignored ? '<span class="manual" title="فرق البصمات أقل من 30 دقيقة، ما بينحسب">مهمل</span>' : ""}${s.punch_count > 2 ? `<span class="manual" title="بصمات بين الدخول والخروج بتنتجاهل">${s.punch_count} بصمات</span>` : ""}
             ${canEdit ? `<button type="button" class="edit-btn" data-edit="${s.key}" aria-label="تعديل وردية ${olvEsc(nameOf(s.profile_id))}" aria-expanded="${editing}">${olvIcon("note")}</button>` : ""}
           </div>
           ${editing ? `
@@ -614,7 +614,7 @@
       const inVal = li.querySelector("[data-edit-in]").value;
       const outVal = li.querySelector("[data-edit-out]").value;
       if (!inVal) { olvShowError(errBox, new Error("وقت الدخول مطلوب")); return; }
-      if (outVal && utcDay(new Date(outVal).toISOString()) !== utcDay(new Date(inVal).toISOString())) {
+      if (outVal && olvWorkDay(new Date(outVal).toISOString()) !== olvWorkDay(new Date(inVal).toISOString())) {
         olvShowError(errBox, new Error("الخروج لازم يكون بنفس يوم الدخول (حسب حساب الورديات والرواتب)")); return;
       }
       btn.disabled = true;
@@ -653,12 +653,12 @@
     async function runReport() {
       errBox.style.display = "none";
       range = rangeFor(period);
-      const toExclusive = addDays(range.to, 1);
       const employeeId = $("f-employee").value;
       try {
+        const bounds = olvWorkRangeBounds(range.from, range.to);
         let query = window.supabaseClient
           .from("employee_punches").select("id, profile_id, punched_at, source")
-          .gte("punched_at", range.from).lt("punched_at", toExclusive)
+          .gte("punched_at", bounds.gte).lt("punched_at", bounds.lt)
           .order("punched_at");
         if (employeeId) query = query.eq("profile_id", employeeId);
         const { data, error } = await query;
@@ -704,7 +704,7 @@
         if (outVal) {
           const outIso = new Date(outVal).toISOString();
           if (outIso <= inIso) throw new Error("وقت الخروج لازم يكون بعد وقت الدخول");
-          if (utcDay(outIso) !== utcDay(inIso)) throw new Error("الخروج لازم يكون بنفس يوم الدخول (حسب حساب الورديات والرواتب)");
+          if (olvWorkDay(outIso) !== olvWorkDay(inIso)) throw new Error("الخروج لازم يكون بنفس يوم الدخول (حسب حساب الورديات والرواتب)");
           rows.push({ profile_id: rows[0].profile_id, punched_at: outIso, source: "manual", note });
         }
         const { error } = await window.supabaseClient.from("employee_punches").insert(rows);

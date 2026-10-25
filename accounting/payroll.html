@@ -198,7 +198,7 @@
 
         <section class="group">
           <h2 class="py-h" id="due-title"></h2>
-          <p class="py-note">الراتب = ساعات الورديات المسكّرة × الأجر بالساعة − السلف غير المسوّاة (بتنخصم كلها من أقرب راتب بتأكّد دفعه، بغض النظر عن الفترة).</p>
+          <p class="py-note">الراتب = ساعات الدوام (من أول لآخر بصمة باليوم) × الأجر بالساعة − السلف غير المسوّاة (بتنخصم كلها من أقرب راتب بتأكّد دفعه، بغض النظر عن الفترة).</p>
           <div id="due-box"><div class="py-empty">جاري الحساب...</div></div>
         </section>
 
@@ -247,7 +247,6 @@
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
-  <script defer src="assets/shift-utils.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("payroll");
@@ -372,18 +371,12 @@
 
     // ---------------------------------------------------------------
     // احتساب الرواتب (قراءة بس: ما بينكتب شي لحد «تأكيد الدفع»)
-    // نفس منطق تزويج البصمات بصفحة الحضور (assets/shift-utils.js): الساعات بس من الورديات
-    // المكتملة؛ الوردية المفتوحة (نسي يبصم خروج) بتنستثنى وبتطلع كتحذير حتى ما يتحسب راتب ناقص بالغلط
-    // ---------------------------------------------------------------
-    function computeHoursByEmployee(punches) {
+    // الساعات من دالة attendance_summary (نفس حساب صفحة الحضور): يوم الدوام = أول وآخر بصمة باليوم
+    // (يوم العمل بيبدأ 4 الفجر)، واليوم بفرق أقل من 30 دقيقة بيتجاهل. اليوم ببصمة وحدة (نسي يبصم خروج)
+    // بيطلع كتحذير وما بينحسب، حتى ما يتحسب راتب ناقص بالغلط
+    function hoursMapFrom(rows) {
       const result = new Map();
-      olvComputeShifts(punches).forEach((s) => {
-        if (!result.has(s.profile_id)) result.set(s.profile_id, { hours: 0, openCount: 0 });
-        const entry = result.get(s.profile_id);
-        const hrs = olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
-        if (hrs == null) entry.openCount += 1;
-        else entry.hours += hrs;
-      });
+      (rows || []).forEach((r) => result.set(r.profile_id, { hours: Number(r.total_hours) || 0, openCount: r.missing_exit_days || 0 }));
       return result;
     }
 
@@ -403,16 +396,11 @@
       errBox.style.display = "none";
       range = rangeFor(period);
       $("py-sub").textContent = `الفترة: ${shortDate(range.from)} لـ ${shortDate(range.to)}`;
-      const toExclusive = addDays(range.to, 1);
       const employeeId = $("f-employee").value;
       try {
-        let query = window.supabaseClient
-          .from("employee_punches").select("id, profile_id, punched_at")
-          .gte("punched_at", range.from).lt("punched_at", toExclusive);
-        if (employeeId) query = query.eq("profile_id", employeeId);
-        const { data, error } = await query;
+        const { data, error } = await window.supabaseClient.rpc("attendance_summary", { p_from: range.from, p_to: range.to });
         if (error) throw error;
-        const hoursMap = computeHoursByEmployee(data || []);
+        const hoursMap = hoursMapFrom(data);
         const profileIds = new Set([...hoursMap.keys(), ...unsettledAdvances.map((a) => a.profile_id)]);
         if (employeeId) [...profileIds].forEach((id) => { if (id !== employeeId) profileIds.delete(id); });
         previewRows = [...profileIds]
@@ -441,7 +429,7 @@
       $("k-hrs").textContent = fmtHrs(hrs);
       const open = previewRows.reduce((s, r) => s + r.openCount, 0);
       $("k-hrs-note").className = "note" + (open ? " warn" : "");
-      $("k-hrs-note").textContent = open ? `${open} وردية مفتوحة مش محسوبة` : "من ورديات مسكّرة";
+      $("k-hrs-note").textContent = open ? `${open} يوم ببصمة وحدة مش محسوب` : "من أول لآخر بصمة باليوم";
       if (!previewRows.length) { box.innerHTML = `<div class="py-empty">ما في ساعات عمل ولا سلف بهالفترة.</div>`; return; }
       box.innerHTML = `<ul class="pay-list">${previewRows.map((r) => `
         <li class="pay-card">
@@ -456,7 +444,7 @@
             <div class="minus"><span>سلف مخصومة</span><b>${olvFormatMoney(r.advancesTotal)}</b></div>
           </div>
           ${r.hourlyWage == null ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
-          ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} وردية مفتوحة (نسي يبصم خروج) مش محسوبة. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
+          ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
           <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
         </li>`).join("")}</ul>`;
       box.querySelectorAll("button[data-pay]").forEach((btn) => btn.addEventListener("click", () => confirmPay(btn.dataset.pay, btn)));
