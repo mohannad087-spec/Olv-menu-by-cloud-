@@ -825,7 +825,7 @@
         const { data: allAddons, error } = await window.supabaseClient
           .from("addons").select("*").order("name");
         if (error) throw error;
-        const data = (allAddons || []).filter((a) => !a.is_meal); // إضافات الوجبات بتنُشأ تلقائيًا من بطاقة المنتج
+        const data = (allAddons || []).filter((a) => !a.is_meal && !a.is_size); // إضافات الوجبات والأحجام بتنُشأ تلقائيًا من بطاقة المنتج
         if (!data.length) {
           body.innerHTML = `<tr class="empty-row"><td colspan="3">لا يوجد إضافات بعد</td></tr>`;
           return;

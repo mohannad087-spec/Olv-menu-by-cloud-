@@ -148,6 +148,7 @@
      35. [`schema-purchase-orders.sql`](./schema-purchase-orders.sql) — **تجهيز طلبيات المشتريات**: بتختار المورّد وبتطلع لك مواده (خام ومستلزمات) مع المخزون والكمية المقترحة، بتحفظ الطلبية وبترسلها واتساب/نسخ، ولما تستلمها بتتحول لفاتورة مشتريات. للمالك والمدير فقط (شغّله بعد `schema-purchase-invoices.sql`)
      36. [`schema-meal-price-rpc.sql`](./schema-meal-price-rpc.sql) — حفظ «سعر الوجبة / وجبة دبل» من شاشة البيع السريع للكاشير (دالة `save_meal_price`؛ لازم بعد `schema-meal-upgrade.sql`، وإلا فشل الحفظ بخطأ RLS على `addons`)
      37. [`schema-hall-price.sql`](./schema-hall-price.sql) — **سعر الصالة للصنف** (`products.hall_price`): لطلبات «صالة» بينباع بسعر الصالة، وللسفري/التوصيل بالسعر العادي؛ `record_sale` بتطبّقه بالسيرفر. بيحط للمشروبات الغازية صالة 0.50 وسفري 0.25 (شغّله بعد `schema-sale-overpay-guard.sql`)
+     38. [`schema-product-sizes.sql`](./schema-product-sizes.sql) — **الأحجام (صغير/كبير) بنقطة البيع**: الحجم الكبير بيتولّد له «إضافة» خاصة بالصنف (سعرها = فرق السعر) من منيو الموقع عبر مزامنة الأصناف، فـ`record_sale` ما بيتغير. لازم تشغّله قبل نشر `olv-menu-proxy` الجديدة
      شاشة البيع السريع (عادةً لأن أحد الملفات فوق انفاتك بالترتيب)، شغّل
      [`schema-fix-checkout-error.sql`](./schema-fix-checkout-error.sql) — ملف
      شامل وآمن يعيد كل أعمدة/دوال البيع والإلغاء لحالتها الصحيحة النهائية
@@ -394,6 +395,7 @@ accounting/
   schema-printers-routing.sql    جدول الطابعات وتوزيع الطلب على المحطات حسب التصنيف (print_jobs لكل طابعة)
   schema-receipt-customization.sql  عنوان ورقم هاتف المطعم على الفاتورة المطبوعة (اسم الكاشير يُطبع تلقائيًا من sales_entries.created_by بدون عمود جديد)
   schema-hall-price.sql          سعر صالة مستقل للصنف (hall_price) يطبّقه record_sale
+  schema-product-sizes.sql       أحجام الأصناف (صغير/كبير) كإضافة «كبير» بفرق السعر
   config.js                      بيانات الاتصال بمشروع Supabase الخاص بك
   assets/                        التصميم (theme.css) والأكواد المشتركة (JS)
 print-bridge/                    برنامج يعمل على جهاز داخل شبكة المطعم لإرسال
