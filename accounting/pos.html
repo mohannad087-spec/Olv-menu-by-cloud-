@@ -445,7 +445,7 @@
   }
   .qty-stepper button:active{background:var(--gold); color:var(--on-gold);}
   .qty-stepper .qty-value{min-width:24px; text-align:center; font-size:14px; font-weight:700;}
-  .flavor-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-bottom:12px;}
+  .flavor-grid{max-height:42vh; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-bottom:12px;}
   .flavor-chip{
     min-height:48px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3);
     color:var(--paper); font-size:14.5px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
@@ -1109,6 +1109,21 @@
     let mealCats = []; // تصنيفات بتقبل التحويل لوجبة (فاضي = كلها)
     // الأرجيلة: بدل الإضافات بيختار الكاشير النكهة (app_settings.hookah_flavors مفصولة بـ |)
     let hookahFlavors = [];
+    let hookahStock = []; // أسماء المعسل من المخزون («معسل مزايا نعناع»)
+    // نكهات الصنف: من المخزون حسب ماركة الأرجيلة (مزايا/نخلة...)، وإذا ما لقينا بنرجع للقائمة اليدوية
+    function flavorsFor(item) {
+      const brand = (item.name || "").replace(/^[أا]رجيلة\s*/, "").trim();
+      const words = brand.split(/\s+/).filter((w) => w.length > 2);
+      let list = hookahStock.filter((n) => words.some((w) => n.includes(w)));
+      if (!list.length) list = hookahStock;
+      if (!list.length) return hookahFlavors.map((f) => ({ label: f, value: f }));
+      return list.map((n) => {
+        let label = n.replace(/^معسل\s*/, "");
+        words.forEach((w) => { label = label.replace(w, ""); });
+        label = label.replace(/\s+/g, " ").trim() || n;
+        return { label, value: label };
+      }).sort((a, b) => a.label.localeCompare(b.label, "ar"));
+    }
     const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
     const itemCat = (item) => item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId));
     const flavorPrefix = "نكهة: ";
@@ -1413,7 +1428,7 @@
       if (!product) return;
       // لو في إضافات بالنظام: نضيف الصنف كسطر جديد ونفتح نافذة اختيار الإضافات فورًا
       // («إلغاء» بتخليه بدون إضافات، «حذف» بتشيله)
-      if (addons.length || (isHookah(product.category) && hookahFlavors.length)) {
+      if (addons.length || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length))) {
         OlvCart.add(product, [], 1, "");
         olvHaptic();
         renderCart();
@@ -1451,6 +1466,7 @@
       const hookah = isHookah(itemCat(item));
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
+      const flavorList = hookah ? flavorsFor(item) : [];
       const sheetAddons = hookah ? [] : addons;
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
@@ -1459,9 +1475,9 @@
           <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
-          ${hookah && hookahFlavors.length ? `
+          ${hookah && flavorList.length ? `
             <div class="flavor-grid" role="radiogroup" aria-label="النكهة">
-              ${hookahFlavors.map((f) => `<button type="button" class="flavor-chip${f === flavor ? " on" : ""}" data-flavor="${olvEsc(f)}">${olvEsc(f)}</button>`).join("")}
+              ${flavorList.map((f) => `<button type="button" class="flavor-chip${f.value === flavor ? " on" : ""}" data-flavor="${olvEsc(f.value)}">${olvEsc(f.label)}</button>`).join("")}
             </div>` : ""}
           ${sheetAddons.length ? `
             <div style="margin-bottom:10px;">
@@ -1977,7 +1993,7 @@
     // آخر منيو انقرا من السيرفر، حتى الكاشير يقدر يبيع إذا انفتحت الصفحة والنت مقطوع
     const MENU_CACHE_KEY = "olv_pos_menu_cache_v1";
     function saveMenuCache() {
-      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, mealCats, hookahFlavors, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
+      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, mealCats, hookahFlavors, hookahStock, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
     }
     function loadMenuCache() {
       try {
@@ -1987,6 +2003,7 @@
         addons = c.addons || [];
         mealCats = c.mealCats || [];
         hookahFlavors = c.hookahFlavors || [];
+        hookahStock = c.hookahStock || [];
         return true;
       } catch (_) { return false; }
     }
@@ -1999,6 +2016,8 @@
         mealCats = ((data && data.value) || "").split("|").filter(Boolean);
         const f = await window.supabaseClient.from("app_settings").select("value").eq("key", "hookah_flavors").maybeSingle();
         hookahFlavors = ((f.data && f.data.value) || "").split("|").map((x) => x.trim()).filter(Boolean);
+        const ing = await window.supabaseClient.from("ingredients").select("name").like("name", "معسل%").order("name");
+        if (!ing.error) hookahStock = (ing.data || []).map((r) => r.name).filter((n) => !/كيلو/.test(n));
       } catch (_) { /* نبقى على آخر قيمة محفوظة */ }
     }
 
