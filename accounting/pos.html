@@ -1368,8 +1368,8 @@
       const totalPages = Math.max(1, Math.ceil(list.length / itemsPerPage));
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
-      // بالكمبيوتر الأصناف كلها تنزل بالطول وتتسكرول داخل الشبكة (بدل صفحات)، بحجم البطاقة الطبيعي
-      const scrollMode = false;
+      // الأصناف كلها بصفحة وحدة بالطول (كمبيوتر وموبايل) وتتسكرول، بدل الصفحات المرقّمة، بحجم البطاقة الطبيعي
+      const scrollMode = true;
       const pageItems = scrollMode ? list : list.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
       const gridSig = activeCategory + "|" + searchTerm;
       const keepScroll = renderGrid._sig === gridSig ? grid.scrollTop : 0;
