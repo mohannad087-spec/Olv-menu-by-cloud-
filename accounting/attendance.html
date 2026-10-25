@@ -353,7 +353,7 @@
     $("ic-people").innerHTML = olvIcon("people");
     $("ic-open").innerHTML = olvIcon("bolt");
     $("now-title").innerHTML = olvIcon("bolt") + " على الدوام هلأ";
-    $("hrs-title").innerHTML = olvIcon("barChart") + " ساعات كل موظف";
+    $("hrs-title").innerHTML = olvIcon("barChart") + " أيام وساعات كل موظف";
     $("tab-overview").innerHTML = olvIcon("barChart") + "<span>نظرة عامة</span>";
     $("tab-log").innerHTML = olvIcon("calendar") + '<span>السجل</span> <span class="n" id="log-count"></span>';
     function setTab(t) {
@@ -412,7 +412,7 @@
       $("k-open-note").textContent = openNow.length ? "بصموا دخول وما بصموا خروج" : "ما حدا بصم دخول هلأ";
       $("at-sub").textContent = range.from === range.to ? `${DAY_NAMES[parse(range.from).getDay()]} ${shortDate(range.from)}` : `من ${shortDate(range.from)} لـ ${shortDate(range.to)}`;
       renderNow(open);
-      renderHours(shifts, done);
+      renderHours();
       renderLog(shifts);
     }
 
@@ -517,18 +517,29 @@
       }
     }
 
-    function renderHours(shifts, done) {
-      const by = new Map();
-      done.forEach((s) => {
-        const e = by.get(s.profile_id) || { h: 0, n: 0 };
-        e.h += hoursOf(s); e.n += 1; by.set(s.profile_id, e);
-      });
-      const rows = [...by.entries()].sort((a, b) => b[1].h - a[1].h);
-      if (!rows.length) { $("hrs-box").innerHTML = `<div class="at-empty">ما في ورديات مسكّرة بهالفترة.</div>`; return; }
-      const max = rows[0][1].h || 1;
-      $("hrs-box").innerHTML = `<ol class="hr-bars">${rows.map(([id, e]) => `
-        <li><span class="row"><span class="nm">${olvEsc(nameOf(id))}</span><span class="sh">${e.n} وردية</span><span class="amt">${fmtHrs(e.h)} س</span></span>
-          <span class="tr"><i style="width:${Math.max(3, e.h / max * 100)}%"></i></span></li>`).join("")}</ol>`;
+    // ملخص كل موظف من دالة attendance_summary: يوم الدوام = أول وآخر بصمة باليوم (يوم العمل بيبدأ 4 الفجر)،
+    // واليوم اللي فرق بصماته أقل من 30 دقيقة (تسجيل/تجربة) بينتجاهل، واليوم ببصمة وحدة «ناقص خروج».
+    let summarySeq = 0;
+    async function renderHours() {
+      const seq = ++summarySeq;
+      const { data, error } = await window.supabaseClient.rpc("attendance_summary", { p_from: range.from, p_to: range.to });
+      if (seq !== summarySeq) return;
+      if (error) { $("hrs-box").innerHTML = `<div class="at-empty">تعذّر تحميل الملخص.</div>`; olvShowError(errBox, error); return; }
+      const emp = $("f-employee").value;
+      const rows = (data || [])
+        .filter((r) => (!emp || r.profile_id === emp) && (r.days_worked > 0 || r.missing_exit_days > 0))
+        .sort((a, b) => Number(b.total_hours) - Number(a.total_hours));
+      const total = rows.reduce((a, r) => a + Number(r.total_hours), 0);
+      const working = rows.filter((r) => r.days_worked > 0);
+      $("k-hrs").textContent = fmtHrs(total);
+      $("k-hrs-note").textContent = "من أول لآخر بصمة باليوم";
+      $("k-people").textContent = working.length;
+      $("k-people-note").textContent = working.length ? `متوسط ${fmtHrs(total / working.length)} ساعة للواحد` : " ";
+      if (!rows.length) { $("hrs-box").innerHTML = `<div class="at-empty">ما في دوام بهالفترة.</div>`; return; }
+      const max = Number(rows[0].total_hours) || 1;
+      $("hrs-box").innerHTML = `<ol class="hr-bars">${rows.map((r) => `
+        <li><span class="row"><span class="nm">${olvEsc(r.full_name)}</span><span class="sh">${r.days_worked} يوم${r.missing_exit_days ? ` · ${r.missing_exit_days} ناقص خروج` : ""}</span><span class="amt">${fmtHrs(Number(r.total_hours))} س</span></span>
+          <span class="tr"><i style="width:${Math.max(3, Number(r.total_hours) / max * 100)}%"></i></span></li>`).join("")}</ol>`;
     }
 
     function rowHtml(s) {
