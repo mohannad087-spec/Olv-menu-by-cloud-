@@ -8,6 +8,12 @@ const OlvCart = (function () {
   let saleRef = null;
   let refSupported = true; // بيصير false إذا السيرفر لسا ما فيه schema-sale-idempotency.sql
   const touch = () => { saleRef = null; };
+  // نوع الطلب الحالي: صنف إله hall_price بينباع بهالسعر لطلبات «صالة» فقط (السفري/التوصيل بالسعر العادي).
+  // السيرفر (record_sale) بيطبّق نفس القاعدة، فهاد بس عشان السلة تعرض المجموع الصح.
+  let mode = null;
+  const HALL = "صالة";
+  const unit = (item) => (mode === HALL && Number(item.hallPrice) > 0 ? Number(item.hallPrice) : item.unitBase);
+  function setMode(t) { touch(); mode = t || null; }
   const newRef = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID()
     : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
 
@@ -18,6 +24,7 @@ const OlvCart = (function () {
       name: product.name,
       category: product.category || null, // لشاشة المطبخ المحلية وقت انقطاع النت (أي محطة بتحضّره)
       unitBase: Number(product.price),
+      hallPrice: Number(product.hall_price) > 0 ? Number(product.hall_price) : null,
       addons: addons.map((a) => ({ id: a.id, name: a.name, price: Number(a.price) })),
       qty,
       note: note || "",
@@ -62,7 +69,7 @@ const OlvCart = (function () {
 
   function lineTotal(item) {
     const addonsTotal = item.addons.reduce((s, a) => s + a.price, 0);
-    return (item.unitBase + addonsTotal) * item.qty;
+    return (unit(item) + addonsTotal) * item.qty;
   }
 
   function total() {
@@ -71,6 +78,7 @@ const OlvCart = (function () {
 
   async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue, tableNumber, customerPhone, customerName, discountAmount }) {
     if (!items.length) throw new Error("السلة فاضية");
+    setMode(orderType);
     const subtotal = total();
     // الخصم يُطبّق هون قبل التوزيع على كاش/شبكة/توصيل — لا يوجد عمود خصم مخصص
     // بجدول المبيعات حاليًا، فبنسجّله كملاحظة بس المبلغ الفعلي المحصّل هو الصافي بعد الخصم
@@ -135,7 +143,7 @@ const OlvCart = (function () {
             items: sentItems.map((item) => ({
               product_name: item.name,
               qty: item.qty,
-              unit_price: item.unitBase,
+              unit_price: unit(item),
               addons_total: item.addons.reduce((s, a) => s + a.price, 0),
               addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
               note: item.note || null,
@@ -162,5 +170,5 @@ const OlvCart = (function () {
   // آخر بيع: انحفظ بدون نت؟ ووصل للمطبخ عن طريق كمبيوتر المحل؟ (بتقرأها شاشة الكاشير)
   let lastOffline = { queued: false, sentToKitchen: false, orderNo: null };
 
-  return { add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout, lastOffline: () => lastOffline };
+  return { setMode, unitPrice: unit, add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout, lastOffline: () => lastOffline };
 })();

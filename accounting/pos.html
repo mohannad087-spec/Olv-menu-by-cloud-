@@ -1403,7 +1403,7 @@
             <div class="name" title="${olvEsc(p.name)}">${olvEsc(p.name)}</div>
             ${p.description ? `<div class="desc">${olvEsc(p.description)}</div>` : ""}
             <div class="info-bottom">
-              <span class="price">${olvFormatMoney(p.price)}</span>
+              <span class="price">${olvFormatMoney(Number(p.hall_price) > 0 && document.getElementById("order-type").value === "صالة" ? p.hall_price : p.price)}</span>
               <button type="button" class="add-btn" data-add="${p.id}" data-sound="add">+ أضف</button>
             </div>
           </div>
@@ -1510,7 +1510,7 @@
         sheet.innerHTML = `
           <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
-          <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
+          <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(OlvCart.unitPrice(item))}</div>
           ${hookah && flavorList.length ? `
             <div class="flavor-grid" role="radiogroup" aria-label="النكهة">
               ${flavorList.map((f) => `<button type="button" class="flavor-chip${f.value === flavor ? " on" : ""}" data-flavor="${olvEsc(f.value)}">${olvEsc(f.label)}</button>`).join("")}
@@ -1597,6 +1597,9 @@
     // ما تنتقل بيانات طلب سابق بالغلط لطلب من نوع مختلف
     function updateOrderTypeFields() {
       const type = document.getElementById("order-type").value;
+      OlvCart.setMode(type);
+      if (typeof renderGrid === "function" && products.length) renderGrid();
+      if (typeof renderCart === "function") renderCart();
       document.querySelectorAll("#order-type-seg button").forEach((b) => b.classList.toggle("on", b.dataset.type === type));
       const tableField = document.getElementById("table-number-field");
       const nameField = document.getElementById("customer-name-field");
@@ -2026,8 +2029,9 @@
         const p = byId.get(item.productId);
         if (!p) { gone.push(item.name); return; }
         const newAddons = item.addons.map((a) => (addonById.has(a.id) ? { ...a, price: Number(addonById.get(a.id).price) } : a));
-        const priceDiff = Number(p.price) !== item.unitBase || newAddons.some((a, i) => a.price !== item.addons[i].price);
-        if (priceDiff) { OlvCart.updateAt(idx, { unitBase: Number(p.price), addons: newAddons }); changed++; }
+        const newHall = Number(p.hall_price) > 0 ? Number(p.hall_price) : null;
+        const priceDiff = Number(p.price) !== item.unitBase || newHall !== (item.hallPrice ?? null) || newAddons.some((a, i) => a.price !== item.addons[i].price);
+        if (priceDiff) { OlvCart.updateAt(idx, { unitBase: Number(p.price), hallPrice: newHall, addons: newAddons }); changed++; }
       });
       if (changed) showToast(`تحدّث سعر ${changed} صنف بالسلة حسب المنيو الحالي`, "var(--gold-dp)", "tag");
       if (gone.length) showToast(`انتبه: ${gone.join("، ")} مش موجود بالمنيو هلأ`, "var(--danger)", "warning");
