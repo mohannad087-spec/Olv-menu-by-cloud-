@@ -30,6 +30,17 @@
   .cr-chip:active{transform:scale(.97);}
   .cr-chips input[type=date]{min-height:44px; width:auto; min-width:150px; flex:0 1 180px;}
 
+  /* فتح الدرج */
+  .cr-open{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 16px; border-radius:18px; background:var(--ink-2); border:1px solid var(--hair-soft); margin-bottom:14px;}
+  .cr-open .ci{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:var(--gold); color:var(--on-gold); flex:none;}
+  .cr-open.done .ci{background:var(--olive); color:var(--on-olive);}
+  .cr-open .ci .icon{width:20px; height:20px;}
+  .cr-open .t{flex:1; min-width:180px; font-size:14px; line-height:1.6;}
+  .cr-open .t b{font-size:15.5px;}
+  .cr-open input{width:120px; min-height:46px; box-sizing:border-box; text-align:center; font-size:17px !important; font-weight:800; font-family:'Tajawal',sans-serif; background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; color:var(--paper);}
+  .cr-open .btn{min-height:46px;}
+  .cr-open form{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+
   /* اليوم متقفّل أصلًا */
   .cr-done{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 16px; border-radius:18px; background:var(--ink-2); border:1px solid var(--hair-soft); margin-bottom:14px;}
   .cr-done[hidden]{display:none;}
@@ -231,7 +242,7 @@
 
     <header class="cr-head">
       <div>
-        <h1>تقفيل الخزينة</h1>
+        <h1>فتح وتقفيل الخزينة</h1>
         <div class="cr-sub">اعدّ المصاري بالدرج، والبرنامج بيقلّك إذا في عجز أو زيادة.</div>
       </div>
       <button class="btn small" type="button" id="share-day-btn"></button>
@@ -241,6 +252,16 @@
       <button class="cr-chip" type="button" data-day="0">اليوم</button>
       <button class="cr-chip" type="button" data-day="-1">أمس</button>
       <input type="date" id="closing_date" aria-label="تاريخ التقفيل" required>
+    </div>
+
+    <!-- فتح الدرج: رصيد أول اليوم، وبعدها بيظهر تلقائي بالتقفيل -->
+    <div class="cr-open" id="open-box">
+      <div class="ci" id="open-ic"></div>
+      <div class="t" id="open-text"></div>
+      <form id="open-form" novalidate>
+        <input type="number" id="open_amount" step="0.01" min="0" inputmode="decimal" placeholder="0.00" aria-label="رصيد فتح الدرج">
+        <button type="submit" class="btn go" id="open-btn"></button>
+      </form>
     </div>
 
     <!-- إذا اليوم متقفّل: ملخّص، والفورم بيتسكّر لحد ما يكبس «تقفيل تاني» (وردية تانية) -->
@@ -366,11 +387,14 @@
     $("chart-title").innerHTML = olvIcon("barChart") + " الفرق بكل تقفيل";
     $("list-title").innerHTML = olvIcon("receipt") + " السجل";
     $("save-btn").innerHTML = olvIcon("check") + "<span>قفّل الخزينة</span>";
+    $("open-ic").innerHTML = olvIcon("banknote");
+    $("open-btn").innerHTML = olvIcon("check") + "<span>افتح الدرج</span>";
     $("den-toggle").innerHTML = olvIcon("banknote") + "<span>عدّ بالفئات</span>" + olvIcon("chevronDown", "chev");
 
     let session = null;
     let ctx = { cashSales: 0, salesCount: 0, card: 0, delivery: 0, expToday: 0, sinceClosing: null };
     let closings = [];
+    let openings = [];
     let names = {};
     let openRow = null;
     let listLimit = 10;
@@ -462,7 +486,17 @@
       const sameDay = closings.filter((c) => c.closing_date === date).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
       const prev = sameDay[0] || null;
       let opening = null, openingHint = "الفراطة اللي كانت بالدرج لما فتحت";
-      if (prev) {
+      const { data: opRows, error: opErr } = await sb.from("cash_openings").select("*")
+        .eq("opening_date", date).order("created_at", { ascending: false });
+      if (opErr) throw opErr;
+      if (seq !== loadSeq) return;
+      openings = opRows || [];
+      const lastOpen = openings[0] || null;
+      renderOpen(lastOpen);
+      if (lastOpen && (!prev || lastOpen.created_at > prev.created_at)) {
+        opening = Number(lastOpen.amount);
+        openingHint = `من فتح الدرج الساعة ${timeOf(lastOpen.created_at)}`;
+      } else if (prev) {
         opening = Number(prev.actual_closing);
         openingHint = `من تقفيل الساعة ${timeOf(prev.created_at)} لنفس اليوم`;
       } else {
@@ -514,6 +548,43 @@
       $("form-grid").hidden = !showForm;
       recalc();
     }
+
+    // ---------- فتح الدرج ----------
+    function renderOpen(row) {
+      const box = $("open-box");
+      box.classList.toggle("done", !!row);
+      $("open-text").innerHTML = row
+        ? `<b>الدرج مفتوح برصيد ${money(row.amount)}</b><br>الساعة ${timeOf(row.created_at)}. بتقدر تفتحه من جديد إذا غيّرت الفراطة.`
+        : `<b>افتح الدرج</b><br>اكتب الفراطة اللي بالدرج بأول اليوم، وبتنحط تلقائي بالتقفيل.`;
+      $("open-btn").lastElementChild.textContent = row ? "افتح من جديد" : "افتح الدرج";
+      if (row && document.activeElement !== $("open_amount")) $("open_amount").value = "";
+    }
+    $("open-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if ($("open_amount").value === "") {
+        olvToast("اكتب رصيد الدرج أول", { type: "danger", icon: "warning" });
+        $("open_amount").focus();
+        return;
+      }
+      const btn = $("open-btn");
+      btn.disabled = true;
+      try {
+        const { error } = await window.supabaseClient.from("cash_openings").insert({
+          opening_date: $("closing_date").value || olvToday(),
+          amount: r2($("open_amount").value),
+          opened_by: session.user.id,
+        });
+        if (error) throw error;
+        olvToast("انفتح الدرج", { type: "ok", icon: "check" });
+        $("open_amount").value = "";
+        openingTouched = false;
+        await loadDay();
+      } catch (err) {
+        olvShowError($("err"), err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     // ---------- السجل ----------
     async function loadClosings() {
