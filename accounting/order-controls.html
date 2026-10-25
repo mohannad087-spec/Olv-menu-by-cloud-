@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>التحكم بالطلبات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f1e6">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+
+<style>
+  .oc-row{display:grid; grid-template-columns:1.3fr 1fr 1.4fr; gap:10px; align-items:center; padding:12px 0; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.1));}
+  .oc-row:last-child{border-bottom:0;}
+  .oc-name{font-weight:700; font-size:14.5px;}
+  .oc-sub{color:var(--muted); font-size:12.5px; margin-top:2px;}
+  .oc-row select,.oc-row input[type=time],.oc-msg{background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); padding:10px; border-radius:10px; font-size:15px; font-family:'Tajawal',sans-serif; max-width:100%;}
+  .oc-times{display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; color:var(--muted);}
+  .oc-times[hidden]{display:none;}
+  .oc-msg{width:100%; box-sizing:border-box;}
+  .oc-badge{display:inline-block; font-size:11.5px; border-radius:999px; padding:2px 9px; margin-inline-start:6px; font-weight:700; background:var(--danger); color:#fff;}
+  .oc-badge.ok{background:var(--ok);}
+  .oc-status{font-size:13px; color:var(--muted); line-height:1.7; min-height:20px;}
+  .oc-status.ok{color:var(--ok);} .oc-status.bad{color:var(--danger-hi);}
+  @media (max-width:640px){ .oc-row{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group">
+      <h2>التحكم بالطلبات</h2>
+      <p class="hint" style="margin-bottom:10px;">إيقاف الطلب من المنيو العام: كليًا، أو لنوع طلب (طاولة / سفري / توصيل)، أو لقسم (أكل / مشروبات / حلويات / أرجيلة). التغيير بيسري عالمنيو فورًا بدون نشر. الكاشير والموظفين بيضلوا يقدروا يسجلوا طلبات من صفحاتهم. التوقيت بتوقيت الأردن.</p>
+      <p class="hint" style="margin-bottom:6px;"><b>متوقف بوقت</b>: بيتوقف الطلب من ساعة معينة وبيرجع يفتح بالساعة التانية كل يوم (مثلًا أكل: من 23:00 إلى 07:00).</p>
+      <div class="oc-status" id="oc-status">جاري التحميل...</div>
+    </div>
+
+    <div class="group"><h2>عام</h2><div id="oc-all"></div></div>
+    <div class="group"><h2>أنواع الطلب</h2><div id="oc-modes"></div></div>
+    <div class="group"><h2>الأقسام</h2><div id="oc-cats"></div></div>
+
+    <div class="group">
+      <h2>رسالة الإغلاق</h2>
+      <p class="hint" style="margin-bottom:8px;">اختياري: نص بيشوفه الزبون بدل الرسالة الجاهزة (مثلًا: المطبخ سكّر، منفتح بكرا الساعة 8).</p>
+      <input class="oc-msg" id="oc-message" maxlength="200" placeholder="الرسالة الجاهزة بتنعرض إذا تركته فاضي">
+      <div style="display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap;">
+        <button type="button" class="btn gold" id="oc-save"></button>
+        <span class="oc-status" id="oc-save-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/ai-assist.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("order-controls");
+    const $ = (id) => document.getElementById(id);
+    $("oc-save").innerHTML = olvIcon("check") + "<span>حفظ وتطبيق</span>";
+    const GROUPS = {
+      all: ["كل الطلبات", "إيقاف الطلب من المنيو بالكامل"],
+      hall: ["الطلب من الطاولة", "الزبون جوا الكافيه (QR / طاولة)"],
+      takeaway: ["الطلب السفري", "استلام من المحل"],
+      delivery: ["التوصيل", "طلبات التوصيل للبيت"],
+      food: ["الأكل", "برغر، سناكات، ساندويشات، بيتزا، باستا، سلطات"],
+      drinks: ["المشروبات", "ساخنة، باردة، عصائر، ميلك شيك، كوكتيل"],
+      sweets: ["الحلويات", "حلويات، كيك، بوظة، دونات، وافل، كريب"],
+      shisha: ["الأرجيلة", "طلبات الأرجيلة"],
+    };
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    let rules = {};
+
+    async function call(payload) {
+      const { data } = await window.supabaseClient.auth.getSession();
+      const token = data && data.session && data.session.access_token;
+      if (!token) throw new Error("لا توجد جلسة دخول");
+      const base = ((window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "").replace(/\/$/, "");
+      const res = await fetch(base + "/functions/v1/olv-menu-proxy", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token },
+        body: JSON.stringify(payload),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || out.ok === false) throw new Error(out.error || "تعذّر الاتصال بموقع المنيو");
+      return out;
+    }
+
+    function rowHtml(k, closedNow) {
+      const r = rules[k] || { mode: "on" };
+      return `<div class="oc-row" data-k="${k}">
+        <div><div class="oc-name">${esc(GROUPS[k][0])}${closedNow ? '<span class="oc-badge">متوقف الآن</span>' : ""}</div><div class="oc-sub">${esc(GROUPS[k][1])}</div></div>
+        <select data-role="mode" aria-label="حالة ${esc(GROUPS[k][0])}">
+          <option value="on" ${r.mode === "on" ? "selected" : ""}>شغّال</option>
+          <option value="off" ${r.mode === "off" ? "selected" : ""}>متوقف الآن</option>
+          <option value="schedule" ${r.mode === "schedule" ? "selected" : ""}>متوقف بوقت</option>
+        </select>
+        <div class="oc-times" data-role="times" ${r.mode === "schedule" ? "" : "hidden"}>
+          من <input type="time" data-role="from" value="${esc(r.closedFrom || "23:00")}"> إلى <input type="time" data-role="to" value="${esc(r.closedTo || "07:00")}">
+        </div>
+      </div>`;
+    }
+
+    function render(st) {
+      const closed = (st && st.closed) || {};
+      $("oc-all").innerHTML = rowHtml("all", closed.all);
+      $("oc-modes").innerHTML = ["hall", "takeaway", "delivery"].map((k) => rowHtml(k, closed[k])).join("");
+      $("oc-cats").innerHTML = ["food", "drinks", "sweets", "shisha"].map((k) => rowHtml(k, closed[k])).join("");
+      const list = Object.keys(closed);
+      const s = $("oc-status");
+      s.className = "oc-status " + (list.length ? "bad" : "ok");
+      s.textContent = list.length ? "متوقف حاليًا: " + list.map((k) => GROUPS[k][0]).join("، ") : "كل الطلبات شغّالة حاليًا.";
+    }
+
+    function collect() {
+      const out = {};
+      document.querySelectorAll(".oc-row").forEach((row) => {
+        const mode = row.querySelector('[data-role="mode"]').value;
+        if (mode === "on") return;
+        out[row.dataset.k] = { mode, closedFrom: row.querySelector('[data-role="from"]').value, closedTo: row.querySelector('[data-role="to"]').value };
+      });
+      return out;
+    }
+
+    document.addEventListener("change", (e) => {
+      if (e.target.matches('[data-role="mode"]')) {
+        e.target.closest(".oc-row").querySelector('[data-role="times"]').hidden = e.target.value !== "schedule";
+      }
+    });
+
+    async function load() {
+      try {
+        const out = await call({ action: "get_controls" });
+        rules = (out.controls && out.controls.rules) || {};
+        $("oc-message").value = (out.controls && out.controls.message) || "";
+        render(out.status);
+      } catch (e) {
+        $("oc-status").className = "oc-status bad";
+        $("oc-status").textContent = "تعذّر تحميل الإعدادات: " + e.message;
+      }
+    }
+
+    $("oc-save").addEventListener("click", async () => {
+      const st = $("oc-save-status");
+      st.className = "oc-status"; st.textContent = "جاري الحفظ...";
+      try {
+        const rs = collect();
+        for (const k in rs) if (rs[k].mode === "schedule" && (!rs[k].closedFrom || !rs[k].closedTo || rs[k].closedFrom === rs[k].closedTo)) throw new Error("حدد وقت بداية ونهاية مختلفين لـ" + GROUPS[k][0]);
+        const out = await call({ action: "set_controls", controls: { rules: rs, message: $("oc-message").value } });
+        rules = out.controls.rules || {};
+        render(out.status);
+        st.className = "oc-status ok"; st.textContent = "تم الحفظ وسرى على المنيو.";
+      } catch (e) {
+        st.className = "oc-status bad"; st.textContent = e.message;
+      }
+    });
+
+    load();
+    });
+  </script>
+</body>
+</html>

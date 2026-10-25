@@ -13,6 +13,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
+const OLV_CONTROLS_API = "https://olv-menu.pages.dev/api/controls";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
 const OLV_SITE = "https://olv-menu.pages.dev";
 const OLV_MENU_JSON = "https://olv-menu.pages.dev/data/menu.json";
@@ -262,7 +263,19 @@ Deno.serve(async (req) => {
       return json({ ok: true, url: await launchLink(adminKey, scope, String(body.to || "")) });
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو staff_link)" }, 400);
+    // التحكم بالطلبات (إيقاف الطلب لكل نوع/قسم بوقت أو يدوياً): بيقرأ ويكتب على /api/controls بموقع المنيو. للمالك والمدير بس
+    if (body.action === "get_controls" || body.action === "set_controls") {
+      if (!["owner", "manager"].includes(profile.role)) return json({ ok: false, error: "التحكم بالطلبات للمالك والمدير فقط" }, 403);
+      const set = body.action === "set_controls";
+      const { status, out } = await olvFetchJson(set ? OLV_CONTROLS_API : OLV_CONTROLS_API + "?full=1", {
+        method: set ? "POST" : "GET",
+        headers: set ? { "x-olv-admin-key": adminKey, "content-type": "application/json" } : { "x-olv-admin-key": adminKey },
+        ...(set ? { body: JSON.stringify(body.controls || {}) } : {}),
+      }, set ? 0 : 2);
+      return json(out, status);
+    }
+
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو staff_link أو get_controls أو set_controls)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }
