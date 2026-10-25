@@ -44,14 +44,18 @@ function canvasToRaster(canvas, threshold = 160) {
 }
 
 // يبني رسالة الطباعة الكاملة الجاهزة للإرسال إلى الطابعة عبر TCP
-function buildTicketBuffer(canvas, openDrawer = false) {
-  return Buffer.concat([
-    INIT,
-    canvasToRaster(canvas),
-    FEED_LINES(4),
-    CUT,
-    ...(openDrawer ? [DRAWER_KICK] : []),
-  ]);
+// copies > 1: نفس التذكرة تنطبع عدة مرات بإرسال واحد (قص بين كل نسخة)، فإما تنطبع كلها أو تنعاد المهمة
+function buildTicketBuffer(canvas, openDrawer = false, copies = 1) {
+  const raster = canvasToRaster(canvas);
+  const one = Buffer.concat([INIT, raster, FEED_LINES(4), CUT]);
+  const n = Math.max(1, Math.min(5, Math.floor(copies) || 1));
+  return Buffer.concat([...Array(n).fill(one), ...(openDrawer ? [DRAWER_KICK] : [])]);
+}
+
+// عدد نسخ تذكرة القسم (المطبخ/البار...)؛ الافتراضي نسختين، وممكن تغييره بـ KITCHEN_COPIES بملف .env
+function kitchenCopies() {
+  const n = Number(process.env.KITCHEN_COPIES || 2);
+  return Number.isFinite(n) ? Math.max(1, Math.min(5, Math.floor(n))) : 2;
 }
 
 // فحص الدرج: بس أمر الفتح بدون ورقة
@@ -59,4 +63,4 @@ function buildDrawerBuffer() {
   return Buffer.concat([INIT, DRAWER_KICK]);
 }
 
-module.exports = { canvasToRaster, buildTicketBuffer, buildDrawerBuffer };
+module.exports = { canvasToRaster, buildTicketBuffer, kitchenCopies, buildDrawerBuffer };

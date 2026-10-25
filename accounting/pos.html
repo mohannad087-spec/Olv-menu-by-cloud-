@@ -1840,6 +1840,8 @@
           });
           clearDraft();
           resetDiscount();
+          // بعد كل بيع: فضّي الاسم ورقم الصالة والتلفون حتى الطلب الجاي يبدأ فاضي
+          ["table-number", "customer-name", "customer-phone"].forEach((id) => { document.getElementById(id).value = ""; });
           renderCart();
           refreshPopularityAndGrid();
           // لو النت مقطوع، الطلب انحفظ محليًا بس (offline-queue.js) وما وصل لقاعدة

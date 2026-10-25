@@ -4,7 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { sendToPrinter } = require("./printer");
-const { buildTicketBuffer } = require("./escpos");
+const { buildTicketBuffer, kitchenCopies } = require("./escpos");
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { buildReceiptTicket } = require("./ticket-receipt");
 
@@ -106,7 +106,7 @@ async function printJob(job, cfg, log) {
       const canvas = t.kind === "receipt"
         ? buildReceiptTicket(sale, cfg.settings, null, t.layout)
         : buildKitchenTicket({ ...sale, sale_items: t.items }, t.printer ? t.printer.name : null, stationCount > 1, t.layout);
-      await sendToPrinter(t.ip, t.port, buildTicketBuffer(canvas, !!t.drawer));
+      await sendToPrinter(t.ip, t.port, buildTicketBuffer(canvas, !!t.drawer, t.kind === "station" ? kitchenCopies() : 1));
       doneSet.add(t.label);
       log(`✓ (بدون نت) طُبع على "${t.label}" — طلب ${job.order_no}`);
     } catch (e) {
