@@ -445,6 +445,13 @@
   }
   .qty-stepper button:active{background:var(--gold); color:var(--on-gold);}
   .qty-stepper .qty-value{min-width:24px; text-align:center; font-size:14px; font-weight:700;}
+  .flavor-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-bottom:12px;}
+  .flavor-chip{
+    min-height:48px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3);
+    color:var(--paper); font-size:14.5px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
+  }
+  .flavor-chip.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
+  .flavor-chip:active{transform:scale(.96);}
   .meal-btn{
     min-height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--olive); background:transparent;
     color:var(--olive-hi,#9dab63); font-size:14px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
@@ -1100,8 +1107,13 @@
     let products = [];
     let addons = [];
     let mealCats = []; // تصنيفات بتقبل التحويل لوجبة (فاضي = كلها)
+    // الأرجيلة: بدل الإضافات بيختار الكاشير النكهة (app_settings.hookah_flavors مفصولة بـ |)
+    let hookahFlavors = [];
+    const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
+    const itemCat = (item) => item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId));
+    const flavorPrefix = "نكهة: ";
     const mealAddons = () => addons.filter((a) => a.is_meal);
-    const mealOk = (item) => mealAddons().length && (!mealCats.length || mealCats.includes(item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId))));
+    const mealOk = (item) => mealAddons().length && !isHookah(itemCat(item)) && (!mealCats.length || mealCats.includes(item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId))));
     const isMeal = (item) => item.addons.some((a) => mealAddons().some((m) => m.id === a.id));
     // زر «وجبة» على سطر السلة: وجبة وحدة معرّفة = تبديل مباشر، أكتر = بيفتح شاشة الصنف لاختيار النوع
     function toggleMeal(idx) {
@@ -1401,7 +1413,7 @@
       if (!product) return;
       // لو في إضافات بالنظام: نضيف الصنف كسطر جديد ونفتح نافذة اختيار الإضافات فورًا
       // («إلغاء» بتخليه بدون إضافات، «حذف» بتشيله)
-      if (addons.length) {
+      if (addons.length || (isHookah(product.category) && hookahFlavors.length)) {
         OlvCart.add(product, [], 1, "");
         olvHaptic();
         renderCart();
@@ -1436,7 +1448,10 @@
       const sheet = document.createElement("div");
       sheet.className = "sheet";
       let qty = item.qty;
-      let note = item.note || "";
+      const hookah = isHookah(itemCat(item));
+      let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
+      let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
+      const sheetAddons = hookah ? [] : addons;
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
@@ -1444,9 +1459,13 @@
           <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
-          ${addons.length ? `
+          ${hookah && hookahFlavors.length ? `
+            <div class="flavor-grid" role="radiogroup" aria-label="النكهة">
+              ${hookahFlavors.map((f) => `<button type="button" class="flavor-chip${f === flavor ? " on" : ""}" data-flavor="${olvEsc(f)}">${olvEsc(f)}</button>`).join("")}
+            </div>` : ""}
+          ${sheetAddons.length ? `
             <div style="margin-bottom:10px;">
-              ${[...addons.filter((a) => a.is_meal), ...addons.filter((a) => !a.is_meal)].map((a) => `
+              ${[...sheetAddons.filter((a) => a.is_meal), ...sheetAddons.filter((a) => !a.is_meal)].map((a) => `
                 <label class="addon-row${a.is_meal ? " meal" : ""}" for="addon-${a.id}">
                   <input type="checkbox" data-addon="${a.id}" id="addon-${a.id}" ${selectedAddons.has(a.id) ? "checked" : ""}>
                   <span class="addon-name">${olvEsc(a.name)}</span>
@@ -1462,12 +1481,19 @@
           </div>
           <div class="field">
             <label>ملاحظة للمطبخ (اختياري)</label>
-            <input type="text" id="item-note" placeholder="مثال: بدون بصل" value="${note}">
+            <input type="text" id="item-note" placeholder="مثال: بدون بصل" value="${olvEsc(note)}">
           </div>
           <button class="btn gold" id="sheet-save" style="width:100%;">حفظ التعديلات</button>
           <button class="btn danger" id="sheet-delete" style="width:100%; margin-top:8px;">حذف من السلة</button>
           <button class="btn" id="sheet-cancel" style="width:100%; margin-top:8px;">إلغاء</button>
         `;
+        sheet.querySelectorAll("[data-flavor]").forEach((b) => {
+          b.addEventListener("click", () => {
+            flavor = flavor === b.dataset.flavor ? "" : b.dataset.flavor;
+            note = sheet.querySelector("#item-note").value;
+            render();
+          });
+        });
         sheet.querySelectorAll("input[data-addon]").forEach((cb) => {
           cb.addEventListener("change", () => {
             if (cb.checked) selectedAddons.add(cb.dataset.addon);
@@ -1484,8 +1510,9 @@
         });
         sheet.querySelector("#sheet-save").addEventListener("click", () => {
           const chosenAddons = addons.filter((a) => selectedAddons.has(a.id));
-          const finalNote = sheet.querySelector("#item-note").value.trim();
-          OlvCart.updateAt(idx, { qty, addons: chosenAddons, note: finalNote });
+          const typed = sheet.querySelector("#item-note").value.trim();
+          const finalNote = [flavor ? flavorPrefix + flavor : "", typed].filter(Boolean).join(" - ");
+          OlvCart.updateAt(idx, { qty, addons: hookah ? [] : chosenAddons, note: finalNote });
           renderCart();
           close();
         });
@@ -1950,7 +1977,7 @@
     // آخر منيو انقرا من السيرفر، حتى الكاشير يقدر يبيع إذا انفتحت الصفحة والنت مقطوع
     const MENU_CACHE_KEY = "olv_pos_menu_cache_v1";
     function saveMenuCache() {
-      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, mealCats, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
+      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, mealCats, hookahFlavors, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
     }
     function loadMenuCache() {
       try {
@@ -1959,6 +1986,7 @@
         products = c.products;
         addons = c.addons || [];
         mealCats = c.mealCats || [];
+        hookahFlavors = c.hookahFlavors || [];
         return true;
       } catch (_) { return false; }
     }
@@ -1969,6 +1997,8 @@
       try {
         const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "meal_categories").maybeSingle();
         mealCats = ((data && data.value) || "").split("|").filter(Boolean);
+        const f = await window.supabaseClient.from("app_settings").select("value").eq("key", "hookah_flavors").maybeSingle();
+        hookahFlavors = ((f.data && f.data.value) || "").split("|").map((x) => x.trim()).filter(Boolean);
       } catch (_) { /* نبقى على آخر قيمة محفوظة */ }
     }
 
