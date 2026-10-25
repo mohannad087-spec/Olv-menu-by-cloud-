@@ -822,12 +822,12 @@
             </div>
           </div>
           <div class="field" id="table-number-field" style="margin-bottom:12px;" hidden>
-            <label>رقم الطاولة</label>
+            <label>رقم الطاولة (اختياري)</label>
             <input type="text" id="table-number" placeholder="مثال: 5" list="table-options" autocomplete="off">
             <datalist id="table-options"></datalist>
           </div>
           <div class="field" id="customer-name-field" style="margin-bottom:12px;" hidden>
-            <label>اسم الزبون</label>
+            <label>اسم الزبون (اختياري)</label>
             <input type="text" id="customer-name" placeholder="مثال: أحمد">
           </div>
           <div class="field" id="customer-phone-field" style="margin-bottom:12px;">
@@ -1607,8 +1607,8 @@
     }
 
     // يظهر حقل رقم الطاولة لطلبات "صالة" فقط، وحقل رقم تلفون الزبون
-    // لطلبات "توصيل" فقط، وحقل اسم الزبون لطلبات "صالة"/"سفري" (إجباري
-    // بالاتنين — تحقق الإتمام بالأسفل)، ويصفّر الحقل غير المستخدم حتى
+    // لطلبات "توصيل" فقط، وحقل اسم الزبون لطلبات "صالة"/"سفري" (الاسم ورقم
+    // الطاولة اختياريين — الطلب بينطبع بدونهم)، ويصفّر الحقل غير المستخدم حتى
     // ما تنتقل بيانات طلب سابق بالغلط لطلب من نوع مختلف
     function updateOrderTypeFields() {
       const type = document.getElementById("order-type").value;
@@ -1838,16 +1838,6 @@
       const tableNumber = olvNormTable(document.getElementById("table-number").value);
       const customerPhone = document.getElementById("customer-phone").value.trim();
       const customerName = document.getElementById("customer-name").value.trim();
-      if (orderType === "صالة" && !tableNumber) {
-        olvShowError(errBox, new Error("لازم تدخل رقم الطاولة قبل إتمام طلب الصالة"));
-        document.getElementById("table-number").focus();
-        return;
-      }
-      if ((orderType === "صالة" || orderType === "سفري") && !customerName) {
-        olvShowError(errBox, new Error("لازم تدخل اسم الزبون قبل إتمام الطلب"));
-        document.getElementById("customer-name").focus();
-        return;
-      }
       if (orderType === "توصيل" && !customerPhone) {
         olvShowError(errBox, new Error("لازم تدخل رقم تلفون الزبون قبل إتمام طلب التوصيل"));
         document.getElementById("customer-phone").focus();
@@ -2451,7 +2441,7 @@
       });
 
       // الدفع/الحفظ وهي مطوية: منفتحها أول (قبل معالج الزر نفسه) حتى لو
-      // ناقص رقم طاولة أو اسم، الحقل يكون ظاهر لما يتركّز عليه
+      // ناقص رقم هاتف (توصيل)، الحقل يكون ظاهر لما يتركّز عليه
       panel.addEventListener("click", (e) => {
         if (mq.matches && panel.classList.contains("collapsed") && e.target.closest("#checkout-btn, #save-draft-btn")) {
           setCollapsed(false, false);
