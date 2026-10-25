@@ -445,6 +445,15 @@
   }
   .qty-stepper button:active{background:var(--gold); color:var(--on-gold);}
   .qty-stepper .qty-value{min-width:24px; text-align:center; font-size:14px; font-weight:700;}
+  .meal-btn{
+    min-height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--olive); background:transparent;
+    color:var(--olive-hi,#9dab63); font-size:14px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
+    display:inline-flex; align-items:center; gap:6px; margin-inline-end:auto;
+  }
+  .meal-btn[hidden]{display:none;}
+  .meal-btn.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
+  .meal-btn:active{transform:scale(.96);}
+  .addon-row.meal{background:rgba(125,142,74,.12); border-radius:12px; padding:12px 10px; font-weight:700; min-height:48px;}
   .cart-item-remove{
     width:32px; height:32px; border-radius:8px; border:1px solid transparent; background:transparent;
     color:var(--danger-hi); font-size:15px; flex:none; opacity:.75;
@@ -1090,6 +1099,23 @@
     let session = null;
     let products = [];
     let addons = [];
+    let mealCats = []; // تصنيفات بتقبل التحويل لوجبة (فاضي = كلها)
+    const mealAddons = () => addons.filter((a) => a.is_meal);
+    const mealOk = (item) => mealAddons().length && (!mealCats.length || mealCats.includes(item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId))));
+    const isMeal = (item) => item.addons.some((a) => mealAddons().some((m) => m.id === a.id));
+    // زر «وجبة» على سطر السلة: وجبة وحدة معرّفة = تبديل مباشر، أكتر = بيفتح شاشة الصنف لاختيار النوع
+    function toggleMeal(idx) {
+      const item = OlvCart.all()[idx];
+      const meals = mealAddons();
+      if (!item || !meals.length) return;
+      if (isMeal(item)) {
+        OlvCart.updateAt(idx, { addons: item.addons.filter((a) => !meals.some((m) => m.id === a.id)) });
+      } else if (meals.length === 1) {
+        OlvCart.updateAt(idx, { addons: [...item.addons, { id: meals[0].id, name: meals[0].name, price: Number(meals[0].price) }] });
+      } else { openItemSheet(idx); return; }
+      olvHaptic();
+      renderCart();
+    }
     let popularity = {}; // product_id -> إجمالي الكمية المباعة تاريخيًا
     let activeCategory = "الكل";
     let searchTerm = "";
@@ -1420,8 +1446,8 @@
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
           ${addons.length ? `
             <div style="margin-bottom:10px;">
-              ${addons.map((a) => `
-                <label class="addon-row" for="addon-${a.id}">
+              ${[...addons.filter((a) => a.is_meal), ...addons.filter((a) => !a.is_meal)].map((a) => `
+                <label class="addon-row${a.is_meal ? " meal" : ""}" for="addon-${a.id}">
                   <input type="checkbox" data-addon="${a.id}" id="addon-${a.id}" ${selectedAddons.has(a.id) ? "checked" : ""}>
                   <span class="addon-name">${olvEsc(a.name)}</span>
                   <span class="a-price">+${olvFormatMoney(a.price)}</span>
@@ -1647,6 +1673,7 @@
                 <span class="qty-value">${item.qty}</span>
                 <button type="button" data-inc="${idx}">+</button>
               </div>
+              <button type="button" class="meal-btn${isMeal(item) ? " on" : ""}" data-meal="${idx}" ${mealOk(item) ? "" : "hidden"}>${isMeal(item) ? "✓ وجبة" : "حوّل لوجبة"}</button>
               <button type="button" class="cart-item-remove" data-remove="${idx}" data-sound="remove" aria-label="حذف الصنف">${olvIcon("trash")}</button>
             </div>
           </div>
@@ -1659,6 +1686,9 @@
             OlvCart.incrementQtyAt(Number(btn.dataset.inc), 1);
             renderCart();
           });
+        });
+        list.querySelectorAll("[data-meal]").forEach((btn) => {
+          btn.addEventListener("click", () => toggleMeal(Number(btn.dataset.meal)));
         });
         list.querySelectorAll("[data-dec]").forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -1920,7 +1950,7 @@
     // آخر منيو انقرا من السيرفر، حتى الكاشير يقدر يبيع إذا انفتحت الصفحة والنت مقطوع
     const MENU_CACHE_KEY = "olv_pos_menu_cache_v1";
     function saveMenuCache() {
-      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
+      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, mealCats, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
     }
     function loadMenuCache() {
       try {
@@ -1928,11 +1958,19 @@
         if (!c || !Array.isArray(c.products) || !c.products.length) return false;
         products = c.products;
         addons = c.addons || [];
+        mealCats = c.mealCats || [];
         return true;
       } catch (_) { return false; }
     }
     // قسم الصنف (لشاشة المطبخ المحلية): بيستعمله sale-cart.js لأصناف مسودة محفوظة قبل ما نضيف القسم للسلة
     window.olvCategoryOf = (id) => { const p = products.find((x) => x.id === id); return p ? p.category : null; };
+
+    async function loadMealCats() {
+      try {
+        const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "meal_categories").maybeSingle();
+        mealCats = ((data && data.value) || "").split("|").filter(Boolean);
+      } catch (_) { /* نبقى على آخر قيمة محفوظة */ }
+    }
 
     async function refreshMenu() {
       const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }] = await Promise.all([
@@ -1942,6 +1980,7 @@
       if (e1 || e2 || !prodData) return;
       products = prodData;
       addons = addonData || [];
+      await loadMealCats();
       saveMenuCache();
       renderCategoryTabs();
       renderGrid();
@@ -1986,6 +2025,7 @@
         if (e2) throw e2;
         products = prodData || [];
         addons = addonData || [];
+        await loadMealCats();
         saveMenuCache();
         popularity = {};
         (salesData || []).forEach((r) => { popularity[r.product_id] = Number(r.total_qty); });

@@ -240,6 +240,9 @@
           <label>السعر</label>
           <input type="number" id="a-price" step="0.01" min="0" required>
         </div>
+        <label style="display:flex; align-items:center; gap:8px; min-height:44px;">
+          <input type="checkbox" id="a-meal"> هاي «وجبة» (زر تحويل لوجبة بالبيع السريع)
+        </label>
         <button type="submit" class="btn gold">إضافة</button>
       </form>
       <div class="table-wrap" style="margin-top:16px;">
@@ -250,6 +253,9 @@
           </tbody>
         </table>
       </div>
+      <h3 style="margin-top:18px;">أي تصنيفات بتتحول لوجبة؟</h3>
+      <p class="hint">اختار التصنيفات (مثل برغر، ساندويش). إذا ما اخترت ولا واحد، كل الأصناف بتقبل التحويل. سعر الوجبة = سعر إضافة الوجبة فوق. وبشاشة «وصفات المنتجات» اربط إضافة الوجبة بالبطاطا والمشروب عشان تنزل من المخزون.</p>
+      <div id="meal-cats" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
     </div>
 
     </div>
@@ -804,11 +810,19 @@
         }
         body.innerHTML = data.map((a) => `
           <tr>
-            <td>${olvEsc(a.name)}</td>
+            <td>${olvEsc(a.name)}${a.is_meal ? ' <span class="badge">وجبة</span>' : ""}</td>
             <td>${olvFormatMoney(a.price)}</td>
-            <td><button class="btn small danger" data-id="${a.id}">حذف</button></td>
+            <td><button class="btn small" data-meal="${a.id}" data-on="${a.is_meal ? 1 : 0}" style="min-height:44px;">${a.is_meal ? "ألغِ كوجبة" : "اجعلها وجبة"}</button>
+              <button class="btn small danger" data-id="${a.id}" style="min-height:44px;">حذف</button></td>
           </tr>
         `).join("");
+        body.querySelectorAll("button[data-meal]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const { error } = await window.supabaseClient.from("addons")
+              .update({ is_meal: btn.dataset.on !== "1" }).eq("id", btn.dataset.meal);
+            if (error) olvShowError(errBox, error); else loadAddons();
+          });
+        });
         body.querySelectorAll("button[data-id]").forEach((btn) => {
           btn.addEventListener("click", () => olvUndoDelete(btn, {
             msg: "انحذفت الإضافة",
@@ -819,6 +833,28 @@
       } catch (err) {
         olvShowError(errBox, err);
       }
+    }
+
+    // التصنيفات المسموح تتحول وجبة (app_settings.meal_categories، مفصولة بـ |)
+    async function loadMealCats() {
+      const box = document.getElementById("meal-cats");
+      try {
+        const [{ data: prods }, { data: st }] = await Promise.all([
+          window.supabaseClient.from("products").select("category").eq("is_active", true),
+          window.supabaseClient.from("app_settings").select("value").eq("key", "meal_categories").maybeSingle(),
+        ]);
+        const chosen = new Set(((st && st.value) || "").split("|").filter(Boolean));
+        const cats = [...new Set((prods || []).map((p) => p.category).filter(Boolean))].sort();
+        box.innerHTML = cats.map((c) => `
+          <label style="display:flex; align-items:center; gap:8px; min-height:44px; padding:0 12px; border:1px solid var(--hair); border-radius:12px;">
+            <input type="checkbox" data-cat="${olvEsc(c)}" ${chosen.has(c) ? "checked" : ""}> ${olvEsc(c)}
+          </label>`).join("");
+        box.querySelectorAll("input[data-cat]").forEach((cb) => cb.addEventListener("change", async () => {
+          const val = [...box.querySelectorAll("input[data-cat]:checked")].map((x) => x.dataset.cat).join("|");
+          const { error } = await window.supabaseClient.from("app_settings").upsert({ key: "meal_categories", value: val });
+          if (error) olvShowError(document.getElementById("err"), error);
+        }));
+      } catch (err) { /* القسم اختياري */ }
     }
 
     async function importFromMenu() {
@@ -885,6 +921,7 @@
           name: document.getElementById("a-name").value.trim(),
           price: Number(document.getElementById("a-price").value || 0),
         };
+        if (document.getElementById("a-meal").checked) payload.is_meal = true;
         const { error } = await window.supabaseClient.from("addons").insert(payload);
         if (error) throw error;
         document.getElementById("addon-form").reset();
@@ -1476,6 +1513,7 @@
         loadTables(),
         loadProducts(),
         loadAddons(),
+        loadMealCats(),
         loadPrinterSettings(),
         loadPrinters().then(loadPrintJobs),
         loadSecurity(),
