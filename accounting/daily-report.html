@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>التقرير اليومي — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f1e6">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  .sum-grid{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px;}
+  @media (max-width:760px){ .sum-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  .pair{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:760px){ .pair{grid-template-columns:1fr;} }
+  .dr-table td.n, .dr-table th.n{text-align:end; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .dr-table tfoot td{font-weight:800;}
+  .dr-head{display:none;}
+  .dr-empty{color:var(--muted); padding:10px 2px; font-size:13.5px;}
+  .day-nav{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;}
+  .day-nav .field{flex:1; min-width:160px; margin:0;}
+  @media print{
+    @page{margin:12mm;}
+    body{background:#fff !important; color:#111 !important;}
+    #olv-nav, .olv-footer, .no-print, .err{display:none !important;}
+    .wrap{padding:0 !important; max-width:none !important;}
+    .group, .stat{background:#fff !important; color:#111 !important; box-shadow:none !important; border:1px solid #ccc !important; break-inside:avoid;}
+    .stat .label, .hint, .dr-empty{color:#555 !important;}
+    .stat .value, .value.good, .value.bad{color:#111 !important;}
+    th, td{color:#111 !important; border-color:#ccc !important;}
+    .dr-head{display:block; margin-bottom:12px;}
+    .dr-head h1{font-size:20px; margin:0 0 2px;}
+    .dr-head div{color:#555; font-size:13px;}
+    .pair{grid-template-columns:1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+
+    <div class="group no-print">
+      <h2>التقرير اليومي</h2>
+      <p class="hint" style="margin-bottom:12px;">ملخّص كامل ليوم واحد: المبيعات والمصروفات وصافي اليوم، مع تفاصيل الأصناف وطرق الدفع.</p>
+      <div class="day-nav">
+        <button class="btn" id="prev-btn" type="button" aria-label="اليوم السابق">اليوم السابق</button>
+        <div class="field">
+          <label for="day">التاريخ</label>
+          <input type="date" id="day">
+        </div>
+        <button class="btn" id="next-btn" type="button" aria-label="اليوم التالي">اليوم التالي</button>
+        <button class="btn gold" id="print-btn" type="button">طباعة / PDF</button>
+      </div>
+    </div>
+
+    <div id="report">
+      <div class="dr-head">
+        <h1>التقرير اليومي — OLV</h1>
+        <div id="dr-date"></div>
+      </div>
+
+      <div class="stats sum-grid" style="margin-bottom:14px;">
+        <div class="stat"><div class="label">إجمالي المبيعات</div><div class="value" id="k-sales">—</div></div>
+        <div class="stat"><div class="label">إجمالي المصروفات</div><div class="value" id="k-exp">—</div></div>
+        <div class="stat"><div class="label">صافي اليوم</div><div class="value" id="k-net">—</div></div>
+        <div class="stat"><div class="label">عدد الفواتير</div><div class="value" id="k-count">—</div></div>
+      </div>
+      <p class="trend-summary" id="k-note" style="margin-bottom:14px;"></p>
+
+      <div class="pair">
+        <div class="group">
+          <h2>طرق الدفع</h2>
+          <div class="table-wrap"><table class="dr-table">
+            <thead><tr><th>الطريقة</th><th class="n">المبلغ</th><th class="n">النسبة</th></tr></thead>
+            <tbody id="pay-body"></tbody>
+          </table></div>
+        </div>
+        <div class="group">
+          <h2>نوع الطلب</h2>
+          <div class="table-wrap"><table class="dr-table">
+            <thead><tr><th>النوع</th><th class="n">الفواتير</th><th class="n">المبلغ</th></tr></thead>
+            <tbody id="type-body"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <h2>المبيعات حسب التصنيف</h2>
+        <div class="table-wrap"><table class="dr-table">
+          <thead><tr><th>التصنيف</th><th class="n">الكمية</th><th class="n">المبلغ</th><th class="n">النسبة</th></tr></thead>
+          <tbody id="cat-body"></tbody>
+        </table></div>
+      </div>
+
+      <div class="group">
+        <h2>المبيعات حسب الصنف</h2>
+        <div class="table-wrap"><table class="dr-table">
+          <thead><tr><th>الصنف</th><th class="n">الكمية</th><th class="n">المبلغ</th></tr></thead>
+          <tbody id="item-body"></tbody>
+        </table></div>
+      </div>
+
+      <div class="group">
+        <h2>المصروفات</h2>
+        <div class="table-wrap"><table class="dr-table">
+          <thead><tr><th>التصنيف</th><th>البيان</th><th class="n">المبلغ</th></tr></thead>
+          <tbody id="exp-body"></tbody>
+          <tfoot id="exp-foot"></tfoot>
+        </table></div>
+      </div>
+
+      <div class="group" id="close-group" hidden>
+        <h2>تقفيل الخزينة</h2>
+        <div class="table-wrap"><table class="dr-table"><tbody id="close-body"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("reports");
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => olvFormatMoney(n);
+    const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) + "%" : "—");
+    const num = (v) => Number(v) || 0;
+    const empty = (cols, msg) => `<tr><td colspan="${cols}" class="dr-empty">${msg}</td></tr>`;
+    let seq = 0;
+
+    function shiftDay(delta) {
+      const [y, m, d] = $("day").value.split("-").map(Number);
+      const dt = new Date(y, m - 1, d + delta);
+      const s = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+      $("day").value = s;
+      load();
+    }
+
+    async function load() {
+      const my = ++seq;
+      const day = $("day").value;
+      if (!day) return;
+      const errBox = $("err");
+      errBox.style.display = "none";
+      $("dr-date").textContent = new Date(day + "T12:00:00").toLocaleDateString("ar", { weekday: "long", year: "numeric", month: "long", day: "numeric", numberingSystem: "latn" }) + " (" + day + ")";
+      const db = window.supabaseClient;
+      try {
+        const [salesR, expR, closeR, prodR] = await Promise.allSettled([
+          db.from("sales_entries").select("id, order_type, cash_amount, card_amount, delivery_amount, sale_items(product_id, product_name, qty, unit_price, status)")
+            .eq("entry_date", day).eq("status", "completed").limit(3000),
+          db.from("expenses").select("amount, description, expense_categories(name)").eq("expense_date", day).order("amount", { ascending: false }),
+          db.from("cash_closings").select("expected_closing, actual_closing, difference").eq("closing_date", day).order("created_at", { ascending: false }).limit(1),
+          db.from("products").select("id, category").limit(5000),
+        ]);
+        if (my !== seq) return;
+        const ok = (r) => (r.status === "fulfilled" && !r.value.error ? r.value.data || [] : null);
+        const sales = ok(salesR);
+        if (!sales) throw (salesR.value && salesR.value.error) || salesR.reason || new Error("تعذّر جلب المبيعات");
+        const exps = ok(expR); // null = ما في صلاحية
+        const close = ok(closeR);
+        const catOf = new Map((ok(prodR) || []).map((p) => [p.id, p.category || "عام"]));
+
+        let cash = 0, card = 0, delivery = 0;
+        const byType = new Map(), byItem = new Map(), byCat = new Map();
+        sales.forEach((s) => {
+          cash += num(s.cash_amount); card += num(s.card_amount); delivery += num(s.delivery_amount);
+          const t = s.order_type || "غير محدد";
+          const o = byType.get(t) || { n: 0, m: 0 };
+          o.n++; o.m += num(s.cash_amount) + num(s.card_amount) + num(s.delivery_amount);
+          byType.set(t, o);
+          (s.sale_items || []).filter((x) => x.status !== "voided").forEach((x) => {
+            const q = num(x.qty), m = q * num(x.unit_price);
+            const a = byItem.get(x.product_name) || { q: 0, m: 0 }; a.q += q; a.m += m; byItem.set(x.product_name, a);
+            const cn = catOf.get(x.product_id) || "غير مصنّف";
+            const c = byCat.get(cn) || { q: 0, m: 0 }; c.q += q; c.m += m; byCat.set(cn, c);
+          });
+        });
+        const total = cash + card + delivery;
+        const totalExp = exps ? exps.reduce((s, r) => s + num(r.amount), 0) : null;
+        const net = totalExp == null ? null : total - totalExp;
+
+        $("k-sales").textContent = money(total);
+        $("k-count").textContent = sales.length.toLocaleString("en");
+        $("k-exp").textContent = totalExp == null ? "—" : money(totalExp);
+        const netEl = $("k-net");
+        netEl.textContent = net == null ? "—" : money(net);
+        netEl.className = "value " + (net == null ? "" : net >= 0 ? "good" : "bad");
+        $("k-note").textContent = totalExp == null
+          ? "ما عندك صلاحية تشوف المصروفات، فصافي اليوم مش معروض."
+          : sales.length ? `متوسط الفاتورة ${money(total / sales.length)}.` : "ما في مبيعات مسجّلة بهاد اليوم.";
+
+        $("pay-body").innerHTML = [["كاش", cash], ["شبكة / فيزا", card], ["توصيل / تطبيقات", delivery]]
+          .map(([l, v]) => `<tr><td>${l}</td><td class="n">${money(v)}</td><td class="n">${pct(v, total)}</td></tr>`).join("");
+
+        const types = [...byType].sort((a, b) => b[1].m - a[1].m);
+        $("type-body").innerHTML = types.length
+          ? types.map(([t, o]) => `<tr><td>${olvEsc(t)}</td><td class="n">${o.n}</td><td class="n">${money(o.m)}</td></tr>`).join("")
+          : empty(3, "لا يوجد");
+
+        const itemsTotal = [...byCat.values()].reduce((s, c) => s + c.m, 0);
+        const cats = [...byCat].sort((a, b) => b[1].m - a[1].m);
+        $("cat-body").innerHTML = cats.length
+          ? cats.map(([n, c]) => `<tr><td>${olvEsc(n)}</td><td class="n">${c.q}</td><td class="n">${money(c.m)}</td><td class="n">${pct(c.m, itemsTotal)}</td></tr>`).join("")
+          : empty(4, "لا يوجد مبيعات");
+
+        const items = [...byItem].sort((a, b) => b[1].m - a[1].m);
+        $("item-body").innerHTML = items.length
+          ? items.map(([n, a]) => `<tr><td>${olvEsc(n)}</td><td class="n">${a.q}</td><td class="n">${money(a.m)}</td></tr>`).join("")
+          : empty(3, "لا يوجد مبيعات");
+
+        if (exps == null) {
+          $("exp-body").innerHTML = empty(3, "ما عندك صلاحية تشوف المصروفات");
+          $("exp-foot").innerHTML = "";
+        } else {
+          $("exp-body").innerHTML = exps.length
+            ? exps.map((r) => `<tr><td>${olvEsc(r.expense_categories ? r.expense_categories.name : "بدون تصنيف")}</td><td>${olvEsc(r.description || "")}</td><td class="n">${money(num(r.amount))}</td></tr>`).join("")
+            : empty(3, "لا يوجد مصروفات بهاد اليوم");
+          $("exp-foot").innerHTML = exps.length ? `<tr><td colspan="2">الإجمالي</td><td class="n">${money(totalExp)}</td></tr>` : "";
+        }
+
+        const c = close && close[0];
+        $("close-group").hidden = !c;
+        if (c) {
+          $("close-body").innerHTML = [["المتوقع", c.expected_closing], ["الفعلي", c.actual_closing], ["الفرق", c.difference]]
+            .map(([l, v]) => `<tr><td>${l}</td><td class="n">${v == null ? "—" : money(num(v))}</td></tr>`).join("");
+        }
+      } catch (err) {
+        if (my === seq) olvShowError(errBox, err);
+      }
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      const q = new URLSearchParams(location.search).get("date");
+      $("day").value = /^\d{4}-\d{2}-\d{2}$/.test(q || "") ? q : olvToday();
+      $("day").addEventListener("change", load);
+      $("prev-btn").addEventListener("click", () => shiftDay(-1));
+      $("next-btn").addEventListener("click", () => shiftDay(1));
+      $("print-btn").addEventListener("click", () => window.print());
+      await load();
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
