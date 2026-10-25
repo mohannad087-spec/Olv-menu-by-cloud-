@@ -22,28 +22,11 @@ const OlvMeal = (function () {
     total = Number(total) || 0;
     const db = window.supabaseClient;
     if (total > 0 && total <= Number(p.price)) throw new Error("سعر الوجبة لازم يكون أكبر من سعر الصنف لحاله (" + olvFormatMoney(p.price) + ")");
-    const patch = {};
-    let addon = null;
-    if (total <= 0) {
-      if (p[k.addon]) await db.from("addons").update({ is_active: false }).eq("id", p[k.addon]);
-      patch[k.price] = null;
-    } else {
-      const extra = Math.round((total - Number(p.price)) * 100) / 100;
-      const row = { name: k.prefix + p.name, price: extra, is_active: true, is_meal: true };
-      if (p[k.addon]) {
-        const { data, error } = await db.from("addons").update(row).eq("id", p[k.addon]).select("*").single();
-        if (error) throw error;
-        addon = data;
-      } else {
-        const { data, error } = await db.from("addons").insert(row).select("*").single();
-        if (error) throw error;
-        addon = data;
-      }
-      patch[k.price] = total;
-      patch[k.addon] = addon.id;
-    }
-    const { error } = await db.from("products").update(patch).eq("id", p.id);
+    // الكتابة على addons/products للمدير فقط بسياسات RLS، فالحفظ يمرّ عبر دالة السيرفر save_meal_price
+    const { data, error } = await db.rpc("save_meal_price", { p_product_id: p.id, p_kind: kind, p_total: total });
     if (error) throw error;
+    const addon = (data && data.addon) || null;
+    const patch = total > 0 ? { [k.price]: total, [k.addon]: addon.id } : { [k.price]: null };
     Object.assign(p, patch);
     return { product: patch, addon };
   }
