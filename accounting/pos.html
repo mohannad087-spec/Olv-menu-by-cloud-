@@ -1106,7 +1106,6 @@
     let session = null;
     let products = [];
     let addons = [];
-    let mealCats = []; // تصنيفات بتقبل التحويل لوجبة (فاضي = كلها)
     // الأرجيلة: بدل الإضافات بيختار الكاشير النكهة (app_settings.hookah_flavors مفصولة بـ |)
     let hookahFlavors = [];
     let hookahStock = []; // أسماء المعسل من المخزون («معسل مزايا نعناع»)
@@ -1127,19 +1126,20 @@
     const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
     const itemCat = (item) => item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId));
     const flavorPrefix = "نكهة: ";
-    const mealAddons = () => addons.filter((a) => a.is_meal);
-    const mealOk = (item) => mealAddons().length && !isHookah(itemCat(item)) && (!mealCats.length || mealCats.includes(item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId))));
-    const isMeal = (item) => item.addons.some((a) => mealAddons().some((m) => m.id === a.id));
-    // زر «وجبة» على سطر السلة: وجبة وحدة معرّفة = تبديل مباشر، أكتر = بيفتح شاشة الصنف لاختيار النوع
+    // الوجبة: لكل صنف «إضافة وجبة» خاصة فيه (products.meal_addon_id، بتنولّد من سعر الوجبة ببطاقة المنتج)
+    const mealAddonOf = (item) => {
+      const p = products.find((x) => x.id === item.productId);
+      return p && p.meal_addon_id ? addons.find((a) => a.id === p.meal_addon_id) || null : null;
+    };
+    const mealOk = (item) => !!mealAddonOf(item) && !isHookah(itemCat(item));
+    const isMeal = (item) => { const m = mealAddonOf(item); return !!m && item.addons.some((a) => a.id === m.id); };
+    // زر «وجبة» على سطر السلة: تبديل مباشر
     function toggleMeal(idx) {
       const item = OlvCart.all()[idx];
-      const meals = mealAddons();
-      if (!item || !meals.length) return;
-      if (isMeal(item)) {
-        OlvCart.updateAt(idx, { addons: item.addons.filter((a) => !meals.some((m) => m.id === a.id)) });
-      } else if (meals.length === 1) {
-        OlvCart.updateAt(idx, { addons: [...item.addons, { id: meals[0].id, name: meals[0].name, price: Number(meals[0].price) }] });
-      } else { openItemSheet(idx); return; }
+      const m = item && mealAddonOf(item);
+      if (!m) return;
+      if (isMeal(item)) OlvCart.updateAt(idx, { addons: item.addons.filter((a) => a.id !== m.id) });
+      else OlvCart.updateAt(idx, { addons: [...item.addons, { id: m.id, name: m.name, price: Number(m.price) }] });
       olvHaptic();
       renderCart();
     }
@@ -1467,7 +1467,8 @@
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
       const flavorList = hookah ? flavorsFor(item) : [];
-      const sheetAddons = hookah ? [] : addons;
+      const mealA = hookah ? null : mealAddonOf(item);
+      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal || (mealA && a.id === mealA.id));
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
@@ -1993,7 +1994,7 @@
     // آخر منيو انقرا من السيرفر، حتى الكاشير يقدر يبيع إذا انفتحت الصفحة والنت مقطوع
     const MENU_CACHE_KEY = "olv_pos_menu_cache_v1";
     function saveMenuCache() {
-      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, mealCats, hookahFlavors, hookahStock, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
+      try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ products, addons, hookahFlavors, hookahStock, at: Date.now() })); } catch (_) { /* خزنة ممتلئة */ }
     }
     function loadMenuCache() {
       try {
@@ -2001,7 +2002,6 @@
         if (!c || !Array.isArray(c.products) || !c.products.length) return false;
         products = c.products;
         addons = c.addons || [];
-        mealCats = c.mealCats || [];
         hookahFlavors = c.hookahFlavors || [];
         hookahStock = c.hookahStock || [];
         return true;
@@ -2012,8 +2012,6 @@
 
     async function loadMealCats() {
       try {
-        const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "meal_categories").maybeSingle();
-        mealCats = ((data && data.value) || "").split("|").filter(Boolean);
         const f = await window.supabaseClient.from("app_settings").select("value").eq("key", "hookah_flavors").maybeSingle();
         hookahFlavors = ((f.data && f.data.value) || "").split("|").map((x) => x.trim()).filter(Boolean);
         const ing = await window.supabaseClient.from("ingredients").select("name").like("name", "معسل%").order("name");
