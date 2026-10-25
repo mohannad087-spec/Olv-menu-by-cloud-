@@ -537,6 +537,7 @@
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="assets/meal-pricing.js"></script>
   <script defer src="assets/backup-status.js"></script>
   <script defer src="../print-bridge/src/ticket-core.js"></script>
   <script defer src="assets/notify-sound.js"></script>
@@ -695,7 +696,7 @@
             ${open ? `
             <div class="table-wrap">
               <table>
-                <thead><tr><th>المنتج</th><th>الوصف</th><th>السعر</th><th>سعر الوجبة</th><th>صورة</th><th>الأولوية</th><th></th></tr></thead>
+                <thead><tr><th>المنتج</th><th>الوصف</th><th>السعر</th><th>سعر الوجبة</th><th>وجبة دبل</th><th>صورة</th><th>الأولوية</th><th></th></tr></thead>
                 <tbody>
                   ${byCategory[cat].map((p) => `
                     <tr>
@@ -715,8 +716,14 @@
                       <td>${olvFormatMoney(p.price)}</td>
                       <td>
                         <div style="display:flex; gap:6px; min-width:150px;">
-                          <input type="number" step="0.05" min="0" value="${p.meal_price || ""}" placeholder="بدون وجبة" style="width:100px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-meal-input="${p.id}">
-                          <button class="btn small" data-save-meal="${p.id}" style="min-height:44px;">حفظ</button>
+                          <input type="number" step="0.05" min="0" value="${p.meal_price || ""}" placeholder="بدون" style="width:100px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-meal-input="${p.id}:meal">
+                          <button class="btn small" data-save-meal="${p.id}:meal" style="min-height:44px;">حفظ</button>
+                        </div>
+                      </td>
+                      <td>
+                        <div style="display:flex; gap:6px; min-width:150px;">
+                          <input type="number" step="0.05" min="0" value="${p.double_meal_price || ""}" placeholder="بدون" style="width:100px; font-size:16px; padding:10px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper); border-radius:8px; font-family:'Tajawal',sans-serif;" data-meal-input="${p.id}:double">
+                          <button class="btn small" data-save-meal="${p.id}:double" style="min-height:44px;">حفظ</button>
                         </div>
                       </td>
                       <td>
@@ -768,31 +775,11 @@
         });
         container.querySelectorAll("button[data-save-meal]").forEach((btn) => {
           btn.addEventListener("click", async () => {
-            const p = data.find((x) => x.id === btn.dataset.saveMeal);
-            const input = container.querySelector(`input[data-meal-input="${p.id}"]`);
-            const total = Number(input.value || 0);
+            const [id, kind] = btn.dataset.saveMeal.split(":");
+            const p = data.find((x) => x.id === id);
+            const input = container.querySelector(`input[data-meal-input="${btn.dataset.saveMeal}"]`);
             try {
-              if (total > 0 && total <= Number(p.price)) throw new Error("سعر الوجبة لازم يكون أكبر من سعر الصنف لحاله (" + olvFormatMoney(p.price) + ")");
-              if (total <= 0) {
-                if (p.meal_addon_id) await window.supabaseClient.from("addons").update({ is_active: false }).eq("id", p.meal_addon_id);
-                const { error } = await window.supabaseClient.from("products").update({ meal_price: null }).eq("id", p.id);
-                if (error) throw error;
-              } else {
-                const extra = Math.round((total - Number(p.price)) * 100) / 100;
-                let addonId = p.meal_addon_id;
-                if (addonId) {
-                  const { error } = await window.supabaseClient.from("addons")
-                    .update({ name: "وجبة " + p.name, price: extra, is_active: true, is_meal: true }).eq("id", addonId);
-                  if (error) throw error;
-                } else {
-                  const { data: ins, error } = await window.supabaseClient.from("addons")
-                    .insert({ name: "وجبة " + p.name, price: extra, is_meal: true }).select("id").single();
-                  if (error) throw error;
-                  addonId = ins.id;
-                }
-                const { error } = await window.supabaseClient.from("products").update({ meal_price: total, meal_addon_id: addonId }).eq("id", p.id);
-                if (error) throw error;
-              }
+              await OlvMeal.save(p, kind, Number(input.value || 0));
               await loadProducts();
             } catch (err) { olvShowError(errBox, err); }
           });
