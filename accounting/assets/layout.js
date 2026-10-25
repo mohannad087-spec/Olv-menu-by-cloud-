@@ -270,6 +270,7 @@ const OLV_HUBS = [
     navId: "settings",
     tabs: [
       { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
+      { id: "order-controls", href: "order-controls.html", label: "التحكم بالطلبات", icon: "bell" },
       { id: "style-guide", href: "style-guide.html", label: "دليل التصميم", icon: "brand" },
     ],
   },
