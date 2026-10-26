@@ -1062,6 +1062,9 @@
       renderCart();
     });
 
+    // صنف إله سعر صالة (hall_price) بيتحسب بسعره لطلبات «صالة» فقط
+    OlvCart.setMode($("order-type").value);
+    $("order-type").addEventListener("change", () => { OlvCart.setMode($("order-type").value); renderCart(); });
     $("save-btn").addEventListener("click", async () => {
       errBox.style.display = "none";
       const btn = $("save-btn");

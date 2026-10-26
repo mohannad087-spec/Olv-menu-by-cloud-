@@ -32,10 +32,10 @@ const OlvMenuSync = (function () {
 
   async function currentSignature() {
     const { data, error } = await window.supabaseClient
-      .from("ingredients").select("id, current_stock, menu_price, menu_cat, name").eq("menu_enabled", true);
+      .from("ingredients").select("id, current_stock, menu_price, menu_hall_price, menu_cat, name").eq("menu_enabled", true);
     if (error || !data) return null; // الأعمدة غير موجودة (SQL ما انشغّل) أو مشكلة شبكة — ما نعمل شي
     if (!data.length) return "";
-    return data.map((r) => `${r.id}:${Number(r.current_stock) > 0 ? 1 : 0}:${r.menu_price}:${r.menu_cat}:${r.name}`).sort().join("|");
+    return data.map((r) => `${r.id}:${Number(r.current_stock) > 0 ? 1 : 0}:${r.menu_price}:${r.menu_hall_price}:${r.menu_cat}:${r.name}`).sort().join("|");
   }
 
   async function tick() {

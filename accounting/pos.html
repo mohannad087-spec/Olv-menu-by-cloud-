@@ -822,12 +822,12 @@
             </div>
           </div>
           <div class="field" id="table-number-field" style="margin-bottom:12px;" hidden>
-            <label>رقم الطاولة</label>
+            <label>رقم الطاولة (اختياري)</label>
             <input type="text" id="table-number" placeholder="مثال: 5" list="table-options" autocomplete="off">
             <datalist id="table-options"></datalist>
           </div>
           <div class="field" id="customer-name-field" style="margin-bottom:12px;" hidden>
-            <label>اسم الزبون</label>
+            <label>اسم الزبون (اختياري)</label>
             <input type="text" id="customer-name" placeholder="مثال: أحمد">
           </div>
           <div class="field" id="customer-phone-field" style="margin-bottom:12px;">
@@ -1127,6 +1127,21 @@
     };
     const mealOk = (item) => !isHookah(itemCat(item)) && OlvMeal.eligible(products.find((x) => x.id === item.productId));
     const mealKindOf = (item) => (["double", "meal"].find((k) => { const a = mealAddonFor(item, k); return a && item.addons.some((x) => x.id === a.id); })) || "";
+    // الحجم الكبير: إضافة «كبير» خاصة بالصنف (بتتولّد من المنيو، سعرها = فرق السعر)؛ الصغير = بدونها
+    const sizeAddonFor = (item) => {
+      const p = products.find((x) => x.id === item.productId);
+      return p && p.large_addon_id ? addons.find((a) => a.id === p.large_addon_id) || null : null;
+    };
+    const isLargeItem = (item) => { const a = sizeAddonFor(item); return !!a && item.addons.some((x) => x.id === a.id); };
+    function setSizeKind(idx, large) {
+      const item = OlvCart.all()[idx];
+      const a = item && sizeAddonFor(item);
+      if (!a) return;
+      const rest = item.addons.filter((x) => x.id !== a.id);
+      OlvCart.updateAt(idx, { addons: large ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
+      olvHaptic();
+      renderCart();
+    }
     function setMealKind(idx, kind) {
       const item = OlvCart.all()[idx];
       if (!item) return;
@@ -1288,7 +1303,8 @@
 
     // نفس الأقسام الأربعة تبع منيو الزبون؛ التصنيف اللي مش معروف بينحط بـ«المزيد»
     const CAT_GROUPS = [
-      { id: "food", name: "الأكل", cats: ["برغر", "سناكات", "ساندويشات", "ساندويشات الصباح", "بيتزا ومعجنات", "باستا", "سلطات"], icon: "burger" },
+      { id: "offers", name: "عروض", cats: ["عروض"], icon: "tag" },
+      { id: "food", name: "الأكل", cats: ["برغر", "سناكات", "ساندويشات", "ساندويشات الصباح", "بيتزا", "باستا", "سلطات"], icon: "burger" },
       { id: "drinks", name: "المشروبات", cats: ["مشروبات ساخنة", "مشروبات باردة", "كوكتيل", "عصائر", "ميلك شيك"], icon: "cup" },
       { id: "sweet", name: "الحلو", cats: ["حلويات", "بوظة", "دونات", "وافل", "كريب"], icon: "cake" },
       { id: "shisha", name: "الأرجيلة", cats: ["أرجيلة"], icon: "shisha" },
@@ -1368,8 +1384,8 @@
       const totalPages = Math.max(1, Math.ceil(list.length / itemsPerPage));
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
-      // بالكمبيوتر الأصناف كلها تنزل بالطول وتتسكرول داخل الشبكة (بدل صفحات)، بحجم البطاقة الطبيعي
-      const scrollMode = false;
+      // الأصناف كلها بصفحة وحدة بالطول (كمبيوتر وموبايل) وتتسكرول، بدل الصفحات المرقّمة، بحجم البطاقة الطبيعي
+      const scrollMode = true;
       const pageItems = scrollMode ? list : list.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
       const gridSig = activeCategory + "|" + searchTerm;
       const keepScroll = renderGrid._sig === gridSig ? grid.scrollTop : 0;
@@ -1403,7 +1419,7 @@
             <div class="name" title="${olvEsc(p.name)}">${olvEsc(p.name)}</div>
             ${p.description ? `<div class="desc">${olvEsc(p.description)}</div>` : ""}
             <div class="info-bottom">
-              <span class="price">${olvFormatMoney(p.price)}</span>
+              <span class="price">${olvFormatMoney(Number(p.hall_price) > 0 && document.getElementById("order-type").value === "صالة" ? p.hall_price : p.price)}</span>
               <button type="button" class="add-btn" data-add="${p.id}" data-sound="add">+ أضف</button>
             </div>
           </div>
@@ -1503,14 +1519,14 @@
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
       const flavorList = hookah ? flavorsFor(item) : [];
-      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal);
+      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size);
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
         sheet.innerHTML = `
           <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
-          <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(item.unitBase)}</div>
+          <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(OlvCart.unitPrice(item))}</div>
           ${hookah && flavorList.length ? `
             <div class="flavor-grid" role="radiogroup" aria-label="النكهة">
               ${flavorList.map((f) => `<button type="button" class="flavor-chip${f.value === flavor ? " on" : ""}" data-flavor="${olvEsc(f.value)}">${olvEsc(f.label)}</button>`).join("")}
@@ -1592,11 +1608,14 @@
     }
 
     // يظهر حقل رقم الطاولة لطلبات "صالة" فقط، وحقل رقم تلفون الزبون
-    // لطلبات "توصيل" فقط، وحقل اسم الزبون لطلبات "صالة"/"سفري" (إجباري
-    // بالاتنين — تحقق الإتمام بالأسفل)، ويصفّر الحقل غير المستخدم حتى
+    // لطلبات "توصيل" فقط، وحقل اسم الزبون لطلبات "صالة"/"سفري" (الاسم ورقم
+    // الطاولة اختياريين — الطلب بينطبع بدونهم)، ويصفّر الحقل غير المستخدم حتى
     // ما تنتقل بيانات طلب سابق بالغلط لطلب من نوع مختلف
     function updateOrderTypeFields() {
       const type = document.getElementById("order-type").value;
+      OlvCart.setMode(type);
+      if (typeof renderGrid === "function" && products.length) renderGrid();
+      if (typeof renderCart === "function") renderCart();
       document.querySelectorAll("#order-type-seg button").forEach((b) => b.classList.toggle("on", b.dataset.type === type));
       const tableField = document.getElementById("table-number-field");
       const nameField = document.getElementById("customer-name-field");
@@ -1746,6 +1765,10 @@
               </div>
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
+            ${sizeAddonFor(item) ? `
+            <div class="seg meal-seg" role="group" aria-label="الحجم: صغير أو كبير">
+              ${[[0, "صغير"], [1, "كبير"]].map(([k, l]) => `<button type="button" class="${(isLargeItem(item) ? 1 : 0) === k ? "on" : ""}" data-size="${idx}:${k}">${l}</button>`).join("")}
+            </div>` : ""}
             ${mealOk(item) ? `
             <div class="seg meal-seg" role="group" aria-label="نوع الطلب: ساندويش أو وجبة">
               ${[["", "ساندويش"], ["meal", "وجبة"], ["double", "وجبة دبل"]].map(([k, l]) => `<button type="button" class="${mealKindOf(item) === k ? "on" : ""}" data-meal="${idx}:${k}">${l}</button>`).join("")}
@@ -1769,6 +1792,9 @@
             OlvCart.incrementQtyAt(Number(btn.dataset.inc), 1);
             renderCart();
           });
+        });
+        list.querySelectorAll("[data-size]").forEach((btn) => {
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k === "1"); });
         });
         list.querySelectorAll("[data-meal]").forEach((btn) => {
           btn.addEventListener("click", () => { const [i, k] = btn.dataset.meal.split(":"); setMealKind(Number(i), k); });
@@ -1813,16 +1839,6 @@
       const tableNumber = olvNormTable(document.getElementById("table-number").value);
       const customerPhone = document.getElementById("customer-phone").value.trim();
       const customerName = document.getElementById("customer-name").value.trim();
-      if (orderType === "صالة" && !tableNumber) {
-        olvShowError(errBox, new Error("لازم تدخل رقم الطاولة قبل إتمام طلب الصالة"));
-        document.getElementById("table-number").focus();
-        return;
-      }
-      if ((orderType === "صالة" || orderType === "سفري") && !customerName) {
-        olvShowError(errBox, new Error("لازم تدخل اسم الزبون قبل إتمام الطلب"));
-        document.getElementById("customer-name").focus();
-        return;
-      }
       if (orderType === "توصيل" && !customerPhone) {
         olvShowError(errBox, new Error("لازم تدخل رقم تلفون الزبون قبل إتمام طلب التوصيل"));
         document.getElementById("customer-phone").focus();
@@ -2026,8 +2042,9 @@
         const p = byId.get(item.productId);
         if (!p) { gone.push(item.name); return; }
         const newAddons = item.addons.map((a) => (addonById.has(a.id) ? { ...a, price: Number(addonById.get(a.id).price) } : a));
-        const priceDiff = Number(p.price) !== item.unitBase || newAddons.some((a, i) => a.price !== item.addons[i].price);
-        if (priceDiff) { OlvCart.updateAt(idx, { unitBase: Number(p.price), addons: newAddons }); changed++; }
+        const newHall = Number(p.hall_price) > 0 ? Number(p.hall_price) : null;
+        const priceDiff = Number(p.price) !== item.unitBase || newHall !== (item.hallPrice ?? null) || newAddons.some((a, i) => a.price !== item.addons[i].price);
+        if (priceDiff) { OlvCart.updateAt(idx, { unitBase: Number(p.price), hallPrice: newHall, addons: newAddons }); changed++; }
       });
       if (changed) showToast(`تحدّث سعر ${changed} صنف بالسلة حسب المنيو الحالي`, "var(--gold-dp)", "tag");
       if (gone.length) showToast(`انتبه: ${gone.join("، ")} مش موجود بالمنيو هلأ`, "var(--danger)", "warning");
@@ -2132,6 +2149,11 @@
       }
       // سحب الأصناف والصور من منيو الموقع (بالخلفية وبدون ما يوقف الشاشة، من أي حساب)
       OlvMenuProducts.autoSync().then((done) => { if (done) refreshMenu(); });
+      // وتتكرر كل دقيقة والشاشة مفتوحة، حتى يوصل أي تعديل سعر بالمنيو بدون ما يحتاج إعادة فتح
+      setInterval(() => {
+        if (document.hidden) return;
+        OlvMenuProducts.autoSync().then((done) => { if (done) refreshMenu(); });
+      }, 60 * 1000);
       updateOrderTypeFields();
       restoreDraftIfAny();
       applyTableFromLink();
@@ -2425,7 +2447,7 @@
       });
 
       // الدفع/الحفظ وهي مطوية: منفتحها أول (قبل معالج الزر نفسه) حتى لو
-      // ناقص رقم طاولة أو اسم، الحقل يكون ظاهر لما يتركّز عليه
+      // ناقص رقم هاتف (توصيل)، الحقل يكون ظاهر لما يتركّز عليه
       panel.addEventListener("click", (e) => {
         if (mq.matches && panel.classList.contains("collapsed") && e.target.closest("#checkout-btn, #save-draft-btn")) {
           setCollapsed(false, false);
