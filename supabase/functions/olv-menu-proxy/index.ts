@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
     // أي حساب فعّال بيقدر يستدعيها (الكاشير مثلًا بعد البيع): ما بتكشف شي ولا بتغيّر غير أصناف المخزون
     if (body.action === "sync_stock") {
       const { data: rows, error } = await admin.from("ingredients")
-        .select("menu_item_id, name, menu_name_en, menu_price, menu_cat, current_stock, menu_group, menu_variant")
+        .select("menu_item_id, name, menu_name_en, menu_price, menu_hall_price, menu_cat, current_stock, menu_group, menu_variant")
         .eq("menu_enabled", true);
       if (error) return json({ ok: false, error: error.message }, 500);
       // نكهات المعسل (menu_cat = shisha-flavor) بتروح كخيار نكهة جوا الأرجيلة، والباقي كأصناف بسعر
@@ -192,6 +192,8 @@ Deno.serve(async (req) => {
             en: r.menu_name_en || undefined,
             cat: r.menu_cat,
             price: Number(r.menu_price),
+            // سعر الصالة (menu_price = السفري)؛ فاضي = نفس السعر
+            hallPrice: Number(r.menu_hall_price) > 0 ? Number(r.menu_hall_price) : undefined,
             available: Number(r.current_stock) > 0,
             // بطاقة المادة: الأنواع اللي إلها نفس menu_group بتظهر ببطاقة وحدة، واسم الخيار menu_variant
             group: r.menu_group || undefined,
