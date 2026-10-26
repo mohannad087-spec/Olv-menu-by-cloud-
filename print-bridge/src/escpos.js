@@ -58,9 +58,15 @@ function kitchenCopies() {
   return Number.isFinite(n) ? Math.max(1, Math.min(5, Math.floor(n))) : 2;
 }
 
+// عدد نسخ فاتورة البيع (طابعة الكاشير)؛ الافتراضي نسختين، وممكن تغييره بـ RECEIPT_COPIES بملف .env
+function receiptCopies() {
+  const n = Number(process.env.RECEIPT_COPIES || 2);
+  return Number.isFinite(n) ? Math.max(1, Math.min(5, Math.floor(n))) : 2;
+}
+
 // فحص الدرج: بس أمر الفتح بدون ورقة
 function buildDrawerBuffer() {
   return Buffer.concat([INIT, DRAWER_KICK]);
 }
 
-module.exports = { canvasToRaster, buildTicketBuffer, kitchenCopies, buildDrawerBuffer };
+module.exports = { canvasToRaster, buildTicketBuffer, kitchenCopies, receiptCopies, buildDrawerBuffer };
