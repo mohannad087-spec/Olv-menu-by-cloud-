@@ -149,6 +149,7 @@
      36. [`schema-meal-price-rpc.sql`](./schema-meal-price-rpc.sql) — حفظ «سعر الوجبة / وجبة دبل» من شاشة البيع السريع للكاشير (دالة `save_meal_price`؛ لازم بعد `schema-meal-upgrade.sql`، وإلا فشل الحفظ بخطأ RLS على `addons`)
      37. [`schema-hall-price.sql`](./schema-hall-price.sql) — **سعر الصالة للصنف** (`products.hall_price`): لطلبات «صالة» بينباع بسعر الصالة، وللسفري/التوصيل بالسعر العادي؛ `record_sale` بتطبّقه بالسيرفر. بيحط للمشروبات الغازية صالة 0.50 وسفري 0.25 (شغّله بعد `schema-sale-overpay-guard.sql`)
      38. [`schema-product-sizes.sql`](./schema-product-sizes.sql) — **الأحجام (صغير/كبير) بنقطة البيع**: الحجم الكبير بيتولّد له «إضافة» خاصة بالصنف (سعرها = فرق السعر) من منيو الموقع عبر مزامنة الأصناف، فـ`record_sale` ما بيتغير. لازم تشغّله قبل نشر `olv-menu-proxy` الجديدة
+     39. [`schema-menu-hall-price.sql`](./schema-menu-hall-price.sql) — **سعر الصالة لبطاقة المادة** (`ingredients.menu_hall_price`): بخانة «سعر الصالة» جنب سعر السفري بصفحة «أصناف المنيو من المخزون»، بيروح للمنيو ونقطة البيع بالمزامنة. لازم تشغّله قبل نشر `olv-menu-proxy` الجديدة
      شاشة البيع السريع (عادةً لأن أحد الملفات فوق انفاتك بالترتيب)، شغّل
      [`schema-fix-checkout-error.sql`](./schema-fix-checkout-error.sql) — ملف
      شامل وآمن يعيد كل أعمدة/دوال البيع والإلغاء لحالتها الصحيحة النهائية

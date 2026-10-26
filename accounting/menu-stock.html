@@ -238,7 +238,7 @@
 
     async function loadAll() {
       const [ing, prod] = await Promise.all([
-        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, unit_price, menu_enabled, menu_price, menu_cat, menu_name_en, menu_item_id, menu_hidden, menu_group, menu_variant, menu_price_auto").order("name"),
+        window.supabaseClient.from("ingredients").select("id, name, unit, current_stock, unit_price, menu_enabled, menu_price, menu_hall_price, menu_cat, menu_name_en, menu_item_id, menu_hidden, menu_group, menu_variant, menu_price_auto").order("name"),
         window.supabaseClient.from("products").select("id, name, external_id"),
       ]);
       if (ing.error) throw ing.error;
@@ -289,7 +289,8 @@
         <div class="ms-edit" hidden>
           ${flavor
             ? `<span class="ms-meta">بتظهر كخيار نكهة جوا الأرجيلة (السعر حسب نوع الأرجيلة)</span>`
-            : `<input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر البيع" value="${price != null ? olvEsc(price) : ""}"${auto && sug ? " readonly" : ""}>
+            : `<input type="number" class="price" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر السفري" title="سعر السفري والتوصيل" value="${price != null ? olvEsc(price) : ""}"${auto && sug ? " readonly" : ""}>
+          <input type="number" class="hall" step="0.05" min="0.05" inputmode="decimal" placeholder="سعر الصالة (اختياري)" title="فاضي = نفس سعر السفري" value="${ing.menu_hall_price != null ? olvEsc(ing.menu_hall_price) : ""}" style="width:120px;">
           <label class="ms-meta" style="display:flex; gap:4px; align-items:center;"><input type="checkbox" class="auto"${auto ? " checked" : ""}${cost ? "" : " disabled"}> تسعير ذكي (يتبع التكلفة)</label>
           <select class="cat">${menuCats.map((c) => `<option value="${olvEsc(c.id)}"${c.id === cat ? " selected" : ""}>${olvEsc(c.ar)}</option>`).join("")}</select>
           <input type="text" class="grp" placeholder="اسم البطاقة (مثلاً: مشروب غازي علبة 330 مل)" value="${olvEsc(group)}" style="min-width:210px;">
@@ -480,6 +481,13 @@
           p_auto: enable && !isFlavor && useAuto,
         });
         if (error) throw error;
+        // سعر الصالة: عمود مستقل عن سعر السفري (التسعير الذكي بيغيّر السفري بس)
+        const hallEl = row.querySelector(".hall");
+        if (enable && !isFlavor && hallEl) {
+          const hall = Number(hallEl.value);
+          const { error: eh } = await window.supabaseClient.from("ingredients").update({ menu_hall_price: hall > 0 ? hall : null }).eq("id", ing.id);
+          if (eh) throw eh;
+        }
         await loadAll();
         await doSync();
       } catch (err) {
