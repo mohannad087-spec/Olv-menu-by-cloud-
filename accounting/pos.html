@@ -2149,6 +2149,11 @@
       }
       // سحب الأصناف والصور من منيو الموقع (بالخلفية وبدون ما يوقف الشاشة، من أي حساب)
       OlvMenuProducts.autoSync().then((done) => { if (done) refreshMenu(); });
+      // وتتكرر كل دقيقة والشاشة مفتوحة، حتى يوصل أي تعديل سعر بالمنيو بدون ما يحتاج إعادة فتح
+      setInterval(() => {
+        if (document.hidden) return;
+        OlvMenuProducts.autoSync().then((done) => { if (done) refreshMenu(); });
+      }, 60 * 1000);
       updateOrderTypeFields();
       restoreDraftIfAny();
       applyTableFromLink();
