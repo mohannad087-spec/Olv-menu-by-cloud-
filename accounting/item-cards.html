@@ -170,7 +170,7 @@
     const db = window.supabaseClient;
     const errBox = $("err");
     // الربط (اعتماد البطاقات كمصدر للمنيو والكاشير) بيتفعّل بس لما يوافق المالك؛ لحد هداك الصفحة للعرض والمقارنة
-    const LINK_READY = false;
+    const LINK_READY = true;
 
     $("ic-i1").innerHTML = olvIcon("tag");
     $("ic-i2").innerHTML = olvIcon("warning");
@@ -503,6 +503,8 @@
       bd.querySelector("#ad-go").onclick = async (e) => {
         e.currentTarget.disabled = true;
         try {
+          // آخر مزامنة من المنيو قبل القلب: بتعبّي حقول البطاقة الجديدة (الاسم الإنجليزي، الوصف، القسم، المجموعة) من المنيو
+          await proxy("sync_products");
           for (const x of fix) {
             if (x.key === "meal") {
               const { error } = await db.rpc("save_meal_price", { p_product_id: x.p.id, p_kind: "meal", p_total: x.to || 0 });

@@ -15,6 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
 const OLV_CONTROLS_API = "https://olv-menu.pages.dev/api/controls";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
+const OLV_CARD_SYNC_API = "https://olv-menu.pages.dev/api/card-sync";
 const OLV_SITE = "https://olv-menu.pages.dev";
 const OLV_MENU_JSON = "https://olv-menu.pages.dev/data/menu.json";
 
@@ -226,11 +227,18 @@ Deno.serve(async (req) => {
       // deno-lint-ignore no-explicit-any
       const items = (menu.items || []).filter((it: any) => it.id && it.ar && it.price != null);
       if (!items.length) return json({ ok: false, error: "ما في أصناف بمنيو الموقع" }, 502);
+      const { data: before, error: e1 } = await admin.from("products").select("id, external_id, is_active").not("external_id", "is", null);
+      if (e1) return json({ ok: false, error: e1.message }, 500);
+      const known = new Set((before || []).map((p) => p.external_id));
+      // وضع «بطاقة المادة» (app_settings.item_cards_mode = 'cards'): البطاقات هي المصدر، فالمزامنة ما بتكتب فوق أي بطاقة موجودة
+      // ولا بتخفي شي؛ بتضيف بس الأصناف الجديدة اللي ما إلها بطاقة بعد (من المنيو)
+      const { data: modeRow } = await admin.from("app_settings").select("value").eq("key", "item_cards_mode").maybeSingle();
+      const cardsMode = modeRow?.value === "cards";
       const abs = (u: string) => /^https?:/i.test(u) ? u : `${OLV_SITE}/${String(u).replace(/^\/+/, "")}`;
       // الحجم الكبير: إضافة «كبير» خاصة بالصنف سعرها = فرق السعر عن الصغير (نفس فكرة وجبة)، فنقطة البيع والسيرفر
       // بيحسبوا الحجم من جدول الإضافات بدون تغيير بدالة record_sale. سعر الصالة بيطلع بنفس الفرق.
       // deno-lint-ignore no-explicit-any
-      const sized = items.filter((it: any) => Number(it.large?.price) > Number(it.price));
+      const sized = items.filter((it: any) => Number(it.large?.price) > Number(it.price) && (!cardsMode || !known.has(it.id)));
       const sizeAddonByItem: Record<string, string> = {};
       if (sized.length) {
         // deno-lint-ignore no-explicit-any
@@ -262,15 +270,27 @@ Deno.serve(async (req) => {
         row.large_addon_id = sizeAddonByItem[it.id] ?? null;
         if (it.image) row.image_url = abs(it.image);
         if (it.descAr) row.description = it.descAr;
+        // حقول بطاقة المادة (ما كانت موجودة بنقطة البيع)
+        row.name_en = it.en || null;
+        row.description_en = it.descEn || null;
+        row.menu_cat = it.cat || null;
+        row.subcat_ar = it.subcatAr || null;
+        row.subcat_en = it.subcatEn || null;
+        row.popular = !!it.popular;
         return row;
       });
-      const { data: before, error: e1 } = await admin.from("products").select("id, external_id, is_active").not("external_id", "is", null);
-      if (e1) return json({ ok: false, error: e1.message }, 500);
+      if (cardsMode) {
+        const fresh = payload.filter((r) => !known.has(r.external_id as string));
+        if (fresh.length) {
+          const { error: e5 } = await admin.from("products").upsert(fresh, { onConflict: "external_id", ignoreDuplicates: true });
+          if (e5) return json({ ok: false, error: e5.message }, 500);
+        }
+        return json({ ok: true, mode: "cards", count: payload.length, added: fresh.length, hidden: 0 });
+      }
       const { error: e2 } = await admin.from("products").upsert(payload, { onConflict: "external_id" });
       if (e2) return json({ ok: false, error: e2.message }, 500);
       // deno-lint-ignore no-explicit-any
       const inMenu = new Set(items.map((it: any) => it.id));
-      const known = new Set((before || []).map((p) => p.external_id));
       const gone = (before || []).filter((p) => !inMenu.has(p.external_id) && p.is_active).map((p) => p.id);
       if (gone.length) {
         const { error: e3 } = await admin.from("products").update({ is_active: false }).in("id", gone);
@@ -278,6 +298,69 @@ Deno.serve(async (req) => {
       }
       // deno-lint-ignore no-explicit-any
       return json({ ok: true, count: payload.length, added: items.filter((it: any) => !known.has(it.id)).length, hidden: gone.length });
+    }
+
+    // منيو الموقع الحالي بشكل مختصر (للمقارنة بصفحة «بطاقة المادة» وقائمة أقسام المنيو). عام أصلًا، فبس نجيبه من السيرفر بدون CORS.
+    if (body.action === "menu_items") {
+      const r = await fetch(OLV_MENU_JSON, { headers: { "cache-control": "no-cache" } });
+      if (!r.ok) return json({ ok: false, error: "تعذّر تحميل منيو الموقع" }, 502);
+      // deno-lint-ignore no-explicit-any
+      const menu: any = await r.json();
+      return json({
+        ok: true,
+        categories: (menu.categories || []).map((c: { id: string; ar: string }) => ({ id: c.id, ar: c.ar })),
+        // deno-lint-ignore no-explicit-any
+        items: (menu.items || []).map((it: any) => ({
+          id: it.id, ar: it.ar, cat: it.cat, price: it.price, hallPrice: it.hallPrice ?? null,
+          meal: it.meal?.price ?? null, large: it.large?.price ?? null, available: it.available !== false, source: it.source ?? null,
+        })),
+      });
+    }
+
+    // «بطاقة المادة» ← المنيو: بيبعت بطاقات الأصناف (من جدول products) لموقع المنيو (card-sync) حتى يظهر نفس السعر بالمكانين.
+    // أصناف المخزون (stk-...) ما بتنبعت: سعرها من المخزون ومزامنتها منفصلة. للمالك والمدير بس.
+    if (body.action === "push_cards") {
+      if (profile.role === "staff") return json({ ok: false, error: "هذه العملية للمالك والمدير فقط" }, 403);
+      const { data: rows, error: pe } = await admin.from("products")
+        .select("external_id, name, name_en, description, description_en, menu_cat, subcat_ar, subcat_en, price, hall_price, meal_price, large_addon_id, is_active, popular, image_url")
+        .not("external_id", "is", null);
+      if (pe) return json({ ok: false, error: pe.message }, 500);
+      const largeIds = (rows || []).map((r) => r.large_addon_id).filter(Boolean);
+      const largeBy: Record<string, number> = {};
+      if (largeIds.length) {
+        const { data: ad } = await admin.from("addons").select("id, price, is_active").in("id", largeIds);
+        (ad || []).forEach((a) => { if (a.is_active) largeBy[a.id] = Number(a.price); });
+      }
+      const cards = (rows || [])
+        .filter((r) => r.external_id && !String(r.external_id).startsWith("stk-"))
+        .map((r) => ({
+          id: r.external_id,
+          ar: r.name,
+          en: r.name_en || undefined,
+          descAr: r.description ?? "",
+          descEn: r.description_en ?? undefined,
+          cat: r.menu_cat || undefined,
+          subcatAr: r.subcat_ar || undefined,
+          subcatEn: r.subcat_en || undefined,
+          price: Number(r.price),
+          hallPrice: Number(r.hall_price) > 0 ? Number(r.hall_price) : null,
+          mealPrice: Number(r.meal_price) > 0 ? Number(r.meal_price) : null,
+          largePrice: r.large_addon_id && largeBy[r.large_addon_id] != null ? Math.round((Number(r.price) + largeBy[r.large_addon_id]) * 100) / 100 : null,
+          available: r.is_active !== false,
+          popular: !!r.popular,
+          image: r.image_url || undefined,
+        }));
+      const r = await fetch(OLV_CARD_SYNC_API, {
+        method: "POST",
+        headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
+        body: JSON.stringify({ cards }),
+      });
+      const text = await r.text();
+      let out: Record<string, unknown>;
+      try { out = JSON.parse(text); } catch {
+        return json({ ok: false, error: "موقع المنيو ما رد بالشكل المتوقع — تأكد إن تحديث الموقع (card-sync) منشور" }, 502);
+      }
+      return json({ ...out, count: cards.length }, r.status);
     }
 
     // رابط دخول لصفحات الإدارة/الموظفين (الموقع العام ما فيه أي رابط إلها). حساب "staff" بياخد رابط الموظفين بس.
@@ -298,7 +381,7 @@ Deno.serve(async (req) => {
       return json(out, status);
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو staff_link أو get_controls أو set_controls)" }, 400);
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو menu_items أو push_cards أو staff_link أو get_controls أو set_controls)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }
