@@ -2,11 +2,11 @@
 // التصنيفات والصور. المزامنة نفسها بتصير بالسيرفر (olv-menu-proxy: sync_products) حتى تشتغل من أي حساب، الكاشير كمان.
 //   OlvMenuProducts.imageUrl(src)  ← رابط كامل لصورة الصنف (صور الموقع نسبية "assets/photos/..")
 //   OlvMenuProducts.sync()         ← مزامنة كاملة وبترجّع { count, added, hidden }
-//   OlvMenuProducts.autoSync()     ← مزامنة صامتة (مرة كل 10 دقايق بالأكثر بهالجهاز)؛ بترجّع true إذا انعملت
+//   OlvMenuProducts.autoSync()     ← مزامنة صامتة (مرة كل دقيقة بالأكثر بهالجهاز)؛ بترجّع true إذا انعملت
 const OlvMenuProducts = (function () {
   const SITE = "https://olv-menu.pages.dev";
   const LAST_KEY = "olv_menu_products_sync";
-  const EVERY_MS = 10 * 60 * 1000;
+  const EVERY_MS = 60 * 1000;
 
   function imageUrl(src) {
     if (!src) return src;
