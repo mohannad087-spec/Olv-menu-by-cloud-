@@ -711,6 +711,7 @@
     let shown = LIST_STEP;
     let openId = null;
     const reprintCache = {};
+    const editCache = {};
 
     function itemsText(r) {
       const items = (r.sale_items || []);
@@ -817,6 +818,7 @@
     function detailHtml(r) {
       const voided = r.status === "voided";
       const items = r.sale_items || [];
+      const canEdit = ["owner", "manager"].includes(window.olvRole);
       const itemsHtml = items.length ? items.map((it) => {
         const itVoided = it.status === "voided";
         const line = (Number(it.unit_price) + Number(it.addons_total || 0)) * Number(it.qty);
@@ -825,7 +827,7 @@
             ${it.addons_summary ? `<div class="meta">+ ${olvEsc(it.addons_summary)}</div>` : ""}
             ${it.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(it.note)}</div>` : ""}</div>
           <div class="r"><span>${olvFormatMoney(line)}</span>
-            ${itVoided ? `<span class="tag-void">ملغى</span>` : (voided ? "" : `<button class="btn small danger" data-void-item="${it.id}">إلغاء الصنف</button>`)}</div>
+            ${itVoided ? `<span class="tag-void">ملغى</span>` : (voided ? "" : `${canEdit ? `<button class="btn small" data-edit-item="${it.id}">تعديل</button> ` : ""}<button class="btn small danger" data-void-item="${it.id}">إلغاء الصنف</button>`)}</div>
         </div>`;
       }).join("") : `<div class="od-item"><div class="nm">${olvEsc(r.notes || "لا توجد أصناف مسجّلة لهذا الطلب")}</div></div>`;
 
@@ -842,24 +844,30 @@
         ? `<div class="od-reprints">${olvIcon("printer")} انطبعت كمان ${rp.length} ${rp.length === 1 ? "مرة" : "مرات"}:<br>${rp.map((x) =>
             `نسخة ${olvEsc(x.reprint_no)} · ${olvEsc(new Date(x.created_at).toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" }))} · ${olvEsc(x.printed_by_name || "—")} · ${olvEsc(x.reason)}`).join("<br>")}</div>`
         : "";
+      const ed = editCache[r.id];
+      const edHtml = ed && ed.length
+        ? `<div class="od-reprints">تعديلات بعد البيع:<br>${ed.map((x) =>
+            `${olvEsc(x.product_name || "")}: ${x.old_qty}× ${olvFormatMoney(x.old_unit_price)} ← ${x.new_qty}× ${olvFormatMoney(x.new_unit_price)} · ${olvEsc(new Date(x.at).toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" }))} · ${olvEsc(x.actor_name || "—")} · ${olvEsc(x.reason)}`).join("<br>")}</div>`
+        : "";
       const label = `${r.doc_no ? olvDocNo("sale", r.doc_no) : r.order_no ? "طلب " + r.order_no : r.entry_date} — ${olvFormatMoney(saleTotal(r))}`;
       const actions = voided ? "" : `<div class="od-actions">
           <button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(label)}">${olvIcon("printer")} إعادة طباعة</button>
           <button class="btn small danger" data-void="${r.id}">${olvIcon("x")} إلغاء الطلب</button>
         </div>`;
-      return `<div class="od-box">${itemsHtml}</div>${facts.length ? `<div class="od-facts">${facts.join("")}</div>` : ""}${rpHtml}${actions}`;
+      return `<div class="od-box">${itemsHtml}</div>${facts.length ? `<div class="od-facts">${facts.join("")}</div>` : ""}${rpHtml}${edHtml}${actions}`;
     }
 
     // السيرفر بيرفض الإلغاء بدون سبب واضح (3 أحرف على الأقل) — نسأل هون لحد ما
     // يكتب سبب أو يتراجع
-    function askVoidReason() {
+    function askReason(msg) {
       for (;;) {
-        const r = prompt("سبب الإلغاء (إلزامي، 3 أحرف على الأقل):");
+        const r = prompt(msg);
         if (r === null) return null;
         if (r.trim().length >= 3) return r.trim();
-        alert("لازم تكتب سبب واضح للإلغاء");
+        alert("لازم تكتب سبب واضح");
       }
     }
+    function askVoidReason() { return askReason("سبب الإلغاء (إلزامي، 3 أحرف على الأقل):"); }
 
     function wireDetail(r) {
       const wrap = document.querySelector(`.order[data-id="${r.id}"] .order-detail`);
@@ -879,6 +887,28 @@
         olvToast("انلغى الطلب ورجعت مواده للمخزون", { type: "info" });
         await load();
       }, { hint: "اضغط مطوّلاً على «إلغاء الطلب» للتأكيد — بيرجع المواد الخام للمخزون ولن يُحتسب ضمن المبيعات أو التقارير" });
+      wrap.querySelectorAll("[data-edit-item]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const it = (r.sale_items || []).find((x) => x.id === btn.dataset.editItem);
+          if (!it) return;
+          const q = prompt(`الكمية الجديدة لـ «${it.product_name}» (الحالية ${it.qty}):`, it.qty);
+          if (q === null) return;
+          const qty = Number(q);
+          if (!(qty > 0)) { alert("الكمية لازم تكون أكبر من صفر — لحذف الصنف استخدم «إلغاء الصنف»"); return; }
+          const pr = prompt(`سعر الوحدة الجديد (الحالي ${it.unit_price}) — اتركه كما هو لو ما بدك تغيّره:`, it.unit_price);
+          if (pr === null) return;
+          const price = Number(pr);
+          if (!(price >= 0) || pr.trim() === "") { alert("سعر غير صالح"); return; }
+          const reason = askReason("سبب التعديل (إلزامي، 3 أحرف على الأقل):");
+          if (!reason) return;
+          btn.disabled = true;
+          const { error } = await window.supabaseClient.rpc("edit_sale_item", { p_sale_item_id: it.id, p_new_qty: qty, p_new_unit_price: price, p_reason: reason });
+          if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+          delete editCache[r.id];
+          olvToast("انعدّل الصنف وتعدّل المخزون والإجمالي", { type: "info" });
+          await load();
+        });
+      });
       wrap.querySelectorAll("[data-void-item]").forEach((btn) => {
         olvHoldConfirm(btn, async () => {
           const reason = askVoidReason();
@@ -897,6 +927,11 @@
       if (!reprintCache[r.id]) {
         const { data } = await window.supabaseClient.from("receipt_reprints").select("*").eq("sale_id", r.id).order("created_at");
         reprintCache[r.id] = data || [];
+      }
+      if (!editCache[r.id]) {
+        // الاستعلام بيفشل بهدوء قبل تشغيل schema-edit-sale-item.sql أو لحساب الكاشير (RLS)
+        const { data } = await window.supabaseClient.from("sale_edit_log").select("*").eq("sale_id", r.id).order("at");
+        editCache[r.id] = data || [];
       }
       if (openId !== r.id) return;
       const el = document.querySelector(`.order[data-id="${r.id}"] .order-detail`);
