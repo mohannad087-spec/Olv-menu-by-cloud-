@@ -478,16 +478,40 @@
         if (error) throw error;
         if (window.OlvMenuSync) OlvMenuSync.syncNow().catch(() => {});
       }
-      let pushed = true;
-      try { await proxy("push_cards"); } catch (e) { pushed = false; olvToast("انحفظت البطاقة بس ما وصلت للمنيو: " + e.message, { type: "danger", icon: "warning", ms: 6000 }); }
-      if (pushed) olvToast("انحفظت البطاقة وانعكست على المنيو (بتبين خلال دقيقة)", { icon: "check" });
+      if (await pushCards()) olvToast("انحفظت البطاقة وانعكست على المنيو (بتبين خلال دقيقة)", { icon: "check" });
+      else olvToast("انحفظت البطاقة. الاتصال بالمنيو مقطوع هلق، ورح توصل للمنيو لحالها لما يرجع", { type: "gold", icon: "warning", ms: 7000 });
       await load();
     }
+
+    // نشر البطاقات للمنيو بعد الحفظ: 3 محاولات (الخدمة أحيانًا بترد 502/503 أو النت بيقطع لحظة)،
+    // وإذا ما زبط منعلّم «في نشر معلّق» ومنعيده لحاله لما يرجع النت أو كل دقيقة أو أول ما تنفتح الصفحة.
+    // push_cards بيبعت كل البطاقات، فعلامة وحدة بتكفي لكل التعديلات المعلّقة.
+    const PENDING_KEY = "olv_cards_push_pending";
+    const setPending = (on) => { try { on ? localStorage.setItem(PENDING_KEY, "1") : localStorage.removeItem(PENDING_KEY); } catch (_) {} };
+    const isPending = () => { try { return localStorage.getItem(PENDING_KEY) === "1"; } catch (_) { return false; } };
+    async function pushCards() {
+      for (let i = 0; i < 3; i++) {
+        if (i) await new Promise((r) => setTimeout(r, 2000 * i));
+        if (navigator.onLine === false) break;
+        try { await proxy("push_cards"); setPending(false); return true; } catch (_) { /* منعيد */ }
+      }
+      setPending(true);
+      return false;
+    }
+    let retrying = false;
+    async function retryPending() {
+      if (!isPending() || retrying || navigator.onLine === false) return;
+      retrying = true;
+      try { if (await pushCards()) olvToast("وصلت التعديلات المعلّقة للمنيو", { icon: "checkCircle" }); } finally { retrying = false; }
+    }
+    window.addEventListener("online", retryPending);
+    setInterval(retryPending, 60000);
 
     async function pushAll(manual) {
       const btn = $("push-btn"); if (btn) btn.disabled = true;
       try {
         const r = await proxy("push_cards");
+        setPending(false);
         olvToast(r.changed ? `انبعتت ${r.updated || 0} بطاقة محدّثة و${r.added || 0} جديدة للمنيو` : "المنيو مطابق للبطاقات، ما في شي يتغيّر", { icon: "check" });
         await load();
       } catch (e) { olvShowError(errBox, e); } finally { if (btn) btn.disabled = false; }
@@ -549,6 +573,7 @@
     try {
       await olvRequireAuth();
       await load();
+      retryPending();
     } catch (err) {
       olvShowError(errBox, err);
       $("list").innerHTML = "";
