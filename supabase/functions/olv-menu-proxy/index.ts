@@ -285,7 +285,15 @@ Deno.serve(async (req) => {
           const { error: e5 } = await admin.from("products").upsert(fresh, { onConflict: "external_id", ignoreDuplicates: true });
           if (e5) return json({ ok: false, error: e5.message }, 500);
         }
-        return json({ ok: true, mode: "cards", count: payload.length, added: fresh.length, hidden: 0 });
+        // أصناف المخزون (stk-) مصدرها «المنيو من المخزون» مش البطاقة: سعرها وسعر الصالة والتوفّر بيتحدّثوا من المنيو
+        const stockRows = payload
+          .filter((r) => String(r.external_id).startsWith("stk-") && known.has(r.external_id as string))
+          .map((r) => ({ external_id: r.external_id, name: r.name, category: r.category, price: r.price, hall_price: r.hall_price, is_active: r.is_active }));
+        if (stockRows.length) {
+          const { error: e6 } = await admin.from("products").upsert(stockRows, { onConflict: "external_id" });
+          if (e6) return json({ ok: false, error: e6.message }, 500);
+        }
+        return json({ ok: true, mode: "cards", count: payload.length, added: fresh.length, stock: stockRows.length, hidden: 0 });
       }
       const { error: e2 } = await admin.from("products").upsert(payload, { onConflict: "external_id" });
       if (e2) return json({ ok: false, error: e2.message }, 500);

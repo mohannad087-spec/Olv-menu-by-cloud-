@@ -42,7 +42,7 @@
   .ic-prices b{color:var(--gold-hi); font-weight:800; font-size:15px;}
   .ic-tags{display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;}
   .ic-tags .badge.warn{border-color:rgba(179,65,42,.5); color:var(--danger-hi); font-weight:700;}
-  .ic-tools [hidden], .ic-prev[hidden]{display:none !important;}
+  .ic-tools [hidden], .ic-prev[hidden], .ic-dlg input[hidden]{display:none !important;}
   .ic-empty{padding:26px 8px; text-align:center; color:var(--muted); line-height:1.7;}
 
   .ic-bd{position:fixed; inset:0; z-index:90; background:var(--overlay-bg, rgba(20,14,6,.55)); display:flex; align-items:flex-end; justify-content:center; padding:0;}
@@ -349,10 +349,11 @@
       bd.className = "ic-bd olv-modal-backdrop";
       const dis = editable ? "" : " disabled";
       const disP = editable && !stock ? "" : " disabled";
+      const hall0 = p && Number(p.hall_price) > 0 ? p.hall_price : "";
       bd.innerHTML = `<div class="ic-dlg" role="dialog" aria-modal="true" aria-label="${p ? esc(p.name) : "بطاقة جديدة"}">
         <h2>${p ? esc(p.name) : "بطاقة جديدة"}</h2>
         <div class="sub">${p && p.external_id ? `مربوطة بالمنيو: ${esc(p.external_id)}` : "بطاقة جديدة بتظهر بالمنيو ونقطة البيع."}</div>
-        ${stock ? `<div class="ic-note">${olvIcon("link")} هاد الصنف سعره من المخزون (صفحة «المنيو من المخزون»). تقدر تعدّل هون الاسم والصورة والوصف، أما السعر فبيتغيّر من هناك.</div>` : ""}
+        ${stock ? `<div class="ic-note">${olvIcon("link")} هاد الصنف سعره من المخزون (صفحة «المنيو من المخزون»). تقدر تعدّل هون الاسم والصورة والوصف وفرقية الصالة، أما سعر السفري فبيتغيّر من هناك.</div>` : ""}
         ${!editable ? `<div class="ic-note">${olvIcon("warning")} للعرض بس لحد ما تعتمد البطاقات.</div>` : ""}
         <form id="ic-form" autocomplete="off">
         <div class="ic-fg">
@@ -361,7 +362,8 @@
           <div class="field"><label for="f-cat">القسم</label><select id="f-cat"${dis}>${menuCats.map((x) => `<option value="${esc(x.id)}"${x.id === c.id ? " selected" : ""}>${esc(x.ar)}</option>`).join("")}</select></div>
           <div class="field"><label for="f-sub">المجموعة داخل القسم (اختياري)</label><input id="f-sub" maxlength="120" value="${esc(p ? p.subcat_ar : "")}" placeholder="مثلًا: كريسبي"${dis}></div>
           <div class="field"><label for="f-price">السعر</label><input id="f-price" type="number" inputmode="decimal" step="0.05" min="0" required value="${p ? esc(p.price) : ""}"${disP}></div>
-          <div class="field"><label for="f-hall">سعر الصالة (فاضي = نفس السعر)</label><input id="f-hall" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.hall_price ? esc(p.hall_price) : ""}"${disP}></div>
+          <div class="field"><label><input type="checkbox" id="f-hallon"${hall0 ? " checked" : ""}${dis}> فرقية صالة (سعر الصالة غير السفري)</label>
+            <input id="f-hall" type="number" inputmode="decimal" step="0.05" min="0" value="${hall0 ? esc(hall0) : ""}" placeholder="سعر الصالة" aria-label="سعر الصالة"${hall0 ? "" : " hidden"}${dis}></div>
           <div class="field"><label for="f-meal">سعر الوجبة (الكلي)</label><input id="f-meal" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.meal_price ? esc(p.meal_price) : ""}" placeholder="بدون"${disP}></div>
           <div class="field"><label for="f-dbl">سعر وجبة دبل (الكلي)</label><input id="f-dbl" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.double_meal_price ? esc(p.double_meal_price) : ""}" placeholder="بدون"${disP}></div>
           <div class="field"><label for="f-large">سعر الكبير (الكلي)</label><input id="f-large" type="number" inputmode="decimal" step="0.05" min="0" value="${p && largePrice(p) ? esc(largePrice(p)) : ""}" placeholder="بدون"${disP}></div>
@@ -378,10 +380,16 @@
         </div></form></div>`;
       document.body.appendChild(bd);
       const close = () => { bd.classList.add("closing"); setTimeout(() => bd.remove(), 150); document.removeEventListener("keydown", onKey); };
-      const onKey = (e) => { if (e.key === "Escape") close(); };
+      // الضغط برّا النافذة ما بيسكرها (عشان ما يروح التعديل)؛ بتتسكّر من «إلغاء» أو Esc، ولو في تعديل بنسأل قبل
+      const form = bd.querySelector("#ic-form");
+      const snap = () => [...form.elements].map((x) => x.type === "checkbox" ? x.checked : x.value).join("\u0001");
+      const start = snap();
+      const askClose = () => { if (!editable || snap() === start || confirm("في تعديلات ما انحفظت. بدك تسكّر بدون حفظ؟")) close(); };
+      const onKey = (e) => { if (e.key === "Escape") askClose(); };
       document.addEventListener("keydown", onKey);
-      bd.addEventListener("click", (e) => { if (e.target === bd) close(); });
-      bd.querySelector("#f-close").onclick = close;
+      bd.querySelector("#f-close").onclick = askClose;
+      const hallOn = bd.querySelector("#f-hallon"), hallIn = bd.querySelector("#f-hall");
+      hallOn.addEventListener("change", () => { hallIn.hidden = !hallOn.checked; if (hallOn.checked) hallIn.focus(); else hallIn.value = ""; });
       bd.querySelector("#f-img").addEventListener("input", (e) => {
         const pv = bd.querySelector("#f-prev"); const v = e.target.value.trim();
         if (/^https?:\/\//i.test(v)) { pv.src = v; pv.hidden = false; } else pv.hidden = true;
@@ -394,7 +402,7 @@
           await saveCard(p, {
             name: nm.value.trim(), en: bd.querySelector("#f-en").value.trim(),
             cat: bd.querySelector("#f-cat").value, sub: bd.querySelector("#f-sub").value.trim(),
-            price: bd.querySelector("#f-price").value, hall: bd.querySelector("#f-hall").value,
+            price: bd.querySelector("#f-price").value, hall: hallOn.checked ? hallIn.value : "",
             meal: bd.querySelector("#f-meal").value, dbl: bd.querySelector("#f-dbl").value, large: bd.querySelector("#f-large").value,
             img: bd.querySelector("#f-img").value.trim(), desc: bd.querySelector("#f-desc").value.trim(), descEn: bd.querySelector("#f-descen").value.trim(),
             active: bd.querySelector("#f-active").checked, pop: bd.querySelector("#f-pop").checked,
@@ -415,10 +423,11 @@
       const stock = p && isStock(p);
       const price = stock ? Number(p.price) : Number(f.price);
       if (!Number.isFinite(price) || price < 0) throw new Error("السعر غير صحيح");
-      const hall = stock ? (p.hall_price || null) : num(f.hall);
+      const hall = num(f.hall);
+      if (f.hall !== "" && hall == null) throw new Error("سعر الصالة غير صحيح");
+      if (hall != null && hall < price) throw new Error("سعر الصالة أقل من سعر السفري، تأكد");
       const meal = stock ? null : num(f.meal), dbl = stock ? null : num(f.dbl), large = stock ? null : num(f.large);
       if (!stock) {
-        if (hall != null && hall < price) throw new Error("سعر الصالة أقل من السعر العادي، تأكد");
         if (meal != null && meal <= price) throw new Error("سعر الوجبة لازم يكون أكبر من سعر الصنف لحاله");
         if (dbl != null && meal != null && dbl <= meal) throw new Error("سعر وجبة الدبل لازم يكون أكبر من سعر الوجبة");
         if (dbl != null && dbl <= price) throw new Error("سعر وجبة الدبل لازم يكون أكبر من سعر الصنف لحاله");
@@ -432,7 +441,8 @@
         subcat_ar: f.sub || null, subcat_en: f.sub ? (p && p.subcat_ar === f.sub && p.subcat_en ? p.subcat_en : f.sub) : null,
         image_url: f.img || null, is_active: f.active, popular: f.pop,
       };
-      if (!stock) { row.price = price; row.hall_price = hall; }
+      row.hall_price = hall;
+      if (!stock) row.price = price;
       let id = p && p.id;
       if (p) {
         const { error } = await db.from("products").update(row).eq("id", id);
@@ -461,6 +471,12 @@
         const same = (k, v) => (num(k) || null) === (v || null);
         if (!p.id || !same(p.meal_price, meal)) { const { error } = await db.rpc("save_meal_price", { p_product_id: id, p_kind: "meal", p_total: meal || 0 }); if (error) throw error; }
         if (!p.id || !same(p.double_meal_price, dbl)) { const { error } = await db.rpc("save_meal_price", { p_product_id: id, p_kind: "double", p_total: dbl || 0 }); if (error) throw error; }
+      }
+      if (stock && (num(p.hall_price) || null) !== hall) {
+        // صنف مخزون: سعر الصالة بيروح للمنيو من المخزون (menu_hall_price) عبر مزامنة المخزون
+        const { error } = await db.from("ingredients").update({ menu_hall_price: hall }).eq("menu_item_id", p.external_id);
+        if (error) throw error;
+        if (window.OlvMenuSync) OlvMenuSync.syncNow().catch(() => {});
       }
       let pushed = true;
       try { await proxy("push_cards"); } catch (e) { pushed = false; olvToast("انحفظت البطاقة بس ما وصلت للمنيو: " + e.message, { type: "danger", icon: "warning", ms: 6000 }); }
