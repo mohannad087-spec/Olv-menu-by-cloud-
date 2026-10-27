@@ -83,6 +83,7 @@ async function cloudflareImage(account: string, token: string, prompt: string): 
   if (!r.ok || !out?.result?.image) {
     if (r.status === 429) return "خلص رصيد Cloudflare المجاني لليوم (بيتجدد نص الليل بتوقيت غرينتش)";
     if (r.status === 401 || r.status === 403) return "توكن Cloudflare غلط أو ما إله صلاحية Workers AI";
+    if (r.status === 404) return "رقم حساب Cloudflare (CF_ACCOUNT_ID) غلط";
     return "Cloudflare: " + (err || r.status);
   }
   return { bytes: Uint8Array.from(atob(out.result.image), (c) => c.charCodeAt(0)), mime: "image/jpeg", source: "cloudflare" };
@@ -341,7 +342,8 @@ Deno.serve(async (req) => {
 Show exactly this item as it is usually served, single serving, centered, 45-degree angle, soft natural light, warm cream/neutral background, shallow depth of field, realistic, square 1:1.
 No text, no letters, no logos, no watermark, no hands.`;
       // جوجل أول، وإذا ما زبطت (حد، فوترة، تأخير) منجرّب Cloudflare المجاني
-      const cfAccount = Deno.env.get("CF_ACCOUNT_ID"), cfToken = Deno.env.get("CF_AI_TOKEN");
+      // الأسرار بتنلصق أحيانًا من الموبايل مع أسطر/مسافات/نقاط زيادة: رقم الحساب أحرف hex بس، والتوكن بلا فراغات
+      const cfAccount = (Deno.env.get("CF_ACCOUNT_ID") || "").replace(/[^0-9a-f]/gi, ""), cfToken = (Deno.env.get("CF_AI_TOKEN") || "").replace(/\s+/g, "");
       const errs: string[] = [];
       let img: Img | string | null = null;
       if (Date.now() >= geminiImageOffUntil) {
