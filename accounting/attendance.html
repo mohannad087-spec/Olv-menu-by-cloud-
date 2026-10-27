@@ -500,14 +500,40 @@
       await runReport();
     }
 
-    // بيحذف كل بصمات اليوم لهالموظف (الدخول والخروج وأي بصمات بينهم)
+    // بصمة الجهاز ما بتنحذف: جسر البصمة بيرجّعها من الجهاز (بيسحب آخر 72 ساعة كل 30 ثانية).
+    // بنعلّمها «ملغاة» (source = excluded) وبتضل بالجدول، فالجسر بيتجاهلها والحساب ما بيعدّها. اليدوية بتنحذف عادي
+    const EXCLUDED_NOTE = "ملغاة من صفحة الحضور";
+    async function removePunches(list) {
+      const manualIds = list.filter((p) => p.source === "manual").map((p) => p.id);
+      const deviceIds = list.filter((p) => p.source !== "manual").map((p) => p.id);
+      if (manualIds.length) {
+        const { error } = await window.supabaseClient.from("employee_punches").delete().in("id", manualIds);
+        if (error) throw error;
+      }
+      if (deviceIds.length) {
+        const { error } = await window.supabaseClient.from("employee_punches")
+          .update({ source: "excluded", note: EXCLUDED_NOTE }).in("id", deviceIds);
+        if (error) throw error;
+      }
+    }
+    // تغيير وقت بصمة: اليدوية بيتعدّل وقتها، وبصمة الجهاز بتنلغى وبتنضاف مكانها بصمة يدوية بالوقت الجديد
+    async function movePunch(p, newIso, profileId) {
+      if (p.source === "manual") {
+        const { error } = await window.supabaseClient.from("employee_punches").update({ punched_at: newIso }).eq("id", p.id);
+        if (error) throw error;
+        return;
+      }
+      await removePunches([p]);
+      const { error } = await window.supabaseClient.from("employee_punches").insert({ profile_id: profileId, punched_at: newIso, source: "manual" });
+      if (error) throw error;
+    }
+
+    // بيلغي كل بصمات اليوم لهالموظف (الدخول والخروج وأي بصمات بينهم)
     async function deleteShift(key) {
       const s = shiftsList().find((x) => x.key === key);
       if (!s) return;
       try {
-        const ids = s.ids;
-        const { error } = await window.supabaseClient.from("employee_punches").delete().in("id", ids);
-        if (error) throw error;
+        await removePunches(punches.filter((p) => s.ids.includes(p.id)));
         editingKey = null; closingKey = null;
         olvToast("انحذفت الوردية", { type: "info", icon: "check" });
         await runReport();
@@ -561,7 +587,7 @@
               <div><label for="ei-${s.key}">دخول</label><input id="ei-${s.key}" type="datetime-local" data-edit-in value="${toLocalInputValue(s.clockIn.punched_at)}"></div>
               <div><label for="eo-${s.key}">خروج</label><input id="eo-${s.key}" type="datetime-local" data-edit-out value="${s.clockOut ? toLocalInputValue(s.clockOut.punched_at) : ""}"></div>
             </div>
-            <p class="hint">تفريغ خانة الخروج بيحذف بصمة الخروج (لو كانت زايدة أو غلط).</p>
+            <p class="hint">تفريغ خانة الخروج بيلغي بصمة الخروج (لو كانت زايدة أو غلط).</p>
             <div class="at-actions"><button class="btn go" type="button" data-save="${s.key}">حفظ</button><button class="btn" type="button" data-cancel>إلغاء</button><button class="btn warn" type="button" data-del="${s.key}" title="ضغط مطوّل للحذف">حذف الوردية</button></div>
           </div>` : ""}
         </li>`;
@@ -620,25 +646,18 @@
       btn.disabled = true;
       try {
         const newInIso = new Date(inVal).toISOString();
-        if (newInIso !== shift.clockIn.punched_at) {
-          const { error } = await window.supabaseClient.from("employee_punches").update({ punched_at: newInIso }).eq("id", shift.clockIn.id);
-          if (error) throw error;
-        }
+        if (newInIso !== shift.clockIn.punched_at) await movePunch(shift.clockIn, newInIso, shift.profile_id);
         if (outVal) {
           const newOutIso = new Date(outVal).toISOString();
           if (shift.clockOut) {
-            if (newOutIso !== shift.clockOut.punched_at) {
-              const { error } = await window.supabaseClient.from("employee_punches").update({ punched_at: newOutIso }).eq("id", shift.clockOut.id);
-              if (error) throw error;
-            }
+            if (newOutIso !== shift.clockOut.punched_at) await movePunch(shift.clockOut, newOutIso, shift.profile_id);
           } else {
             const { error } = await window.supabaseClient.from("employee_punches").insert({ profile_id: shift.profile_id, punched_at: newOutIso, source: "manual" });
             if (error) throw error;
           }
         } else if (shift.clockOut) {
-          // إفراغ حقل الخروج يعني حذف بصمة الخروج (تصحيح بصمة زايدة/خاطئة)
-          const { error } = await window.supabaseClient.from("employee_punches").delete().eq("id", shift.clockOut.id);
-          if (error) throw error;
+          // إفراغ حقل الخروج يعني إلغاء بصمة الخروج (تصحيح بصمة زايدة/خاطئة)
+          await removePunches([shift.clockOut]);
         }
         editingKey = null;
         olvToast("انحفظ التعديل", { type: "ok", icon: "check" });
@@ -659,6 +678,7 @@
         let query = window.supabaseClient
           .from("employee_punches").select("id, profile_id, punched_at, source")
           .gte("punched_at", bounds.gte).lt("punched_at", bounds.lt)
+          .neq("source", "excluded")
           .order("punched_at");
         if (employeeId) query = query.eq("profile_id", employeeId);
         const { data, error } = await query;
