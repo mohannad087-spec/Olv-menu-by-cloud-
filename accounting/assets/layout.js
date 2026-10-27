@@ -291,6 +291,13 @@ const OLV_HUBS = [
     ],
   },
   {
+    navId: "item-cards",
+    tabs: [
+      { id: "item-cards", href: "item-cards.html", label: "البطاقات", icon: "tag" },
+      { id: "item-cards-ai", href: "item-cards-ai.html", label: "المساعد الذكي", icon: "sparkle" },
+    ],
+  },
+  {
     navId: "purchase-invoices",
     tabs: [
       { id: "purchase-orders", href: "purchase-orders.html", label: "تجهيز طلبية", icon: "clipboard" },
