@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>المساعد الذكي — بطاقة المادة — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+
+<style>
+  /* المساعد الذكي لبطاقة المادة (2026-10): فحص، الأكثر طلبًا، تقرير، مكونات، صور. القواعد بـ design-system/olv/pages/item-cards-ai.md */
+  .wrap.ai-wrap{max-width:1180px;}
+  .ai-head{margin:4px 0 14px;}
+  .ai-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .ai-head .sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
+  .ai-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px; scrollbar-width:none;}
+  .ai-tabs::-webkit-scrollbar{display:none;}
+  .ai-tab{flex:none; display:inline-flex; align-items:center; gap:7px; min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;}
+  .ai-tab .icon{width:16px; height:16px;}
+  .ai-tab[aria-selected="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .ai-tab:focus-visible, .ai-btn:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .ai-panel[hidden]{display:none !important;}
+  .ai-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;}
+  .ai-bar select, .ai-bar input{min-height:44px; padding:0 12px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:16px;}
+  .ai-bar input[type=number]{width:84px;}
+  .ai-bar .grow{flex:1;}
+  .ai-status{color:var(--muted); font-size:13.5px; line-height:1.6; min-height:20px;}
+  .ai-sec{margin:18px 0 8px; font-size:17px; font-weight:800; display:flex; align-items:center; gap:8px;}
+  .ai-sec .badge{font-weight:500;}
+  .ai-list{list-style:none; margin:0; padding:0; display:grid; gap:8px;}
+  .ai-item{display:flex; gap:10px; align-items:flex-start; padding:12px; border-radius:14px; border:1px solid var(--hair-soft); background:var(--ink-2); line-height:1.6; font-size:14px;}
+  .ai-item .icon{flex:none; width:20px; height:20px; margin-top:2px;}
+  .ai-item.high .icon{color:var(--danger-hi);}
+  .ai-item.medium .icon{color:var(--gold-hi);}
+  .ai-item.low .icon{color:var(--muted);}
+  .ai-item .tx{flex:1; min-width:0;}
+  .ai-item .tx b{font-weight:800;}
+  .ai-item .why{color:var(--muted); font-size:13px;}
+  .ai-item .chg{font-variant-numeric:tabular-nums;}
+  .ai-item .chg s{color:var(--muted);}
+  .ai-item input[type=checkbox]{width:22px; height:22px; margin-top:2px; accent-color:var(--gold);}
+  .ai-item .acts{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+  .ai-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
+  .ai-note-good .icon{color:var(--success, #4f7a3a);}
+  /* جدول الأصناف */
+  .ai-table{width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums;}
+  .ai-table th, .ai-table td{padding:9px 8px; border-bottom:1px solid var(--hair-soft); text-align:right; vertical-align:middle;}
+  .ai-table th{font-size:12.5px; color:var(--muted); font-weight:700;}
+  .ai-table td.n{text-align:left; white-space:nowrap;}
+  .ai-table tr.top td:first-child{color:var(--gold-hi); font-weight:800;}
+  .ai-scroll{overflow-x:auto; border-radius:14px; border:1px solid var(--hair-soft); background:var(--ink-2);}
+  /* رسوم بسيطة */
+  .ai-bars{display:grid; gap:8px;}
+  .ai-bars .row{display:grid; grid-template-columns:minmax(90px,170px) 1fr auto; gap:10px; align-items:center; font-size:13.5px;}
+  .ai-bars .lbl{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .ai-bars .track{height:14px; border-radius:999px; background:var(--ink-3); overflow:hidden;}
+  .ai-bars .fill{display:block; height:100%; border-radius:999px; background:var(--gold);}
+  .ai-bars .fill.alt{background:var(--olive, #6b7a3a);}
+  .ai-bars .val{font-variant-numeric:tabular-nums; color:var(--muted); min-width:64px; text-align:left;}
+  .ai-cards2{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px;}
+  .ai-box{padding:14px; border-radius:16px; border:1px solid var(--hair-soft); background:var(--ink-2);}
+  .ai-box h3{margin:0 0 10px; font-size:15px; font-weight:800;}
+  .stats.ai-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+  @media (max-width:640px){ .stats.ai-stats{grid-template-columns:repeat(2,1fr);} .ai-stats .stat .stat-icon{display:none;} }
+  /* الوصفات المقترحة */
+  .rc-card{padding:12px; border-radius:14px; border:1px solid var(--hair-soft); background:var(--ink-2);}
+  .rc-card h3{margin:0 0 8px; font-size:15px; font-weight:800; display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .rc-line{display:grid; grid-template-columns:28px 1fr 96px 40px; gap:8px; align-items:center; margin-bottom:6px;}
+  .rc-line select, .rc-line input[type=number]{min-height:40px; padding:0 8px; border-radius:10px; border:1px solid var(--hair); background:var(--ink); color:var(--paper); font:inherit; font-size:15px; width:100%;}
+  .rc-line.off{opacity:.5;}
+  .rc-line.unsure input[type=number]{border-color:var(--gold);}
+  .rc-line .u{font-size:12px; color:var(--muted);}
+  .rc-miss{font-size:13px; color:var(--muted); margin:4px 0 8px;}
+  /* الصور */
+  .im-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px;}
+  .im-card{padding:10px; border-radius:16px; border:1px solid var(--hair-soft); background:var(--ink-2); display:flex; flex-direction:column; gap:8px;}
+  .im-card .ph{aspect-ratio:1; border-radius:12px; background:var(--ink-3); display:grid; place-items:center; color:var(--muted); overflow:hidden;}
+  .im-card .ph img{width:100%; height:100%; object-fit:cover;}
+  .im-card .ph .icon{width:30px; height:30px;}
+  .im-card .nm{font-weight:800; font-size:14.5px; line-height:1.4;}
+  .im-card .acts{display:flex; gap:6px; flex-wrap:wrap;}
+  .ai-lock{padding:12px 14px; border-radius:14px; background:var(--ink-3); font-size:13.5px; line-height:1.7; margin-bottom:12px;}
+  @media print{
+    #olv-nav, .ai-tabs, .ai-bar, .btn, .ai-lock{display:none !important;}
+    .ai-panel[hidden]{display:none !important;}
+    body{background:#fff;}
+  }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f1e6">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap ai-wrap">
+    <div class="err" id="err"></div>
+
+    <header class="ai-head">
+      <h1>المساعد الذكي</h1>
+      <div class="sub">بيقرأ بطاقات الأصناف ومبيعاتها: بيكشف الأخطاء ويصلّحها بموافقتك، بيحدد الأكثر طلبًا، بيطلع تقرير، بيقترح مكونات كل صنف، وبيعمل صور للأصناف اللي ما إلها صورة.</div>
+    </header>
+
+    <div class="ai-lock" id="lock" hidden></div>
+
+    <div class="ai-tabs" role="tablist" aria-label="أقسام المساعد">
+      <button class="ai-tab" role="tab" type="button" data-tab="check" aria-selected="true"></button>
+      <button class="ai-tab" role="tab" type="button" data-tab="popular" aria-selected="false"></button>
+      <button class="ai-tab" role="tab" type="button" data-tab="report" aria-selected="false"></button>
+      <button class="ai-tab" role="tab" type="button" data-tab="recipes" aria-selected="false"></button>
+      <button class="ai-tab" role="tab" type="button" data-tab="images" aria-selected="false"></button>
+    </div>
+
+    <!-- ١. الفحص -->
+    <section class="ai-panel" id="p-check" role="tabpanel">
+      <div class="ai-bar">
+        <button class="btn gold ai-btn" type="button" id="ck-ai"></button>
+        <button class="btn ai-btn" type="button" id="ck-push"></button>
+        <span class="ai-status grow" id="ck-status"></span>
+      </div>
+      <div id="ck-rules"></div>
+      <div id="ck-ai-list"></div>
+    </section>
+
+    <!-- ٢. الأكثر طلبًا -->
+    <section class="ai-panel" id="p-popular" role="tabpanel" hidden>
+      <div class="ai-bar">
+        <label for="pop-days">الفترة</label>
+        <select id="pop-days"><option value="7">آخر أسبوع</option><option value="30" selected>آخر شهر</option><option value="90">آخر 3 شهور</option></select>
+        <label for="pop-n">عدد «الأكثر طلبًا»</label>
+        <input type="number" id="pop-n" min="1" max="20" value="6" inputmode="numeric">
+        <button class="btn gold ai-btn" type="button" id="pop-apply"></button>
+        <span class="ai-status grow" id="pop-status"></span>
+      </div>
+      <div id="pop-list"><div class="ai-empty">جاري التحميل...</div></div>
+    </section>
+
+    <!-- ٣. التقرير -->
+    <section class="ai-panel" id="p-report" role="tabpanel" hidden>
+      <div class="ai-bar">
+        <label for="rp-days">الفترة</label>
+        <select id="rp-days"><option value="7">آخر أسبوع</option><option value="30" selected>آخر شهر</option><option value="90">آخر 3 شهور</option></select>
+        <button class="btn gold ai-btn" type="button" id="rp-ai"></button>
+        <button class="btn ai-btn" type="button" id="rp-print"></button>
+        <span class="ai-status grow" id="rp-status"></span>
+      </div>
+      <div id="rp-body"><div class="ai-empty">جاري التحميل...</div></div>
+    </section>
+
+    <!-- ٤. المكونات -->
+    <section class="ai-panel" id="p-recipes" role="tabpanel" hidden>
+      <div class="ai-bar">
+        <button class="btn gold ai-btn" type="button" id="rc-ai"></button>
+        <a class="btn ai-btn" href="product-recipes.html" id="rc-open"></a>
+        <span class="ai-status grow" id="rc-status"></span>
+      </div>
+      <div id="rc-cov"></div>
+      <div id="rc-list" class="ai-list"></div>
+    </section>
+
+    <!-- ٥. الصور -->
+    <section class="ai-panel" id="p-images" role="tabpanel" hidden>
+      <div class="ai-bar">
+        <button class="btn gold ai-btn" type="button" id="im-batch"></button>
+        <span class="ai-status grow" id="im-status"></span>
+      </div>
+      <div id="im-grid" class="im-grid"></div>
+    </section>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/item-margins.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+    olvRenderNav("item-cards-ai");
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => olvEsc(v);
+    const money = (n) => olvFormatMoney(n);
+    const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+    const db = window.supabaseClient;
+    const errBox = $("err");
+    const isStock = (p) => String(p.external_id || "").startsWith("stk-");
+    const normName = (s) => String(s || "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[ً-ْ]/g, "").replace(/\s+/g, " ").trim();
+    const FIELD = { price: "السعر", hall_price: "سعر الصالة", name: "الاسم", name_en: "الاسم الإنجليزي", menu_cat: "القسم", description: "الوصف" };
+
+    // الأزرار والتبويبات (أيقونات SVG من layout.js)
+    const TABS = { check: ["checkCircle", "فحص الأخطاء"], popular: ["star", "الأكثر طلبًا"], report: ["barChart", "التقرير"], recipes: ["coffee", "المكونات"], images: ["sparkle", "الصور"] };
+    document.querySelectorAll(".ai-tab").forEach((b) => { const [ic, tx] = TABS[b.dataset.tab]; b.innerHTML = olvIcon(ic) + `<span>${tx}</span>`; });
+    $("ck-ai").innerHTML = olvIcon("sparkle") + "<span>افحص بالذكاء الاصطناعي</span>";
+    $("ck-push").innerHTML = olvIcon("refresh") + "<span>انشر البطاقات على المنيو</span>";
+    $("pop-apply").innerHTML = olvIcon("star") + "<span>اعتمدهم بالمنيو</span>";
+    $("rp-ai").innerHTML = olvIcon("sparkle") + "<span>حلّل بالذكاء</span>";
+    $("rp-print").innerHTML = olvIcon("printer") + "<span>اطبع</span>";
+    $("rc-ai").innerHTML = olvIcon("sparkle") + "<span>اكشف المكونات بالذكاء</span>";
+    $("rc-open").innerHTML = olvIcon("coffee") + "<span>صفحة الوصفات</span>";
+    $("im-batch").innerHTML = olvIcon("sparkle") + "<span>اعمل صور لأول 4</span>";
+
+    let products = [], menuById = new Map(), menuCats = [], addonById = new Map(), mode = "menu", menuOk = false;
+    let ingredients = [], withRecipe = new Set();
+    const statsCache = new Map();   // days → { productId: { qty, revenue, last, orders } }
+    let margins = null;
+
+    // ---------- استدعاءات السيرفر ----------
+    async function callFn(fn, body) {
+      const { data } = await db.auth.getSession();
+      const token = data && data.session && data.session.access_token;
+      if (!token) throw new Error("لا توجد جلسة دخول");
+      const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+      const res = await fetch((cfg.SUPABASE_URL || "").replace(/\/$/, "") + "/functions/v1/" + fn, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token, apikey: cfg.SUPABASE_ANON_KEY || "" },
+        body: JSON.stringify(body || {}),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || out.ok === false) {
+        if (res.status === 404) throw new Error("خدمة المساعد الذكي لسا مش منشورة على السيرفر");
+        throw new Error(out.error || "فشل الطلب (" + res.status + ")");
+      }
+      return out;
+    }
+    const ai = (action, extra) => callFn("item-cards-ai", Object.assign({ action }, extra || {}));
+    const proxy = (action, extra) => callFn("olv-menu-proxy", Object.assign({ action }, extra || {}));
+    const fail = (status, e) => { status.textContent = ""; olvToast(e.message || String(e), { type: "danger", icon: "warning", ms: 6000 }); };
+
+    // ---------- التحميل ----------
+    async function load() {
+      const [p, a, m, pi, ing] = await Promise.all([
+        db.from("products").select("id, external_id, name, name_en, description, description_en, category, menu_cat, price, hall_price, meal_price, double_meal_price, large_addon_id, image_url, is_active, popular, sort_order").order("sort_order"),
+        db.from("addons").select("id, price, is_active, is_size"),
+        db.from("app_settings").select("value").eq("key", "item_cards_mode").maybeSingle(),
+        db.from("product_ingredients").select("product_id"),
+        db.from("ingredients").select("id, name, unit").order("name"),
+      ]);
+      if (p.error) throw p.error;
+      products = (p.data || []).filter((x) => x.external_id);
+      addonById = new Map((a.data || []).map((x) => [x.id, x]));
+      mode = m.data && m.data.value === "cards" ? "cards" : "menu";
+      withRecipe = new Set((pi.data || []).map((x) => x.product_id));
+      ingredients = ing.data || [];
+      try {
+        const out = await proxy("menu_items");
+        menuCats = out.categories || [];
+        menuById = new Map((out.items || []).map((it) => [it.id, it]));
+        menuOk = true;
+      } catch (_) { menuOk = false; }
+    }
+    const largePrice = (p) => { const a = p.large_addon_id && addonById.get(p.large_addon_id); return a && a.is_active !== false ? r2(Number(p.price) + Number(a.price)) : null; };
+    const catName = (id) => (menuCats.find((c) => c.id === id) || {}).ar || id || "—";
+    const active = () => products.filter((p) => p.is_active !== false);
+    const editable = () => mode === "cards";
+
+    async function getStats(days) {
+      if (!statsCache.has(days)) statsCache.set(days, (await ai("stats", { days })).stats || {});
+      return statsCache.get(days);
+    }
+    async function pushCards(status) {
+      status.textContent = "عم ينشر على المنيو...";
+      await proxy("push_cards");
+      status.textContent = "انحفظ وانعكس على المنيو والكاشير (المنيو بيتحدّث خلال دقيقة).";
+    }
+
+    // ---------- التبويبات ----------
+    const loaded = {};
+    function showTab(t) {
+      document.querySelectorAll(".ai-tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+      document.querySelectorAll(".ai-panel").forEach((s) => { s.hidden = s.id !== "p-" + t; });
+      try { localStorage.setItem("olv_ai_tab", t); } catch (_) {}
+      if (!loaded[t]) { loaded[t] = true; ({ check: renderRules, popular: renderPopular, report: renderReport, recipes: renderRecipes, images: renderImages })[t](); }
+    }
+    document.querySelector(".ai-tabs").addEventListener("click", (e) => { const b = e.target.closest(".ai-tab"); if (b) showTab(b.dataset.tab); });
+
+    // ================= ١. فحص الأخطاء =================
+    // قواعد ثابتة (بدون ذكاء): فروقات مع المنيو، أسعار مش منطقية، أسماء مكررة، نواقص
+    function ruleIssues() {
+      const out = [];
+      const names = new Map();
+      active().forEach((p) => {
+        const stock = isStock(p), m = menuById.get(p.external_id);
+        const price = Number(p.price), hall = Number(p.hall_price) || 0, meal = Number(p.meal_price) || 0;
+        if (!(price > 0)) out.push({ p, sev: "high", text: `السعر صفر أو فاضي`, fix: null });
+        if (hall && hall < price) out.push({ p, sev: "high", text: `سعر الصالة ${money(hall)} أقل من السفري ${money(price)}`, fix: stock ? null : { kind: "hall", label: "شيل سعر الصالة" } });
+        if (meal && meal <= price) out.push({ p, sev: "high", text: `سعر الوجبة ${money(meal)} مش أكبر من سعر الصنف ${money(price)}`, fix: stock ? null : { kind: "meal", label: "شيل الوجبة" } });
+        if (menuOk && m) {
+          const d = [];
+          if (r2(m.price) !== r2(price)) d.push(`السعر بالمنيو ${money(m.price)}`);
+          if (r2(m.hallPrice || 0) !== r2(hall)) d.push(`الصالة بالمنيو ${m.hallPrice ? money(m.hallPrice) : "بدون"}`);
+          if (!stock && r2(m.meal || 0) !== r2(meal)) d.push(`الوجبة بالمنيو ${m.meal ? money(m.meal) : "بدون"}`);
+          if (!stock && r2(m.large || 0) !== r2(largePrice(p) || 0)) d.push(`الكبير بالمنيو ${m.large ? money(m.large) : "بدون"}`);
+          if (d.length) out.push({ p, sev: "medium", text: `مش مطابق للمنيو: ${d.join("، ")}`, fix: stock ? null : { kind: "push", label: "انشر البطاقة" }, note: stock ? "صنف مخزون: بيتصلّح من «المنيو من المخزون»" : "" });
+        } else if (menuOk && !stock) {
+          out.push({ p, sev: "medium", text: "مش ظاهر بالمنيو", fix: { kind: "push", label: "انشره" } });
+        }
+        const k = normName(p.name);
+        names.set(k, (names.get(k) || []).concat(p));
+      });
+      names.forEach((list) => { if (list.length > 1) out.push({ p: list[0], sev: "low", text: `الاسم مكرر ${list.length} مرات (${list.map((x) => money(x.price)).join(" / ")}). تأكد إنهم مش نفس الصنف`, fix: null }); });
+      return out;
+    }
+
+    function renderRules() {
+      const issues = ruleIssues();
+      const noImg = active().filter((p) => !p.image_url && !isStock(p)).length;
+      const noEn = active().filter((p) => !p.name_en).length;
+      const noDesc = active().filter((p) => !p.description && !isStock(p)).length;
+      const icon = { high: "warning", medium: "warning", low: "note" };
+      $("ck-push").hidden = !editable();
+      $("ck-rules").innerHTML = `
+        <div class="ai-sec">${olvIcon("checkCircle")} فحص سريع <span class="badge">${issues.length ? issues.length + " ملاحظة" : "كله تمام"}</span></div>
+        ${issues.length ? `<ul class="ai-list">${issues.map((x, i) => `
+          <li class="ai-item ${x.sev}">${olvIcon(icon[x.sev])}
+            <div class="tx"><b>${esc(x.p.name)}</b>: ${esc(x.text)}${x.note ? `<div class="why">${esc(x.note)}</div>` : ""}
+              ${x.fix && editable() ? `<div class="acts"><button class="btn small" type="button" data-fix="${i}">${esc(x.fix.label)}</button></div>` : ""}
+            </div></li>`).join("")}</ul>` : `<div class="ai-empty">ما في أخطاء واضحة بالأسعار، والبطاقات مطابقة للمنيو.</div>`}
+        <div class="ai-status" style="margin-top:10px">نواقص: ${noImg} صنف بدون صورة، ${noEn} بدون اسم إنجليزي، ${noDesc} بدون وصف. الفحص بالذكاء بيقترحلك الناقص.</div>`;
+      $("ck-rules").querySelectorAll("[data-fix]").forEach((b) => b.addEventListener("click", async () => {
+        const x = issues[Number(b.dataset.fix)];
+        b.disabled = true;
+        try {
+          if (x.fix.kind === "hall") { const { error } = await db.from("products").update({ hall_price: null }).eq("id", x.p.id); if (error) throw error; }
+          if (x.fix.kind === "meal") {
+            const { error } = await db.rpc("save_meal_price", { p_product_id: x.p.id, p_kind: "meal", p_total: 0 }); if (error) throw error;
+          }
+          await pushCards($("ck-status"));
+          await load(); renderRules();
+        } catch (e) { b.disabled = false; fail($("ck-status"), e); }
+      }));
+    }
+
+    $("ck-push").addEventListener("click", async () => {
+      const b = $("ck-push"); b.disabled = true;
+      try { await pushCards($("ck-status")); await load(); renderRules(); } catch (e) { fail($("ck-status"), e); }
+      b.disabled = false;
+    });
+
+    let aiIssues = [];
+    $("ck-ai").addEventListener("click", async () => {
+      const b = $("ck-ai"), st = $("ck-status");
+      b.disabled = true; st.textContent = "الذكاء الاصطناعي عم يقرأ كل البطاقات... (20–60 ثانية)";
+      try {
+        const out = await ai("review");
+        if (out.categories && out.categories.length && !menuCats.length) menuCats = out.categories;
+        aiIssues = (out.issues || []).map((x) => Object.assign(x, { on: x.severity !== "low" ? true : false, done: false }));
+        st.textContent = aiIssues.length ? `طلع ${aiIssues.length} اقتراح. علّم اللي بدك ياه واضغط «طبّق».` : "الذكاء ما لقى أخطاء.";
+        renderAiIssues();
+      } catch (e) { fail(st, e); }
+      b.disabled = false;
+    });
+
+    function shown(field, v) {
+      if (v == null || v === "") return "فاضي";
+      if (field === "price" || field === "hall_price") return money(v);
+      if (field === "menu_cat") return catName(v);
+      return String(v);
+    }
+    function renderAiIssues() {
+      const box = $("ck-ai-list");
+      if (!aiIssues.length) { box.innerHTML = ""; return; }
+      const pById = new Map(products.map((p) => [p.id, p]));
+      const order = { high: 0, medium: 1, low: 2 };
+      aiIssues.sort((a, b) => order[a.severity] - order[b.severity]);
+      const left = aiIssues.filter((x) => !x.done);
+      box.innerHTML = `
+        <div class="ai-sec">${olvIcon("sparkle")} اقتراحات الذكاء <span class="badge">${left.length}</span></div>
+        ${!editable() ? `<div class="ai-lock">التطبيق بيشتغل بس بعد ما تعتمد البطاقات من صفحة «بطاقة المادة».</div>` : ""}
+        <ul class="ai-list">${aiIssues.map((x, i) => {
+          const p = pById.get(x.product_id); if (!p) return "";
+          const lockStock = isStock(p) && x.field === "price";
+          return `<li class="ai-item ${x.severity}">
+            ${x.done ? olvIcon("check") : `<input type="checkbox" data-i="${i}" ${x.on ? "checked" : ""} ${editable() && !lockStock ? "" : "disabled"} aria-label="طبّق على ${esc(p.name)}">`}
+            <div class="tx"><b>${esc(p.name)}</b> · ${FIELD[x.field]}
+              <div class="chg"><s>${esc(shown(x.field, x.current))}</s> ← <b>${esc(shown(x.field, x.suggested))}</b></div>
+              <div class="why">${esc(x.reason)}${lockStock ? " · سعر صنف مخزون، عدّله من «المنيو من المخزون»" : ""}${x.done ? " · اتطبّق" : ""}</div>
+            </div></li>`;
+        }).join("")}</ul>
+        ${editable() && left.length ? `<div class="ai-bar" style="margin-top:12px"><button class="btn gold" type="button" id="ck-apply">${olvIcon("check")}<span>طبّق المعلَّم</span></button></div>` : ""}`;
+      box.querySelectorAll("input[data-i]").forEach((c) => c.addEventListener("change", () => { aiIssues[Number(c.dataset.i)].on = c.checked; }));
+      const ap = $("ck-apply");
+      if (ap) ap.addEventListener("click", applyAiIssues);
+    }
+
+    async function applyAiIssues() {
+      const pick = aiIssues.filter((x) => x.on && !x.done);
+      if (!pick.length) { olvToast("ما علّمت ولا اقتراح", { icon: "warning" }); return; }
+      const st = $("ck-status"), ap = $("ck-apply"); ap.disabled = true;
+      const pById = new Map(products.map((p) => [p.id, p]));
+      try {
+        // كل صنف بتحديث واحد
+        const rows = new Map();
+        pick.forEach((x) => {
+          const p = pById.get(x.product_id); if (!p || (isStock(p) && x.field === "price")) return;
+          const row = rows.get(p.id) || {};
+          let v = x.suggested;
+          if (x.field === "price" || x.field === "hall_price") v = r2(v);
+          if (x.field === "hall_price" && !(v >= Number(row.price ?? p.price))) return;
+          row[x.field] = v;
+          if (x.field === "menu_cat") row.category = catName(v);
+          rows.set(p.id, row);
+        });
+        let n = 0;
+        for (const [id, row] of rows) {
+          const { error } = await db.from("products").update(row).eq("id", id);
+          if (error) throw error;
+          n++;
+          pick.filter((x) => x.product_id === id && row[x.field] !== undefined).forEach((x) => { x.done = true; });
+        }
+        // صنف مخزون: سعر الصالة بيروح للمخزون كمان
+        for (const [id, row] of rows) {
+          const p = pById.get(id);
+          if (isStock(p) && row.hall_price !== undefined) await db.from("ingredients").update({ menu_hall_price: row.hall_price }).eq("menu_item_id", p.external_id);
+        }
+        await pushCards(st);
+        olvToast(`اتعدّل ${n} صنف`, { icon: "checkCircle" });
+        await load(); renderRules(); renderAiIssues();
+      } catch (e) { ap.disabled = false; fail(st, e); }
+    }
+
+    // ================= ٢. الأكثر طلبًا =================
+    let popRank = [];
+    async function renderPopular() {
+      const st = $("pop-status"), days = Number($("pop-days").value);
+      $("pop-list").innerHTML = `<div class="ai-empty">عم يحسب المبيعات...</div>`;
+      try {
+        const s = await getStats(days);
+        popRank = active().filter((p) => !isStock(p)).map((p) => ({ p, ...(s[p.id] || { qty: 0, revenue: 0, orders: 0 }) }))
+          .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+        const n = Math.max(1, Math.min(20, Number($("pop-n").value) || 6));
+        const sold = popRank.filter((x) => x.qty > 0);
+        $("pop-apply").disabled = !editable() || !sold.length;
+        st.textContent = editable() ? `أول ${n} بالكمية بينعلّموا «الأكثر طلبًا» بالمنيو، والباقي بينشال عنهم.` : "التطبيق بعد اعتماد البطاقات.";
+        $("pop-list").innerHTML = sold.length ? `<div class="ai-scroll"><table class="ai-table">
+          <thead><tr><th>#</th><th>الصنف</th><th>القسم</th><th class="n">الكمية</th><th class="n">الإيراد</th><th>هلق</th></tr></thead>
+          <tbody>${popRank.slice(0, 40).map((x, i) => `<tr class="${i < n && x.qty > 0 ? "top" : ""}"><td>${i + 1}</td><td>${esc(x.p.name)}</td><td>${esc(catName(x.p.menu_cat))}</td>
+            <td class="n">${x.qty}</td><td class="n">${money(x.revenue)}</td><td>${x.p.popular ? `<span class="badge">${olvIcon("star")} الأكثر طلبًا</span>` : ""}</td></tr>`).join("")}</tbody></table></div>`
+          : `<div class="ai-empty">ما في مبيعات مسجّلة بهالفترة.</div>`;
+      } catch (e) { $("pop-list").innerHTML = ""; fail(st, e); }
+    }
+    $("pop-days").addEventListener("change", renderPopular);
+    $("pop-n").addEventListener("change", renderPopular);
+    $("pop-apply").addEventListener("click", async () => {
+      const n = Math.max(1, Math.min(20, Number($("pop-n").value) || 6));
+      const top = new Set(popRank.filter((x) => x.qty > 0).slice(0, n).map((x) => x.p.id));
+      if (!confirm(`رح ينعلّم ${top.size} صنف «الأكثر طلبًا» بالمنيو، وينشال عن الباقي. أكمل؟`)) return;
+      const b = $("pop-apply"), st = $("pop-status"); b.disabled = true;
+      try {
+        const on = [...top], off = products.filter((p) => p.popular && !top.has(p.id) && !isStock(p)).map((p) => p.id);
+        if (on.length) { const { error } = await db.from("products").update({ popular: true }).in("id", on); if (error) throw error; }
+        if (off.length) { const { error } = await db.from("products").update({ popular: false }).in("id", off); if (error) throw error; }
+        await pushCards(st);
+        await load(); await renderPopular();
+        olvToast("اتحدّث «الأكثر طلبًا» بالمنيو", { icon: "checkCircle" });
+      } catch (e) { fail(st, e); }
+      b.disabled = false;
+    });
+
+    // ================= ٣. التقرير =================
+    let reportRows = [];
+    const bars = (rows, cls) => {
+      const max = Math.max(...rows.map((r) => r.v), 1);
+      return `<div class="ai-bars">${rows.map((r) => `<div class="row"><span class="lbl" title="${esc(r.label)}">${esc(r.label)}</span>
+        <span class="track" role="img" aria-label="${esc(r.label)}: ${esc(r.text)}"><span class="fill ${cls || ""}" style="width:${Math.max(2, r.v / max * 100).toFixed(1)}%"></span></span>
+        <span class="val">${esc(r.text)}</span></div>`).join("")}</div>`;
+    };
+    async function renderReport() {
+      const st = $("rp-status"), days = Number($("rp-days").value);
+      $("rp-body").innerHTML = `<div class="ai-empty">عم يجهّز التقرير...</div>`;
+      try {
+        const [s, mg] = await Promise.all([getStats(days), margins ? Promise.resolve(margins) : (window.olvLoadItemMargins ? olvLoadItemMargins().catch(() => null) : null)]);
+        margins = mg;
+        const mById = new Map(((mg && mg.items) || []).map((x) => [x.id, x]));
+        reportRows = products.map((p) => ({ p, ...(s[p.id] || { qty: 0, revenue: 0, orders: 0 }), m: mById.get(p.id) }))
+          .filter((x) => x.p.is_active !== false || x.qty > 0);
+        const sold = reportRows.filter((x) => x.qty > 0).sort((a, b) => b.revenue - a.revenue);
+        const total = sold.reduce((a, x) => a + x.revenue, 0), qty = sold.reduce((a, x) => a + x.qty, 0);
+        const dead = reportRows.filter((x) => !x.qty && x.p.is_active !== false);
+        const byCat = new Map();
+        sold.forEach((x) => { const k = catName(x.p.menu_cat || ""); byCat.set(k, (byCat.get(k) || 0) + x.revenue); });
+        const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1]);
+        const profit = sold.filter((x) => x.m && x.m.level !== "unknown").map((x) => ({ ...x, gp: r2(x.revenue * (1 - x.m.costPct / 100)) })).sort((a, b) => b.gp - a.gp);
+        const low = sold.filter((x) => x.m && (x.m.level === "low" || x.m.level === "loss"));
+        const k = (ic, label, v) => `<div class="stat"><div class="stat-row"><div class="stat-icon">${olvIcon(ic)}</div><div class="stat-body"><div class="label">${label}</div><div class="value">${v}</div></div></div></div>`;
+        $("rp-body").innerHTML = `
+          <div class="stats ai-stats">
+            ${k("banknote", "إيراد الأصناف", money(total))}
+            ${k("cart", "قطع مباعة", Math.round(qty))}
+            ${k("tag", "أصناف انباعت", sold.length)}
+            ${k("hourglass", "ما انباعت", dead.length)}
+          </div>
+          <div id="rp-notes"></div>
+          ${sold.length ? `<div class="ai-cards2">
+            <div class="ai-box"><h3>أعلى 10 بالإيراد</h3>${bars(sold.slice(0, 10).map((x) => ({ label: x.p.name, v: x.revenue, text: money(x.revenue) })))}</div>
+            <div class="ai-box"><h3>أعلى 10 بالكمية</h3>${bars([...sold].sort((a, b) => b.qty - a.qty).slice(0, 10).map((x) => ({ label: x.p.name, v: x.qty, text: x.qty + " قطعة" })), "alt")}</div>
+            <div class="ai-box"><h3>الإيراد حسب القسم</h3>${bars(cats.map(([c, v]) => ({ label: c, v, text: Math.round(v / (total || 1) * 100) + "%" })))}</div>
+            <div class="ai-box"><h3>أعلى ربح تقديري (بعد تكلفة المواد)</h3>${profit.length ? bars(profit.slice(0, 10).map((x) => ({ label: x.p.name, v: x.gp, text: money(x.gp) })), "alt") : `<div class="ai-status">بيطلع لما يكون للأصناف وصفات (تبويب «المكونات»).</div>`}</div>
+          </div>` : `<div class="ai-empty">ما في مبيعات بهالفترة.</div>`}
+          ${low.length ? `<div class="ai-sec">${olvIcon("warning")} ربحها قليل <span class="badge">${low.length}</span></div>
+            <ul class="ai-list">${low.map((x) => `<li class="ai-item high">${olvIcon("warning")}<div class="tx"><b>${esc(x.p.name)}</b>: تكلفة المواد ${x.m.costPct}% من السعر${x.m.suggest ? `، السعر المقترح ${money(x.m.suggest)}` : ""}</div></li>`).join("")}</ul>` : ""}
+          ${sold.length ? `<div class="ai-sec">${olvIcon("barChart")} كل الأصناف</div>
+          <div class="ai-scroll"><table class="ai-table"><thead><tr><th>الصنف</th><th class="n">الكمية</th><th class="n">الإيراد</th><th class="n">الحصة</th><th class="n">تكلفة المواد</th></tr></thead>
+            <tbody>${sold.map((x) => `<tr><td>${esc(x.p.name)}</td><td class="n">${x.qty}</td><td class="n">${money(x.revenue)}</td><td class="n">${Math.round(x.revenue / (total || 1) * 1000) / 10}%</td><td class="n">${x.m && x.m.costPct != null ? x.m.costPct + "%" : "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}
+          ${dead.length ? `<div class="ai-sec">${olvIcon("hourglass")} ما انباعت ولا مرة بهالفترة <span class="badge">${dead.length}</span></div>
+            <div class="ai-status">${dead.map((x) => esc(x.p.name)).join("، ")}</div>` : ""}`;
+        st.textContent = "";
+        $("rp-ai").disabled = !sold.length;
+      } catch (e) { $("rp-body").innerHTML = ""; fail(st, e); }
+    }
+    $("rp-days").addEventListener("change", renderReport);
+    $("rp-print").addEventListener("click", () => window.print());
+    $("rp-ai").addEventListener("click", async () => {
+      const b = $("rp-ai"), st = $("rp-status"), days = Number($("rp-days").value);
+      b.disabled = true; st.textContent = "عم يحلّل الأرقام... (10–40 ثانية)";
+      try {
+        const rows = reportRows.filter((x) => x.p.is_active !== false).sort((a, b) => b.revenue - a.revenue).slice(0, 120)
+          .map((x) => ({ name: x.p.name, cat: catName(x.p.menu_cat), qty: x.qty, revenue: x.revenue, price: x.p.price, costPct: x.m && x.m.level !== "unknown" ? x.m.costPct : null }));
+        const out = await ai("insights", { days, stats: rows });
+        const ic = { good: "checkCircle", warn: "warning", idea: "sparkle" }, sev = { good: "low ai-note-good", warn: "high", idea: "medium" };
+        $("rp-notes").innerHTML = `<div class="ai-sec">${olvIcon("sparkle")} قراءة الذكاء للأرقام</div>
+          <ul class="ai-list" style="margin-bottom:14px">${(out.notes || []).map((n) => `<li class="ai-item ${sev[n.kind]}">${olvIcon(ic[n.kind])}<div class="tx">${esc(n.text)}</div></li>`).join("")}</ul>`;
+        st.textContent = "";
+      } catch (e) { fail(st, e); }
+      b.disabled = false;
+    });
+
+    // ================= ٤. المكونات =================
+    // نفس دالة «وصفات الأصناف» (suggest-recipes): الأكثر مبيعًا بدون وصفة أول، 10 بكل دفعة، وما بينحفظ شي قبل «اعتماد»
+    let rcCards = [];
+    const rcSkipped = new Set();
+    const UNIT_SHORT = { "كيلوغرام": "كغ", "غرام": "غ", "مليلتر": "مل" };
+    const unitOf = (id) => { const u = (ingredients.find((i) => i.id === id) || {}).unit || ""; return UNIT_SHORT[u] || u; };
+    async function rcPending() {
+      let s = {};
+      try { s = await getStats(30); } catch (_) {}
+      const shownIds = new Set(rcCards.map((c) => c.p.id));
+      return active().filter((p) => !withRecipe.has(p.id) && !shownIds.has(p.id) && !rcSkipped.has(p.id))
+        .sort((a, b) => ((s[b.id] || {}).qty || 0) - ((s[a.id] || {}).qty || 0));
+    }
+    async function renderRecipes() {
+      const total = active().length, have = active().filter((p) => withRecipe.has(p.id)).length;
+      const pend = await rcPending();
+      $("rc-cov").innerHTML = `<div class="ai-status" style="margin-bottom:10px">${have} من ${total} صنف إلهم مكونات مربوطة بالمخزون. الصنف المربوط بينقّص مواده من المخزون مع كل بيعة وبتنحسب تكلفته وربحه.</div>`;
+      $("rc-ai").disabled = !pend.length || !ingredients.length;
+      $("rc-ai").querySelector("span").textContent = pend.length ? `اكشف المكونات بالذكاء (${Math.min(10, pend.length)} من ${pend.length})` : "كل الأصناف إلها مكونات";
+      const opts = (sel) => ingredients.map((i) => `<option value="${esc(i.id)}"${i.id === sel ? " selected" : ""}>${esc(i.name)}</option>`).join("");
+      const conf = { high: "واثق", medium: "تقديري", low: "مش متأكد" };
+      $("rc-list").innerHTML = rcCards.map((c, ci) => `<div class="rc-card" data-card="${ci}">
+        <h3>${esc(c.p.name)} <span class="badge">${conf[c.confidence] || ""}</span>${c.saved ? ` <span class="badge">${olvIcon("check")} انحفظت</span>` : ""}</h3>
+        ${c.note ? `<div class="ai-status">${esc(c.note)}</div>` : ""}
+        ${c.saved ? "" : `${c.lines.map((l, li) => `<div class="rc-line${l.on ? "" : " off"}${l.unsure ? " unsure" : ""}" data-line="${li}">
+            <input type="checkbox" data-f="on" ${l.on ? "checked" : ""} aria-label="تضمين">
+            <select data-f="ingredient_id" aria-label="المادة">${opts(l.ingredient_id)}</select>
+            <input type="number" data-f="quantity" step="0.001" min="0" inputmode="decimal" value="${esc(l.quantity)}" aria-label="الكمية">
+            <span class="u">${esc(unitOf(l.ingredient_id))}</span></div>`).join("") || `<div class="ai-status">ما لقى مواد مناسبة بالمخزون.</div>`}
+          ${c.missing.length ? `<div class="rc-miss">${olvIcon("warning")} مواد ناقصة بالمخزون: ${c.missing.map(esc).join("، ")}</div>` : ""}
+          <div class="acts" style="display:flex; gap:6px; flex-wrap:wrap">
+            <button class="btn small gold" type="button" data-act="save">${olvIcon("check")}<span>اعتماد</span></button>
+            <button class="btn small" type="button" data-act="skip">تخطّي</button></div>`}
+      </div>`).join("");
+    }
+    $("rc-list").addEventListener("input", (e) => {
+      const le = e.target.closest("[data-line]"), ce = e.target.closest("[data-card]"); if (!le || !ce) return;
+      const l = rcCards[Number(ce.dataset.card)].lines[Number(le.dataset.line)], f = e.target.dataset.f;
+      if (f === "on") { l.on = e.target.checked; le.classList.toggle("off", !l.on); }
+      else if (f === "quantity") { l.quantity = e.target.value; l.unsure = false; le.classList.remove("unsure"); }
+      else if (f === "ingredient_id") { l.ingredient_id = e.target.value; le.querySelector(".u").textContent = unitOf(l.ingredient_id); }
+    });
+    $("rc-list").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      const c = rcCards[Number(b.closest("[data-card]").dataset.card)];
+      if (b.dataset.act === "skip") { rcSkipped.add(c.p.id); rcCards = rcCards.filter((x) => x !== c); renderRecipes(); return; }
+      const rows = new Map();
+      for (const l of c.lines.filter((x) => x.on)) {
+        const q = Number(l.quantity);
+        if (!(q > 0)) { olvToast("في سطر كميته فاضية أو صفر", { type: "danger", icon: "warning" }); return; }
+        rows.set(l.ingredient_id, { product_id: c.p.id, ingredient_id: l.ingredient_id, quantity: q });
+      }
+      if (!rows.size) { olvToast("علّم مادة وحدة عالأقل", { icon: "warning" }); return; }
+      b.disabled = true;
+      const { error } = await db.from("product_ingredients").upsert([...rows.values()], { onConflict: "product_id,ingredient_id" });
+      if (error) { b.disabled = false; olvShowError(errBox, error); return; }
+      c.saved = true; withRecipe.add(c.p.id); margins = null;
+      olvToast(`انربط ${c.p.name} بالمخزون`, { icon: "checkCircle" });
+      renderRecipes();
+    });
+    $("rc-ai").addEventListener("click", async () => {
+      const b = $("rc-ai"), st = $("rc-status");
+      const batch = (await rcPending()).slice(0, 10);
+      if (!batch.length) return;
+      b.disabled = true; st.textContent = `عم يكشف مكونات ${batch.length} صنف... (10–40 ثانية)`;
+      try {
+        const out = await callFn("suggest-recipes", { product_ids: batch.map((p) => p.id) });
+        const byId = new Map(batch.map((p) => [p.id, p]));
+        const got = (out.recipes || []).filter((r) => byId.has(r.product_id));
+        got.forEach((r) => rcCards.push({ p: byId.get(r.product_id), confidence: r.confidence, note: r.note, missing: r.missing || [],
+          lines: (r.lines || []).map((l) => ({ on: true, ingredient_id: l.ingredient_id, quantity: l.quantity, unsure: !!l.unsure })), saved: false }));
+        batch.forEach((p) => { if (!got.some((r) => r.product_id === p.id)) rcSkipped.add(p.id); });
+        st.textContent = got.length ? `طلع ${got.length} اقتراح. راجع الكميات (المعلّم بالذهبي بدو تأكيد) واضغط «اعتماد».` : "ما طلع اقتراحات لهالدفعة.";
+      } catch (e) { fail(st, e); }
+      await renderRecipes();
+    });
+
+    // ================= ٥. الصور =================
+    const imgState = new Map();   // productId → { url, path, busy }
+    function renderImages() {
+      const list = active().filter((p) => !p.image_url && !isStock(p));
+      $("im-batch").disabled = !editable() || !list.some((p) => !imgState.get(p.id));
+      $("im-status").textContent = !editable() ? "التطبيق بعد اعتماد البطاقات." : list.length ? `${list.length} صنف بدون صورة. الصورة بتتولّد بالذكاء، وما بتنحفظ إلا لما تعتمدها.` : "";
+      $("im-grid").innerHTML = list.length ? list.map((p) => {
+        const s = imgState.get(p.id) || {};
+        return `<div class="im-card" data-id="${esc(p.id)}">
+          <div class="ph">${s.busy ? `<span class="ai-status">عم يرسم...</span>` : s.url ? `<img src="${esc(s.url)}" alt="${esc(p.name)}">` : olvIcon("sparkle")}</div>
+          <div class="nm">${esc(p.name)}</div>
+          <div class="acts">${s.url
+            ? `<button class="btn small gold" type="button" data-act="ok">${olvIcon("check")}<span>اعتمدها</span></button><button class="btn small" type="button" data-act="gen">غيرها</button>`
+            : `<button class="btn small" type="button" data-act="gen"${s.busy || !editable() ? " disabled" : ""}>${olvIcon("sparkle")}<span>اعمل صورة</span></button>`}</div>
+        </div>`;
+      }).join("") : `<div class="ai-empty">كل الأصناف إلها صور.</div>`;
+    }
+    async function genImage(p) {
+      const old = imgState.get(p.id);
+      imgState.set(p.id, { busy: true });
+      renderImages();
+      try {
+        if (old && old.path) ai("discard_image", { path: old.path }).catch(() => {});
+        const out = await ai("image", { product_id: p.id });
+        imgState.set(p.id, { url: out.url, path: out.path });
+      } catch (e) {
+        imgState.delete(p.id);
+        fail($("im-status"), e);
+        throw e;
+      } finally { renderImages(); }
+    }
+    $("im-grid").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      const p = products.find((x) => x.id === b.closest("[data-id]").dataset.id); if (!p) return;
+      if (b.dataset.act === "gen") { genImage(p).catch(() => {}); return; }
+      const s = imgState.get(p.id); b.disabled = true;
+      try {
+        const { error } = await db.from("products").update({ image_url: s.url }).eq("id", p.id);
+        if (error) throw error;
+        imgState.delete(p.id);
+        await pushCards($("im-status"));
+        await load(); renderImages();
+        olvToast(`انحطت صورة ${p.name}`, { icon: "checkCircle" });
+      } catch (err) { b.disabled = false; fail($("im-status"), err); }
+    });
+    $("im-batch").addEventListener("click", async () => {
+      const list = active().filter((p) => !p.image_url && !isStock(p) && !imgState.get(p.id)).slice(0, 4);
+      $("im-batch").disabled = true;
+      for (const p of list) { try { await genImage(p); } catch (_) { break; } }
+      renderImages();
+    });
+
+    // ---------- البداية ----------
+    try {
+      await olvRequireAuth();
+      await load();
+      if (!editable()) {
+        $("lock").hidden = false;
+        $("lock").innerHTML = `${olvIcon("warning")} البطاقات لسا مش معتمدة كمصدر. تقدر تشوف الفحص والتقرير، بس التصليح والصور بيشتغلوا بعد «اعتمد البطاقات» بصفحة <a href="item-cards.html">بطاقة المادة</a>.`;
+      }
+      let t = "check";
+      try { const s = localStorage.getItem("olv_ai_tab"); if (s && TABS[s]) t = s; } catch (_) {}
+      showTab(t);
+    } catch (e) { olvShowError(errBox, e); }
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>
