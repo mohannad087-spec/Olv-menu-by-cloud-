@@ -16,6 +16,27 @@ export type GeminiResult =
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+// عدّاد الاستهلاك (جدول ai_usage، schema-ai-usage.sql): كل محاولة لجوجل بتنسجّل (الدالة، الموديل، الحالة، التوكنز)
+// حتى «المساعد الذكي» يعرض قديش انصرف اليوم وقديش تقريبًا ضايل. جوجل ما بتعطي الرصيد الباقي، فهاد عدّنا إحنا.
+// ما بيوقّف شي إذا فشل (الجدول مش موجود مثلًا).
+export async function logUsage(row: { tag: string; model: string; status: number; usage?: any; ms?: number }) {
+  const url = Deno.env.get("SUPABASE_URL"), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return;
+  const u = row.usage || {};
+  try {
+    await fetch(`${url.replace(/\/$/, "")}/rest/v1/ai_usage`, {
+      method: "POST",
+      headers: { apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({
+        fn: row.tag.slice(0, 40), model: row.model.slice(0, 60), status: row.status, ms: row.ms ?? null,
+        prompt_tokens: Number(u.promptTokenCount) || 0, output_tokens: Number(u.candidatesTokenCount) || 0,
+        thought_tokens: Number(u.thoughtsTokenCount) || 0, total_tokens: Number(u.totalTokenCount) || 0,
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch (_) { /* العدّاد مش أساسي */ }
+}
+
 export async function callGemini(
   apiKey: string,
   parts: unknown[],
@@ -53,6 +74,7 @@ export async function callGemini(
         console.log(JSON.stringify({ tag: opts.tag, model, attempt, ms: Date.now() - started, error: isTimeout ? "timeout" : String((e as Error)?.message || e) }));
         lastStatus = 504;
         lastMsg = isTimeout ? "timeout" : String((e as Error)?.message || e);
+        await logUsage({ tag: opts.tag, model, status: 504, ms: Date.now() - started });
         if (isTimeout) { timedOut = true; break; } // علق — ما في وقت نعيد عليه، منروح للموديل الأخف
         continue;
       }
@@ -61,6 +83,7 @@ export async function callGemini(
         tag: opts.tag, model, attempt, ms: Date.now() - started, status: r.status,
         finish: cand?.finishReason, usage: out?.usageMetadata, err: r.ok ? undefined : out?.error?.message?.slice(0, 200),
       }));
+      await logUsage({ tag: opts.tag, model, status: r.status, usage: out?.usageMetadata, ms: Date.now() - started });
       if (r.ok) {
         // النص ممكن يجي مقسوم على أكتر من جزء، وأجزاء "التفكير" منتجاهلها
         const text = (cand?.content?.parts || []).filter((p: any) => !p?.thought && typeof p?.text === "string").map((p: any) => p.text).join("");
