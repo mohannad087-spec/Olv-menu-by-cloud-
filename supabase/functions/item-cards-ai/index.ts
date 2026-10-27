@@ -1,4 +1,5 @@
 // «المساعد الذكي» لصفحة بطاقة المادة (item-cards-ai.html). للمالك والمدير بس.
+//   usage   {}              ← عدّاد استهلاك الذكاء (اليوم وآخر 30 يوم) من جدول ai_usage
 //   stats   { days }        ← مبيعات كل صنف بالفترة (كمية، إيراد، آخر بيعة) — بدون ذكاء، بس تجميع بصلاحية السيرفر
 //   review  {}              ← Gemini بيقرأ البطاقات وبيدوّر على أخطاء محتملة (اسم، سعر غريب، ترجمة ناقصة...) ويقترح تصليح
 //   insights { stats }      ← Gemini بيكتب ملاحظات قصيرة من أرقام التقرير
@@ -6,7 +7,7 @@
 // ما بينحفظ شي بالبطاقات هون: الصفحة بتعرض الاقتراح وصاحب المطعم بيعتمده.
 // نفس مفتاح باقي دوال الذكاء: GEMINI_API_KEY (واختياري GEMINI_MODEL، و GEMINI_IMAGE_MODEL للصور).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { callGemini } from "../_shared/gemini.ts";
+import { callGemini, logUsage } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -158,6 +159,41 @@ Deno.serve(async (req) => {
       return json({ ok: true, days, stats: await salesStats(admin, days) });
     }
 
+    // عدّاد الاستهلاك: جوجل بتصفّر الحد اليومي نص الليل بتوقيت كاليفورنيا، فاليوم بيتحسب من هداك الوقت
+    if (body.action === "usage") {
+      const now = new Date();
+      const pt = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+      const dayStart = new Date(now.getTime() - ((pt.getHours() * 60 + pt.getMinutes()) * 60 + pt.getSeconds()) * 1000 - now.getMilliseconds());
+      const since30 = new Date(now.getTime() - 30 * 864e5).toISOString();
+      const rows: { created_at: string; fn: string; model: string; status: number; total_tokens: number }[] = [];
+      for (let from = 0; from < 100_000; from += 1000) {
+        const { data, error } = await admin.from("ai_usage").select("created_at, fn, model, status, total_tokens").gte("created_at", since30).order("created_at").range(from, from + 999);
+        if (error) return json({ ok: false, error: /ai_usage/.test(error.message) ? "جدول عدّاد الاستهلاك لسا مش معمول" : error.message }, 500);
+        rows.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      const sum = (list: typeof rows) => {
+        const byModel: Record<string, { requests: number; tokens: number; limited: number }> = {};
+        const byFn: Record<string, { requests: number; tokens: number }> = {};
+        list.forEach((r) => {
+          const m = byModel[r.model] || (byModel[r.model] = { requests: 0, tokens: 0, limited: 0 });
+          m.requests++; m.tokens += r.total_tokens || 0; if (r.status === 429) m.limited++;
+          const f = byFn[r.fn] || (byFn[r.fn] = { requests: 0, tokens: 0 });
+          f.requests++; f.tokens += r.total_tokens || 0;
+        });
+        return { requests: list.length, tokens: list.reduce((a, r) => a + (r.total_tokens || 0), 0), byModel, byFn };
+      };
+      const today = rows.filter((r) => r.created_at >= dayStart.toISOString());
+      const last429 = [...rows].reverse().find((r) => r.status === 429);
+      const { data: lim } = await admin.from("app_settings").select("value").eq("key", "ai_daily_limit").maybeSingle();
+      return json({
+        ok: true, primary: Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest",
+        daily_limit: Number(lim?.value) > 0 ? Number(lim?.value) : 250,
+        reset_at: new Date(dayStart.getTime() + 864e5).toISOString(),
+        today: sum(today), month: sum(rows), last_limited_at: last429 ? last429.created_at : null,
+      });
+    }
+
     if (!GEMINI_KEY) return json({ ok: false, error: "GEMINI_API_KEY غير مضبوط بأسرار Edge Functions" }, 500);
     if (rateLimited(user.id)) return json({ ok: false, error: "طلبات كثيرة ورا بعض — استنى دقيقة وجرّب" }, 429);
 
@@ -254,6 +290,7 @@ No text, no letters, no logos, no watermark, no hands.`;
       // deno-lint-ignore no-explicit-any
       const out: any = await r.json().catch(() => ({}));
       console.log(JSON.stringify({ tag: "item-cards-image", model, status: r.status, err: r.ok ? undefined : out?.error?.message?.slice(0, 200) }));
+      await logUsage({ tag: "item-cards-image", model, status: r.status, usage: out?.usageMetadata });
       if (!r.ok) {
         if (r.status === 429) return json({ ok: false, error: "حساب Gemini الحالي ما بيسمح بتوليد صور (الحد المجاني للصور صفر أو خلص). لتشغيلها لازم تفعيل الفوترة على مفتاح Gemini" }, 429);
         return json({ ok: false, error: "فشل توليد الصورة: " + (out?.error?.message || r.status) }, 502);
@@ -286,7 +323,7 @@ No text, no letters, no logos, no watermark, no hands.`;
       return json({ ok: true });
     }
 
-    return json({ ok: false, error: "action غير معروف (stats أو review أو insights أو image أو discard_image)" }, 400);
+    return json({ ok: false, error: "action غير معروف (usage أو stats أو review أو insights أو image أو discard_image)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }

@@ -80,6 +80,14 @@
   .im-card .ph .icon{width:30px; height:30px;}
   .im-card .nm{font-weight:800; font-size:14.5px; line-height:1.4;}
   .im-card .acts{display:flex; gap:6px; flex-wrap:wrap;}
+  .ai-usage{display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 14px; border-radius:16px; border:1px solid var(--hair-soft); background:var(--ink-2); margin-bottom:14px; font-size:13.5px; line-height:1.6;}
+  .ai-usage .meter{flex:1 1 220px; min-width:180px;}
+  .ai-usage .meter .track{height:10px; border-radius:999px; background:var(--ink-3); overflow:hidden; margin-top:6px;}
+  .ai-usage .meter .fill{display:block; height:100%; border-radius:999px; background:var(--olive, #6b7a3a);}
+  .ai-usage .meter .fill.mid{background:var(--gold);}
+  .ai-usage .meter .fill.hi{background:var(--danger-hi, #b3412a);}
+  .ai-usage b{font-weight:800; font-variant-numeric:tabular-nums;}
+  .ai-usage .muted{color:var(--muted);}
   .ai-lock{padding:12px 14px; border-radius:14px; background:var(--ink-3); font-size:13.5px; line-height:1.7; margin-bottom:12px;}
   @media print{
     #olv-nav, .ai-tabs, .ai-bar, .btn, .ai-lock{display:none !important;}
@@ -150,6 +158,7 @@
     </header>
 
     <div class="ai-lock" id="lock" hidden></div>
+    <div class="ai-usage" id="usage" aria-live="polite"><span class="muted">عم يحسب استهلاك الذكاء...</span></div>
 
     <div class="ai-tabs" role="tablist" aria-label="أقسام المساعد">
       <button class="ai-tab" role="tab" type="button" data-tab="check" aria-selected="true"></button>
@@ -277,7 +286,8 @@
       }
       return out;
     }
-    const ai = (action, extra) => callFn("item-cards-ai", Object.assign({ action }, extra || {}));
+    const ai = (action, extra) => callFn("item-cards-ai", Object.assign({ action }, extra || {}))
+      .finally(() => { if (!["usage", "stats", "discard_image"].includes(action) && typeof renderUsage === "function") setTimeout(renderUsage, 300); });
     const proxy = (action, extra) => callFn("olv-menu-proxy", Object.assign({ action }, extra || {}));
     const fail = (status, e) => { status.textContent = ""; olvToast(e.message || String(e), { type: "danger", icon: "warning", ms: 6000 }); };
 
@@ -653,6 +663,7 @@
         batch.forEach((p) => { if (!got.some((r) => r.product_id === p.id)) rcSkipped.add(p.id); });
         st.textContent = got.length ? `طلع ${got.length} اقتراح. راجع الكميات (المعلّم بالذهبي بدو تأكيد) واضغط «اعتماد».` : "ما طلع اقتراحات لهالدفعة.";
       } catch (e) { fail(st, e); }
+      renderUsage();
       await renderRecipes();
     });
 
@@ -708,6 +719,40 @@
       renderImages();
     });
 
+    // ---------- عدّاد استهلاك الذكاء ----------
+    // جوجل ما بتعطي الرصيد الباقي، فالدوال بتعدّ كل طلب (جدول ai_usage) ومنقارنه بالحد اليومي التقديري (app_settings.ai_daily_limit)
+    const fmtN = (n) => Number(n || 0).toLocaleString("en-US");
+    const FN_NAME = { "item-cards-review": "فحص البطاقات", "item-cards-insights": "تحليل التقرير", "item-cards-image": "الصور", "suggest-recipes": "المكونات", "read-invoice": "قراءة الفواتير", "parse-order": "تجهيز الطلبيات", "ai-assist": "الإضافة بالذكاء" };
+    async function renderUsage() {
+      const box = $("usage");
+      try {
+        const u = await ai("usage");
+        const used = (u.today.byModel[u.primary] || { requests: 0 }).requests;
+        const left = Math.max(0, u.daily_limit - used), pct = Math.min(100, used / u.daily_limit * 100);
+        const reset = new Date(u.reset_at).toLocaleTimeString("ar-JO", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Amman" });
+        const limitedToday = u.last_limited_at && u.last_limited_at >= new Date(new Date(u.reset_at).getTime() - 864e5).toISOString();
+        const fns = Object.entries(u.month.byFn).sort((a, b) => b[1].requests - a[1].requests).map(([k, v]) => `${FN_NAME[k] || k} ${fmtN(v.requests)}`).join("، ");
+        box.innerHTML = `
+          <div class="meter">
+            ${olvIcon("sparkle")} استهلاك الذكاء اليوم: <b>${fmtN(used)}</b> طلب من حوالي <b>${fmtN(u.daily_limit)}</b> · ضايل تقريبًا <b>${fmtN(left)}</b>
+            <div class="track" role="img" aria-label="انصرف ${Math.round(pct)}% من الحد اليومي"><span class="fill ${pct >= 90 ? "hi" : pct >= 60 ? "mid" : ""}" style="width:${Math.max(1, pct).toFixed(1)}%"></span></div>
+            <div class="muted">توكنز اليوم ${fmtN(u.today.tokens)} · آخر 30 يوم ${fmtN(u.month.requests)} طلب و ${fmtN(u.month.tokens)} توكن${fns ? ` (${esc(fns)})` : ""}</div>
+            <div class="muted">${limitedToday ? `${olvIcon("warning")} جوجل وقّفت الطلبات اليوم لأنه وصل الحد. ` : ""}بيتجدد الساعة ${esc(reset)} بتوقيت عمّان. الرقم تقديري لأن جوجل ما بتعطي الرصيد الباقي.</div>
+          </div>
+          <button class="btn small" type="button" id="usage-limit">${olvIcon("gear")}<span>عدّل الحد</span></button>`;
+        $("usage-limit").addEventListener("click", async () => {
+          const v = prompt("الحد اليومي لطلبات الذكاء (حسب خطة حساب Gemini، المجاني تقريبًا 250):", u.daily_limit);
+          const n = Math.round(Number(v));
+          if (!v || !(n > 0)) return;
+          const { error } = await db.from("app_settings").upsert({ key: "ai_daily_limit", value: String(n) }, { onConflict: "key" });
+          if (error) { olvShowError(errBox, error); return; }
+          renderUsage();
+        });
+      } catch (e) {
+        box.innerHTML = `<span class="muted">${olvIcon("warning")} عدّاد الاستهلاك مش متاح: ${esc(e.message || e)}</span>`;
+      }
+    }
+
     // ---------- البداية ----------
     try {
       await olvRequireAuth();
@@ -719,6 +764,7 @@
       let t = "check";
       try { const s = localStorage.getItem("olv_ai_tab"); if (s && TABS[s]) t = s; } catch (_) {}
       showTab(t);
+      renderUsage();
     } catch (e) { olvShowError(errBox, e); }
     });
   </script>
