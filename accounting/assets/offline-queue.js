@@ -77,6 +77,18 @@
     return e;
   }
 
+  // مهلة الطلبات: بدونها، لما الراوتر شغال والنت مقطوع، المتصفح بيستنى نص دقيقة أو أكتر قبل ما يفشل،
+  // والكاشير بيشوف الدفع «معلّق». البيع نفسه مهلته قصيرة لأن تكراره آمن (client_ref بيمنع البيع المزدوج)
+  const SALE_TIMEOUT_MS = 6000;
+  const WRITE_TIMEOUT_MS = 10000;
+  const READ_TIMEOUT_MS = 8000;
+  const isRestUrl = (u) => /\/(rest|auth)\/v1\//.test(u) || /\/functions\/v1\//.test(u);
+
+  // بيع فيه client_ref: السيرفر بيتجاهل التكرار، فآمن نخزّنه ونعيد إرساله حتى لو الطلب الأول وصل فعلًا
+  function isIdempotentSale(urlStr, body) {
+    return /\/rpc\/record_sale/.test(urlStr) && typeof body === "string" && body.indexOf("p_client_ref") !== -1;
+  }
+
   async function offlineAwareFetch(url, opts) {
     opts = opts || {};
     const method = (opts.method || "GET").toUpperCase();
@@ -84,20 +96,44 @@
     // إعادة الطباعة ما بتنحفظ أوفلاين: لازم تفشل بوضوح، مش تنطبع فجأة بعد ساعات
     const isSupabaseWrite = WRITE_METHODS.has(method) && /\/rest\/v1\//.test(urlStr)
       && !/\/rpc\/reprint_receipt/.test(urlStr);
-    try {
-      const res = await fetch(url, opts);
-      lastNetFail = 0;
-      return res;
-    } catch (err) {
-      if (!isNetworkFailure(err)) throw err;
-      const wasKnown = knownOffline();
-      lastNetFail = Date.now();
+    // النت مقطوع ومعروف (الفحص الدوري أو فشل قريب): ما منحاول نوصل أصلًا — البيع بينحفظ محليًا فورًا
+    if (knownOffline() && isRestUrl(urlStr)) {
       if (isSupabaseWrite) {
         enqueue(urlStr, method, opts.headers, opts.body);
         return fakeQueuedResponse();
       }
-      if (wasKnown && /\/rest\/v1\//.test(urlStr)) throw fastFail(err);
+      throw fastFail();
+    }
+    const sale = isIdempotentSale(urlStr, opts.body);
+    const ms = !isRestUrl(urlStr) ? 0 : sale ? SALE_TIMEOUT_MS : isSupabaseWrite ? WRITE_TIMEOUT_MS : READ_TIMEOUT_MS;
+    const ctl = ms && typeof AbortController !== "undefined" ? new AbortController() : null;
+    let timedOut = false;
+    let timer = null;
+    let callOpts = opts;
+    if (ctl) {
+      timer = setTimeout(() => { timedOut = true; ctl.abort(); }, ms);
+      if (opts.signal) {
+        if (opts.signal.aborted) ctl.abort();
+        else opts.signal.addEventListener("abort", () => ctl.abort(), { once: true });
+      }
+      callOpts = Object.assign({}, opts, { signal: ctl.signal });
+    }
+    try {
+      const res = await fetch(url, callOpts);
+      lastNetFail = 0;
+      return res;
+    } catch (err) {
+      if (!timedOut && !isNetworkFailure(err)) throw err;
+      lastNetFail = Date.now();
+      if (isSupabaseWrite && (!timedOut || sale)) {
+        enqueue(urlStr, method, opts.headers, opts.body);
+        return fakeQueuedResponse();
+      }
+      // انتهت المهلة لعملية مش آمنة نكررها (ممكن وصلت فعلًا): منفشلها بوضوح بدل ما نخزّنها ونكررها
+      if (timedOut) throw fastFail(new Error("Failed to fetch (timeout)"));
       throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -177,6 +213,7 @@
 
   window.olvOfflineFetch = offlineAwareFetch;
   window.olvMarkOffline = () => { lastNetFail = Date.now(); };
+  window.olvMarkOnline = () => { lastNetFail = 0; };
   window.olvFlushOfflineQueue = flushQueue;
   window.olvGetOfflineQueueCount = function () { return loadQueue().length; };
   // العمليات اللي رفضها السيرفر بعد رجوع النت (بتعرضها connection-status.js)
