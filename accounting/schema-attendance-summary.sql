@@ -3,6 +3,12 @@
 -- اليوم اللي فرق بصماته أقل من p_min_minutes (افتراضي 30) بينتجاهل، واليوم ببصمة وحدة = missing_exit.
 -- SECURITY INVOKER: RLS على employee_punches/profiles بتنطبق على المستدعي. التنفيذ لـ authenticated فقط.
 
+-- بصمة الجهاز المحذوفة من صفحة الحضور بتنعلّم source = 'excluded' وبتضل بالجدول (جسر البصمة بيسحب آخر 72 ساعة
+-- كل 30 ثانية ولو انحذفت كانت بترجع)؛ الحساب (attendance_daily وبالتالي attendance_summary والرواتب) بيتجاهلها.
+alter table public.employee_punches drop constraint if exists employee_punches_source_check;
+alter table public.employee_punches add constraint employee_punches_source_check
+  check (source = any (array['fingerprint'::text, 'manual'::text, 'excluded'::text]));
+
 create or replace function public.attendance_daily(p_from date, p_to date, p_min_minutes integer default 30)
  returns table(profile_id uuid, full_name text, device_user_id text, work_date date, first_punch timestamp with time zone, last_punch timestamp with time zone, punch_count integer, hours numeric, status text)
  language sql
@@ -16,6 +22,7 @@ as $function$
     from employee_punches e
     where e.punched_at >= ((p_from::timestamp + interval '4 hours') at time zone 'Asia/Amman')
       and e.punched_at <  (((p_to + 1)::timestamp + interval '4 hours') at time zone 'Asia/Amman')
+      and e.source <> 'excluded'
   ), days as (
     select profile_id, work_date, min(punched_at) as first_punch, max(punched_at) as last_punch, count(*)::int as punch_count
     from punches group by profile_id, work_date
