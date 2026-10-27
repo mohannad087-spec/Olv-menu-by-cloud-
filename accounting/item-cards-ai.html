@@ -668,16 +668,17 @@
     });
 
     // ================= ٥. الصور =================
-    const imgState = new Map();   // productId → { url, path, busy }
+    const imgState = new Map();   // productId → { url, path, source, busy }
+    let cfReady = null;           // بديل Cloudflare المجاني مضبوط؟ (من عدّاد الاستهلاك)
     function renderImages() {
       const list = active().filter((p) => !p.image_url && !isStock(p));
       $("im-batch").disabled = !editable() || !list.some((p) => !imgState.get(p.id));
-      $("im-status").textContent = !editable() ? "التطبيق بعد اعتماد البطاقات." : list.length ? `${list.length} صنف بدون صورة. الصورة بتتولّد بالذكاء، وما بتنحفظ إلا لما تعتمدها.` : "";
+      $("im-status").textContent = !editable() ? "التطبيق بعد اعتماد البطاقات." : list.length ? `${list.length} صنف بدون صورة. الصورة بتتولّد بالذكاء (جوجل، وإذا ما زبط ${cfReady === false ? "فبديل Cloudflare المجاني لسا مش مضبوط" : "Cloudflare المجاني"})، وما بتنحفظ إلا لما تعتمدها.` : "";
       $("im-grid").innerHTML = list.length ? list.map((p) => {
         const s = imgState.get(p.id) || {};
         return `<div class="im-card" data-id="${esc(p.id)}">
           <div class="ph">${s.busy ? `<span class="ai-status">عم يرسم...</span>` : s.url ? `<img src="${esc(s.url)}" alt="${esc(p.name)}">` : olvIcon("sparkle")}</div>
-          <div class="nm">${esc(p.name)}</div>
+          <div class="nm">${esc(p.name)}${s.url && s.source ? ` <span class="muted">· ${s.source === "cloudflare" ? "Cloudflare" : "جوجل"}</span>` : ""}</div>
           <div class="acts">${s.url
             ? `<button class="btn small gold" type="button" data-act="ok">${olvIcon("check")}<span>اعتمدها</span></button><button class="btn small" type="button" data-act="gen">غيرها</button>`
             : `<button class="btn small" type="button" data-act="gen"${s.busy || !editable() ? " disabled" : ""}>${olvIcon("sparkle")}<span>اعمل صورة</span></button>`}</div>
@@ -691,7 +692,7 @@
       try {
         if (old && old.path) ai("discard_image", { path: old.path }).catch(() => {});
         const out = await ai("image", { product_id: p.id });
-        imgState.set(p.id, { url: out.url, path: out.path });
+        imgState.set(p.id, { url: out.url, path: out.path, source: out.source });
       } catch (e) {
         imgState.delete(p.id);
         fail($("im-status"), e);
@@ -731,6 +732,8 @@
         const left = Math.max(0, u.daily_limit - used), pct = Math.min(100, used / u.daily_limit * 100);
         const reset = new Date(u.reset_at).toLocaleTimeString("ar-JO", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Amman" });
         const limitedToday = u.last_limited_at && u.last_limited_at >= new Date(new Date(u.reset_at).getTime() - 864e5).toISOString();
+        const cfToday = (u.today.byModel["cloudflare-flux-1-schnell"] || { requests: 0 }).requests;
+        if (cfReady !== !!u.cf_ready) { cfReady = !!u.cf_ready; if (loaded.images) renderImages(); }
         const fns = Object.entries(u.month.byFn).sort((a, b) => b[1].requests - a[1].requests).map(([k, v]) => `${FN_NAME[k] || k} ${fmtN(v.requests)}`).join("، ");
         box.innerHTML = `
           <div class="meter">
@@ -738,6 +741,7 @@
             <div class="track" role="img" aria-label="انصرف ${Math.round(pct)}% من الحد اليومي"><span class="fill ${pct >= 90 ? "hi" : pct >= 60 ? "mid" : ""}" style="width:${Math.max(1, pct).toFixed(1)}%"></span></div>
             <div class="muted">توكنز اليوم ${fmtN(u.today.tokens)} · آخر 30 يوم ${fmtN(u.month.requests)} طلب و ${fmtN(u.month.tokens)} توكن${fns ? ` (${esc(fns)})` : ""}</div>
             <div class="muted">${limitedToday ? `${olvIcon("warning")} جوجل وقّفت الطلبات اليوم لأنه وصل الحد. ` : ""}بيتجدد الساعة ${esc(reset)} بتوقيت عمّان. الرقم تقديري لأن جوجل ما بتعطي الرصيد الباقي.</div>
+            ${u.cf_ready ? `<div class="muted">صور Cloudflare المجانية اليوم: ${fmtN(cfToday)} (بديل جوجل للصور، رصيدها اليومي بيكفي تقريبًا 100 صورة)</div>` : ""}
           </div>
           <button class="btn small" type="button" id="usage-limit">${olvIcon("gear")}<span>عدّل الحد</span></button>`;
         $("usage-limit").addEventListener("click", async () => {

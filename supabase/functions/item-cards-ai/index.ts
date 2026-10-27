@@ -3,9 +3,10 @@
 //   stats   { days }        ← مبيعات كل صنف بالفترة (كمية، إيراد، آخر بيعة) — بدون ذكاء، بس تجميع بصلاحية السيرفر
 //   review  {}              ← Gemini بيقرأ البطاقات وبيدوّر على أخطاء محتملة (اسم، سعر غريب، ترجمة ناقصة...) ويقترح تصليح
 //   insights { stats }      ← Gemini بيكتب ملاحظات قصيرة من أرقام التقرير
-//   image   { product_id }  ← بيولّد صورة للصنف (موديل صور Gemini) وبيرفعها على تخزين Supabase (item-images) ويرجّع الرابط
+//   image   { product_id }  ← بيولّد صورة للصنف (موديل صور Gemini، وإذا ما زبط Cloudflare Workers AI المجاني) وبيرفعها على تخزين Supabase (item-images) ويرجّع الرابط
 // ما بينحفظ شي بالبطاقات هون: الصفحة بتعرض الاقتراح وصاحب المطعم بيعتمده.
 // نفس مفتاح باقي دوال الذكاء: GEMINI_API_KEY (واختياري GEMINI_MODEL، و GEMINI_IMAGE_MODEL للصور).
+// بديل الصور المجاني: CF_ACCOUNT_ID + CF_AI_TOKEN (توكن Cloudflare بصلاحية Workers AI) — إذا مش مضبوطين بنضل على جوجل بس.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { callGemini, logUsage } from "../_shared/gemini.ts";
 
@@ -23,6 +24,69 @@ function json(data: unknown, status = 200) {
 }
 
 const BUCKET = "item-images";
+const CF_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
+
+// إذا جوجل رفضت الصور (حد/فوترة) منرتاح منها 15 دقيقة ومنروح عـ Cloudflare مباشرة بدل ما نستنى الرفض كل مرة
+let geminiImageOffUntil = 0;
+
+type Img = { bytes: Uint8Array; mime: string; source: "gemini" | "cloudflare" };
+
+async function geminiImage(key: string, prompt: string): Promise<Img | string> {
+  const model = Deno.env.get("GEMINI_IMAGE_MODEL") || "gemini-2.5-flash-image";
+  const t0 = Date.now();
+  let r: Response;
+  try {
+    r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["IMAGE"] } }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch {
+    await logUsage({ tag: "item-cards-image", model, status: 504, ms: Date.now() - t0 });
+    return "خدمة جوجل طوّلت كتير وما ردّت";
+  }
+  // deno-lint-ignore no-explicit-any
+  const out: any = await r.json().catch(() => ({}));
+  console.log(JSON.stringify({ tag: "item-cards-image", model, status: r.status, err: r.ok ? undefined : out?.error?.message?.slice(0, 200) }));
+  await logUsage({ tag: "item-cards-image", model, status: r.status, usage: out?.usageMetadata, ms: Date.now() - t0 });
+  if (!r.ok) {
+    if (r.status === 429 || r.status === 403) geminiImageOffUntil = Date.now() + 15 * 60_000;
+    return r.status === 429 ? "حساب Gemini ما بيسمح بتوليد صور (الحد المجاني للصور صفر أو خلص، بدها تفعيل الفوترة)" : "جوجل: " + (out?.error?.message || r.status);
+  }
+  // deno-lint-ignore no-explicit-any
+  const part = (out?.candidates?.[0]?.content?.parts || []).find((x: any) => x?.inlineData?.data || x?.inline_data?.data);
+  const inline = part?.inlineData || part?.inline_data;
+  if (!inline) return "جوجل ما رجّعت صورة";
+  return { bytes: Uint8Array.from(atob(inline.data), (c) => c.charCodeAt(0)), mime: String(inline.mimeType || inline.mime_type || "image/png"), source: "gemini" };
+}
+
+async function cloudflareImage(account: string, token: string, prompt: string): Promise<Img | string> {
+  const t0 = Date.now();
+  let r: Response;
+  try {
+    r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/${CF_IMAGE_MODEL}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ prompt, steps: 8 }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch {
+    await logUsage({ tag: "item-cards-image", model: "cloudflare-flux-1-schnell", status: 504, ms: Date.now() - t0 });
+    return "Cloudflare طوّلت كتير وما ردّت";
+  }
+  // deno-lint-ignore no-explicit-any
+  const out: any = await r.json().catch(() => ({}));
+  const err = out?.errors?.[0]?.message;
+  console.log(JSON.stringify({ tag: "item-cards-image", model: CF_IMAGE_MODEL, status: r.status, err: r.ok ? undefined : String(err || "").slice(0, 200) }));
+  await logUsage({ tag: "item-cards-image", model: "cloudflare-flux-1-schnell", status: r.status, ms: Date.now() - t0 });
+  if (!r.ok || !out?.result?.image) {
+    if (r.status === 429) return "خلص رصيد Cloudflare المجاني لليوم (بيتجدد نص الليل بتوقيت غرينتش)";
+    if (r.status === 401 || r.status === 403) return "توكن Cloudflare غلط أو ما إله صلاحية Workers AI";
+    return "Cloudflare: " + (err || r.status);
+  }
+  return { bytes: Uint8Array.from(atob(out.result.image), (c) => c.charCodeAt(0)), mime: "image/jpeg", source: "cloudflare" };
+}
 
 // حد بسيط لكل مستخدم (بذاكرة نسخة الدالة): 12 طلب ذكاء بالدقيقة
 const hits = new Map<string, number[]>();
@@ -191,6 +255,7 @@ Deno.serve(async (req) => {
         daily_limit: Number(lim?.value) > 0 ? Number(lim?.value) : 250,
         reset_at: new Date(dayStart.getTime() + 864e5).toISOString(),
         today: sum(today), month: sum(rows), last_limited_at: last429 ? last429.created_at : null,
+        cf_ready: !!(Deno.env.get("CF_ACCOUNT_ID") && Deno.env.get("CF_AI_TOKEN")),
       });
     }
 
@@ -272,35 +337,27 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f-]{36}$/i.test(id)) return json({ ok: false, error: "صنف غير صالح" }, 400);
       const { data: p, error: pe } = await admin.from("products").select("id, external_id, name, name_en, description, category").eq("id", id).single();
       if (pe || !p) return json({ ok: false, error: "الصنف مش موجود" }, 404);
-      const model = Deno.env.get("GEMINI_IMAGE_MODEL") || "gemini-2.5-flash-image";
       const prompt = `Professional appetizing food/drink photo for a cafe menu in Jordan. Item: "${clean(p.name_en) || clean(p.name)}" (Arabic name: ${clean(p.name)}; category: ${clean(p.category, 40)}${p.description ? "; description: " + clean(p.description, 160) : ""}).
 Show exactly this item as it is usually served, single serving, centered, 45-degree angle, soft natural light, warm cream/neutral background, shallow depth of field, realistic, square 1:1.
 No text, no letters, no logos, no watermark, no hands.`;
-      let r: Response;
-      try {
-        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_KEY },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["IMAGE"] } }),
-          signal: AbortSignal.timeout(90_000),
-        });
-      } catch {
-        return json({ ok: false, error: "خدمة جوجل طوّلت كتير وما ردّت — جرّب كمان مرة" }, 504);
+      // جوجل أول، وإذا ما زبطت (حد، فوترة، تأخير) منجرّب Cloudflare المجاني
+      const cfAccount = Deno.env.get("CF_ACCOUNT_ID"), cfToken = Deno.env.get("CF_AI_TOKEN");
+      const errs: string[] = [];
+      let img: Img | string | null = null;
+      if (Date.now() >= geminiImageOffUntil) {
+        img = await geminiImage(GEMINI_KEY, prompt);
+        if (typeof img === "string") { errs.push(img); img = null; }
       }
-      // deno-lint-ignore no-explicit-any
-      const out: any = await r.json().catch(() => ({}));
-      console.log(JSON.stringify({ tag: "item-cards-image", model, status: r.status, err: r.ok ? undefined : out?.error?.message?.slice(0, 200) }));
-      await logUsage({ tag: "item-cards-image", model, status: r.status, usage: out?.usageMetadata });
-      if (!r.ok) {
-        if (r.status === 429) return json({ ok: false, error: "حساب Gemini الحالي ما بيسمح بتوليد صور (الحد المجاني للصور صفر أو خلص). لتشغيلها لازم تفعيل الفوترة على مفتاح Gemini" }, 429);
-        return json({ ok: false, error: "فشل توليد الصورة: " + (out?.error?.message || r.status) }, 502);
+      if (!img && cfAccount && cfToken) {
+        img = await cloudflareImage(cfAccount, cfToken, prompt);
+        if (typeof img === "string") { errs.push(img); img = null; }
       }
-      // deno-lint-ignore no-explicit-any
-      const part = (out?.candidates?.[0]?.content?.parts || []).find((x: any) => x?.inlineData?.data || x?.inline_data?.data);
-      const inline = part?.inlineData || part?.inline_data;
-      if (!inline) return json({ ok: false, error: "ما رجعت صورة — جرّب كمان مرة" }, 422);
-      const mime = String(inline.mimeType || inline.mime_type || "image/png");
-      const bytes = Uint8Array.from(atob(inline.data), (c) => c.charCodeAt(0));
+      if (!img) {
+        if (!errs.length) errs.push("جوجل موقّفة مؤقتًا عن الصور");
+        if (!cfAccount || !cfToken) errs.push("وبديل Cloudflare المجاني لسا مش مضبوط");
+        return json({ ok: false, error: "ما زبط توليد الصورة: " + errs.join(" — ") }, 502);
+      }
+      const { bytes, mime, source } = img;
       // مخزن الصور العام: بينعمل لحاله أول مرة (نفس schema-item-images.sql)
       const { data: bucket } = await admin.storage.getBucket(BUCKET);
       if (!bucket) {
@@ -312,7 +369,7 @@ No text, no letters, no logos, no watermark, no hands.`;
       const { error: ue } = await admin.storage.from(BUCKET).upload(path, bytes, { contentType: mime, upsert: false, cacheControl: "604800" });
       if (ue) return json({ ok: false, error: "تعذّر رفع الصورة: " + ue.message }, 500);
       const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(path);
-      return json({ ok: true, url: pub.publicUrl, path });
+      return json({ ok: true, url: pub.publicUrl, path, source });
     }
 
     // صورة مقترحة انرفضت: منشيلها من المخزن حتى ما يتعبّى (بس ملفات هالمخزن)
