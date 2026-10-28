@@ -518,13 +518,17 @@ function olvInitMoreMenu() {
   function position() {
     // بالموبايل القائمة ورقة فوق الشريط السفلي، ومكانها محدد بالـCSS
     if (window.matchMedia("(max-width:640px)").matches) {
-      panel.style.top = panel.style.right = "";
+      panel.style.top = panel.style.right = panel.style.maxHeight = "";
       panel.style.transformOrigin = "";
       return;
     }
     const r = btn.getBoundingClientRect();
     const panelWidth = panel.offsetWidth || 260;
-    panel.style.top = Math.round(r.bottom + 8) + "px";
+    const top = Math.round(r.bottom + 8);
+    panel.style.top = top + "px";
+    // الارتفاع المتاح = من أسفل الزر لحد أسفل الشاشة (على الشاشات القصيرة
+    // كان الحد الثابت بالـCSS يخلي آخر البنود تنزل تحت حافة الشاشة)
+    panel.style.maxHeight = Math.max(160, window.innerHeight - top - 16) + "px";
     let right = window.innerWidth - r.right;
     right = Math.min(right, window.innerWidth - panelWidth - 12);
     right = Math.max(right, 12);
