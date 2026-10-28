@@ -58,7 +58,7 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
   position:sticky; top:0; z-index:30; background:var(--overlay-bg);
   backdrop-filter:blur(10px); border-bottom:1px solid var(--hair);
   box-shadow:0 8px 24px -16px rgba(47,36,22,.35);
-  padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  padding:8px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:nowrap;
 }
 .olv-brand{display:flex; align-items:center; gap:10px;}
 /* شعار OLV الرسمي (assets/brand/olv-mark.png) على بلاطة سوداء متل خلفيته الأصلية */
@@ -71,6 +71,52 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 .brand-text{font-size:18px;}
 .brand-text span{color:var(--muted); font-size:12px; font-weight:400; display:block; margin-top:2px;}
 .top .actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+/* صف واحد (2026-10-28): التبويبات جوّا الشريط العلوي بين الشعار وزر الحساب */
+.top .tabs{
+  /* padding عمودي + margin سالب: overflow-x بيقص عموديًا كمان، وشارة التنبيه (!) فوق التبويب لازم تبين */
+  flex:1 1 auto; min-width:0; padding:8px 2px; margin:-8px 0; gap:6px; align-items:center;
+  background:transparent; border:0; scrollbar-width:none;
+}
+.top .tabs::-webkit-scrollbar{display:none;}
+.top .tab-link{min-height:40px; padding:8px 14px;}
+@media (max-width:1439px){ .top .brand-text{display:none;} }
+@media (max-width:1180px){ .top .tab-link{padding:8px 11px;} .top .tabs{gap:4px;} }
+.olv-acct{flex:none; position:relative;}
+.olv-acct-btn{
+  display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:6px 12px; border-radius:999px;
+  font:inherit; font-size:13px; font-weight:700; color:var(--paper); background:var(--ink-3);
+  border:1px solid var(--hair); cursor:pointer; white-space:nowrap;
+  transition:background .16s var(--ease), border-color .16s var(--ease);
+}
+.olv-acct-btn:hover, .olv-acct.open .olv-acct-btn{border-color:var(--gold); background:var(--ink-2);}
+.olv-acct-btn .icon{width:16px; height:16px;}
+.olv-acct-name{max-width:110px; overflow:hidden; text-overflow:ellipsis;}
+.olv-acct-chevron{width:14px !important; height:14px !important; opacity:.6; transition:transform .18s var(--ease);}
+.olv-acct.open .olv-acct-chevron{transform:rotate(180deg);}
+.olv-acct-panel{
+  position:fixed; z-index:60; width:240px; max-width:calc(100vw - 16px); overflow-y:auto;
+  visibility:hidden; opacity:0; transform:translateY(-6px); pointer-events:none;
+  transition:opacity .12s var(--spring), transform .14s var(--spring), visibility 0s linear .14s;
+  background:var(--ink-2); border:1px solid var(--hair); border-radius:16px; padding:8px;
+  box-shadow:var(--card-shadow-hover), 0 24px 48px -12px rgba(0,0,0,.45);
+}
+.olv-acct.open .olv-acct-panel{
+  visibility:visible; opacity:1; transform:none; pointer-events:auto;
+  transition:opacity .14s var(--spring), transform .2s var(--spring), visibility 0s;
+}
+.olv-acct-head{padding:8px 10px 10px; margin-bottom:4px; border-bottom:1px solid var(--hair-soft, var(--hair));}
+.olv-acct-head strong{display:block; font-size:14px;}
+.olv-acct-head span{display:block; font-size:12px; color:var(--muted); margin-top:2px;}
+.olv-acct-item{
+  display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:9px 10px; border-radius:10px;
+  background:transparent; border:0; color:var(--paper); font:inherit; font-size:13.5px; text-align:right;
+  text-decoration:none; cursor:pointer; transition:background .14s var(--ease), color .14s var(--ease);
+}
+.olv-acct-item .icon{width:17px; height:17px; opacity:.85;}
+.olv-acct-item:hover{background:var(--ink-3); color:var(--gold-hi);}
+.olv-acct-item.danger{color:var(--danger); margin-top:4px; border-top:1px solid var(--hair-soft, var(--hair)); border-radius:0 0 10px 10px;}
+.olv-acct-item.danger:hover{color:var(--danger);}
+@media (prefers-reduced-motion: reduce){ .olv-acct-panel{transform:none !important;} }
 .olv-user-badge{
   display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:999px;
   font-size:13px; font-weight:700; color:var(--paper); background:var(--ink-3);
@@ -334,6 +380,9 @@ tbody tr{transition:background .15s var(--ease);}
   .top .actions .btn .icon{width:19px; height:19px;}
   .olv-user-badge{min-width:0; flex:0 1 auto; padding:7px 12px; font-size:12.5px;}
   .olv-user-badge > span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  .olv-acct-btn{width:44px; min-height:44px; padding:0; justify-content:center;}
+  .olv-acct-btn .olv-acct-name, .olv-acct-btn .olv-acct-chevron{display:none;}
+  .olv-acct-btn .icon{width:19px; height:19px;}
 }
 @media (max-width:379px){
   .olv-user-badge > span{display:none;}
@@ -497,17 +546,24 @@ body.olv-glass::before{
   content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
   background:linear-gradient(180deg, var(--bg-top) 0%, var(--ink) 38%, var(--bg-bottom) 100%);
 }
+/* الزجاج على ::before مش على .top نفسه: backdrop-filter على عنصر بيخلّي أي
+   ابن position:fixed (الشريط السفلي بالموبايل وقوائم "المزيد"/الحساب)
+   ينحسب مكانه بالنسبة إله بدل الشاشة */
 .olv-glass .top{
-  margin:10px 12px 0; top:10px; border-radius:22px;
-  background:var(--glass); -webkit-backdrop-filter:blur(22px) saturate(180%); backdrop-filter:blur(22px) saturate(180%);
+  margin:8px 12px 0; top:8px; border-radius:20px;
+  background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none;
   border:1px solid var(--glass-line); box-shadow:var(--glass-shadow), inset 0 1px 0 var(--glass-line);
+}
+.olv-glass .top::before{
+  content:""; position:absolute; inset:0; z-index:-1; border-radius:inherit; pointer-events:none;
+  background:var(--glass); -webkit-backdrop-filter:blur(22px) saturate(180%); backdrop-filter:blur(22px) saturate(180%);
 }
 .olv-glass .tabs{background:transparent; border-bottom:0;}
 @media (max-width:640px){
   .olv-glass .top{margin:8px 8px 0; top:8px; border-radius:18px;}
 }
 @media (prefers-reduced-transparency: reduce){
-  .olv-glass .top{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
+  .olv-glass .top::before{background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
 }
 
 /* ---- بطاقات بنتو على كل الصفحات ----
