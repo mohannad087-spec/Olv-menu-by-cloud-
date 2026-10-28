@@ -941,16 +941,76 @@ document.addEventListener("click", (e) => {
   f.scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "center" });
   setTimeout(() => f.focus({ preventScroll: true }), olvReduceMotion ? 0 : 350);
 });
+// حقول التاريخ: Chrome بيعرضها حسب لغة الجهاز (عند المحل إنجليزي = 10/28/2026، الشهر أول).
+// منخلي الحقل الأصلي (المنتقي والكيبورد بيضلوا شغالين) بس نصّه شفاف، وفوقه طبقة بتعرض
+// التاريخ بالترتيب العربي: يوم/شهر/سنة. أي تغيير للقيمة من الكود (input.value = ...) بيحدّثها كمان
+const OLV_DATE_VALUE = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+function olvArabicDates(root = document) {
+  root.querySelectorAll('input[type="date"]:not([data-olv-date])').forEach((input) => {
+    input.dataset.olvDate = "1";
+    const wrap = document.createElement("span");
+    wrap.className = "olv-date";
+    const cs = getComputedStyle(input);
+    // الحقل اللي ماخد عرض سطره كامل (block أو 100%) لازم الغلاف ياخد نفس العرض
+    if (cs.display === "block" || input.offsetWidth >= (input.parentElement ? input.parentElement.clientWidth - 2 : 0)) wrap.classList.add("block");
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const face = document.createElement("span");
+    face.className = "olv-date-face";
+    face.setAttribute("aria-hidden", "true");
+    face.style.font = cs.font;
+    // نفس اتجاه الحقل: Chrome بيرسمه LTR وأيقونة التقويم يمين، فالمسافة المحجوزة لازم تكون من جهتها
+    face.style.direction = cs.direction;
+    wrap.appendChild(face);
+    const paint = () => {
+      const v = OLV_DATE_VALUE.get.call(input);
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || "");
+      face.textContent = m ? `${m[3]}/${m[2]}/${m[1]}` : "يوم/شهر/سنة";
+      wrap.classList.toggle("empty", !m);
+    };
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      get() { return OLV_DATE_VALUE.get.call(this); },
+      set(v) { OLV_DATE_VALUE.set.call(this, v); paint(); },
+    });
+    input.addEventListener("input", paint);
+    input.addEventListener("change", paint);
+    // ضغطة بأي مكان بالحقل بتفتح التقويم (بدل ما تحط المؤشر على جزء مخفي)
+    input.addEventListener("click", () => { try { input.showPicker(); } catch (_) { /* متصفح قديم */ } });
+    paint();
+  });
+}
+// أشرطة الشرائح اللي بتتمرر أفقيًا (أقسام الإعدادات، تبويبات القسم، أصناف البيع): حافة
+// باهتة بالجهة اللي فيها كمان شرائح، حتى يبين إنه في أكتر ويتمرر. (مش على شريط التبويبات
+// العلوي: mask بيقص القوائم المنسدلة اللي جوّاه)
+const OLV_FADE_STRIPS = ".sub-tabs, .olv-hub-tabs, .ai-tabs, .cat-sub, .cat-tabs";
+function olvScrollFades(root = document) {
+  root.querySelectorAll(OLV_FADE_STRIPS).forEach((el) => {
+    // محتوى الشريط ممكن يتبدّل (أقسام البيع بتنرسم من جديد): كل مرور بيعيد الحساب
+    if (el._olvFadeSync) { el._olvFadeSync(); return; }
+    const sync = el._olvFadeSync = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      const pos = Math.abs(el.scrollLeft); // بالـRTL scrollLeft بيمشي بالسالب
+      el.classList.toggle("olv-fade-start", max > 2 && pos > 2);
+      el.classList.toggle("olv-fade-end", max > 2 && pos < max - 2);
+    };
+    el.addEventListener("scroll", sync, { passive: true });
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(el);
+    sync();
+  });
+}
 document.addEventListener("DOMContentLoaded", () => {
   olvSkeletons();
   olvA11yTables();
   olvEmptyStates();
   olvLinkFieldLabels();
   olvCountUpStats();
+  olvArabicDates();
+  olvScrollFades();
   let pending = false;
   new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); olvA11yTables(); });
+    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); olvA11yTables(); olvArabicDates(); olvScrollFades(); });
   }).observe(document.body, { childList: true, subtree: true });
 });

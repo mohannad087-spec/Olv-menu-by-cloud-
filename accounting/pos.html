@@ -467,7 +467,10 @@
   .cart-clear-btn[hidden]{display:none;}
   .cart-clear-btn:active{transform:scale(.96);}
   .cart-clear-btn.confirm{background:var(--danger-hi); color:#fff; border-color:transparent;}
-  .cart-empty{color:var(--muted); font-size:14px; text-align:center; padding:60px 0;}
+  .cart-empty{color:var(--muted); font-size:13px; text-align:center; padding:40px 12px; display:flex; flex-direction:column; align-items:center; gap:8px;}
+  .cart-empty .ce-icon{width:52px; height:52px; border-radius:16px; display:grid; place-items:center; background:var(--ink-3); color:var(--gold-hi);}
+  .cart-empty .ce-icon .icon{width:24px; height:24px;}
+  .cart-empty b{color:var(--paper); font-size:15px;}
   .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .ticket-header h2{margin:0;}
   .ticket-badge{
@@ -1763,7 +1766,7 @@
       if (!cart.length) resetClearBtn();
       document.getElementById("psb-qty-count").textContent = itemCount;
       if (!cart.length) {
-        list.innerHTML = `<div class="cart-empty">السلة فارغة — اختر أصنافًا من القائمة</div>`;
+        list.innerHTML = `<div class="cart-empty"><span class="ce-icon">${olvIcon("receipt")}</span><b>التذكرة فاضية</b><span>اضغط على أي صنف لتضيفه هون</span></div>`;
         checkoutBtn.disabled = true;
         saveDraftBtn.disabled = true;
       } else {
