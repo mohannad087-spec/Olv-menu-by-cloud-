@@ -378,10 +378,10 @@ function olvRenderNav(active) {
   // بقائمة الحساب، لأن الصفين القدام كانوا ياكلوا ربع شاشة لابتوب المحل
   nav.innerHTML = `
     <div class="top">
-      <h1 class="olv-brand">
+      <a class="olv-brand" href="index.html" aria-label="محاسبة OLV — الرئيسية">
         <span class="brand-mark-sm"><img src="assets/brand/olv-mark.png" alt="OLV" width="84" height="32"></span>
         <span class="brand-text">محاسبة OLV <span>لوحة تحكم المطعم</span></span>
-      </h1>
+      </a>
       <div class="tabs">
         ${primaryLinks.map(tabLinkHtml).join("")}
         <div class="tab-more" id="olv-nav-more">
