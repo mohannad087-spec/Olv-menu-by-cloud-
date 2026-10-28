@@ -155,7 +155,7 @@
   .av.back{background:var(--gold); color:var(--on-gold);}
   .cu.open .av:not(.loyal):not(.back){background:var(--ink-2);}
   .cu-row .who{min-width:0;}
-  .cu-row .who b{display:block; font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cu-row .who b{font-size:15px; font-weight:700; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-height:1.3; overflow-wrap:anywhere;}
   .cu-row .who b.noname{color:var(--muted); font-weight:500;}
   .cu-row .who small{display:flex; flex-wrap:wrap; gap:2px 10px; color:var(--muted); font-size:12.5px; margin-top:3px;}
   .cu-row .who .ph{direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums;}

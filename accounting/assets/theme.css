@@ -56,6 +56,22 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 .wrap{max-width:var(--page-max); margin:0 auto; padding:22px 20px;}
 /* صفحات النماذج والقراءة (الإعدادات، دليل التحضير...) بتضل أضيق عشان السطور ما تطول */
 .wrap.narrow{max-width:960px;}
+/* حافة باهتة لأشرطة الشرائح المتمررة (olvScrollFades): بالـRTL البداية يمين والنهاية يسار */
+.olv-fade-end{-webkit-mask-image:linear-gradient(to right, transparent, #000 36px); mask-image:linear-gradient(to right, transparent, #000 36px);}
+.olv-fade-start{-webkit-mask-image:linear-gradient(to left, transparent, #000 36px); mask-image:linear-gradient(to left, transparent, #000 36px);}
+.olv-fade-start.olv-fade-end{-webkit-mask-image:linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image:linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);}
+/* حقل التاريخ بالترتيب العربي (olvArabicDates بـlayout.js): نص الحقل الأصلي شفاف وفوقه الطبقة */
+.olv-date{position:relative; display:inline-block; max-width:100%;}
+.olv-date.block{display:block;}
+.olv-date.block > input{width:100%;}
+.olv-date > input[type="date"]{color:transparent;}
+.olv-date > input[type="date"]:focus{color:transparent;}
+.olv-date > input[type="date"]::-webkit-datetime-edit{color:transparent;}
+.olv-date-face{
+  position:absolute; inset:0; display:flex; align-items:center; padding-inline:12px 38px;
+  pointer-events:none; color:var(--paper); font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden;
+}
+.olv-date.empty .olv-date-face{color:var(--muted);}
 /* رأس الصفحة الموحّد: العنوان والوصف يمين، والأزرار يسار بنفس الصف */
 .olv-pagehead{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
 .olv-pagehead h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
