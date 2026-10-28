@@ -508,9 +508,12 @@
         }
       }
       let qs = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", date).eq("status", "completed");
-      let qe = sb.from("expenses").select("amount, created_at").eq("expense_date", date);
-      if (prev) { qs = qs.gt("created_at", prev.created_at); qe = qe.gt("created_at", prev.created_at); }
-      const [{ data: sales, error: e1 }, { data: exps }] = await Promise.all([qs, qe]);
+      // كاش بس: الذمة ما بتنزل من الدرج، إلا لما تنسدّد (settled_at) فبتنحسب بيوم التسديد
+      let qe = sb.from("expenses").select("amount, created_at").eq("expense_date", date).eq("payment_type", "cash").is("settled_at", null);
+      const dayStart = new Date(date + "T00:00:00"), dayEnd = new Date(dayStart.getTime() + 864e5);
+      let qe2 = sb.from("expenses").select("amount, settled_at").gte("settled_at", dayStart.toISOString()).lt("settled_at", dayEnd.toISOString());
+      if (prev) { qs = qs.gt("created_at", prev.created_at); qe = qe.gt("created_at", prev.created_at); qe2 = qe2.gt("settled_at", prev.created_at); }
+      const [{ data: sales, error: e1 }, { data: exps }, { data: exps2 }] = await Promise.all([qs, qe, qe2]);
       if (seq !== loadSeq) return;
       if (e1) throw e1;
       const cashRows = (sales || []).filter((s) => Number(s.cash_amount) > 0);
@@ -519,7 +522,7 @@
         salesCount: cashRows.length,
         card: r2((sales || []).reduce((s, r) => s + Number(r.card_amount || 0), 0)),
         delivery: r2((sales || []).reduce((s, r) => s + Number(r.delivery_amount || 0), 0)),
-        expToday: r2((exps || []).reduce((s, r) => s + Number(r.amount || 0), 0)),
+        expToday: r2([...(exps || []), ...(exps2 || [])].reduce((s, r) => s + Number(r.amount || 0), 0)),
         sinceClosing: prev,
       };
       if (!openingTouched) $("opening_balance").value = (opening || 0).toFixed(2);
