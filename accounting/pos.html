@@ -407,6 +407,7 @@
   .discount-remove-btn .icon{width:15px; height:15px;}
   .cart-totals{display:flex; flex-direction:column; gap:4px;}
   .cart-total-row{display:flex; align-items:center; justify-content:space-between; font-size:13px; color:var(--muted);}
+  .cart-total-row[hidden]{display:none;}
   .cart-total-row.discount span:last-child{color:var(--danger-hi);}
   .cart-total-row.grand{
     font-size:15px; color:var(--paper); font-weight:600; padding-top:8px;
@@ -416,25 +417,27 @@
   .cart-bar .actions{display:flex; gap:8px;}
   .cart-bar .actions .btn{flex:1;}
   .cart-list{margin-bottom:0;}
+  /* كل صنف سطر واحد متل تذاكر Toast/Square (2026-10-28): الاسم والسعر، وجنبهم − الكمية +،
+     والخيارات (كبير/ثلج/وجبة) تحتهم. − على كمية 1 بتصير سلة وبتحذف؛ الضغط على الاسم بيفتح التعديل */
+  .cart-list{margin-bottom:0;}
   .cart-item{
-    background:var(--ink-3); border:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));
-    border-radius:14px; padding:12px 14px; margin-bottom:10px;
+    display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:10px;
+    padding:8px 2px; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));
   }
-  .cart-item-top{display:flex; align-items:flex-start; gap:10px;}
-  .qty-badge{
-    flex:none; background:var(--gold); color:var(--on-gold);
-    font-weight:700; font-size:12.5px; min-width:24px; height:24px; border-radius:7px;
-    display:flex; align-items:center; justify-content:center; padding:0 4px;
-  }
+  .cart-item-top{display:flex; align-items:center; gap:8px; min-width:0;}
   .cart-item-info{flex:1; min-width:0; cursor:pointer;}
-  .cart-item-info .name{font-weight:600; font-size:15px; line-height:1.35;}
-  .cart-item-info .meta{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:3px; line-height:1.5;}
+  .cart-item-info .name{font-weight:700; font-size:15.5px; line-height:1.35;}
+  .cart-item-info .meta{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:2px; line-height:1.45;}
   .cart-item-info .meta .icon{width:12px; height:12px; vertical-align:-1px;}
-  .cart-item-price{flex:none; font-weight:700; color:var(--gold-hi); font-size:14.5px; white-space:nowrap;}
-  .cart-item-controls{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.12));
+  .cart-item-price{flex:none; min-width:48px; text-align:end; font-weight:700; color:var(--gold-hi); font-size:15.5px; white-space:nowrap;}
+  .cart-item > .meal-seg{grid-column:1 / -1; margin-top:6px;}
+  .cart-item-opts{flex:none; display:flex; gap:4px;}
+  .opt-chip{
+    min-height:44px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:transparent;
+    color:var(--muted); font-size:13.5px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
   }
+  .opt-chip.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
+  .opt-chip:active{transform:scale(.96);}
   .qty-stepper{
     display:flex; align-items:center; gap:2px; background:var(--ink-2); border:1px solid var(--hair);
     border-radius:999px; padding:3px;
@@ -445,6 +448,9 @@
   }
   .qty-stepper button:active{background:var(--gold); color:var(--on-gold);}
   .qty-stepper .qty-value{min-width:24px; text-align:center; font-size:14px; font-weight:700;}
+  .qty-stepper button.is-remove{color:var(--danger-hi);}
+  .qty-stepper button.is-remove .icon{width:18px; height:18px;}
+  .qty-stepper button.is-remove:active{background:var(--danger-hi); color:#fff;}
   .flavor-grid{max-height:42vh; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-bottom:12px;}
   .flavor-chip{
     min-height:48px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3);
@@ -453,13 +459,6 @@
   .flavor-chip.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
   .flavor-chip:active{transform:scale(.96);}
   .meal-seg{margin-top:10px;} .meal-seg button{min-height:44px; font-size:14.5px;}
-  .cart-item-remove{
-    width:32px; height:32px; border-radius:8px; border:1px solid transparent; background:transparent;
-    color:var(--danger-hi); font-size:15px; flex:none; opacity:.75;
-    display:flex; align-items:center; justify-content:center;
-  }
-  .cart-item-remove .icon{width:16px; height:16px;}
-  .cart-item-remove:hover{opacity:1; background:rgba(193,88,63,.12); border-color:rgba(193,88,63,.3);}
   .cart-clear-btn{
     min-height:44px; padding:0 14px; border-radius:12px; border:1px solid rgba(179,65,42,.4); background:transparent;
     color:var(--danger-hi); font-size:14px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
@@ -589,7 +588,7 @@
   .cat-tab{border-radius:16px; background:var(--ink-2); border-color:var(--hair-soft);}
   .card{border-radius:22px; border-color:var(--hair-soft);}
   .card .thumb-fallback{border-radius:16px;}
-  .cart-item{background:var(--ink-2); border-radius:16px; animation:olv-line-in .3s var(--spring) backwards;}
+  .cart-item.is-new{animation:olv-line-in .3s var(--spring) backwards;}
   @keyframes olv-line-in{from{opacity:0; transform:translateX(-10px);}}
   .btn.gold.pay, .btn.gold.checkout-confirm{color:var(--on-olive); border-radius:16px;}
   /* رقم الكمية فوق الصنف: بيطلع بنطّة أول مرة، وبيرتدّ مع كل إضافة */
@@ -614,7 +613,7 @@
     100%{transform:translate(var(--dx),70vh) rotate(var(--rot)); opacity:0;}
   }
   @media (prefers-reduced-motion: reduce){
-    .card .q{transition:none;} .card .q.bump, .cart-item{animation:none;}
+    .card .q{transition:none;} .card .q.bump, .cart-item.is-new{animation:none;}
     .checkout-success .check .icon{stroke-dasharray:none; animation:none;}
   }
   @media (prefers-reduced-transparency: reduce){
@@ -712,8 +711,6 @@
   .field input:not([type=checkbox]):not([type=radio]), .field select{min-height:48px;}
   .qty-stepper button{width:44px; height:44px; font-size:22px;}
   .qty-stepper .qty-value{min-width:30px; font-size:16px;}
-  .cart-item-remove{width:44px; height:44px; border-radius:12px;}
-  .cart-item-remove .icon{width:20px; height:20px;}
   .discount-toggle-btn{min-height:44px; font-size:14px;}
   .discount-remove-btn{width:44px; height:44px;}
   .discount-input-wrap input{min-height:44px;}
@@ -725,14 +722,23 @@
   .card .price{font-size:16px;}
   .pos-pagination button{width:52px; height:52px;}
   @media (min-width:901px){
-    .pos-cart-panel{flex-basis:26%; min-width:270px; max-width:330px; display:flex; flex-direction:column; overflow:hidden;}
+    /* التذكرة ثلث الشاشة تقريبًا (2026-10-28، كانت 26% وضيقة: صنف أو صنفين بس كانوا يبينوا) */
+    .pos-cart-panel{flex-basis:32%; min-width:340px; max-width:440px; display:flex; flex-direction:column; overflow:hidden;}
     .cart-panel-inner{flex:1 1 auto; min-height:0; padding:14px 14px 0; overflow-y:auto; overscroll-behavior:contain;}
     .cart-panel-inner .field{margin-bottom:8px !important;}
-    /* رقم الطاولة + اسم الزبون جنب بعض (بيوفّروا ارتفاع)، والباقي بعرض كامل */
-    .cart-panel-inner{display:grid; grid-template-columns:1fr 1fr; column-gap:8px; align-content:start; grid-auto-rows:min-content;}
+    /* الطاولة + الاسم + التلفون بسطر واحد (بيوفّروا ارتفاع)، والباقي بعرض كامل.
+       سفري: الاسم بياخد مكان الطاولة؛ توصيل: التلفون بالعرض كله */
+    .cart-panel-inner{display:grid; grid-template-columns:76px minmax(0,1fr) minmax(0,1fr); column-gap:6px; align-content:start; grid-auto-rows:min-content;}
     .cart-panel-inner > *{grid-column:1 / -1;}
-    .cart-panel-inner > #table-number-field, .cart-panel-inner > #customer-name-field{grid-column:auto;}
-    .cart-panel-inner > #table-number-field[hidden] + #customer-name-field{grid-column:1 / -1;}
+    .cart-panel-inner > #table-number-field{grid-column:1;}
+    .cart-panel-inner > #customer-name-field{grid-column:2;}
+    .cart-panel-inner > #customer-phone-field{grid-column:3;}
+    .cart-panel-inner > #table-number-field[hidden] + #customer-name-field{grid-column:1 / 3;}
+    .cart-panel-inner > #customer-name-field[hidden] + #customer-phone-field{grid-column:1 / -1;}
+    .cart-panel-inner .field input:not([type=checkbox]):not([type=radio]){min-height:44px; padding-inline:10px; font-size:14.5px;}
+    .cart-panel-inner > .field:first-of-type .seg button{min-height:44px;}
+    .cart-list{border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));}
+    .cart-bar .actions .btn.pay{flex:2;}
     .cart-panel-inner .field label{display:none;}
     .cart-list{min-height:60px;}
     /* حفظ/الدفع والإجمالي ثابتين تحت التذكرة حتى لو الحقول والأصناف طوّلت */
@@ -826,12 +832,12 @@
           </div>
           <div class="field" id="table-number-field" style="margin-bottom:12px;" hidden>
             <label>رقم الطاولة (اختياري)</label>
-            <input type="text" id="table-number" placeholder="مثال: 5" list="table-options" autocomplete="off">
+            <input type="text" id="table-number" placeholder="طاولة" list="table-options" autocomplete="off">
             <datalist id="table-options"></datalist>
           </div>
           <div class="field" id="customer-name-field" style="margin-bottom:12px;" hidden>
             <label>اسم الزبون (اختياري)</label>
-            <input type="text" id="customer-name" placeholder="مثال: أحمد">
+            <input type="text" id="customer-name" placeholder="اسم الزبون">
           </div>
           <div class="field" id="customer-phone-field" style="margin-bottom:12px;">
             <label id="customer-phone-label">رقم تلفون الزبون</label>
@@ -851,7 +857,7 @@
               </div>
             </div>
             <div class="cart-totals">
-              <div class="cart-total-row"><span>المجموع الفرعي</span><span id="cart-subtotal">0.00</span></div>
+              <div class="cart-total-row" hidden><span>المجموع الفرعي</span><span id="cart-subtotal">0.00</span></div>
               <div class="cart-total-row discount" id="cart-discount-row" style="display:none;"><span>الخصم</span><span id="cart-discount">0.00</span></div>
               <div class="cart-total-row grand"><span>الإجمالي</span><span class="total" id="cart-total">0.00</span></div>
             </div>
@@ -1299,7 +1305,8 @@
     function computeGridCapacity(rowsOverride) {
       const grid = document.getElementById("products-grid");
       const containerWidth = grid.clientWidth || 300;
-      const targetCardWidth = document.body.classList.contains("pos-focus") ? 150 : 165;
+      // 136 بملء الشاشة: التذكرة صارت أعرض (2026-10-28) وبدنا نضل 6 أعمدة على شاشة 1366
+      const targetCardWidth = document.body.classList.contains("pos-focus") ? 136 : 165;
       const columns = Math.max(1, Math.floor((containerWidth + GRID_GAP) / (targetCardWidth + GRID_GAP)));
       const cardWidth = (containerWidth - (columns - 1) * GRID_GAP) / columns;
       const cardHeight = measuredCardH || (cardWidth * 0.75 + 88);
@@ -1647,7 +1654,7 @@
       // الأنواع عشان يقدر الكاشير يسجّل نقاط ولاء حتى لزبون صالة/سفري
       document.getElementById("customer-phone-label").textContent =
         type === "توصيل" ? "رقم تلفون الزبون" : "رقم تلفون الزبون (اختياري — لبرنامج الولاء)";
-      document.getElementById("customer-phone").placeholder = type === "توصيل" ? "رقم تلفون الزبون (إجباري)" : "رقم تلفون الزبون — اختياري (07xxxxxxxx)";
+      document.getElementById("customer-phone").placeholder = type === "توصيل" ? "تلفون الزبون (إجباري)" : "تلفون (اختياري)";
     }
 
     function saveDraft() {
@@ -1755,6 +1762,7 @@
       renderCart();
     }
 
+    let lastCartLen = 0;
     function renderCart() {
       const cart = OlvCart.all();
       syncCardQty();
@@ -1769,42 +1777,39 @@
       if (!cart.length) resetClearBtn();
       document.getElementById("psb-qty-count").textContent = itemCount;
       if (!cart.length) {
+        lastCartLen = 0;
         list.innerHTML = `<div class="cart-empty"><span class="ce-icon">${olvIcon("receipt")}</span><b>التذكرة فاضية</b><span>اضغط على أي صنف لتضيفه هون</span></div>`;
         checkoutBtn.disabled = true;
         saveDraftBtn.disabled = true;
       } else {
+        // الأسطر الجديدة بس بتعمل حركة الدخول (مش كل التذكرة مع كل ضغطة +)
+        const prevLen = lastCartLen;
+        lastCartLen = cart.length;
         list.innerHTML = cart.map((item, idx) => `
-          <div class="cart-item">
+          <div class="cart-item${idx >= prevLen ? " is-new" : ""}">
             <div class="cart-item-top">
-              <div class="qty-badge">${item.qty}×</div>
               <div class="cart-item-info" data-edit="${idx}">
                 <div class="name">${olvEsc(item.name)}</div>
                 ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => olvEsc(a.name)).join("، ")}</div>` : ""}
                 ${item.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(item.note)}</div>` : ""}
               </div>
+              ${sizeAddonFor(item) || iceOk(item) ? `
+              <div class="cart-item-opts">
+                ${sizeAddonFor(item) ? `<button type="button" class="opt-chip${isLargeItem(item) ? " on" : ""}" data-size="${idx}:${isLargeItem(item) ? 0 : 1}" aria-pressed="${isLargeItem(item)}">كبير</button>` : ""}
+                ${iceOk(item) ? `<button type="button" class="opt-chip${hasIce(item) ? " on" : ""}" data-ice="${idx}:${hasIce(item) ? 0 : 1}" aria-pressed="${hasIce(item)}">ثلج</button>` : ""}
+              </div>` : ""}
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
-            ${sizeAddonFor(item) ? `
-            <div class="seg meal-seg" role="group" aria-label="الحجم: صغير أو كبير">
-              ${[[0, "صغير"], [1, "كبير"]].map(([k, l]) => `<button type="button" class="${(isLargeItem(item) ? 1 : 0) === k ? "on" : ""}" data-size="${idx}:${k}">${l}</button>`).join("")}
-            </div>` : ""}
-            ${iceOk(item) ? `
-            <div class="seg meal-seg" role="group" aria-label="الثلج: بدون أو مع ثلج">
-              ${[[0, "بدون ثلج"], [1, "مع ثلج"]].map(([k, l]) => `<button type="button" class="${(hasIce(item) ? 1 : 0) === k ? "on" : ""}" data-ice="${idx}:${k}">${l}</button>`).join("")}
-            </div>` : ""}
+            <div class="qty-stepper">
+              <button type="button" data-dec="${idx}" ${item.qty <= 1 ? `class="is-remove" data-sound="remove" aria-label="حذف الصنف"` : `aria-label="نقّص واحد"`}>${item.qty <= 1 ? olvIcon("trash") : "−"}</button>
+              <span class="qty-value">${item.qty}</span>
+              <button type="button" data-inc="${idx}" aria-label="زيد واحد">+</button>
+            </div>
             ${mealOk(item) ? `
             <div class="seg meal-seg" role="group" aria-label="نوع الطلب: ساندويش أو وجبة">
               ${[["", "ساندويش"], ["meal", "وجبة"], ["double", "وجبة دبل"]].map(([k, l]) => `<button type="button" class="${mealKindOf(item) === k ? "on" : ""}" data-meal="${idx}:${k}">${l}</button>`).join("")}
               ${mealKindOf(item) ? `<button type="button" class="meal-edit" data-meal-edit="${idx}" aria-label="تعديل سعر الوجبة" style="flex:none; width:48px;">✎</button>` : ""}
             </div>` : ""}
-            <div class="cart-item-controls">
-              <div class="qty-stepper">
-                <button type="button" data-dec="${idx}">−</button>
-                <span class="qty-value">${item.qty}</span>
-                <button type="button" data-inc="${idx}">+</button>
-              </div>
-              <button type="button" class="cart-item-remove" data-remove="${idx}" data-sound="remove" aria-label="حذف الصنف">${olvIcon("trash")}</button>
-            </div>
           </div>
         `).join("");
         list.querySelectorAll("[data-edit]").forEach((el) => {
@@ -1837,12 +1842,6 @@
             renderCart();
           });
         });
-        list.querySelectorAll("[data-remove]").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            OlvCart.removeAt(Number(btn.dataset.remove));
-            renderCart();
-          });
-        });
         checkoutBtn.disabled = false;
         saveDraftBtn.disabled = false;
       }
@@ -1850,6 +1849,8 @@
       const discountAmount = computeDiscountAmount(subtotal);
       const discountRow = document.getElementById("cart-discount-row");
       document.getElementById("cart-subtotal").textContent = olvFormatMoney(subtotal);
+      // بدون خصم المجموع الفرعي = الإجمالي، فبنخبّيه ونوفّر سطر
+      document.getElementById("cart-subtotal").parentElement.hidden = !(discountAmount > 0);
       if (discountAmount > 0) {
         discountRow.style.display = "";
         document.getElementById("cart-discount").textContent = "- " + olvFormatMoney(discountAmount);
