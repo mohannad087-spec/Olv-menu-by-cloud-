@@ -528,7 +528,14 @@ function olvInitMoreMenu() {
     panel.style.top = top + "px";
     // الارتفاع المتاح = من أسفل الزر لحد أسفل الشاشة (على الشاشات القصيرة
     // كان الحد الثابت بالـCSS يخلي آخر البنود تنزل تحت حافة الشاشة)
-    panel.style.maxHeight = Math.max(160, window.innerHeight - top - 16) + "px";
+    // لو نافذة المتصفح أطول من المساحة الظاهرة فوق شريط ويندوز، نحسب لحد
+    // أسفل المساحة المتاحة فعليًا من الشاشة (screen.availHeight)
+    let viewBottom = window.innerHeight;
+    try {
+      const availBottom = (screen.availTop || 0) + screen.availHeight - window.screenY;
+      if (availBottom > 0) viewBottom = Math.min(viewBottom, availBottom);
+    } catch (e) { /* نرجع لارتفاع النافذة */ }
+    panel.style.maxHeight = Math.max(160, viewBottom - top - 16) + "px";
     let right = window.innerWidth - r.right;
     right = Math.min(right, window.innerWidth - panelWidth - 12);
     right = Math.max(right, 12);
