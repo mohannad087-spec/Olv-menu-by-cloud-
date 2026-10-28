@@ -86,7 +86,8 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
   box-shadow:0 8px 24px -16px rgba(47,36,22,.35);
   padding:8px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:nowrap;
 }
-.olv-brand{display:flex; align-items:center; gap:10px;}
+/* الشعار رابط للرئيسية (مش h1: كل صفحة إلها عنوانها h1 الخاص) */
+.olv-brand{display:flex; align-items:center; gap:10px; font-weight:800; line-height:1.25; color:var(--paper); text-decoration:none;}
 /* شعار OLV الرسمي (assets/brand/olv-mark.png) على بلاطة سوداء متل خلفيته الأصلية */
 .brand-mark-sm{
   flex:none; height:42px; border-radius:11px; background:#0b0a08; padding:5px 10px;
@@ -247,6 +248,8 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 .btn.danger{border-color:rgba(179,65,42,.4); color:var(--danger-hi);}
 
 .btn.small{padding:8px 13px; font-size:12.5px; min-height:38px;}
+/* شاشات اللمس: هدف الضغط 44px على الأقل حتى للأزرار الصغيرة */
+@media (pointer:coarse){ .btn.small{min-height:44px;} }
 .btn:disabled{opacity:.5; cursor:not-allowed; transform:none; filter:none;}
 
 /* ---- forms ---- */
