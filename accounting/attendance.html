@@ -196,6 +196,23 @@
   .at-more{display:flex; justify-content:center; padding-top:10px;}
   .at-more .btn{min-height:44px;}
   .at-more[hidden]{display:none;}
+  /* تبويب الجدول (مالك/مدير) */
+  .rs-nav{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .rs-nav .rs-week{font-weight:800; font-size:16px; text-align:center; flex:1; min-width:160px;}
+  .rs-nav .rs-week small{display:block; color:var(--muted); font-weight:500; font-size:12.5px;}
+  .rs-nav .btn{min-height:44px;}
+  .rs-list{list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .rs-list li{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:end; padding:10px 12px; border-radius:14px; background:var(--ink-3);}
+  .rs-list .nm{font-weight:700; font-size:14.5px; align-self:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .rs-list label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .rs-list select{width:100%; box-sizing:border-box; min-height:44px; padding:0 12px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:14px;}
+  @media (max-width:640px){ .rs-list li{grid-template-columns:1fr 1fr;} .rs-list .nm{grid-column:1 / -1;} }
+  .rs-sum{width:100%; border-collapse:collapse; font-size:13.5px; font-variant-numeric:tabular-nums;}
+  .rs-sum th{color:var(--muted); font-weight:500; font-size:12px; text-align:center; padding:6px 8px; white-space:nowrap;}
+  .rs-sum td{padding:9px 8px; text-align:center; border-top:1px solid var(--hair-soft); white-space:nowrap;}
+  .rs-sum th:first-child, .rs-sum td:first-child{text-align:start; font-weight:700;}
+  .rs-sum td.bad{color:var(--danger-hi); font-weight:700;}
+  .rs-scroll{overflow-x:auto;}
   @media (prefers-reduced-motion: reduce){
     .at-chip{transition:none;} .at-chip:active{transform:none;}
     .hr-bars .tr i, .pulse{animation:none;}
@@ -266,6 +283,7 @@
     <div class="at-tabs" role="tablist" aria-label="أقسام الحضور">
       <button class="at-tab" type="button" role="tab" id="tab-overview" aria-selected="true" aria-controls="pane-overview" data-tab="overview"></button>
       <button class="at-tab" type="button" role="tab" id="tab-log" aria-selected="false" aria-controls="pane-log" data-tab="log" tabindex="-1"></button>
+      <button class="at-tab" type="button" role="tab" id="tab-roster" aria-selected="false" aria-controls="pane-roster" data-tab="roster" tabindex="-1" hidden></button>
     </div>
 
     <div id="pane-overview" role="tabpanel" aria-labelledby="tab-overview">
@@ -291,6 +309,23 @@
     <div id="pane-log" role="tabpanel" aria-labelledby="tab-log" hidden>
       <div id="log-box"><div class="at-empty">جاري التحميل...</div></div>
       <div class="at-more" id="more" hidden><button class="btn" type="button" id="more-btn">عرض أيام أقدم</button></div>
+    </div>
+
+    <div id="pane-roster" role="tabpanel" aria-labelledby="tab-roster" hidden>
+      <div class="rs-nav">
+        <button class="btn" type="button" id="rs-prev">السابق</button>
+        <div class="rs-week" id="rs-week">&nbsp;</div>
+        <button class="btn" type="button" id="rs-next">التالي</button>
+      </div>
+      <section class="group">
+        <div class="at-form-head"><h2>ورديات الأسبوع</h2><button class="btn go" type="button" id="rs-save">حفظ الأسبوع</button></div>
+        <p class="at-note">اختر وردية ويوم راحة لكل موظف. الستة أيام التانية بتاخد الوردية المختارة. «—» يعني بدون جدول، وبتنحذف سطوره لهالأسبوع.</p>
+        <div id="rs-box"><div class="at-empty">جاري التحميل...</div></div>
+      </section>
+      <section class="group">
+        <h2>ملخص الأسبوع</h2>
+        <div id="rs-summary"><div class="at-empty">جاري التحميل...</div></div>
+      </section>
     </div>
   </div>
 
@@ -363,8 +398,142 @@
       });
       $("pane-overview").hidden = t !== "overview";
       $("pane-log").hidden = t !== "log";
+      $("pane-roster").hidden = t !== "roster";
+      // شريط الفترة والفلتر بيخدموا النظرة العامة والسجل بس
+      const ro = t === "roster";
+      document.querySelector(".at-bar").hidden = ro;
+      $("custom-range").hidden = ro || period !== "custom";
+      if (ro) loadRoster();
     }
+    $("tab-roster").innerHTML = olvIcon("calendar") + "<span>الجدول</span>";
     document.querySelectorAll(".at-tab").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+    // ===== الجدول الأسبوعي: الأسبوع بيبدأ السبت =====
+    // work_shifts: الورديات، roster_days: وردية/راحة كل موظف كل يوم، attendance_report: مقارنة الجدول بالبصمات
+    let rosterEmps = [];       // [{ id, full_name, device_user_id }]
+    let rosterShifts = [];     // work_shifts الفعّالة
+    let rosterWeek = null;     // تاريخ السبت (YYYY-MM-DD)
+    let rosterSeq = 0;
+    const weekStartOf = (d) => addDays(d, -((parse(d).getDay() + 1) % 7));
+    const weekDays = (start) => Array.from({ length: 7 }, (_, i) => addDays(start, i));
+
+    async function loadRoster() {
+      if (!canManage) return;
+      if (!rosterWeek) rosterWeek = weekStartOf(todayIso());
+      const seq = ++rosterSeq;
+      const end = addDays(rosterWeek, 6);
+      $("rs-week").innerHTML = `${shortDate(rosterWeek)} ← ${shortDate(end)}<small>من السبت للجمعة</small>`;
+      $("rs-box").innerHTML = `<div class="at-empty">جاري التحميل...</div>`;
+      $("rs-summary").innerHTML = `<div class="at-empty">جاري التحميل...</div>`;
+      try {
+        const sb = window.supabaseClient;
+        const [emps, shifts, days, rep] = await Promise.all([
+          sb.from("profiles").select("id, full_name, device_user_id").not("device_user_id", "is", null).order("full_name"),
+          sb.from("work_shifts").select("id, name, start_time, end_time, sort_order").eq("is_active", true).order("sort_order"),
+          sb.from("roster_days").select("profile_id, work_date, shift_id, is_rest").gte("work_date", rosterWeek).lte("work_date", end),
+          sb.rpc("attendance_report", { p_from: rosterWeek, p_to: end }),
+        ]);
+        if (seq !== rosterSeq) return;
+        for (const r of [emps, shifts, days, rep]) if (r.error) throw r.error;
+        rosterEmps = (emps.data || []).filter((p) => String(p.device_user_id).trim() !== "");
+        rosterShifts = shifts.data || [];
+        renderRosterForm(days.data || []);
+        renderRosterSummary(rep.data || []);
+      } catch (err) {
+        if (seq !== rosterSeq) return;
+        $("rs-box").innerHTML = `<div class="at-empty">تعذّر تحميل الجدول.</div>`;
+        $("rs-summary").innerHTML = "";
+        olvShowError(errBox, err);
+      }
+    }
+
+    function renderRosterForm(rows) {
+      if (!rosterEmps.length) { $("rs-box").innerHTML = `<div class="at-empty">ما في موظفين مربوطين برقم جهاز البصمة. اربطهم من صفحة الموظفين.</div>`; return; }
+      const days = weekDays(rosterWeek);
+      const byEmp = new Map();
+      rows.forEach((r) => { (byEmp.get(r.profile_id) || byEmp.set(r.profile_id, []).get(r.profile_id)).push(r); });
+      const shiftOpts = (sel) => `<option value="">—</option>` + rosterShifts.map((s) =>
+        `<option value="${olvEsc(s.id)}"${String(sel) === String(s.id) ? " selected" : ""}>${olvEsc(s.name)}</option>`).join("");
+      $("rs-box").innerHTML = `<ul class="rs-list">${rosterEmps.map((p) => {
+        const mine = byEmp.get(p.id) || [];
+        const rest = mine.find((r) => r.is_rest);
+        const work = mine.find((r) => !r.is_rest && r.shift_id);
+        const restOpts = `<option value="">اختر اليوم</option>` + days.map((d) =>
+          `<option value="${d}"${rest && rest.work_date === d ? " selected" : ""}>${DAY_NAMES[parse(d).getDay()]} ${shortDate(d)}</option>`).join("");
+        return `<li data-emp="${olvEsc(p.id)}"><span class="nm">${olvEsc(p.full_name)}</span>
+          <div><label for="rs-s-${olvEsc(p.id)}">الوردية</label><select id="rs-s-${olvEsc(p.id)}" data-shift>${shiftOpts(work ? work.shift_id : "")}</select></div>
+          <div><label for="rs-r-${olvEsc(p.id)}">يوم الراحة</label><select id="rs-r-${olvEsc(p.id)}" data-rest>${restOpts}</select></div></li>`;
+      }).join("")}</ul>`;
+    }
+
+    async function saveRoster() {
+      const btn = $("rs-save");
+      const days = weekDays(rosterWeek);
+      const end = days[6];
+      const upserts = [];
+      const clearIds = [];
+      for (const li of $("rs-box").querySelectorAll("li[data-emp]")) {
+        const id = li.dataset.emp;
+        const shiftId = li.querySelector("[data-shift]").value;
+        const restDay = li.querySelector("[data-rest]").value;
+        if (!shiftId) { clearIds.push(id); continue; }
+        if (!restDay) {
+          const nm = (rosterEmps.find((p) => p.id === id) || {}).full_name || "";
+          olvShowError(errBox, new Error(`حدد يوم الراحة لـ ${nm}`));
+          return;
+        }
+        days.forEach((d) => upserts.push(d === restDay
+          ? { profile_id: id, work_date: d, shift_id: null, is_rest: true, updated_at: new Date().toISOString() }
+          : { profile_id: id, work_date: d, shift_id: shiftId, is_rest: false, updated_at: new Date().toISOString() }));
+      }
+      errBox.style.display = "none";
+      btn.disabled = true;
+      try {
+        const sb = window.supabaseClient;
+        if (upserts.length) {
+          const { error } = await sb.from("roster_days").upsert(upserts, { onConflict: "profile_id,work_date" });
+          if (error) throw error;
+        }
+        if (clearIds.length) {
+          const { error } = await sb.from("roster_days").delete().in("profile_id", clearIds).gte("work_date", rosterWeek).lte("work_date", end);
+          if (error) throw error;
+        }
+        olvToast("انحفظ جدول الأسبوع", { type: "ok", icon: "check" });
+        await loadRoster();
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderRosterSummary(rows) {
+      const agg = new Map();
+      rows.forEach((r) => {
+        const k = String(r.device_user_id == null ? r.full_name : r.device_user_id);
+        const a = agg.get(k) || { name: r.full_name, worked: 0, lateN: 0, lateM: 0, earlyN: 0, earlyM: 0, absent: 0, ot: 0, restWorked: 0, scheduled: 0 };
+        if (r.first_punch) a.worked++;
+        if (Number(r.late_min) > 0) { a.lateN++; a.lateM += Number(r.late_min); }
+        if (Number(r.early_leave_min) > 0) { a.earlyN++; a.earlyM += Number(r.early_leave_min); }
+        if (r.status === "absent") a.absent++;
+        if (r.status === "rest_worked") a.restWorked++;
+        a.ot += Number(r.overtime_hours) || 0;
+        if (r.shift_name) a.scheduled++;
+        agg.set(k, a);
+      });
+      const list = [...agg.values()].filter((a) => a.scheduled || a.worked).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+      if (!list.length) { $("rs-summary").innerHTML = `<div class="at-empty">ما في جدول أو دوام بهالأسبوع.</div>`; return; }
+      const bad = (n) => n > 0 ? ' class="bad"' : "";
+      $("rs-summary").innerHTML = `<div class="rs-scroll"><table class="rs-sum"><thead><tr>
+        <th>الموظف</th><th>أيام الدوام</th><th>مرات التأخير</th><th>دقائق التأخير</th><th>خروج مبكر</th><th>غياب</th><th>إضافي (س)</th><th>عمل بالراحة</th></tr></thead><tbody>
+        ${list.map((a) => `<tr><td>${olvEsc(a.name)}</td><td>${a.worked}</td><td${bad(a.lateN)}>${a.lateN}</td><td${bad(a.lateM)}>${Math.round(a.lateM)}</td>
+          <td${bad(a.earlyN)}>${a.earlyN}${a.earlyM ? ` (${Math.round(a.earlyM)} د)` : ""}</td><td${bad(a.absent)}>${a.absent}</td><td>${fmtHrs(a.ot)}</td><td>${a.restWorked}</td></tr>`).join("")}
+        </tbody></table></div>`;
+    }
+
+    $("rs-prev").addEventListener("click", () => { rosterWeek = addDays(rosterWeek || weekStartOf(todayIso()), -7); loadRoster(); });
+    $("rs-next").addEventListener("click", () => { rosterWeek = addDays(rosterWeek || weekStartOf(todayIso()), 7); loadRoster(); });
+    $("rs-save").addEventListener("click", saveRoster);
 
     function rangeFor(p) {
       const t = todayIso();
@@ -893,6 +1062,7 @@
       $("punch-toggle").hidden = !canManage;
       $("import-toggle").hidden = !canManage;
       $("f-employee").hidden = !canManage;
+      $("tab-roster").hidden = !canManage;
       const t = todayIso();
       $("from_date").value = t.slice(0, 8) + "01";
       $("to_date").value = t;
