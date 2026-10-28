@@ -1142,6 +1142,19 @@
       olvHaptic();
       renderCart();
     }
+    // «مع ثلج» للمشروبات الباردة (بدون تسعير): بتنكتب بملاحظة الصنف فبتطلع على تذكرة البار والفاتورة
+    const ICE = "مع ثلج";
+    const iceOk = (item) => /مشروبات باردة|كوكتيل|عصائر|ميلك شيك|ميلكشيك|سموذي|موهيتو/.test(itemCat(item) || "");
+    const noteParts = (item) => String(item.note || "").split(" - ").map((x) => x.trim()).filter(Boolean);
+    const hasIce = (item) => noteParts(item).includes(ICE);
+    function setIce(idx, on) {
+      const item = OlvCart.all()[idx];
+      if (!item) return;
+      const rest = noteParts(item).filter((x) => x !== ICE);
+      OlvCart.updateAt(idx, { note: (on ? [ICE, ...rest] : rest).join(" - ") });
+      olvHaptic();
+      renderCart();
+    }
     function setMealKind(idx, kind) {
       const item = OlvCart.all()[idx];
       if (!item) return;
@@ -1769,6 +1782,10 @@
             <div class="seg meal-seg" role="group" aria-label="الحجم: صغير أو كبير">
               ${[[0, "صغير"], [1, "كبير"]].map(([k, l]) => `<button type="button" class="${(isLargeItem(item) ? 1 : 0) === k ? "on" : ""}" data-size="${idx}:${k}">${l}</button>`).join("")}
             </div>` : ""}
+            ${iceOk(item) ? `
+            <div class="seg meal-seg" role="group" aria-label="الثلج: بدون أو مع ثلج">
+              ${[[0, "بدون ثلج"], [1, "مع ثلج"]].map(([k, l]) => `<button type="button" class="${(hasIce(item) ? 1 : 0) === k ? "on" : ""}" data-ice="${idx}:${k}">${l}</button>`).join("")}
+            </div>` : ""}
             ${mealOk(item) ? `
             <div class="seg meal-seg" role="group" aria-label="نوع الطلب: ساندويش أو وجبة">
               ${[["", "ساندويش"], ["meal", "وجبة"], ["double", "وجبة دبل"]].map(([k, l]) => `<button type="button" class="${mealKindOf(item) === k ? "on" : ""}" data-meal="${idx}:${k}">${l}</button>`).join("")}
@@ -1795,6 +1812,9 @@
         });
         list.querySelectorAll("[data-size]").forEach((btn) => {
           btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k === "1"); });
+        });
+        list.querySelectorAll("[data-ice]").forEach((btn) => {
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.ice.split(":"); setIce(Number(i), k === "1"); });
         });
         list.querySelectorAll("[data-meal]").forEach((btn) => {
           btn.addEventListener("click", () => { const [i, k] = btn.dataset.meal.split(":"); setMealKind(Number(i), k); });
