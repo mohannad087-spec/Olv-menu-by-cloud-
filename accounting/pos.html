@@ -1120,6 +1120,9 @@
       }).sort((a, b) => a.label.localeCompare(b.label, "ar"));
     }
     const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
+    // الإضافات لازم تنطبق على المنطق: الجبنة مثلًا بس للأكل المالح (مش للمشروبات ولا الحلويات)
+    const SAVORY_CAT = /برغر|ساندويش|سناك|بيتزا|معجنات|باستا|عروض/;
+    const addonFits = (a, cat) => !/جبن/.test(a.name || "") || SAVORY_CAT.test(cat || "");
     const itemCat = (item) => item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId));
     const flavorPrefix = "نكهة: ";
     // ساندويش | وجبة | وجبة دبل (OlvMeal): السعر بيتخزن على المنتج ويتعدّل يدويًا من الكاشير
@@ -1496,7 +1499,7 @@
       if (!product) return;
       // لو في إضافات بالنظام: نضيف الصنف كسطر جديد ونفتح نافذة اختيار الإضافات فورًا
       // («إلغاء» بتخليه بدون إضافات، «حذف» بتشيله)
-      if (addons.length || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length))) {
+      if (addons.some((a) => !a.is_meal && !a.is_size && addonFits(a, product.category)) || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length))) {
         OlvCart.add(product, [], 1, "");
         olvHaptic();
         renderCart();
@@ -1535,7 +1538,7 @@
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
       const flavorList = hookah ? flavorsFor(item) : [];
-      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size);
+      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size && addonFits(a, itemCat(item)));
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
