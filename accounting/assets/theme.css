@@ -1,4 +1,6 @@
 :root{
+  /* عرض المحتوى الأقصى (2026-10-28): كان 1120px وبيترك فراغ كبير على لابتوب 1366 */
+  --page-max:1320px;
   /* هوية OLV (2026-10): خلفية كريمية دافئة + ذهبي وزيتوني من الشعار.
      الفاتح هو الافتراضي؛ الداكن (زر القمر) نسخة "إسبريسو" دافئة من نفس الألوان.
      --gold = لون التعبئة (أزرار رئيسية، تبويب نشط)، --gold-hi = لون النص المميّز
@@ -51,7 +53,15 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 :focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
 .icon{width:18px; height:18px; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-4px;}
 
-.wrap{max-width:960px; margin:0 auto; padding:22px 20px;}
+.wrap{max-width:var(--page-max); margin:0 auto; padding:22px 20px;}
+/* صفحات النماذج والقراءة (الإعدادات، دليل التحضير...) بتضل أضيق عشان السطور ما تطول */
+.wrap.narrow{max-width:960px;}
+/* رأس الصفحة الموحّد: العنوان والوصف يمين، والأزرار يسار بنفس الصف */
+.olv-pagehead{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+.olv-pagehead h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+.olv-pagehead .olv-pagesub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+.olv-pagehead-actions{display:flex; gap:8px; flex-wrap:wrap;}
+.olv-pagehead-actions .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px; text-decoration:none;}
 
 /* ---- top bar & tabs ---- */
 .top{
@@ -141,7 +151,9 @@ table, .stat .value, .total, .price{font-variant-numeric:tabular-nums;}
 
 .tab-link.on .icon{opacity:1;}
 /* تبويبات القسم (المخزون: المواد الخام | المستلزمات | الجرد ...) */
-.olv-hub-tabs{display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; margin-top:6px; border-top:1px solid var(--hair-soft, var(--hair)); scrollbar-width:none;}
+/* بنفس عمود المحتوى (مش ملزوقة بحافة الشاشة): نفس العرض الأقصى والهامش تبع .wrap */
+.olv-hub-tabs{display:flex; gap:6px; overflow-x:auto; max-width:var(--page-max); margin:14px auto 0; padding:0 20px; scrollbar-width:none;}
+@media (max-width:640px){ .olv-hub-tabs{padding:0 14px;} }
 .olv-hub-tabs::-webkit-scrollbar{display:none;}
 .olv-hub-tab{
   position:relative; flex:none; display:inline-flex; align-items:center; gap:6px; min-height:40px;

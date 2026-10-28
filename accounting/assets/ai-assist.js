@@ -353,6 +353,17 @@
     const bar = document.createElement("div");
     bar.className = "aia-launch"; bar.id = "aia-launch";
     bar.innerHTML = `<button type="button" class="btn gold" id="aia-open">✨ إضافة بالذكاء الاصطناعي</button><span class="hint" style="margin:0;">مواد، مستلزمات، موردين، وبطاقات منيو — من نص أو صورة</span>`;
+    // إذا الصفحة إلها رأس فيه أزرار، الزر بينضاف هناك (بدل صف كامل لحاله فوق العنوان)
+    const headActions = wrap.querySelector(".olv-pagehead-actions, header [class*='head-actions']");
+    if (headActions) {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "btn small"; btn.id = "aia-launch";
+      btn.title = "مواد، مستلزمات، موردين، وبطاقات منيو — من نص أو صورة";
+      btn.textContent = "✨ بالذكاء الاصطناعي";
+      btn.addEventListener("click", open);
+      headActions.prepend(btn);
+      return;
+    }
     const err = wrap.querySelector(".err");
     if (err && err.parentNode === wrap) err.after(bar); else wrap.prepend(bar);
     bar.querySelector("#aia-open").addEventListener("click", open);
