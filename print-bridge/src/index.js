@@ -165,7 +165,7 @@ async function processJob(job, settings, printers, saleCache) {
           await markJob(job.id, { status: "skipped", error_message: "كل أصناف هذه التذكرة انلغت قبل الطباعة" });
           return;
         }
-        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems }, printer ? printer.name : null, await hasOtherStations(job), layout);
+        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems, is_addition: !!job.is_addition }, printer ? printer.name : null, await hasOtherStations(job), layout);
       } else if (job.job_type === "cancel") {
         canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems, layout);
       } else {
