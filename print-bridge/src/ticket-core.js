@@ -386,6 +386,10 @@
       const n = scaled(40, 54, L.title_size / 40);
       t.center(title, `bold ${n.px}px ${BOLD}`, n.lh);
     }
+    if (sale.is_addition) {
+      // إضافة على طلب انطبع قبل: التذكرة فيها الأصناف الجديدة بس
+      t.center('+ إضافة على الطلب', `bold 34px ${BOLD}`, 46);
+    }
     if (L.order_no_show && sale.order_no) {
       const o = scaled(56, 72, L.order_no_size / 56);
       t.center(`#${sale.order_no}`, `bold ${o.px}px ${BOLD}`, o.lh);

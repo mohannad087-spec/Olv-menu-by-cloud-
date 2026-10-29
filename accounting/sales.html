@@ -254,6 +254,18 @@
   .od-reprints{margin:10px 2px 0; font-size:12px; color:var(--muted); line-height:1.7;}
   .od-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
   .od-actions .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px;}
+  .ai-dlg{border:1px solid var(--border,#ddd); border-radius:16px; padding:0; width:min(560px,94vw); max-height:90vh; background:var(--card,#fff); color:inherit;}
+  .ai-dlg::backdrop{background:rgba(0,0,0,.45);}
+  .ai-body{padding:16px; display:flex; flex-direction:column; gap:10px; max-height:88vh; overflow:auto;}
+  .ai-body h3{margin:0;}
+  .ai-hint{font-size:13px; opacity:.75; margin:0;}
+  .ai-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; max-height:200px; overflow:auto;}
+  .ai-list button{min-height:44px; text-align:start; padding:6px 10px; border-radius:10px; border:1px solid var(--border,#ddd); background:transparent; color:inherit; font:inherit; cursor:pointer;}
+  .ai-list button small{display:block; opacity:.7;}
+  .ai-line{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--border,#eee);}
+  .ai-line .q{display:flex; align-items:center; gap:6px;}
+  .ai-line .q button{min-width:36px; min-height:36px;}
+  .ai-foot{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
   .s-list-more{display:flex; justify-content:center; padding-top:14px;}
   .s-list-more .btn{min-height:44px;}
   .s-list-more[hidden]{display:none;}
@@ -987,6 +999,7 @@
       const label = `${r.doc_no ? olvDocNo("sale", r.doc_no) : r.order_no ? "طلب " + r.order_no : r.entry_date} — ${olvFormatMoney(saleTotal(r))}`;
       const actions = voided ? "" : `<div class="od-actions">
           <button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(label)}">${olvIcon("printer")} إعادة طباعة</button>
+          <button class="btn small gold" data-add-items="${r.id}">${olvIcon("plus")} إضافة أصناف</button>
           <button class="btn small danger" data-void="${r.id}">${olvIcon("x")} إلغاء الطلب</button>
         </div>`;
       return `<div class="od-box">${itemsHtml}</div>${facts.length ? `<div class="od-facts">${facts.join("")}</div>` : ""}${rpHtml}${edHtml}${actions}`;
@@ -1012,6 +1025,8 @@
         const done = await olvReprintSale(r.id, rp.dataset.label);
         if (done) { delete reprintCache[r.id]; await loadReprints(r); }
       });
+      const addBtn = wrap.querySelector("[data-add-items]");
+      if (addBtn) addBtn.addEventListener("click", () => openAddItems(r));
       const v = wrap.querySelector("[data-void]");
       if (v) olvHoldConfirm(v, async () => {
         const reason = askVoidReason();
@@ -1095,6 +1110,67 @@
       det.hidden = !opening;
       det.innerHTML = opening ? detailHtml(r) : "";
       if (opening) { wireDetail(r); loadReprints(r); }
+    });
+
+    // ---------------------------------------------------------------
+    // إضافة أصناف على طلب موجود: الدالة add_items_to_sale بالسيرفر بتحسب الأسعار والمخزون
+    // وبتبعت تذكرة للأقسام بالأصناف الجديدة بس (ما بنعيد طباعة القديمة)
+    // ---------------------------------------------------------------
+    let aiSale = null, aiLines = [], aiProducts = null, aiRef = null;
+    const aiDlg = $("ai-dlg");
+    const aiPrice = (p) => (aiSale && String(aiSale.order_type || "").trim() === "صالة" && Number(p.hall_price) > 0 ? Number(p.hall_price) : Number(p.price));
+    const aiTotal = () => aiLines.reduce((t, l) => t + aiPrice(l.p) * l.qty, 0);
+    function aiRender() {
+      const q = $("ai-search").value.trim();
+      const list = (aiProducts || []).filter((p) => !q || p.name.includes(q) || (p.category || "").includes(q)).slice(0, 60);
+      $("ai-list").innerHTML = list.map((p) => `<button type="button" data-pid="${p.id}">${olvEsc(p.name)}<small>${olvFormatMoney(aiPrice(p))}</small></button>`).join("") || `<p class="ai-hint">ما في نتائج</p>`;
+      $("ai-lines").innerHTML = aiLines.map((l, i) => `<div class="ai-line"><div>${olvEsc(l.p.name)} <small>${olvFormatMoney(aiPrice(l.p) * l.qty)}</small></div>
+        <div class="q"><button class="btn small" type="button" data-dec="${i}">−</button><b>${l.qty}</b><button class="btn small" type="button" data-inc="${i}">+</button></div></div>`).join("");
+      $("ai-total").textContent = olvFormatMoney(aiTotal());
+      $("ai-save").disabled = !aiLines.length;
+    }
+    async function openAddItems(r) {
+      aiSale = r; aiLines = []; aiRef = (crypto.randomUUID ? crypto.randomUUID() : null);
+      $("ai-search").value = ""; $("ai-err").style.display = "none";
+      $("ai-title").textContent = "إضافة أصناف على " + (r.order_no ? "طلب " + r.order_no : "الطلب");
+      $("ai-pay").value = payOf(r) === "card" ? "card" : payOf(r) === "delivery" ? "delivery" : "cash";
+      aiDlg.showModal();
+      if (!aiProducts) {
+        const { data, error } = await window.supabaseClient.from("products").select("id,name,price,hall_price,category").eq("is_active", true).order("category").order("sort_order");
+        if (error) { olvShowError($("ai-err"), error); return; }
+        aiProducts = data || [];
+      }
+      aiRender();
+    }
+    $("ai-search").addEventListener("input", aiRender);
+    $("ai-cancel").addEventListener("click", () => aiDlg.close());
+    $("ai-list").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-pid]"); if (!b) return;
+      const l = aiLines.find((x) => x.p.id === b.dataset.pid);
+      if (l) l.qty += 1; else aiLines.push({ p: aiProducts.find((x) => x.id === b.dataset.pid), qty: 1 });
+      aiRender();
+    });
+    $("ai-lines").addEventListener("click", (e) => {
+      const inc = e.target.closest("[data-inc]"), dec = e.target.closest("[data-dec]");
+      if (inc) aiLines[Number(inc.dataset.inc)].qty += 1;
+      else if (dec) { const l = aiLines[Number(dec.dataset.dec)]; l.qty -= 1; if (l.qty <= 0) aiLines.splice(Number(dec.dataset.dec), 1); }
+      else return;
+      aiRender();
+    });
+    $("ai-save").addEventListener("click", async () => {
+      if (!aiLines.length) return;
+      const btn = $("ai-save"); btn.disabled = true; $("ai-err").style.display = "none";
+      const total = Math.round(aiTotal() * 100) / 100, m = $("ai-pay").value;
+      const { error } = await window.supabaseClient.rpc("add_items_to_sale", {
+        p_sale_id: aiSale.id,
+        p_items: aiLines.map((l) => ({ product_id: l.p.id, qty: l.qty })),
+        p_cash: m === "cash" ? total : 0, p_card: m === "card" ? total : 0, p_delivery: m === "delivery" ? total : 0,
+        p_client_ref: aiRef,
+      });
+      if (error) { olvShowError($("ai-err"), error); btn.disabled = false; return; }
+      aiDlg.close();
+      olvToast("انضافت الأصناف وانبعتت للأقسام (الجديدة بس)", { type: "gold" });
+      await load();
     });
 
     // ---------------------------------------------------------------
@@ -1248,6 +1324,24 @@
     })();
     });
   </script>
+  <dialog class="ai-dlg" id="ai-dlg">
+    <div class="ai-body">
+      <h3 id="ai-title">إضافة أصناف على الطلب</h3>
+      <p class="ai-hint">الأصناف الجديدة بس بتنطبع على أقسامها (علامة «إضافة»)، واللي انطبع قبل ما بيتكرر.</p>
+      <input type="search" id="ai-search" placeholder="ابحث عن صنف" autocomplete="off">
+      <div class="ai-list" id="ai-list"></div>
+      <div id="ai-lines"></div>
+      <div class="ai-foot">
+        <label>الدفع <select id="ai-pay"><option value="cash">نقدي</option><option value="card">بطاقة</option><option value="delivery">توصيل</option></select></label>
+        <div>المطلوب: <b id="ai-total">0.00</b></div>
+      </div>
+      <div class="err" id="ai-err"></div>
+      <div class="ai-foot">
+        <button class="btn" type="button" id="ai-cancel">إغلاق</button>
+        <button class="btn pay" type="button" id="ai-save">أضف واطبع الجديد</button>
+      </div>
+    </div>
+  </dialog>
   <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
 </body>
 </html>
