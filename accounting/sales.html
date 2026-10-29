@@ -1073,8 +1073,12 @@
         const reason = askVoidReason();
         if (!reason) return;
         v.disabled = true;
-        const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: r.id, p_reason: reason });
-        if (error) { olvShowError(errBox, error); v.disabled = false; return; }
+        try {
+          await olvWithApproval("void", async () => {
+            const { error } = await window.supabaseClient.rpc("void_sale", { p_sale_id: r.id, p_reason: reason });
+            if (error) throw error;
+          });
+        } catch (error) { olvShowError(errBox, error); v.disabled = false; return; }
         olvToast("انلغى الطلب ورجعت مواده للمخزون", { type: "info" });
         await load();
       }, { hint: "اضغط مطوّلاً على «إلغاء الطلب» للتأكيد — بيرجع المواد الخام للمخزون ولن يُحتسب ضمن المبيعات أو التقارير" });
@@ -1105,8 +1109,12 @@
           const reason = askVoidReason();
           if (!reason) return;
           btn.disabled = true;
-          const { error } = await window.supabaseClient.rpc("void_sale_item", { p_sale_item_id: btn.dataset.voidItem, p_reason: reason });
-          if (error) { olvShowError(errBox, error); btn.disabled = false; return; }
+          try {
+            await olvWithApproval("void", async () => {
+              const { error } = await window.supabaseClient.rpc("void_sale_item", { p_sale_item_id: btn.dataset.voidItem, p_reason: reason });
+              if (error) throw error;
+            });
+          } catch (error) { olvShowError(errBox, error); btn.disabled = false; return; }
           olvToast("انلغى الصنف ونقص من الطلب", { type: "info" });
           await load();
         }, { hint: "اضغط مطوّلاً على «إلغاء الصنف» للتأكيد — بيرجع للمخزون وبينقص من إجمالي الطلب، وباقي الأصناف تضل كما هي" });
@@ -1214,13 +1222,17 @@
       if (!aiLines.length) return;
       const btn = $("ai-save"); btn.disabled = true; $("ai-err").style.display = "none";
       const total = Math.round(aiTotal() * 100) / 100, m = aiMethod;
-      const { error } = await window.supabaseClient.rpc("add_items_to_sale", {
-        p_sale_id: aiSale.id,
-        p_items: aiLines.map((l) => ({ product_id: l.p.id, qty: l.qty })),
-        p_cash: m === "cash" ? total : 0, p_card: m === "card" ? total : 0, p_delivery: m === "delivery" ? total : 0,
-        p_client_ref: aiRef,
-      });
-      if (error) { olvShowError($("ai-err"), error); btn.disabled = false; return; }
+      try {
+        await olvWithApproval("discount", async () => {
+          const { error } = await window.supabaseClient.rpc("add_items_to_sale", {
+            p_sale_id: aiSale.id,
+            p_items: aiLines.map((l) => ({ product_id: l.p.id, qty: l.qty })),
+            p_cash: m === "cash" ? total : 0, p_card: m === "card" ? total : 0, p_delivery: m === "delivery" ? total : 0,
+            p_client_ref: aiRef,
+          });
+          if (error) throw error;
+        });
+      } catch (error) { olvShowError($("ai-err"), error); btn.disabled = false; return; }
       aiDlg.close();
       olvToast("انضافت الأصناف وانبعتت للأقسام (الجديدة بس)", { type: "gold" });
       await load();

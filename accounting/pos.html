@@ -2044,11 +2044,12 @@
             extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
           }
           const queuedBefore = window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0;
-          await OlvCart.checkout({
+          // خصم فوق حد الكاشير: السيرفر بيرفض، فبنسأل عن رمز المدير وبنعيد نفس البيع (client_ref بيمنع التكرار)
+          await olvWithApproval("discount", () => OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
             discountAmount,
-          });
+          }));
           clearDraft();
           resetDiscount();
           // بعد كل بيع: فضّي الاسم ورقم الصالة والتلفون حتى الطلب الجاي يبدأ فاضي

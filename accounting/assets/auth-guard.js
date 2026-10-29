@@ -151,6 +151,54 @@ function olvToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// موافقة المدير برمز: لو عملية الكاشير انرفضت لأنها تحتاج مدير (إلغاء بعد المهلة أو خصم فوق حدّه)،
+// منسأل عن رمز المدير وبنعيد نفس العملية. الرمز بيتفحص بالسيرفر (request_approval) ويصلح لعملية وحدة وأقل من 3 دقايق.
+// run لازم ترمي الخطأ لما تفشل. المدير/المالك ما بيحتاج رمز. kind: "void" أو "discount"
+function olvAskManagerPin(kind) {
+  return new Promise((resolve) => {
+    const dlg = document.createElement("dialog");
+    dlg.setAttribute("aria-label", "موافقة المدير");
+    dlg.style.cssText = "border:1px solid var(--hair-soft,#ddd);border-radius:18px;padding:20px;max-width:340px;width:calc(100% - 32px);background:var(--surface,#fffdf8);color:var(--text,#2b2118);";
+    dlg.innerHTML = `
+      <form method="dialog" style="display:flex;flex-direction:column;gap:12px;">
+        <h2 style="margin:0;font-size:18px;">${kind === "discount" ? "الخصم يحتاج موافقة المدير" : "الإلغاء يحتاج موافقة المدير"}</h2>
+        <div style="color:var(--muted,#7a6a58);font-size:14px;">اطلب من المدير يدخل رمزه</div>
+        <input id="olv-pin-in" type="password" inputmode="numeric" autocomplete="off" maxlength="8" dir="ltr"
+          style="min-height:52px;font-size:24px;text-align:center;letter-spacing:6px;border-radius:12px;border:1px solid var(--hair-soft,#ccc);padding:0 12px;" aria-label="رمز المدير">
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="olv-pin-cancel" class="btn" style="flex:1;min-height:48px;">إلغاء</button>
+          <button type="submit" id="olv-pin-ok" class="btn gold" style="flex:1;min-height:48px;">موافقة</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dlg);
+    let value = null;
+    dlg.querySelector("#olv-pin-cancel").addEventListener("click", () => dlg.close());
+    dlg.querySelector("form").addEventListener("submit", () => { value = dlg.querySelector("#olv-pin-in").value.trim(); });
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(value || null); });
+    dlg.showModal();
+    dlg.querySelector("#olv-pin-in").focus();
+  });
+}
+
+async function olvWithApproval(kind, run) {
+  try {
+    return await run();
+  } catch (err) {
+    const needs = /موافقة مدير|بلّغ المدير|انتهت مدة الإلغاء/.test((err && err.message) || "");
+    if (!needs || window.olvRole === "owner" || window.olvRole === "manager") throw err;
+    const pin = await olvAskManagerPin(kind);
+    if (!pin) throw err;
+    const { data, error } = await window.supabaseClient.rpc("request_approval", { p_pin: pin, p_kind: kind });
+    if (error) {
+      const m = String(error.message || "");
+      if (/request_approval/.test(m) && /function|schema cache/i.test(m)) throw new Error("موافقة المدير لسا ما تفعّلت بقاعدة البيانات");
+      throw error;
+    }
+    if (!data) throw new Error("رمز المدير غلط");
+    return await run();
+  }
+}
+
 // رسالة "Failed to fetch" الخام اللي بيرميها المتصفح لما ينقطع النت ما
 // إلها معنى لكاشير — نستبدلها برسالة عربية واضحة تقول بالضبط شو صار
 function olvIsNetworkError(err) {
