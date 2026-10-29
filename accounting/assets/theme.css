@@ -472,6 +472,11 @@ tbody tr{transition:background .15s var(--ease);}
 .olv-toast.gold{background:var(--gold-dp);}
 .olv-toast.info{background:var(--ink-2); color:var(--paper); border:1px solid var(--hair);}
 .olv-toast-act{margin-inline-start:6px; padding:6px 12px; min-height:34px; border-radius:8px; border:1px solid currentColor; background:transparent; color:inherit; font:inherit; font-weight:800; cursor:pointer;}
+/* شريط «في تحديث جديد» (olvWatchUpdates بـ layout.js): زجاج تحكم صغير تحت بالنص */
+.olv-update-bar{position:fixed; bottom:calc(18px + var(--bnav-h, 0px) + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:101;
+  display:flex; align-items:center; gap:12px; padding:8px 8px 8px 16px; padding-inline:16px 8px; border-radius:999px; max-width:calc(100vw - 32px);
+  background:var(--ink-2); color:var(--paper); border:1px solid var(--hair); box-shadow:0 10px 28px -10px rgba(0,0,0,.45); font-size:14px; font-weight:700;}
+.olv-update-bar button{min-height:44px; padding:0 18px; border-radius:999px; border:0; background:var(--olive); color:var(--on-olive); font:inherit; font-weight:800; cursor:pointer;}
 .olv-toast.info .olv-toast-act{color:var(--gold-hi); border-color:var(--gold);}
 .olv-toast-act:active{transform:scale(.96);}
 

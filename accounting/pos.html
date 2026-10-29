@@ -1226,6 +1226,8 @@
     setFocus(focusOn, false); // تطبيق الوضع المحفوظ بعد ما تتعرّف المتغيرات
     const BEST_SELLERS = "الأكثر مبيعًا";
     const DRAFT_KEY = "olv_pos_draft";
+    // تحديث البرنامج بيصير لحاله بس والتذكرة فاضية (olvWatchUpdates بـ layout.js)
+    window.olvAutoReload = () => OlvCart.all().length === 0 && !document.querySelector(".checkout-backdrop, .sheet-backdrop, .olv-modal-backdrop");
     let discountMode = "percent"; // "percent" أو "fixed"
     let discountValue = 0;
 
