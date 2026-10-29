@@ -163,6 +163,14 @@
   .sh-foot{padding:12px 18px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid var(--hair-soft); display:flex; gap:8px; flex-wrap:wrap;}
   .sh-foot .btn{flex:1 1 140px; min-height:50px; display:inline-flex; align-items:center; justify-content:center; gap:7px; font-size:15px;}
   .sh-foot .btn.go{background:var(--olive); border-color:var(--olive); color:var(--on-olive); font-weight:700;}
+  .tc-open{font-size:11px; font-weight:700; color:var(--gold-hi);}
+  .pay-f{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .pay-f .field{margin:0;}
+  .pay-f .full{grid-column:1/-1;}
+  .pay-q{display:flex; gap:8px; flex-wrap:wrap;}
+  .pay-q .btn{flex:1 1 120px; min-height:44px;}
+  .pay-chk{font-size:14px; color:var(--muted); min-height:20px;}
+  .pay-chk.bad{color:var(--danger, #b3261e);}
   .sh-sum{display:flex; gap:10px;}
   .sh-sum > div{flex:1; background:var(--ink-3); border-radius:14px; padding:10px 12px; min-width:0;}
   .sh-sum .l{font-size:12px; color:var(--muted);}
@@ -451,8 +459,11 @@
     const minsUntil = (ts) => Math.round((new Date(ts).getTime() - Date.now()) / 60000);
     const dur = (m) => (m < 60 ? `${m} د` : `${Math.floor(m / 60)}س ${String(m % 60).padStart(2, "0")}د`);
     const clock = (ts) => new Date(ts).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" });
-    const saleTotal = (s) => Number(s.cash_amount || 0) + Number(s.card_amount || 0) + Number(s.delivery_amount || 0);
     const liveItems = (s) => (s.sale_items || []).filter((it) => it.status !== "voided");
+    // الحساب المفتوح لسا ما انسدّد، فمجموعه من أصنافه مو من الدفع
+    const saleTotal = (s) => s.tab_open
+      ? liveItems(s).reduce((a, it) => a + (Number(it.unit_price || 0) + Number(it.addons_total || 0)) * Number(it.qty || 0), 0)
+      : Number(s.cash_amount || 0) + Number(s.card_amount || 0) + Number(s.delivery_amount || 0);
     const pad = (n) => String(n).padStart(2, "0");
     const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const todayKey = () => dayKey(new Date());
@@ -481,7 +492,7 @@
       sales.forEach((s) => {
         const k = key(s.table_number);
         const o = occ.get(k);
-        if (o && o.freed_at && new Date(s.created_at) <= new Date(o.freed_at)) return; // قبل آخر تحرير
+        if (!s.tab_open && o && o.freed_at && new Date(s.created_at) <= new Date(o.freed_at)) return; // قبل آخر تحرير (الحساب المفتوح بيضل لحد ما ينسدّد)
         const t = add(s.table_number, olvNormTable(s.table_number), false);
         if (t) t.orders.push(s);
       });
@@ -511,6 +522,8 @@
           t.since = t.orders[0].created_at;
           t.minutes = mins(t.since);
           t.total = t.orders.reduce((a, s) => a + saleTotal(s), 0);
+          t.tabs = t.orders.filter((s) => s.tab_open);
+          t.tabTotal = t.tabs.reduce((a, s) => a + saleTotal(s), 0);
           t.pending = t.orders.filter((s) => s.kitchen_status === PENDING).length;
           const names = [...new Set(t.orders.map((s) => (s.customer_name || "").trim()).filter(Boolean))];
           t.names = names.join("، ");
@@ -565,7 +578,7 @@
         <span class="tc-top">${num}<span class="tc-time">${olvIcon("clock")}${dur(t.minutes)}</span></span>
         <span class="tc-name" title="${olvEsc(t.names)}">${olvEsc(t.names)}</span>
         ${resNote}
-        <span class="tc-foot"><span class="tc-total">${olvFormatMoney(t.total)}</span>${k}</span>
+        <span class="tc-foot"><span class="tc-total">${olvFormatMoney(t.total)}</span>${t.tabs.length ? `<span class="tc-open">حساب مفتوح</span>` : ""}${k}</span>
       </button>`;
     }
 
@@ -604,7 +617,7 @@
         grid.innerHTML = shown.map(card).join("");
       }
       olvMarkNew(grid, tracker.diff(tables.filter((t) => t.state !== "free").map((t) => t.state + ":" + t.key)));
-      if (openKey && sheet.open) renderSheet(openKey);
+      if (openKey && sheet.open && !payKey) renderSheet(openKey);
       renderRes();
     }
 
@@ -649,6 +662,7 @@
       const box = document.getElementById("sheet-in");
       if (!t) { sheet.close(); return; }
       let body = "", sub = "", acts = "";
+      if (payKey === k && t.tabs && t.tabs.length) { renderPay(t, box); return; }
       const newOrder = (label, primary) => `<a class="btn${primary ? " go" : ""}" href="${olvEsc(posLink(t.label, t.lastName))}">${olvIcon("plus")}<span>${label}</span></a>`;
       if (t.state === "busy") {
         const agg = new Map();
@@ -669,7 +683,9 @@
             <li><span class="o-no">#${olvEsc(s.order_no ?? "")}</span><span class="o-t">${clock(s.created_at)}</span>
               ${s.kitchen_status === PENDING ? `<span class="tc-k pending">${olvIcon("flame")}بالتحضير</span>` : `<span class="tc-k ready">${olvIcon("check")}جاهز</span>`}
               <span class="o-amt">${olvFormatMoney(saleTotal(s))}</span></li>`).join("")}</ul></div>`;
-        acts = newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="free">${olvIcon("check")}<span>حرّر الطاولة</span></button>`;
+        acts = t.tabs.length
+          ? newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="pay">${olvIcon("banknote")}<span>حاسب الطاولة · ${olvFormatMoney(t.tabTotal)}</span></button>`
+          : newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="free">${olvIcon("check")}<span>حرّر الطاولة</span></button>`;
       } else if (t.state === "seated") {
         sub = `وصلوا من ${dur(mins(t.seated.updated_at))}، لسا ما طلبوا`;
         body = resBox(t.seated, false);
@@ -704,12 +720,82 @@
         <div class="sh-foot">${acts}${addReg}</div>`;
     }
 
+    // ---------- حاسب الطاولة ----------
+    let payKey = null;
+    const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    function renderPay(t, box) {
+      const ids = t.tabs.map((x) => x.id);
+      const total = r2(t.tabTotal);
+      box.innerHTML = `
+        <div class="sh-head">
+          <div><h2 id="sh-title">حساب طاولة ${olvEsc(t.label)}</h2><div class="sh-sub">${t.tabs.length > 1 ? t.tabs.length + " حسابات بينجمعوا بفاتورة وحدة" : "كل أصناف الطاولة بفاتورة وحدة"}</div></div>
+          <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
+        </div>
+        <div class="sh-body">
+          <div class="sh-sum"><div><div class="l">المجموع</div><div class="v gold">${olvFormatMoney(total)}</div></div>
+            <div><div class="l">المطلوب</div><div class="v" id="pay-due">${olvFormatMoney(total)}</div></div></div>
+          <div class="pay-q">
+            <button type="button" class="btn" id="pay-allcash">${olvIcon("banknote")}<span>الكل كاش</span></button>
+            <button type="button" class="btn" id="pay-allcard">${olvIcon("creditCard")}<span>الكل شبكة</span></button>
+          </div>
+          <div class="pay-f">
+            <div class="field"><label for="pay-cash">كاش</label><input id="pay-cash" type="number" inputmode="decimal" min="0" step="0.01" value="0"></div>
+            <div class="field"><label for="pay-card">شبكة</label><input id="pay-card" type="number" inputmode="decimal" min="0" step="0.01" value="0"></div>
+            <div class="field full"><label for="pay-disc">خصم (اختياري)</label><input id="pay-disc" type="number" inputmode="decimal" min="0" step="0.01" value="0"></div>
+          </div>
+          <div class="pay-chk" id="pay-chk"></div>
+        </div>
+        <div class="sh-foot">
+          <button type="button" class="btn" data-act="payback">${olvIcon("undo")}<span>رجوع</span></button>
+          <button type="button" class="btn go" id="pay-go" disabled>${olvIcon("check")}<span>تم الدفع، سكّر الحساب</span></button>
+        </div>`;
+      const cash = box.querySelector("#pay-cash"), card = box.querySelector("#pay-card"), disc = box.querySelector("#pay-disc");
+      const go = box.querySelector("#pay-go"), chk = box.querySelector("#pay-chk"), due = box.querySelector("#pay-due");
+      const num = (el) => Math.max(0, r2(el.value));
+      const check = () => {
+        const d = num(disc), need = r2(total - d), got = r2(num(cash) + num(card));
+        due.textContent = olvFormatMoney(Math.max(need, 0));
+        const ok = d <= total && Math.abs(got - need) < 0.011 && need >= 0;
+        chk.classList.toggle("bad", !ok && got > 0);
+        chk.textContent = ok ? "" : got > 0 ? `الكاش + الشبكة = ${olvFormatMoney(got)} والمطلوب ${olvFormatMoney(Math.max(need, 0))}` : "";
+        go.disabled = !ok;
+      };
+      box.querySelector("#pay-allcash").addEventListener("click", () => { cash.value = r2(total - num(disc)); card.value = 0; check(); });
+      box.querySelector("#pay-allcard").addEventListener("click", () => { card.value = r2(total - num(disc)); cash.value = 0; check(); });
+      // لما بتكتب الكاش، الباقي بينحط شبكة لحاله
+      cash.addEventListener("input", () => { card.value = Math.max(0, r2(total - num(disc) - num(cash))); check(); });
+      card.addEventListener("input", () => { cash.value = Math.max(0, r2(total - num(disc) - num(card))); check(); });
+      disc.addEventListener("input", () => {
+        const need = Math.max(0, r2(total - num(disc)));
+        const c = Math.min(num(card), need);
+        card.value = c; cash.value = r2(need - c);
+        check();
+      });
+      go.addEventListener("click", async () => {
+        go.disabled = true;
+        const { error } = await db.rpc("settle_table_tab", {
+          p_sale_ids: ids, p_cash: num(cash), p_card: num(card), p_discount: num(disc), p_entry_date: olvToday(),
+        });
+        if (error) {
+          olvToast(/settle_table_tab/.test(error.message || "") && /function|schema cache/i.test(error.message || "")
+            ? "ميزة الحساب المفتوح لسا ما تفعّلت بقاعدة البيانات" : error.message, { type: "danger", icon: "warning", ms: 6000 });
+          go.disabled = false; return;
+        }
+        payKey = null;
+        sheet.close();
+        olvToast(`طاولة ${t.label}: انسدّد الحساب ${olvFormatMoney(total - num(disc))}`, { type: "ok", icon: "check", ms: 5000 });
+        load();
+      });
+      check();
+    }
+
     function openSheet(k) {
+      payKey = null;
       openKey = k;
       renderSheet(k);
       if (!sheet.open) sheet.showModal();
     }
-    sheet.addEventListener("close", () => { openKey = null; });
+    sheet.addEventListener("close", () => { openKey = null; payKey = null; });
     sheet.addEventListener("click", async (e) => {
       if (e.target === sheet) { sheet.close(); return; }
       const b = e.target.closest("[data-act]");
@@ -718,6 +804,8 @@
       const act = b.dataset.act;
       if (act === "close") { sheet.close(); return; }
       if (!t) return;
+      if (act === "pay") { payKey = t.key; renderSheet(t.key); return; }
+      if (act === "payback") { payKey = null; renderSheet(t.key); return; }
       if (act === "free") { b.disabled = true; await freeTable(t); }
       else if (act === "clean") { b.disabled = true; await cleanTable(t); }
       else if (act === "register") { b.disabled = true; await addTables([t.label]); }
@@ -1046,24 +1134,39 @@
         const since = new Date(Date.now() - WINDOW_H * 3600000).toISOString();
         const resFrom = new Date(); resFrom.setHours(0, 0, 0, 0); resFrom.setDate(resFrom.getDate() - 1);
         const resTo = new Date(Date.now() + 60 * 86400000);
-        const [tRes, oRes, sRes, rRes] = await Promise.all([
+        const saleCols = "id, order_no, created_at, table_number, customer_name, kitchen_status, cash_amount, card_amount, delivery_amount, tab_open, sale_items(id, qty, product_name, addons_summary, status, unit_price, addons_total)";
+        const [tRes, oRes, sRes, rRes, tabRes] = await Promise.all([
           db.from("restaurant_tables").select("id, table_number, sort_order").order("sort_order").order("created_at"),
           db.from("table_occupancy").select("*"),
           db.from("sales_entries")
-            .select("id, order_no, created_at, table_number, customer_name, kitchen_status, cash_amount, card_amount, delivery_amount, sale_items(id, qty, product_name, addons_summary, status)")
+            .select(saleCols)
             .eq("status", "completed").not("table_number", "is", null).gte("created_at", since)
             .order("created_at", { ascending: true }).limit(400),
           db.from("table_reservations").select("*")
             .gte("reserved_at", resFrom.toISOString()).lt("reserved_at", resTo.toISOString())
             .order("reserved_at", { ascending: true }).limit(500),
+          // الحسابات المفتوحة بتضل مفتوحة مهما صار عمرها
+          db.from("sales_entries").select(saleCols).eq("status", "completed").eq("tab_open", true)
+            .not("table_number", "is", null).order("created_at", { ascending: true }).limit(200),
         ]);
         if (tRes.error) throw tRes.error;
         if (oRes.error) throw oRes.error;
+        // العمود tab_open موجود بس بعد تشغيل schema-table-tabs.sql: قبلها الصفحة بتشتغل متل الأول
+        if (sRes.error && /tab_open/.test(sRes.error.message || "")) {
+          const old = await db.from("sales_entries")
+            .select("id, order_no, created_at, table_number, customer_name, kitchen_status, cash_amount, card_amount, delivery_amount, sale_items(id, qty, product_name, addons_summary, status)")
+            .eq("status", "completed").not("table_number", "is", null).gte("created_at", since)
+            .order("created_at", { ascending: true }).limit(400);
+          if (old.error) throw old.error;
+          sRes.data = old.data; sRes.error = null; tabRes.data = []; tabRes.error = null;
+        }
         if (sRes.error) throw sRes.error;
+        if (tabRes.error) throw tabRes.error;
         regTables = tRes.data || [];
         occ = new Map();
         (oRes.data || []).forEach((o) => occ.set(key(o.table_number), { freed_at: o.freed_at, cleaned_at: o.cleaned_at || null }));
-        sales = sRes.data || [];
+        const seen = new Set();
+        sales = (sRes.data || []).concat(tabRes.data || []).filter((x) => !seen.has(x.id) && seen.add(x.id));
         // الحجوزات ميزة لحالها: لو جدولها مش موجود، باقي الصفحة بتشتغل
         resReady = !rRes.error;
         reservations = rRes.error ? [] : (rRes.data || []);
