@@ -416,6 +416,7 @@
   .cart-bar .total{font-family:'Tajawal',sans-serif; font-weight:800; font-size:24px; color:var(--gold-hi); font-weight:700;}
   .cart-bar .actions{display:flex; gap:8px;}
   .cart-bar .actions .btn{flex:1;}
+  .cart-bar .actions .btn[hidden]{display:none;}
   .cart-list{margin-bottom:0;}
   /* كل صنف سطر واحد متل تذاكر Toast/Square (2026-10-28): الاسم والسعر، وجنبهم − الكمية +،
      والخيارات (كبير/ثلج/وجبة) تحتهم. − على كمية 1 بتصير سلة وبتحذف؛ الضغط على الاسم بيفتح التعديل */
@@ -863,6 +864,7 @@
             </div>
             <div class="actions">
               <button class="btn" id="save-draft-btn" disabled>حفظ</button>
+              <button class="btn gold pay" id="send-tab-btn" hidden disabled></button>
               <button class="btn gold pay" id="checkout-btn" disabled>الدفع</button>
             </div>
           </div>
@@ -1261,6 +1263,7 @@
       document.getElementById("order-type").value = "صالة";
       updateOrderTypeFields();
       if (table) document.getElementById("table-number").value = table.slice(0, 30);
+      updateTabBtn();
       const name = (q.get("name") || "").trim();
       if (name && !document.getElementById("customer-name").value.trim()) document.getElementById("customer-name").value = name.slice(0, 60);
       history.replaceState(null, "", location.pathname);
@@ -1650,6 +1653,7 @@
       tableField.hidden = type !== "صالة";
       nameField.hidden = type === "توصيل";
       if (type !== "صالة") document.getElementById("table-number").value = "";
+      updateTabBtn();
       if (type === "توصيل") document.getElementById("customer-name").value = "";
       // حقل رقم الهاتف ظاهر دايمًا الآن (مش بس لطلبات التوصيل) — إجباري
       // لسا لطلبات التوصيل بس (نفس التحقق بالأسفل)، واختياري لباقي
@@ -1847,6 +1851,7 @@
         checkoutBtn.disabled = false;
         saveDraftBtn.disabled = false;
       }
+      updateTabBtn();
       const subtotal = OlvCart.total();
       const discountAmount = computeDiscountAmount(subtotal);
       const discountRow = document.getElementById("cart-discount-row");
@@ -1860,6 +1865,44 @@
         discountRow.style.display = "none";
       }
       document.getElementById("cart-total").textContent = olvFormatMoney(subtotal - discountAmount);
+    }
+
+    // «أرسل للطاولة»: صالة + رقم طاولة = الطلب بينضاف على حساب الطاولة المفتوح وبينطبع للأقسام بدون دفع،
+    // والكاشير بيحاسب مرة وحدة من صفحة الطاولات. «الدفع» بيضل للدفع الفوري
+    function updateTabBtn() {
+      const btn = document.getElementById("send-tab-btn");
+      if (!btn) return;
+      const table = olvNormTable(document.getElementById("table-number").value);
+      const show = document.getElementById("order-type").value === "صالة" && !!table;
+      btn.hidden = !show;
+      document.getElementById("checkout-btn").classList.toggle("pay", !show);
+      if (!show) return;
+      btn.innerHTML = `${olvIcon("dineIn")}<span>أرسل لطاولة ${olvEsc(table)}</span>`;
+      btn.disabled = !OlvCart.all().length;
+    }
+
+    async function sendToTable() {
+      const errBox = document.getElementById("err");
+      const btn = document.getElementById("send-tab-btn");
+      const tableNumber = olvNormTable(document.getElementById("table-number").value);
+      const customerPhone = document.getElementById("customer-phone").value.trim();
+      const customerName = document.getElementById("customer-name").value.trim();
+      errBox.style.display = "none";
+      btn.disabled = true;
+      try {
+        await OlvCart.sendToTab({ tableNumber, entryDate: olvToday(), customerPhone, customerName });
+        clearDraft();
+        resetDiscount();
+        ["table-number", "customer-name", "customer-phone"].forEach((id) => { document.getElementById(id).value = ""; });
+        renderCart();
+        refreshPopularityAndGrid();
+        olvToast(`انرسل لطاولة ${tableNumber} وانطبع للأقسام. الحساب مفتوح`, { type: "ok", icon: "check", ms: 3500 });
+      } catch (err) {
+        const msg = String((err && err.message) || "");
+        olvShowError(errBox, /place_table_order/.test(msg) && /function|schema cache/i.test(msg)
+          ? new Error("ميزة حساب الطاولة لسا ما تفعّلت بقاعدة البيانات") : err);
+        btn.disabled = !OlvCart.all().length;
+      }
     }
 
     function openCheckoutSheet() {
@@ -2197,6 +2240,8 @@
         sel.dispatchEvent(new Event("change"));
       });
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
+      document.getElementById("send-tab-btn").addEventListener("click", sendToTable);
+      document.getElementById("table-number").addEventListener("input", updateTabBtn);
       // فحص سريع (مو إجباري) لما الكاشير يخلص كتابة رقم هاتف — لو الرقم
       // لزبون متكرر موجود أصلًا ببرنامج الولاء، بيطلعله تنبيه ترحيبي
       document.getElementById("customer-phone").addEventListener("blur", async (e) => {
