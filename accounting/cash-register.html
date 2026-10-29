@@ -779,6 +779,18 @@
       const btn = $("save-btn");
       btn.disabled = true;
       try {
+        // حسابات طاولات لسا مفتوحة (ما انسدّدت): مبيعاتها مو داخلة بالكاش، فالتقفيل قبل تسديدها بيطلّع الخزينة غلط
+        const { data: openTabs, error: tabErr } = await window.supabaseClient.from("sales_entries")
+          .select("table_number").eq("status", "completed").eq("tab_open", true);
+        if (!tabErr && openTabs && openTabs.length) {
+          const names = [...new Set(openTabs.map((t) => olvNormTable(t.table_number)))].join("، ");
+          const msg = `في ${openTabs.length} حساب مفتوح (طاولة ${names}) لسا ما انسدّد، ومبيعاته مو محسوبة بالخزينة.`;
+          if (window.olvRole !== "owner" && window.olvRole !== "manager") {
+            olvShowError(errBox, new Error(msg + " سدّده من صفحة الطاولات أو بلّغ المدير قبل التقفيل."));
+            return;
+          }
+          if (!confirm(msg + "\nتقفل الخزينة رغم هيك؟")) return;
+        }
         const payload = {
           closing_date: $("closing_date").value,
           opening_balance: r2($("opening_balance").value),
