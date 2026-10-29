@@ -284,7 +284,7 @@
         <div class="row2">
           <div class="field ex-amount">
             <label for="amount">المبلغ</label>
-            <input type="number" id="amount" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00" required>
+            <input type="text" id="amount" inputmode="decimal" autocomplete="off" placeholder="0.00" required>
           </div>
           <div class="field">
             <label for="description">البيان (اختياري)</label>
@@ -383,7 +383,7 @@
             <div class="field"><label for="rec-category">التصنيف</label><select id="rec-category" required></select></div>
           </div>
           <div class="row2">
-            <div class="field"><label for="rec-amount">المبلغ</label><input type="number" id="rec-amount" step="0.01" min="0.01" inputmode="decimal" required></div>
+            <div class="field"><label for="rec-amount">المبلغ</label><input type="text" id="rec-amount" inputmode="decimal" autocomplete="off" required></div>
             <div class="field"><label for="rec-every">يتكرر</label>
               <select id="rec-every">
                 <option value="1">كل شهر</option>
@@ -562,6 +562,17 @@
     // تحميل البيانات
     // ---------------------------------------------------------------
     let loadSeq = 0;
+    // يقبل أرقام عربية وفاصلة عشرية "," أو "،" ويشيل المسافات وفواصل الآلاف
+    function parseMoney(v) {
+      let t = String(v == null ? "" : v)
+        .replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x0660)
+        .replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x06f0)
+        .replace(/[٫,،]/g, ".").replace(/[^0-9.]/g, "");
+      const i = t.indexOf(".");
+      if (i >= 0) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, "");
+      const n = parseFloat(t);
+      return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+    }
     async function load() {
       const seq = ++loadSeq;
       range = rangeFor(period);
@@ -925,7 +936,7 @@
     $("expense-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       errBox.style.display = "none";
-      const amount = Number($("amount").value || 0);
+      const amount = parseMoney($("amount").value);
       if (!(amount > 0)) { olvToast("اكتب المبلغ", { type: "danger", icon: "warning" }); $("amount").focus(); return; }
       if (!pickedCat) { olvToast("اختار التصنيف", { type: "danger", icon: "warning" }); return; }
       const date = $("expense_date").value || todayIso();
@@ -1054,7 +1065,7 @@
         const payload = {
           name: $("rec-name").value.trim(),
           category_id: $("rec-category").value,
-          amount: Number($("rec-amount").value || 0),
+          amount: parseMoney($("rec-amount").value),
           every_months: Number($("rec-every").value),
           day_of_month: Number($("rec-day").value),
           start_date: $("rec-start").value,
