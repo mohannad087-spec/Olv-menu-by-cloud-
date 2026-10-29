@@ -42,6 +42,7 @@
       .olv-rp-row.last{border-color:var(--gold);}
       .olv-rp-tag{display:inline-block; font-size:11px; background:var(--gold); color:var(--on-gold); border-radius:999px;
         padding:1px 8px; margin-inline-start:6px; font-weight:700;}
+      .olv-rp-lbl{font-size:13px; color:var(--muted); margin:12px 0 0;}
       .olv-rp-ok{color:var(--ok); font-weight:700; text-align:center; padding:14px 0;}
     `;
     document.head.appendChild(st);
@@ -60,9 +61,20 @@
     return { modal, close };
   }
 
+  // الطابعات المفعّلة للاختيار؛ فاضية لو ما في طابعات مسجّلة (المسار القديم) أو فشل الجلب
+  async function loadPrinters() {
+    try {
+      const { data, error } = await window.supabaseClient.from("printers").select("id, name, kind").eq("enabled", true).order("sort_order").order("created_at");
+      return error ? [] : (data || []);
+    } catch (e) { return []; }
+  }
+
   // يرجّع رقم النسخة لو نجحت، أو null لو الكاشير تراجع
   function olvReprintSale(saleId, label) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
+      const printers = await loadPrinters();
+      // الفاتورة تنطبع افتراضيًا على طابعة الفاتورة (أول واحدة)
+      let printerId = (printers.find((p) => p.kind === "receipt") || printers[0] || {}).id || null;
       const { modal, close } = makeModal();
       let busy = false;
       modal.innerHTML = `
@@ -70,6 +82,8 @@
         <div class="olv-rp-sub">${olvEsc(label || "")}<br>سبب الإعادة إلزامي، وبيطلع مكتوب على النسخة المطبوعة وبسجل الفاتورة.</div>
         <div class="olv-rp-chips">${QUICK_REASONS.map((r) => `<button type="button">${olvEsc(r)}</button>`).join("")}</div>
         <input type="text" id="olv-rp-reason" maxlength="200" placeholder="اكتب سبب الإعادة...">
+        ${printers.length ? `<div class="olv-rp-lbl">على أي طابعة بدك تطبعها؟</div>
+        <div class="olv-rp-chips" id="olv-rp-printers">${printers.map((p) => `<button type="button" data-pr="${olvEsc(p.id)}" class="${p.id === printerId ? "on" : ""}">${olvEsc(p.name)}</button>`).join("")}</div>` : ""}
         <div class="olv-rp-err" id="olv-rp-err"></div>
         <div class="olv-rp-actions">
           <button type="button" class="btn gold" id="olv-rp-go">طباعة النسخة</button>
@@ -85,6 +99,12 @@
           errEl.textContent = "";
         });
       });
+      modal.querySelectorAll("#olv-rp-printers button").forEach((b) => {
+        b.addEventListener("click", () => {
+          printerId = b.dataset.pr;
+          modal.querySelectorAll("#olv-rp-printers button").forEach((x) => x.classList.toggle("on", x === b));
+        });
+      });
       modal.querySelector("#olv-rp-cancel").addEventListener("click", () => { close(); resolve(null); });
       goBtn.addEventListener("click", async () => {
         if (busy) return;
@@ -92,7 +112,12 @@
         if (reason.length < 3) { errEl.textContent = "اكتب سبب واضح للإعادة (3 أحرف على الأقل)"; input.focus(); return; }
         busy = true; goBtn.disabled = true; errEl.textContent = "";
         try {
-          const { data, error } = await window.supabaseClient.rpc("reprint_receipt", { p_sale_id: saleId, p_reason: reason });
+          let res = printerId
+            ? await window.supabaseClient.rpc("reprint_receipt_to", { p_sale_id: saleId, p_reason: reason, p_printer_id: printerId })
+            : await window.supabaseClient.rpc("reprint_receipt", { p_sale_id: saleId, p_reason: reason });
+          // قبل تشغيل schema-reprint-printer.sql الدالة الجديدة مش موجودة: نرجع للقديمة (كل طابعات الفاتورة)
+          if (res.error && res.error.code === "PGRST202") res = await window.supabaseClient.rpc("reprint_receipt", { p_sale_id: saleId, p_reason: reason });
+          const { data, error } = res;
           if (error) throw error;
           modal.innerHTML = `<div class="olv-rp-ok">${olvIcon("check")} أُرسلت النسخة رقم ${olvEsc(data)} للطباعة</div>`;
           if (typeof OlvSound !== "undefined") OlvSound.playSuccess();

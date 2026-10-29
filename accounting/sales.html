@@ -1027,7 +1027,7 @@
       const rp = reprintCache[r.id];
       const rpHtml = rp && rp.length
         ? `<div class="od-reprints">${olvIcon("printer")} انطبعت كمان ${rp.length} ${rp.length === 1 ? "مرة" : "مرات"}:<br>${rp.map((x) =>
-            `نسخة ${olvEsc(x.reprint_no)} · ${olvEsc(new Date(x.created_at).toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" }))} · ${olvEsc(x.printed_by_name || "—")} · ${olvEsc(x.reason)}`).join("<br>")}</div>`
+            `نسخة ${olvEsc(x.reprint_no)} · ${olvEsc(new Date(x.created_at).toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" }))} · ${olvEsc(x.printed_by_name || "—")} · ${olvEsc(x.reason)}${x.printer_name ? " · " + olvEsc(x.printer_name) : ""}`).join("<br>")}</div>`
         : "";
       const ed = editCache[r.id];
       const edHtml = ed && ed.length
