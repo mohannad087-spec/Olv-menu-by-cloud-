@@ -1038,6 +1038,7 @@
       const actions = voided ? "" : `<div class="od-actions">
           <button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(label)}">${olvIcon("printer")} إعادة طباعة</button>
           <button class="btn small gold" data-add-items="${r.id}">${olvIcon("plus")} إضافة أصناف</button>
+          <button class="btn small" data-merge="${r.id}">${olvIcon("receipt")} دمج مع طلبات</button>
           <button class="btn small danger" data-void="${r.id}">${olvIcon("x")} إلغاء الطلب</button>
         </div>`;
       return `<div class="od-box">${itemsHtml}</div>${facts.length ? `<div class="od-facts">${facts.join("")}</div>` : ""}${rpHtml}${edHtml}${actions}`;
@@ -1065,6 +1066,8 @@
       });
       const addBtn = wrap.querySelector("[data-add-items]");
       if (addBtn) addBtn.addEventListener("click", () => openAddItems(r));
+      const mgBtn = wrap.querySelector("[data-merge]");
+      if (mgBtn) mgBtn.addEventListener("click", () => openMerge(r));
       const v = wrap.querySelector("[data-void]");
       if (v) olvHoldConfirm(v, async () => {
         const reason = askVoidReason();
@@ -1220,6 +1223,53 @@
       if (error) { olvShowError($("ai-err"), error); btn.disabled = false; return; }
       aiDlg.close();
       olvToast("انضافت الأصناف وانبعتت للأقسام (الجديدة بس)", { type: "gold" });
+      await load();
+    });
+
+
+    // ---------------------------------------------------------------
+    // دمج طلبات بفاتورة واحدة: merge_sales بالسيرفر بتنقل الأصناف وبتجمع الدفعات
+    // (المخزون ما بيتغيّر والمطبخ ما بيطبع شي جديد)
+    // ---------------------------------------------------------------
+    let mgTarget = null;
+    const mgDlg = $("mg-dlg");
+    $("mg-cancel").innerHTML = olvIcon("x");
+    function mgLabel(r) { return (r.order_no ? "#" + r.order_no : r.doc_no ? olvDocNo("sale", r.doc_no) : "طلب") + " · " + timeOf(r); }
+    function mgCandidates() {
+      const t = mgTarget;
+      return rows.filter((x) => x.id !== t.id && x.status !== "voided" && x.entry_date === t.entry_date)
+        .sort((a, b) => {
+          const sa = (a.table_number && a.table_number === t.table_number) || (a.customer_phone && a.customer_phone === t.customer_phone) ? 0 : 1;
+          const sb = (b.table_number && b.table_number === t.table_number) || (b.customer_phone && b.customer_phone === t.customer_phone) ? 0 : 1;
+          return sa - sb || new Date(b.created_at) - new Date(a.created_at);
+        });
+    }
+    function mgRender() {
+      const c = mgCandidates();
+      $("mg-list").innerHTML = c.map((x) => `<label class="ai-line" style="cursor:pointer"><span class="nm"><input type="checkbox" data-mgid="${x.id}"> ${olvEsc(mgLabel(x))}${x.table_number ? " · طاولة " + olvEsc(x.table_number) : ""}${x.customer_name ? " · " + olvEsc(x.customer_name) : ""}<small>${olvEsc(itemsText(x))}</small></span><b>${olvFormatMoney(saleTotal(x))}</b></label>`).join("") || `<p class="ai-empty">ما في طلبات ثانية لنفس اليوم</p>`;
+      mgSum();
+    }
+    function mgPicked() { return [...document.querySelectorAll("#mg-list [data-mgid]:checked")].map((e) => e.dataset.mgid); }
+    function mgSum() {
+      const ids = mgPicked();
+      const tot = rows.filter((x) => x.id === mgTarget.id || ids.includes(x.id)).reduce((s, x) => s + saleTotal(x), 0);
+      $("mg-total").textContent = olvFormatMoney(tot);
+      $("mg-save").disabled = !ids.length;
+    }
+    function openMerge(r) {
+      mgTarget = r; $("mg-err").style.display = "none";
+      $("mg-title").textContent = "دمج مع " + mgLabel(r);
+      mgRender(); mgDlg.showModal();
+    }
+    $("mg-list").addEventListener("change", mgSum);
+    $("mg-cancel").addEventListener("click", () => mgDlg.close());
+    $("mg-save").addEventListener("click", async () => {
+      const ids = mgPicked(); if (!ids.length) return;
+      const btn = $("mg-save"); btn.disabled = true; $("mg-err").style.display = "none";
+      const { error } = await window.supabaseClient.rpc("merge_sales", { p_target: mgTarget.id, p_sources: ids });
+      if (error) { olvShowError($("mg-err"), error); btn.disabled = false; return; }
+      mgDlg.close();
+      olvToast("اندمجت الطلبات بفاتورة وحدة", { type: "gold" });
       await load();
     });
 
@@ -1398,6 +1448,25 @@
         <div class="ai-sum">
           <div class="tot"><small>المطلوب</small><span id="ai-total">0.00</span></div>
           <button class="btn pay" type="button" id="ai-save">أضف وابعت للأقسام</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog class="ai-dlg" id="mg-dlg" aria-labelledby="mg-title">
+    <div class="ai-body">
+      <div class="ai-head">
+        <div><h3 id="mg-title">دمج طلبات</h3>
+          <p class="ai-hint">اختر الطلبات اللي بدك تضمها لهالطلب. الأصناف والدفعات بتنجمع بفاتورة وحدة، والمخزون ما بيتغيّر والمطبخ ما بيطبع شي جديد.</p></div>
+        <button class="ai-x" type="button" id="mg-cancel" aria-label="إغلاق"></button>
+      </div>
+      <div class="ai-scroll">
+        <div id="mg-list"></div>
+        <div class="err" id="mg-err"></div>
+      </div>
+      <div class="ai-foot">
+        <div class="ai-sum">
+          <div class="tot"><small>إجمالي الفاتورة بعد الدمج</small><span id="mg-total">0.00</span></div>
+          <button class="btn pay" type="button" id="mg-save" disabled>ادمج الطلبات</button>
         </div>
       </div>
     </div>
