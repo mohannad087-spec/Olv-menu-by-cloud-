@@ -596,10 +596,18 @@
         let saleId = o.id;
         let mapId = (id) => id;
         if (o.source === "local") {
-          const { data, error } = await db.from("sales_entries").select("id, sale_items(id, product_name, qty, status)")
+          let { data, error } = await db.from("sales_entries").select("id, sale_items(id, product_name, qty, status)")
             .eq("client_ref", o.client_ref).maybeSingle();
           if (error) throw error;
-          if (!data) continue;
+          if (!data) {
+            // طلب انضاف على حساب طاولة مفتوح: السحابة بتحفظه بسجل الإضافات (sale_additions) مش كطلب لحاله
+            const add = await db.from("sale_additions").select("sale_id, item_ids").eq("client_ref", o.client_ref).maybeSingle();
+            if (add.error) throw add.error;
+            if (!add.data) continue;
+            const its = await db.from("sale_items").select("id, product_name, qty, status").in("id", add.data.item_ids);
+            if (its.error) throw its.error;
+            data = { id: add.data.sale_id, sale_items: its.data || [] };
+          }
           saleId = data.id;
           // نفس الصنف ونفس الكمية، بالترتيب
           const pool = (data.sale_items || []).filter((it) => it.status !== "voided");

@@ -98,7 +98,7 @@ function createStore(dataDir) {
       table_number: o.table_number, customer_name: o.customer_name,
       customer_phone: str(p.customer_phone, 30), cashier_name: str(p.cashier_name, 80),
       cash_amount: num(p.cash_amount), card_amount: num(p.card_amount), delivery_amount: num(p.delivery_amount),
-      discount_amount: num(p.discount_amount),
+      discount_amount: num(p.discount_amount), kitchen_only: !!p.kitchen_only,
       cash_received: p.cash_received == null ? null : num(p.cash_received),
       change_due: p.change_due == null ? null : num(p.change_due),
       items: (Array.isArray(p.items) ? p.items : []).slice(0, 100).map((it) => ({

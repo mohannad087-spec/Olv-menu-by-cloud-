@@ -151,7 +151,18 @@ async function processJob(job, settings, printers, saleCache) {
       if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
       // البيع انطبع أصلًا من سيرفر المحل وقت انقطاع النت، ورجع النت ووصل للسحابة: ما منطبعه مرتين
       // (إعادة الطباعة اليدوية reprint_no بتنطبع عادي)
-      if (!job.reprint_no && wasPrintedLocally(sale.client_ref)) {
+      // مهمة «إضافة على حساب طاولة»: الرقم المرجعي المحلي هو رقم الإضافة (sale_additions) مش رقم الحساب الأول،
+      // وإلا إضافة بعد رجوع النت بتنتجاهل بالغلط لأن الحساب انفتح بدون نت
+      let localRef = sale.client_ref;
+      if (job.is_addition) {
+        localRef = null;
+        if (job.item_ids && job.item_ids.length) {
+          const { data: add } = await supabase.from("sale_additions").select("client_ref")
+            .eq("sale_id", job.sale_id).contains("item_ids", [job.item_ids[0]]).maybeSingle();
+          localRef = add ? add.client_ref : null;
+        }
+      }
+      if (!job.reprint_no && wasPrintedLocally(localRef)) {
         await markJob(job.id, { status: "skipped", error_message: "انطبعت أصلًا وقت انقطاع النت" });
         return;
       }
