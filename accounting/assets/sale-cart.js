@@ -170,5 +170,33 @@ const OlvCart = (function () {
   // آخر بيع: انحفظ بدون نت؟ ووصل للمطبخ عن طريق كمبيوتر المحل؟ (بتقرأها شاشة الكاشير)
   let lastOffline = { queued: false, sentToKitchen: false, orderNo: null };
 
-  return { setMode, unitPrice: unit, add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout, lastOffline: () => lastOffline };
+  // إرسال الأصناف لحساب الطاولة المفتوح بدون دفع (place_table_order): أول إرسال بيفتح الحساب وبعده بتنضاف عليه،
+  // وبينطبع للأقسام الأصناف المرسلة بس. الفاتورة بتنطبع لما الكاشير يحاسب من صفحة الطاولات.
+  async function sendToTab({ tableNumber, entryDate, customerPhone, customerName }) {
+    if (!items.length) throw new Error("السلة فاضية");
+    if (!tableNumber) throw new Error("اكتب رقم الطاولة");
+    setMode("صالة");
+    const grand = total();
+    const rpcItems = items.map((item) => ({
+      product_id: item.productId,
+      qty: item.qty,
+      addon_ids: item.addons.map((a) => a.id),
+      note: item.note || null,
+    }));
+    if (!saleRef) saleRef = newRef();
+    const { data, error } = await window.supabaseClient.rpc("place_table_order", {
+      p_entry_date: entryDate,
+      p_total: grand,
+      p_notes: null,
+      p_items: rpcItems,
+      p_client_ref: saleRef,
+      p_table_number: tableNumber,
+      p_customer_phone: customerPhone ?? null,
+      p_customer_name: customerName ?? null,
+    });
+    if (error) throw error;
+    clear();
+    return data;
+  }
+  return { sendToTab, setMode, unitPrice: unit, add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout, lastOffline: () => lastOffline };
 })();
