@@ -262,6 +262,7 @@
             <div class="io-items">${(o.items || []).map((it) => renderItemRow(o, it)).join("")}</div>
             ${isNew ? `
               <div class="io-actions">
+                ${o.mode === "hall" && olvNormTable(o.table) ? `<button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="tab" ${mapped ? "" : "disabled"}>${olvIcon("receipt")} على حساب الطاولة ${olvEsc(olvNormTable(o.table))}</button>` : ""}
                 <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
                 <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
                 <button class="btn danger" data-reject="${olvEsc(o.id)}">رفض</button>
@@ -330,6 +331,23 @@
           p_table_number: olvNormTable(order.table) || null,
           p_customer_phone: order.phone || null,
         };
+        // حساب الطاولة المفتوح: بينطبع للأقسام بس، والدفع لاحقًا من صفحة الطاولات (زر «حاسب الطاولة»)
+        if (method === "tab") {
+          const { error: tabErr } = await window.supabaseClient.rpc("place_table_order", {
+            p_entry_date: olvToday(),
+            p_total: order.total,
+            p_notes: order.notes || null,
+            p_items: items,
+            p_client_ref: await orderRef(order.id),
+            p_table_number: olvNormTable(order.table),
+            p_customer_phone: order.phone || null,
+          });
+          if (tabErr) throw tabErr;
+          if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+          await OlvIncomingPoll.callProxy({ action: "update", id: order.id, status: "preparing" });
+          await OlvIncomingPoll.pollNow();
+          return;
+        }
         // رقم مرجعي ثابت لكل طلب أونلاين: لو انضغط «قبول» مرتين (أو فشل تحديث الحالة بعد تسجيل البيع)
         // السيرفر بيرجّع نفس البيع بدل ما يسجّل بيع تاني
         let { error } = await window.supabaseClient.rpc("record_sale", { ...args, p_client_ref: await orderRef(order.id) });
