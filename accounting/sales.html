@@ -132,6 +132,35 @@
   }
   .s-tip.show{opacity:1;}
   .s-summary{font-size:13.5px; color:var(--muted); margin-top:10px; line-height:1.7;}
+
+  /* اليوم مقابل أمس: مبيعات (زيتوني) ومشتريات (ذهبي)، أمس نفس اللون أفتح ومخطّط.
+     كل عمود رقمه مكتوب فوقه واسم يومه تحته، فاللون مش الطريقة الوحيدة للتمييز */
+  .s-cmp{display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:10px 22px; align-items:center;}
+  .s-cmp[hidden]{display:none;}
+  .s-cmp > h2{grid-column:1 / -1; margin-bottom:0;}
+  @media (max-width:900px){ .s-cmp{grid-template-columns:minmax(0,1fr);} }
+  .s-cmp > *{min-width:0;}
+  .cmp-svg{width:100%; height:auto; display:block; direction:ltr; overflow:visible;}
+  .cmp-svg .base{stroke:var(--hair); stroke-width:1;}
+  .cmp-svg .b-sales{fill:var(--olive);}
+  .cmp-svg .b-buy{fill:var(--gold);}
+  .cmp-svg .y{opacity:.6;}
+  .cmp-svg .v{fill:var(--paper); font-size:12.5px; font-weight:700; font-family:'Tajawal',sans-serif;}
+  .cmp-svg .d{fill:var(--muted); font-size:12px; font-family:'Tajawal',sans-serif;}
+  .cmp-svg .g{fill:var(--paper); font-size:13.5px; font-weight:700; font-family:'Tajawal',sans-serif;}
+  .cmp-rows{list-style:none; margin:0; padding:0; display:flex; flex-direction:column;}
+  .cmp-rows li{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:4px 10px; padding:10px 0; border-bottom:1px solid var(--hair-soft);}
+  .cmp-rows li:last-child{border-bottom:0;}
+  .cmp-rows .dot{width:10px; height:10px; border-radius:3px; background:var(--olive);}
+  .cmp-rows .dot.buy{background:var(--gold);}
+  .cmp-rows .dot.net{background:transparent; border:2px solid var(--paper);}
+  .cmp-rows .nm{font-size:14px; font-weight:700;}
+  .cmp-rows .now{font-size:18px; font-weight:800; color:var(--paper); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .cmp-rows .was{grid-column:2 / -1; display:flex; justify-content:space-between; gap:8px; font-size:12.5px; color:var(--muted);}
+  .cmp-rows .chg{font-weight:700; white-space:nowrap;}
+  .cmp-rows .chg.up{color:var(--ok);} .cmp-rows .chg.down{color:var(--danger-hi);}
+  .cmp-rows .chg.flat{color:var(--muted);}
+  .cmp-note{grid-column:1 / -1; font-size:12.5px; color:var(--muted); margin:0; line-height:1.7;}
   .s-summary b{color:var(--paper);}
 
   /* طرق الدفع: شريط واحد مقسوم + قائمة بالمبلغ والنسبة (ما منعتمد على اللون وحده) */
@@ -354,6 +383,13 @@
       </div>
     </div>
 
+    <section class="group s-cmp" id="cmp" hidden>
+      <h2 id="cmp-title"></h2>
+      <div class="s-bars-wrap" id="cmp-chart"></div>
+      <ul class="cmp-rows" id="cmp-rows"></ul>
+      <p class="cmp-note" id="cmp-note"></p>
+    </section>
+
     <div class="s-grid">
       <section class="group">
         <h2 id="chart-title"></h2>
@@ -539,6 +575,7 @@
         if (cur.error) throw cur.error;
         if (seq !== loadSeq) return;
         rows = cur.data || [];
+        loadCmp();
         const prevTotal = old.error ? null : (old.data || []).filter((r) => r.status !== "voided").reduce((s, r) => s + saleTotal(r), 0);
         renderAll(prevTotal, prev);
       } catch (err) {
@@ -664,6 +701,104 @@
       summary.innerHTML = single
         ? `أزحم ساعة <b>${hourName(keys[best])}</b> بـ <b>${olvFormatMoney(max)}</b> (${counts[best]} طلب).`
         : `أفضل يوم <b>${DAY_NAMES[parse(keys[best]).getDay()]} ${shortDate(keys[best])}</b> بـ <b>${olvFormatMoney(max)}</b>. متوسط اليوم <b>${olvFormatMoney(sum / Math.max(active, 1))}</b> على ${active} ${active === 1 ? "يوم" : "أيام"} فيها بيع.`;
+    }
+
+    // ---------------------------------------------------------------
+    // اليوم مقابل أمس: مبيعات ومشتريات (للمالك والمدير). ثابتة على اليوم وأمس
+    // مهما كانت الفترة المختارة فوق. المشتريات = فواتير الموردين الفعّالة
+    // (بتاريخ الفاتورة) + المشتريات المسجّلة لحالها بدون فاتورة (بتاريخ الشراء)
+    // ---------------------------------------------------------------
+    let cmpData = null, cmpSeq = 0;
+    async function loadCmp() {
+      if (!window.olvRole || window.olvRole === "staff") return;
+      const seq = ++cmpSeq;
+      const t = todayIso(), y = addDays(t, -1);
+      const db = window.supabaseClient;
+      const [sales, inv, loose] = await Promise.all([
+        db.from("sales_entries").select("entry_date, cash_amount, card_amount, delivery_amount, status")
+          .gte("entry_date", y).lte("entry_date", t).limit(5000),
+        db.from("purchase_invoices").select("invoice_date, total_amount, status")
+          .gte("invoice_date", y).lte("invoice_date", t).limit(2000),
+        db.from("purchases").select("purchase_date, total_amount").is("invoice_id", null)
+          .gte("purchase_date", y).lte("purchase_date", t).limit(5000),
+      ]).catch(() => [{ error: true }, {}, {}]);
+      if (seq !== cmpSeq) return;
+      if (sales.error) { $("cmp").hidden = true; return; }
+      const sum = (list, dk, day, val) => (list || []).filter((r) => r[dk] === day).reduce((a, r) => a + val(r), 0);
+      const buyOk = !inv.error && !loose.error;
+      const buy = (day) => sum((inv.data || []).filter((r) => r.status !== "voided"), "invoice_date", day, (r) => Number(r.total_amount))
+        + sum(loose.data, "purchase_date", day, (r) => Number(r.total_amount));
+      const done = (sales.data || []).filter((r) => r.status !== "voided");
+      cmpData = {
+        t, y, buyOk,
+        sales: { now: sum(done, "entry_date", t, saleTotal), was: sum(done, "entry_date", y, saleTotal) },
+        buy: buyOk ? { now: buy(t), was: buy(y) } : null,
+      };
+      renderCmp();
+    }
+
+    function renderCmp() {
+      const d = cmpData;
+      if (!d) return;
+      $("cmp").hidden = false;
+      $("cmp-title").innerHTML = olvIcon("barChart") + " اليوم مقابل أمس";
+      // الفرق ممكن يطلع سالب: تنسيق ar-EG بيحط علامة اتجاه عربية مع الناقص فبيطلع
+      // بآخر الرقم، فمنكتب الناقص بإيدنا قبل الرقم وباتجاه ltr
+      const m = (v) => `<bdi dir="ltr">${v < 0 ? "-" : ""}${olvFormatMoney(Math.abs(v))}</bdi>`;
+      const chg = (now, was, words = ["أكتر", "أقل"]) => {
+        if (!was && !now) return `<span class="chg flat">نفس أمس</span>`;
+        if (!was) return `<span class="chg flat">أمس ما كان في</span>`;
+        const pct = Math.round(((now - was) / Math.abs(was)) * 100);
+        if (pct === 0) return `<span class="chg flat">نفس أمس</span>`;
+        const p = Math.abs(pct) > 999 ? 999 : Math.abs(pct);
+        return `<span class="chg ${pct > 0 ? "up" : "down"}">${pct > 0 ? words[0] : words[1]} بـ ${p}%</span>`;
+      };
+      // المشتريات: الزيادة مش «منيحة» ولا «عاطلة»، فلونها حيادي
+      const chgBuy = (now, was) => chg(now, was).replace(/chg (up|down)/, "chg flat");
+      const net = d.buy ? { now: d.sales.now - d.buy.now, was: d.sales.was - d.buy.was } : null;
+      $("cmp-rows").innerHTML = `
+        <li><i class="dot"></i><span class="nm">المبيعات</span><span class="now">${m(d.sales.now)}</span>
+          <div class="was"><span>أمس ${m(d.sales.was)}</span>${chg(d.sales.now, d.sales.was)}</div></li>
+        ${d.buy ? `
+        <li><i class="dot buy"></i><span class="nm">المشتريات</span><span class="now">${m(d.buy.now)}</span>
+          <div class="was"><span>أمس ${m(d.buy.was)}</span>${chgBuy(d.buy.now, d.buy.was)}</div></li>
+        <li><i class="dot net"></i><span class="nm">الفرق (مبيعات − مشتريات)</span><span class="now">${m(net.now)}</span>
+          <div class="was"><span>أمس ${m(net.was)}</span>${chg(net.now, net.was, ["أحسن", "أسوأ"])}</div></li>` : ""}`;
+      $("cmp-note").textContent = d.buy
+        ? "المشتريات = فواتير الموردين + المشتريات المسجّلة لحالها، كلها بتاريخها. اليوم لسا ما خلص، فالمقارنة بتتغير مع الوقت."
+        : "ما قدرنا نجيب المشتريات هلأ، فهون المبيعات بس.";
+
+      // الرسم: مجموعتين (مبيعات، مشتريات)، بكل وحدة عمود أمس وعمود اليوم.
+      // الاتجاه من اليمين: المبيعات يمين، وأمس قبل اليوم
+      const box = $("cmp-chart");
+      const groups = [{ key: "sales", label: "المبيعات", cls: "b-sales", v: d.sales }];
+      if (d.buy) groups.push({ key: "buy", label: "المشتريات", cls: "b-buy", v: d.buy });
+      groups.reverse(); // SVG من الشمال، فبنقلب الترتيب
+      const W = Math.max(280, Math.round(box.clientWidth || 520)), H = W < 420 ? 200 : 230, T = 26, B = 46, P = 10;
+      const max = Math.max(1, ...groups.flatMap((g) => [g.v.now, g.v.was]));
+      const gw = (W - P * 2) / groups.length, bw = Math.min(64, gw * 0.3), gap = Math.min(14, gw * 0.06);
+      const yv = (v) => T + (H - T - B) * (1 - v / max);
+      const bar = (g, cx, val, isY) => {
+        const top = yv(val), h = Math.max(val > 0 ? 2 : 0, H - B - top);
+        const word = isY ? "أمس" : "اليوم";
+        return `<g role="img" aria-label="${g.label} ${word}: ${olvFormatMoney(val)}">
+          <rect class="${g.cls}${isY ? " y" : ""}" x="${cx - bw / 2}" y="${H - B - h}" width="${bw}" height="${h}" rx="${Math.min(8, bw / 4)}"${isY ? ` style="fill:url(#cmp-hatch-${g.key})"` : ""}/>
+          <text class="v" x="${cx}" y="${H - B - h - 7}" text-anchor="middle">${val >= 10000 ? compact(val) : olvFormatMoney(val)}</text>
+          <text class="d" x="${cx}" y="${H - B + 17}" text-anchor="middle">${word}</text>
+        </g>`;
+      };
+      box.innerHTML = `
+        <svg class="cmp-svg" viewBox="0 0 ${W} ${H}" role="group" aria-label="مقارنة المبيعات والمشتريات بين اليوم وأمس">
+          <defs>${groups.map((g) => `<pattern id="cmp-hatch-${g.key}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" class="${g.cls}"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--ink-2)" stroke-width="2.2"/></pattern>`).join("")}</defs>
+          <line class="base" x1="${P}" x2="${W - P}" y1="${H - B}" y2="${H - B}"/>
+          ${groups.map((g, i) => {
+            const c = P + gw * i + gw / 2;
+            // يمين = أمس، شمال = اليوم (قراءة من اليمين)
+            return bar(g, c - bw / 2 - gap / 2, g.v.now, false) + bar(g, c + bw / 2 + gap / 2, g.v.was, true)
+              + `<text class="g" x="${c}" y="${H - 6}" text-anchor="middle">${g.label}</text>`;
+          }).join("")}
+        </svg>`;
     }
 
     function renderPaySplit(done, total) {
@@ -1090,7 +1225,7 @@
       if (window.innerWidth === lastW) return;
       lastW = window.innerWidth;
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => renderChart(rows.filter((r) => r.status !== "voided"), range.from === range.to), 200);
+      resizeTimer = setTimeout(() => { renderChart(rows.filter((r) => r.status !== "voided"), range.from === range.to); renderCmp(); }, 200);
     });
     // رجعت للصفحة بعد شوي؟ منحدّث الأرقام لحالها
     let hiddenAt = 0;
