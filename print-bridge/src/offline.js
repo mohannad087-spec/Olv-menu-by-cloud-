@@ -62,6 +62,7 @@ function toSale(job) {
     created_by_profile: s.cashier_name ? { full_name: s.cashier_name } : null,
     cash_amount: s.cash_amount, card_amount: s.card_amount, delivery_amount: s.delivery_amount,
     discount_amount: s.discount_amount, cash_received: s.cash_received, change_due: s.change_due,
+    kitchen_only: !!s.kitchen_only,
     sale_items: s.items.map((it) => ({ ...it, status: "completed" })),
   };
 }
@@ -70,16 +71,17 @@ function toSale(job) {
 // ما إلها قسم بتروح للقسم اللي «ياخد الباقي». لو ما في طابعات معرّفة: الإعدادات القديمة (مطبخ + فاتورة)
 function route(sale, cfg) {
   const out = [];
+  // إرسال لحساب طاولة مفتوح: تذاكر الأقسام بس، والفاتورة بتنطبع عند «حاسب الطاولة»
   const { settings, printers } = cfg;
   const list = [...printers.values()];
   if (!list.length) {
-    if (settings.receipt_enabled && settings.receipt_ip) out.push({ kind: "receipt", label: "الفاتورة", ip: settings.receipt_ip, port: settings.receipt_port || 9100, items: sale.sale_items, layout: null });
+    if (!sale.kitchen_only && settings.receipt_enabled && settings.receipt_ip) out.push({ kind: "receipt", label: "الفاتورة", ip: settings.receipt_ip, port: settings.receipt_port || 9100, items: sale.sale_items, layout: null });
     if (settings.kitchen_enabled && settings.kitchen_ip) out.push({ kind: "station", label: "تذكرة المطبخ", ip: settings.kitchen_ip, port: settings.kitchen_port || 9100, items: sale.sale_items, layout: null });
     return out;
   }
   const stations = list.filter((p) => p.enabled && p.kind === "station").sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   const claimed = new Set(stations.flatMap((p) => p.categories || []));
-  for (const p of list.filter((x) => x.enabled && x.kind === "receipt")) {
+  for (const p of sale.kitchen_only ? [] : list.filter((x) => x.enabled && x.kind === "receipt")) {
     out.push({ kind: "receipt", printer: p, label: p.name, ip: p.ip, port: p.port || 9100, items: sale.sale_items, layout: p.ticket_layout, drawer: !!p.open_drawer });
   }
   for (const p of stations) {

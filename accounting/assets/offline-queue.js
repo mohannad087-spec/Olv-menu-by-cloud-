@@ -86,7 +86,7 @@
 
   // بيع فيه client_ref: السيرفر بيتجاهل التكرار، فآمن نخزّنه ونعيد إرساله حتى لو الطلب الأول وصل فعلًا
   function isIdempotentSale(urlStr, body) {
-    return /\/rpc\/record_sale/.test(urlStr) && typeof body === "string" && body.indexOf("p_client_ref") !== -1;
+    return /\/rpc\/(record_sale|place_table_order)/.test(urlStr) && typeof body === "string" && body.indexOf("p_client_ref") !== -1;
   }
 
   async function offlineAwareFetch(url, opts) {

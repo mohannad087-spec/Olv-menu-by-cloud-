@@ -1896,7 +1896,14 @@
         ["table-number", "customer-name", "customer-phone"].forEach((id) => { document.getElementById(id).value = ""; });
         renderCart();
         refreshPopularityAndGrid();
-        olvToast(`انرسل لطاولة ${tableNumber} وانطبع للأقسام. الحساب مفتوح`, { type: "ok", icon: "check", ms: 3500 });
+        const off = OlvCart.lastOffline();
+        if (off && off.queued && off.sentToKitchen) {
+          olvToast(`بدون نت: وصل لشاشات المطبخ والبار وبينطبع، وبينضاف لحساب طاولة ${tableNumber} لما يرجع النت`, { type: "ok", icon: "check", ms: 6000 });
+        } else if (off && off.queued) {
+          olvToast("الطلب محفوظ محليًا ولم يُرسل للمطبخ/البار بعد. بلّغهم شفهيًا، وبينضاف للحساب لما يرجع النت", { type: "danger", icon: "warning", ms: 9000 });
+        } else {
+          olvToast(`انرسل لطاولة ${tableNumber} وانطبع للأقسام. الحساب مفتوح`, { type: "ok", icon: "check", ms: 3500 });
+        }
       } catch (err) {
         const msg = String((err && err.message) || "");
         olvShowError(errBox, /place_table_order/.test(msg) && /function|schema cache/i.test(msg)

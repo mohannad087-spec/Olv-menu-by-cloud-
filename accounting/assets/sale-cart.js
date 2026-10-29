@@ -184,6 +184,9 @@ const OlvCart = (function () {
       note: item.note || null,
     }));
     if (!saleRef) saleRef = newRef();
+    const ref = saleRef;
+    const sentItems = items.slice();
+    const queuedBefore = window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0;
     const { data, error } = await window.supabaseClient.rpc("place_table_order", {
       p_entry_date: entryDate,
       p_total: grand,
@@ -195,6 +198,44 @@ const OlvCart = (function () {
       p_customer_name: customerName ?? null,
     });
     if (error) throw error;
+    // النت مقطوع: الطلب انحفظ بطابور الكاشير وبيوصل للحساب لما يرجع النت. منبعته لكمبيوتر المحل حتى يوصل
+    // لشاشات المطبخ والبار وينطبع هلق (تذاكر الأقسام بس، الفاتورة بتنطبع عند «حاسب الطاولة»)
+    const queued = !!(window.olvGetOfflineQueueCount && window.olvGetOfflineQueueCount() > queuedBefore);
+    lastOffline = { queued, sentToKitchen: false, orderNo: null };
+    if (queued && window.OlvLocal && window.OlvLocal.enabled) {
+      try {
+        const r = await window.OlvLocal.post("orders", {
+          client_ref: ref,
+          created_at: new Date().toISOString(),
+          order_type: "صالة",
+          table_number: tableNumber,
+          customer_name: customerName ?? null,
+          print: {
+            kitchen_only: true,
+            customer_phone: customerPhone ?? null,
+            items: sentItems.map((item) => ({
+              product_name: item.name,
+              qty: item.qty,
+              unit_price: unit(item),
+              addons_total: item.addons.reduce((s, a) => s + a.price, 0),
+              addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
+              note: item.note || null,
+              category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+            })),
+          },
+          items: sentItems.map((item) => ({
+            product_name: item.name,
+            qty: item.qty,
+            addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
+            note: item.note || null,
+            category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+          })),
+        });
+        lastOffline = { queued, sentToKitchen: true, orderNo: r.order_no || null };
+      } catch (e) {
+        console.error("olv-local: الطلب ما وصل لكمبيوتر المحل", e);
+      }
+    }
     clear();
     return data;
   }
