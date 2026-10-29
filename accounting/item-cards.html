@@ -342,6 +342,7 @@
     // الخيارات المنطقية لكل قسم: الوجبة والدبل بس للساندويش/البرغر/السناكات، والكبير للمشروبات والباستا والبيتزا.
     // الحقل بيظهر أيضًا إذا الصنف عنده قيمة محفوظة فيه (حتى ما نخفي بيانات موجودة). أصناف المخزون (بيبسي، ماء...) سعرها من المخزون: لا وجبة ولا كبير.
     const MEAL_CATS = new Set(["burgers", "sandwiches", "snacks"]);
+    const ICE_CATS = new Set(["cold", "cocktails", "juices", "shakes"]);
     const LARGE_CATS = new Set(["cocktails", "juices", "shakes", "cold", "hot", "pasta", "pizza"]);
 
     // ---------- النافذة (تعديل بطاقة / بطاقة جديدة) ----------
@@ -371,6 +372,7 @@
             <input id="f-hall" type="number" inputmode="decimal" step="0.05" min="0" value="${hall0 ? esc(hall0) : ""}" placeholder="سعر الصالة" aria-label="سعر الصالة"${hall0 ? "" : " hidden"}${dis}></div>
           <div class="field" data-opt="meal"><label for="f-meal">سعر الوجبة (الكلي)</label><input id="f-meal" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.meal_price ? esc(p.meal_price) : ""}" placeholder="بدون"${disP}></div>
           <div class="field" data-opt="meal"><label for="f-dbl">سعر وجبة دبل (الكلي)</label><input id="f-dbl" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.double_meal_price ? esc(p.double_meal_price) : ""}" placeholder="بدون"${disP}></div>
+          <div class="field" data-opt="ice"><label>خيار الثلج</label><div class="hint">«مع ثلج / بدون ثلج» ظاهر عند الكاشير لهالصنف. السعر ما بتغير.</div></div>
           <div class="field" data-opt="large"><label for="f-large">سعر الكبير (الكلي)</label><input id="f-large" type="number" inputmode="decimal" step="0.05" min="0" value="${p && largePrice(p) ? esc(largePrice(p)) : ""}" placeholder="بدون"${disP}></div>
           <div class="field"><label for="f-img">رابط الصورة</label><input id="f-img" type="url" dir="ltr" value="${esc(p ? p.image_url : "")}" placeholder="https://..."${dis}>
             <img class="ic-prev" id="f-prev" alt="" ${p && p.image_url ? `src="${esc(p.image_url)}"` : "hidden"}></div>
@@ -398,7 +400,7 @@
       const hasMeal = !!(p && (num(p.meal_price) || num(p.double_meal_price))), hasLarge = !!(p && largePrice(p));
       const syncOpts = () => {
         const cat = bd.querySelector("#f-cat").value;
-        const show = { meal: !stock && (MEAL_CATS.has(cat) || hasMeal), large: !stock && (LARGE_CATS.has(cat) || hasLarge) };
+        const show = { meal: !stock && (MEAL_CATS.has(cat) || hasMeal), large: !stock && (LARGE_CATS.has(cat) || hasLarge), ice: ICE_CATS.has(cat) };
         bd.querySelectorAll("[data-opt]").forEach((el) => { el.hidden = !show[el.dataset.opt]; });
       };
       bd.querySelector("#f-cat").addEventListener("change", syncOpts);
