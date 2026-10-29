@@ -773,9 +773,15 @@
       });
       go.addEventListener("click", async () => {
         go.disabled = true;
-        const { error } = await db.rpc("settle_table_tab", {
-          p_sale_ids: ids, p_cash: num(cash), p_card: num(card), p_discount: num(disc), p_entry_date: olvToday(),
-        });
+        let error = null;
+        try {
+          await olvWithApproval("discount", async () => {
+            const r = await db.rpc("settle_table_tab", {
+              p_sale_ids: ids, p_cash: num(cash), p_card: num(card), p_discount: num(disc), p_entry_date: olvToday(),
+            });
+            if (r.error) throw r.error;
+          });
+        } catch (e) { error = e; }
         if (error) {
           olvToast(/settle_table_tab/.test(error.message || "") && /function|schema cache/i.test(error.message || "")
             ? "ميزة الحساب المفتوح لسا ما تفعّلت بقاعدة البيانات" : error.message, { type: "danger", icon: "warning", ms: 6000 });

@@ -403,6 +403,22 @@
     <div class="settings-panel" data-panel="security">
 
     <div class="group">
+      <h2>رمز موافقة المدير</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        لما الكاشير يحتاج إلغاء بعد المهلة أو خصم فوق سقفه، بيدخل رمز المدير على جهازه وبيكمّل، بدون ما تسجّل دخول.
+        كل مدير/مالك إله رمز خاص (4 لـ 8 أرقام)، وبيتسجّل بسجل التدقيق مين وافق. الموافقة لعملية وحدة وأقل من 3 دقايق.
+      </p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="field" style="flex:1; min-width:180px; margin-bottom:0;">
+          <label for="mgr-pin">رمزي (أرقام فقط)</label>
+          <input type="password" id="mgr-pin" inputmode="numeric" maxlength="8" autocomplete="off" dir="ltr">
+        </div>
+        <button type="button" class="btn gold" id="mgr-pin-save" style="min-height:48px;">حفظ الرمز</button>
+      </div>
+      <div class="hint" id="mgr-pin-state" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="group">
       <h2>حدود صلاحيات الكاشير</h2>
       <p class="hint" style="margin-bottom:14px;">
         الكاشير يقدر يبيع ويلغي طلباته هو فقط خلال مدة قصيرة وبسبب إلزامي، وخصمه
@@ -1369,8 +1385,25 @@
       } catch (e) { el.textContent = "ما قدرنا نقرا حالة النسخة الاحتياطية"; }
     }
 
+    async function loadMgrPinState() {
+      const el = document.getElementById("mgr-pin-state");
+      const { data, error } = await window.supabaseClient.rpc("has_manager_pin");
+      el.textContent = error ? "" : data ? "✓ رمزك محفوظ. بتقدر تغيّره بأي وقت." : "لسا ما حطيت رمز: الكاشير ما بيقدر ياخد موافقة منك.";
+    }
+    document.getElementById("mgr-pin-save").addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      const input = document.getElementById("mgr-pin");
+      const { error } = await window.supabaseClient.rpc("set_my_manager_pin", { p_pin: input.value.trim() });
+      if (error) { olvShowError(errBox, error); return; }
+      input.value = "";
+      olvToast("انحفظ رمز الموافقة", { type: "ok", icon: "check" });
+      loadMgrPinState();
+    });
+
     async function loadSecurity() {
       const errBox = document.getElementById("err");
+      loadMgrPinState();
       try {
         const { data: settings } = await window.supabaseClient
           .from("app_settings").select("key, value").in("key", ["staff_max_discount_percent", "staff_void_minutes"]);
