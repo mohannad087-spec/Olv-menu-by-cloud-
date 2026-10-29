@@ -999,7 +999,59 @@ function olvScrollFades(root = document) {
     sync();
   });
 }
+// ---- التحديث التلقائي (2026-10-29): شاشات المحل (الكاشير، المطبخ…) بتضل مفتوحة طول اليوم
+// فما كانت تشوف أي تحديث لحد ما حدا يحدّث الصفحة بإيده. كل نشر بيكتب version.json
+// (.github/workflows/static.yml)، والصفحة بتسأل عنه كل 3 دقايق ولما ترجع للواجهة.
+// إذا تغيّر: الصفحة اللي بتعرّف window.olvAutoReload (ودالتها بترجع true = ما في شغل
+// بيضيع، متل تذكرة فاضية) بتتحدث لحالها؛ الباقي بيطلعلها شريط «حدّث هلأ».
+// منستنى 11 دقيقة بعد النشر لأن GitHub Pages بيخزّن الملفات لعشر دقايق.
+function olvWatchUpdates() {
+  if (location.protocol === "file:") return;
+  let first = null, pending = false, bar = null;
+  const get = () => fetch("version.json?t=" + Date.now(), { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  // ملء الشاشة بيروح مع التحديث وما بيرجع بدون ضغطة، فمنكتفي بالشريط
+  const busy = () => !!document.fullscreenElement || !!document.querySelector(".sheet-backdrop, .checkout-backdrop, .olv-modal-backdrop, dialog[open], .modal.open")
+    || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.value);
+  function apply() {
+    if (!pending) return;
+    let auto = false;
+    try { auto = typeof window.olvAutoReload === "function" && window.olvAutoReload() && !busy(); } catch (_) { auto = false; }
+    if (auto) { location.reload(); return; }
+    if (bar) return;
+    bar = document.createElement("div");
+    bar.className = "olv-update-bar";
+    bar.setAttribute("role", "status");
+    bar.innerHTML = `<span>في تحديث جديد للبرنامج</span><button type="button">حدّث هلأ</button>`;
+    bar.querySelector("button").addEventListener("click", () => {
+      // الكاشير بنص طلب؟ ما منضيّع التذكرة: بيتحدث لحاله أول ما تفضى
+      if (typeof window.olvAutoReload === "function" && !window.olvAutoReload() && typeof olvToast === "function") {
+        olvToast("خلّص الطلب أول، والبرنامج بيتحدث لحاله", { type: "info" });
+        return;
+      }
+      location.reload();
+    });
+    document.body.appendChild(bar);
+  }
+  async function check() {
+    const v = await get();
+    if (!v || !v.v) return;
+    if (!first) { first = v.v; return; }
+    if (v.v === first) return;
+    const age = Date.now() - Date.parse(v.at || 0);
+    if (!(age > 11 * 60e3)) return; // لسا الملفات القديمة ممكن تكون مخزّنة
+    pending = true;
+    apply();
+  }
+  check();
+  setInterval(check, 3 * 60e3);
+  setInterval(apply, 20e3); // الكاشير خلّص الطلب؟ هلأ منحدّث
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+  window.addEventListener("online", check);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  olvWatchUpdates();
   olvSkeletons();
   olvA11yTables();
   olvEmptyStates();

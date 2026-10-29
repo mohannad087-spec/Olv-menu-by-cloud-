@@ -163,6 +163,8 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script>
+    // شاشة الطلبات الواردة ما فيها شي بيضيع: التحديث الجديد بينزل عليها لحاله (olvWatchUpdates بـ layout.js)
+    window.olvAutoReload = () => true;
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("incoming-orders");
 

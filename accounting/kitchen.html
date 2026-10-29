@@ -302,6 +302,8 @@
     document.querySelectorAll("[data-ic]").forEach((el) => { el.outerHTML = olvIcon(el.dataset.ic); });
 
     const db = window.supabaseClient;
+    // شاشة المطبخ ما فيها شي بيضيع: التحديث الجديد بينزل عليها لحاله (olvWatchUpdates بـ layout.js)
+    window.olvAutoReload = () => true;
     const PENDING_STATUS = "قيد التحضير";
     const READY_STATUS = "جاهز";
     const WINDOW_HOURS = 12; // الشاشة بتعرض طلبات آخر 12 ساعة بس؛ الأقدم «عالقة» وبتنعرض كتنبيه لحالها
