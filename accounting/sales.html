@@ -254,18 +254,56 @@
   .od-reprints{margin:10px 2px 0; font-size:12px; color:var(--muted); line-height:1.7;}
   .od-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
   .od-actions .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px;}
-  .ai-dlg{border:1px solid var(--border,#ddd); border-radius:16px; padding:0; width:min(560px,94vw); max-height:90vh; background:var(--card,#fff); color:inherit;}
-  .ai-dlg::backdrop{background:rgba(0,0,0,.45);}
-  .ai-body{padding:16px; display:flex; flex-direction:column; gap:10px; max-height:88vh; overflow:auto;}
-  .ai-body h3{margin:0;}
-  .ai-hint{font-size:13px; opacity:.75; margin:0;}
-  .ai-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; max-height:200px; overflow:auto;}
-  .ai-list button{min-height:44px; text-align:start; padding:6px 10px; border-radius:10px; border:1px solid var(--border,#ddd); background:transparent; color:inherit; font:inherit; cursor:pointer;}
-  .ai-list button small{display:block; opacity:.7;}
-  .ai-line{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--border,#eee);}
-  .ai-line .q{display:flex; align-items:center; gap:6px;}
-  .ai-line .q button{min-width:36px; min-height:36px;}
-  .ai-foot{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
+  /* نافذة إضافة أصناف: ورقة معتمة بتوكنات النظام، تنزل من تحت بالموبايل */
+  .ai-dlg{border:1px solid var(--hair); border-radius:22px; padding:0; width:min(620px,94vw); max-height:min(88vh,760px); background:var(--ink-2); color:var(--paper); overflow:hidden; margin:auto;}
+  .ai-dlg[open]{display:flex; animation:ai-in .22s var(--spring) both;}
+  .ai-dlg::backdrop{background:rgba(23,18,13,.5); animation:ai-bd .18s var(--spring) both;}
+  @keyframes ai-in{from{opacity:0; transform:scale(.96) translateY(8px);} to{opacity:1; transform:none;}}
+  @keyframes ai-bd{from{opacity:0;} to{opacity:1;}}
+  .ai-body{display:flex; flex-direction:column; width:100%; min-height:0;}
+  .ai-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:18px 20px 10px;}
+  .ai-head h3{margin:0; font-size:20px; font-weight:800;}
+  .ai-hint{font-size:13px; color:var(--muted); margin:4px 0 0; line-height:1.5;}
+  .ai-x{min-width:44px; min-height:44px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  .ai-x .icon{width:18px; height:18px;}
+  .ai-scroll{overflow:auto; padding:0 20px 8px; display:flex; flex-direction:column; gap:12px; min-height:0; flex:1;}
+  .ai-search{position:relative;}
+  .ai-search .icon{position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--muted); pointer-events:none;}
+  .ai-search input{width:100%; box-sizing:border-box; min-height:48px; padding:10px 12px; padding-inline-start:38px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font:inherit;}
+  .ai-search input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .ai-search, .ai-cats, .ai-list, .ai-sec, .ai-line{flex:none;}
+  .ai-cats{display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none;}
+  .ai-cats::-webkit-scrollbar{display:none;}
+  .ai-cats .s-chip{flex:none; min-height:40px; padding:0 14px;}
+  .ai-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(138px,1fr)); gap:8px; max-height:236px; overflow:auto; padding:2px;}
+  .ai-tile{min-height:64px; text-align:start; padding:10px 12px; border-radius:14px; border:1px solid var(--hair); background:var(--ink); color:var(--paper); font:inherit; font-weight:500; line-height:1.3; cursor:pointer; display:flex; flex-direction:column; justify-content:space-between; gap:4px; transition:border-color .15s var(--ease), transform .12s var(--spring);}
+  .ai-tile:active{transform:scale(.97);}
+  .ai-tile:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .ai-tile .pr{color:var(--gold-hi); font-weight:700; font-size:13px; font-variant-numeric:tabular-nums;}
+  .ai-tile.picked{border-color:var(--gold); background:var(--ink-3);}
+  .ai-tile .cnt{align-self:flex-end; min-width:22px; height:22px; border-radius:999px; background:var(--gold); color:var(--on-gold); font-size:12px; font-weight:800; display:inline-flex; align-items:center; justify-content:center;}
+  .ai-sec{font-size:13px; font-weight:700; color:var(--muted); margin:2px 0 -4px;}
+  .ai-line{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--hair-soft);}
+  .ai-line .nm{min-width:0; flex:1; font-weight:500;}
+  .ai-line .nm small{display:block; color:var(--gold-hi); font-weight:700; font-variant-numeric:tabular-nums;}
+  .ai-step{display:inline-flex; align-items:center; gap:2px; background:var(--ink-3); border-radius:14px; padding:2px;}
+  .ai-step button{width:44px; height:44px; border-radius:12px; border:0; background:transparent; color:var(--paper); font:inherit; font-size:20px; cursor:pointer;}
+  .ai-step button:active{background:var(--hair);}
+  .ai-step b{min-width:26px; text-align:center; font-variant-numeric:tabular-nums;}
+  .ai-empty{color:var(--muted); font-size:14px; padding:8px 0;}
+  .ai-foot{display:flex; flex-direction:column; gap:10px; padding:12px 20px 18px; border-top:1px solid var(--hair-soft); background:var(--ink-2);}
+  .ai-pay{display:flex; gap:8px;}
+  .ai-pay .s-chip{flex:1; justify-content:center;}
+  .ai-sum{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .ai-sum .tot{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .ai-sum .tot small{font-size:13px; color:var(--muted); font-weight:500; margin-inline-end:6px;}
+  .ai-sum .btn{min-height:52px; flex:1; max-width:260px; background:var(--olive); border-color:var(--olive); color:var(--on-olive); font-weight:800;}
+  .ai-sum .btn:disabled{opacity:.45; cursor:not-allowed;}
+  @media (max-width:640px){
+    .ai-dlg{width:100vw; max-width:100vw; max-height:92vh; margin:auto 0 0; border-radius:22px 22px 0 0;}
+    .ai-list{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (prefers-reduced-motion:reduce){ .ai-dlg[open], .ai-dlg::backdrop{animation:none;} }
   .s-list-more{display:flex; justify-content:center; padding-top:14px;}
   .s-list-more .btn{min-height:44px;}
   .s-list-more[hidden]{display:none;}
@@ -1120,20 +1158,32 @@
     const aiDlg = $("ai-dlg");
     const aiPrice = (p) => (aiSale && String(aiSale.order_type || "").trim() === "صالة" && Number(p.hall_price) > 0 ? Number(p.hall_price) : Number(p.price));
     const aiTotal = () => aiLines.reduce((t, l) => t + aiPrice(l.p) * l.qty, 0);
+    let aiCat = "", aiMethod = "cash";
+    $("ai-cancel").innerHTML = olvIcon("x");
+    $("ai-sic").innerHTML = olvIcon("search");
     function aiRender() {
       const q = $("ai-search").value.trim();
-      const list = (aiProducts || []).filter((p) => !q || p.name.includes(q) || (p.category || "").includes(q)).slice(0, 60);
-      $("ai-list").innerHTML = list.map((p) => `<button type="button" data-pid="${p.id}">${olvEsc(p.name)}<small>${olvFormatMoney(aiPrice(p))}</small></button>`).join("") || `<p class="ai-hint">ما في نتائج</p>`;
-      $("ai-lines").innerHTML = aiLines.map((l, i) => `<div class="ai-line"><div>${olvEsc(l.p.name)} <small>${olvFormatMoney(aiPrice(l.p) * l.qty)}</small></div>
-        <div class="q"><button class="btn small" type="button" data-dec="${i}">−</button><b>${l.qty}</b><button class="btn small" type="button" data-inc="${i}">+</button></div></div>`).join("");
+      const cats = [...new Set((aiProducts || []).map((p) => p.category || "عام"))];
+      $("ai-cats").innerHTML = ["", ...cats].map((c) => `<button class="s-chip" type="button" data-cat="${olvEsc(c)}" aria-pressed="${aiCat === c}">${c ? olvEsc(c) : "الكل"}</button>`).join("");
+      const list = (aiProducts || []).filter((p) => (!aiCat || (p.category || "عام") === aiCat) && (!q || p.name.includes(q))).slice(0, 80);
+      $("ai-list").innerHTML = list.map((p) => {
+        const l = aiLines.find((x) => x.p.id === p.id);
+        return `<button class="ai-tile${l ? " picked" : ""}" type="button" data-pid="${p.id}"><span>${olvEsc(p.name)}</span><span class="pr">${olvFormatMoney(aiPrice(p))}</span>${l ? `<span class="cnt">${l.qty}</span>` : ""}</button>`;
+      }).join("") || `<p class="ai-empty">ما في نتائج</p>`;
+      $("ai-sec").hidden = !aiLines.length;
+      $("ai-lines").innerHTML = aiLines.map((l, i) => `<div class="ai-line"><div class="nm">${olvEsc(l.p.name)}<small>${olvFormatMoney(aiPrice(l.p) * l.qty)}</small></div>
+        <div class="ai-step"><button type="button" data-dec="${i}" aria-label="نقّص">−</button><b>${l.qty}</b><button type="button" data-inc="${i}" aria-label="زوّد">+</button></div></div>`).join("");
       $("ai-total").textContent = olvFormatMoney(aiTotal());
       $("ai-save").disabled = !aiLines.length;
+      $("ai-pay").querySelectorAll("[data-m]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.m === aiMethod)));
     }
+    $("ai-cats").addEventListener("click", (e) => { const b = e.target.closest("[data-cat]"); if (!b) return; aiCat = b.dataset.cat; aiRender(); });
+    $("ai-pay").addEventListener("click", (e) => { const b = e.target.closest("[data-m]"); if (!b) return; aiMethod = b.dataset.m; aiRender(); });
     async function openAddItems(r) {
       aiSale = r; aiLines = []; aiRef = (crypto.randomUUID ? crypto.randomUUID() : null);
       $("ai-search").value = ""; $("ai-err").style.display = "none";
       $("ai-title").textContent = "إضافة أصناف على " + (r.order_no ? "طلب " + r.order_no : "الطلب");
-      $("ai-pay").value = payOf(r) === "card" ? "card" : payOf(r) === "delivery" ? "delivery" : "cash";
+      aiMethod = payOf(r) === "card" ? "card" : payOf(r) === "delivery" ? "delivery" : "cash"; aiCat = "";
       aiDlg.showModal();
       if (!aiProducts) {
         const { data, error } = await window.supabaseClient.from("products").select("id,name,price,hall_price,category").eq("is_active", true).order("category").order("sort_order");
@@ -1160,7 +1210,7 @@
     $("ai-save").addEventListener("click", async () => {
       if (!aiLines.length) return;
       const btn = $("ai-save"); btn.disabled = true; $("ai-err").style.display = "none";
-      const total = Math.round(aiTotal() * 100) / 100, m = $("ai-pay").value;
+      const total = Math.round(aiTotal() * 100) / 100, m = aiMethod;
       const { error } = await window.supabaseClient.rpc("add_items_to_sale", {
         p_sale_id: aiSale.id,
         p_items: aiLines.map((l) => ({ product_id: l.p.id, qty: l.qty })),
@@ -1324,21 +1374,31 @@
     })();
     });
   </script>
-  <dialog class="ai-dlg" id="ai-dlg">
+  <dialog class="ai-dlg" id="ai-dlg" aria-labelledby="ai-title">
     <div class="ai-body">
-      <h3 id="ai-title">إضافة أصناف على الطلب</h3>
-      <p class="ai-hint">الأصناف الجديدة بس بتنطبع على أقسامها (علامة «إضافة»)، واللي انطبع قبل ما بيتكرر.</p>
-      <input type="search" id="ai-search" placeholder="ابحث عن صنف" autocomplete="off">
-      <div class="ai-list" id="ai-list"></div>
-      <div id="ai-lines"></div>
-      <div class="ai-foot">
-        <label>الدفع <select id="ai-pay"><option value="cash">نقدي</option><option value="card">بطاقة</option><option value="delivery">توصيل</option></select></label>
-        <div>المطلوب: <b id="ai-total">0.00</b></div>
+      <div class="ai-head">
+        <div><h3 id="ai-title">إضافة أصناف على الطلب</h3>
+          <p class="ai-hint">الجديدة بس بتنطبع على أقسامها بعنوان «إضافة»، واللي انطبع قبل ما بيتكرر.</p></div>
+        <button class="ai-x" type="button" id="ai-cancel" aria-label="إغلاق"></button>
       </div>
-      <div class="err" id="ai-err"></div>
+      <div class="ai-scroll">
+        <label class="ai-search"><span id="ai-sic"></span><input type="search" id="ai-search" placeholder="ابحث عن صنف" autocomplete="off"></label>
+        <div class="ai-cats" id="ai-cats" role="group" aria-label="التصنيف"></div>
+        <div class="ai-list" id="ai-list"></div>
+        <div class="ai-sec" id="ai-sec" hidden>الأصناف المضافة</div>
+        <div id="ai-lines"></div>
+        <div class="err" id="ai-err"></div>
+      </div>
       <div class="ai-foot">
-        <button class="btn" type="button" id="ai-cancel">إغلاق</button>
-        <button class="btn pay" type="button" id="ai-save">أضف واطبع الجديد</button>
+        <div class="ai-pay" id="ai-pay" role="group" aria-label="طريقة الدفع">
+          <button class="s-chip" type="button" data-m="cash" aria-pressed="true">نقدي</button>
+          <button class="s-chip" type="button" data-m="card" aria-pressed="false">بطاقة</button>
+          <button class="s-chip" type="button" data-m="delivery" aria-pressed="false">توصيل</button>
+        </div>
+        <div class="ai-sum">
+          <div class="tot"><small>المطلوب</small><span id="ai-total">0.00</span></div>
+          <button class="btn pay" type="button" id="ai-save">أضف وابعت للأقسام</button>
+        </div>
       </div>
     </div>
   </dialog>
