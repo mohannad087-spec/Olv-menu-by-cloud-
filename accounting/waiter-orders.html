@@ -30,6 +30,11 @@
   .wt-table.busy{border:1px solid var(--hair-soft); border-inline-start:5px solid var(--gold); background:var(--ink-2);}
   .wt-table.busy .tot{color:var(--gold-hi); font-weight:800; font-size:17px; font-variant-numeric:tabular-nums;}
   .wt-table.busy .s.late{color:var(--gold-hi);}
+  .wt-search{display:flex; align-items:center; gap:8px; margin:14px 18px 0; padding:0 14px; min-height:52px; border-radius:16px; border:1px solid var(--hair); background:var(--ink-2);}
+  .wt-search input{flex:1; min-width:0; border:0 !important; background:transparent !important; box-shadow:none !important; padding:0 !important; color:var(--paper); font:inherit; font-size:16px; min-height:48px; outline:0;}
+  .wt-search .icon{width:20px; height:20px; color:var(--muted);}
+  .wt-search + .wt-tables{padding-top:12px;}
+  #menu-pane .wt-search{margin:0 0 10px;}
   .wt-order{display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:14px; padding:14px 18px 24px; align-items:start;}
   .wt-order > *{min-width:0;}
   .wt-cats{display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; scrollbar-width:none;}
@@ -178,6 +183,9 @@
     let ref = newRef();            // نفس المعرّف لحد ما ينجح الإرسال (ما بيتكرر الطلب لو انقطع النت)
     let cat = null;
     let sending = false;
+    let qMenu = "";               // بحث الأصناف
+    let qTable = "";              // بحث الطاولات
+    const norm = (v) => String(v || "").toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 1632).trim();
 
     function showErr(msg) { const e = $("err"); e.textContent = msg || ""; e.style.display = msg ? "block" : "none"; }
     const unit = (p) => (Number(p.hall_price) > 0 ? Number(p.hall_price) : Number(p.price));
@@ -194,7 +202,7 @@
       if (error) { showErr(error.message || "تعذّر تحميل الطاولات"); return; }
       showErr("");
       data = d;
-      if (!table) renderTables(); else paintSide();
+      if (!table) { if ($("tbl-body")) paintTables(false); else renderTables(); } else paintSide();
     }
     // القائمة بتنعرض فورًا من آخر نسخة محفوظة على التابلت وبتتحدّث بالخلفية
     const MENU_KEY = "olv_waiter_menu_v1";
@@ -217,23 +225,32 @@
 
     function renderTables() {
       $("title").textContent = "الطاولات"; $("back").hidden = true;
+      $("view").innerHTML = `<label class="wt-search">${olvIcon("search")}<input id="tq" type="search" inputmode="search" placeholder="ابحث برقم الطاولة" value="${esc(qTable)}" aria-label="بحث عن طاولة" autocomplete="off"></label>
+        <div id="tbl-body"></div>`;
+      paintTables(true);
+    }
+    function paintTables(first) {
+      const body = $("tbl-body");
+      if (!body) return;
       const names = data.tables.slice();
       data.tabs.forEach((t) => { if (!names.some((n) => key(n) === key(t.table_number))) names.push(t.table_number); });
       names.sort((a, b) => String(a).localeCompare(String(b), "en", { numeric: true }));
-      $("view").innerHTML = names.length
-        ? `<div class="wt-legend"><span><i style="background:var(--gold)"></i>عليها حساب</span><span><i style="background:var(--olive)"></i>فاضية</span></div>
-           <div class="wt-tables">${names.map((n, i) => {
+      const q = norm(qTable);
+      const shown = q ? names.filter((n) => norm(n).includes(q)) : names;
+      body.innerHTML = names.length
+        ? `<div class="wt-legend"><span><i style="background:var(--gold)"></i>عليها حساب</span><span><i style="background:var(--olive)"></i>فاضية</span></div>`
+          + (shown.length ? `<div class="wt-tables">${shown.map((n, i) => {
             const t = tabOf(n);
             const m = t ? mins(t.opened_at) : 0;
+            const cls = first ? " wt-enter" : "";
             return t
-              ? `<button class="wt-table busy wt-enter" style="--i:${Math.min(i, 12)}" data-t="${esc(n)}"><span class="n">${esc(n)}</span><span class="tot">${money(tabTotal(t))}</span><span class="s${m > 90 ? " late" : ""}">${olvIcon("clock")} من ${dur(m)}</span></button>`
-              : `<button class="wt-table wt-enter" style="--i:${Math.min(i, 12)}" data-t="${esc(n)}"><span class="n">${esc(n)}</span><span class="s"><i></i>فاضية</span></button>`;
-          }).join("")}</div>`
+              ? `<button class="wt-table busy${cls}" style="--i:${Math.min(i, 12)}" data-t="${esc(n)}"><span class="n">${esc(n)}</span><span class="tot">${money(tabTotal(t))}</span><span class="s${m > 90 ? " late" : ""}">${olvIcon("clock")} من ${dur(m)}</span></button>`
+              : `<button class="wt-table${cls}" style="--i:${Math.min(i, 12)}" data-t="${esc(n)}"><span class="n">${esc(n)}</span><span class="s"><i></i>فاضية</span></button>`;
+          }).join("")}</div>` : `<div class="wt-empty">ما في طاولة بهالرقم</div>`)
         : `<div class="wt-empty">ما في طاولات مسجّلة. خبّر المدير.</div>`;
-      $("view").querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => openTable(b.dataset.t)));
     }
 
-    function openTable(n) { table = n; cart = []; ref = newRef(); cat = null; renderOrder(true); }
+    function openTable(n) { table = n; cart = []; ref = newRef(); cat = null; qMenu = ""; renderOrder(true); }
 
     // رسم شاشة الطلب: الهيكل مرة وحدة، والقائمة والتذكرة بتتحدّثوا لحالهم (بدل ما نعيد رسم كل شي مع كل ضغطة)
     function renderOrder(first) {
@@ -243,16 +260,20 @@
     }
     const qtyOf = (id) => cart.filter((l) => l.p.id === id).reduce((s, l) => s + l.qty, 0);
     function paintMenu(first) {
+      const pane = $("menu-pane");
+      if (!pane.firstChild) pane.innerHTML = `<label class="wt-search">${olvIcon("search")}<input id="mq" type="search" inputmode="search" placeholder="ابحث عن صنف" value="${esc(qMenu)}" aria-label="بحث عن صنف" autocomplete="off"></label><div id="menu-body"></div>`;
       const cats = [...new Set(menu.products.map((p) => p.category).filter(Boolean))];
       if (!cat || !cats.includes(cat)) cat = cats[0] || null;
-      $("menu-pane").innerHTML = `
-        <div class="wt-cats">${cats.map((c) => `<button class="wt-cat${c === cat ? " on" : ""}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
-        <div class="wt-grid">${menu.products.filter((p) => p.category === cat).map((p, i) => `
+      const q = norm(qMenu);
+      const list = q ? menu.products.filter((p) => norm(p.name).includes(q)) : menu.products.filter((p) => p.category === cat);
+      $("menu-body").innerHTML = `
+        ${q ? "" : `<div class="wt-cats">${cats.map((c) => `<button class="wt-cat${c === cat ? " on" : ""}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`}
+        ${list.length ? `<div class="wt-grid">${list.map((p, i) => `
           <button class="wt-prod${first ? " wt-enter" : ""}" style="--i:${Math.min(i, 12)}" data-p="${esc(p.id)}">
             <span class="nm">${esc(p.name)}</span>
             <span class="pr">${money(unit(p))}</span>
             ${qtyOf(p.id) ? `<span class="q">${qtyOf(p.id)}</span>` : ""}
-          </button>`).join("")}</div>`;
+          </button>`).join("")}</div>` : `<div class="wt-empty">ما في صنف بهالاسم</div>`}`;
     }
     // عدّادات الكمية على الأصناف بدون إعادة رسم القائمة
     function paintBadges() {
@@ -296,6 +317,7 @@
                 + `<div class="wt-total"><span>المجموع</span><span>${money(tabTotal(tab))}</span></div>`
                 : `<div class="wt-empty">ما في حساب مفتوح على هالطاولة</div>`}
               ${tab && liveItems(tab).length ? `<button class="btn wt-void" id="bill" style="width:100%">${olvIcon("printer")} اطبع الحساب</button>` : ""}
+              ${tab ? `<button class="btn wt-void" id="move" style="width:100%;margin-top:8px">${olvIcon("refresh")} نقل / دمج الطاولة</button>` : ""}
               <div class="wt-empty" style="padding:4px 0 0;font-size:13px">الدفع والفاتورة النهائية عند الكاشير</div>
             </div>`;
       side.scrollTop = keepScroll;
@@ -303,7 +325,7 @@
 
     // مستمعين مرة وحدة على الحاوية (بدل ربطهم من جديد بعد كل رسم)
     $("view").addEventListener("click", (e) => {
-      const t = e.target.closest("[data-t],[data-c],[data-p],[data-m],[data-a],[data-v],#send,#bill");
+      const t = e.target.closest("[data-t],[data-c],[data-p],[data-m],[data-a],[data-v],#send,#bill,#move");
       if (!t) return;
       if (t.dataset.t != null) return openTable(t.dataset.t);
       if (t.dataset.c != null) { cat = t.dataset.c; return paintMenu(true); }
@@ -313,8 +335,53 @@
       if (t.dataset.v != null) return voidSheet(t.dataset.v);
       if (t.id === "send") return sendOrder();
       if (t.id === "bill") return billSheet(tabOf(table));
+      if (t.id === "move") return moveSheet(tabOf(table));
     });
-    $("view").addEventListener("input", (e) => { const n = e.target.dataset && e.target.dataset.n; if (n != null) cart[+n].note = e.target.value; });
+    $("view").addEventListener("input", (e) => {
+      const n = e.target.dataset && e.target.dataset.n;
+      if (n != null) cart[+n].note = e.target.value;
+      if (e.target.id === "mq") { qMenu = e.target.value; paintMenu(false); }
+      if (e.target.id === "tq") { qTable = e.target.value; paintTables(false); }
+    });
+
+    // نقل حساب الطاولة لطاولة ثانية؛ لو الثانية عليها حساب مفتوح بينضم معه (دمج)
+    function moveSheet(tab) {
+      const names = data.tables.slice();
+      data.tabs.forEach((t) => { if (!names.some((n) => key(n) === key(t.table_number))) names.push(t.table_number); });
+      const others = names.filter((n) => key(n) !== key(tab.table_number)).sort((a, b) => String(a).localeCompare(String(b), "en", { numeric: true }));
+      let to = null, q = "";
+      const bg = sheetShell("");
+      const box = bg.firstChild;
+      const render = () => {
+        const f = norm(q);
+        const list = f ? others.filter((n) => norm(n).includes(f)) : others;
+        const merge = to != null && !!tabOf(to);
+        box.innerHTML = `
+          <h3>نقل / دمج طاولة ${esc(tab.table_number)}</h3>
+          <label class="wt-search" style="margin:0">${olvIcon("search")}<input id="mvq" type="search" inputmode="search" placeholder="رقم الطاولة الجديدة" value="${esc(q)}" aria-label="بحث عن طاولة" autocomplete="off"></label>
+          <div class="wt-opts" style="max-height:34vh;overflow:auto">${list.map((n) => `<button class="wt-opt" data-n="${esc(n)}" aria-pressed="${to === n}">${esc(n)}${tabOf(n) ? " · دمج" : ""}</button>`).join("") || `<div class="wt-empty">ما في طاولة بهالرقم</div>`}</div>
+          <div class="wt-empty" style="padding:0;font-size:13px">${to == null ? "اختار الطاولة الجديدة. اللي عليها «دمج» عندها حساب مفتوح وبينضم معه." : merge ? `بينضم حساب طاولة ${esc(tab.table_number)} لحساب طاولة ${esc(to)}.` : `بينتقل الحساب كله لطاولة ${esc(to)}.`}</div>
+          <div class="wt-btns"><button class="btn" id="mvx" style="flex:1">رجوع</button><button class="btn gold" id="mvok" style="flex:2" ${to == null ? "disabled" : ""}>${olvIcon("refresh")} ${merge ? "اضغط مطوّلاً للدمج" : "اضغط مطوّلاً للنقل"}</button></div>`;
+        box.querySelectorAll("[data-n]").forEach((b) => b.addEventListener("click", () => { to = b.dataset.n; render(); }));
+        const inp = box.querySelector("#mvq");
+        inp.addEventListener("input", () => { q = inp.value; const pos = inp.selectionStart; render(); const n = box.querySelector("#mvq"); n.focus(); n.setSelectionRange(pos, pos); });
+        box.querySelector("#mvx").addEventListener("click", () => bg.remove());
+        const ok = box.querySelector("#mvok");
+        olvHoldConfirm(ok, async () => {
+          ok.disabled = true;
+          const dest = to, src = tab.table_number;
+          const { error } = await sb().rpc("waiter_move_table", { p_from: olvNormTable(src), p_to: olvNormTable(dest) });
+          bg.remove();
+          if (error) { showErr(/waiter_move_table/.test(error.message || "") && /function|schema cache/i.test(error.message || "") ? "ميزة النقل لسا ما انفعّلت، خبّر المدير" : (error.message || "ما انتقلت الطاولة")); return; }
+          showErr("");
+          olvToast(merge ? "اندمجت الطاولة مع " + dest : "انتقل الحساب لطاولة " + dest, { type: "gold", icon: "check" });
+          table = null; cart = []; ref = newRef(); qMenu = "";
+          await loadTables();
+          renderTables();
+        }, { hint: "اضغط مطوّلاً للتأكيد" });
+      };
+      render();
+    }
 
     // طباعة الحساب: مسودة أو نسخة زبون، وعلى أي طابعة (كاش، بار...). ما بيسكّر الحساب وما في دفع
     function billSheet(tab) {
@@ -471,7 +538,7 @@
 
     $("back").addEventListener("click", () => {
       if (cart.length && !confirm("في أصناف ما انرسلت، تتركها؟")) return;
-      table = null; cart = []; ref = newRef(); renderTables();
+      table = null; cart = []; ref = newRef(); qMenu = ""; renderTables();
     });
     // الخروج مو سهل: ضغط مطوّل ثانيتين (حتى ما يطلع الويتر بالغلط)
     olvHoldConfirm($("logout"), async () => { await sb().auth.signOut(); window.location.href = "login.html"; }, { ms: 2000, hint: "اضغط مطوّلاً ثانيتين للخروج" });
