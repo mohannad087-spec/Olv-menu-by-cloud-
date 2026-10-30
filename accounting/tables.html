@@ -663,6 +663,7 @@
       if (!t) { sheet.close(); return; }
       let body = "", sub = "", acts = "";
       if (payKey === k && t.tabs && t.tabs.length) { renderPay(t, box); return; }
+      if (moveKey === k && t.tabs && t.tabs.length) { renderMove(t, box); return; }
       const newOrder = (label, primary) => `<a class="btn${primary ? " go" : ""}" href="${olvEsc(posLink(t.label, t.lastName))}">${olvIcon("plus")}<span>${label}</span></a>`;
       if (t.state === "busy") {
         const agg = new Map();
@@ -684,7 +685,7 @@
               ${s.kitchen_status === PENDING ? `<span class="tc-k pending">${olvIcon("flame")}بالتحضير</span>` : `<span class="tc-k ready">${olvIcon("check")}جاهز</span>`}
               <span class="o-amt">${olvFormatMoney(saleTotal(s))}</span></li>`).join("")}</ul></div>`;
         acts = t.tabs.length
-          ? newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="pay">${olvIcon("banknote")}<span>حاسب الطاولة · ${olvFormatMoney(t.tabTotal)}</span></button>`
+          ? newOrder("زيد طلب") + `<button type="button" class="btn" data-act="prebill">${olvIcon("receipt")}<span>فاتورة مبدئية</span></button><button type="button" class="btn" data-act="move">${olvIcon("people")}<span>انقل / ادمج</span></button><button type="button" class="btn go" data-act="pay">${olvIcon("banknote")}<span>حاسب الطاولة · ${olvFormatMoney(t.tabTotal)}</span></button>`
           : newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="free">${olvIcon("check")}<span>حرّر الطاولة</span></button>`;
       } else if (t.state === "seated") {
         sub = `وصلوا من ${dur(mins(t.seated.updated_at))}، لسا ما طلبوا`;
@@ -718,6 +719,66 @@
         </div>
         <div class="sh-body">${body}</div>
         <div class="sh-foot">${acts}${addReg}</div>`;
+    }
+
+    // ---------- نقل / دمج الحساب لطاولة ثانية ----------
+    let moveKey = null;
+    function renderMove(t, box) {
+      const others = tables.filter((x) => x.key !== t.key && x.registered)
+        .sort((a, b) => String(a.label).localeCompare(String(b.label), "ar", { numeric: true }));
+      box.innerHTML = `
+        <div class="sh-head">
+          <div><h2 id="sh-title">نقل حساب طاولة ${olvEsc(t.label)}</h2><div class="sh-sub">لو الطاولة الثانية عليها حساب مفتوح، الحسابين بينضموا ببعض</div></div>
+          <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
+        </div>
+        <div class="sh-body">
+          <div class="field"><label for="mv-to">انقل لطاولة</label>
+            <select id="mv-to"><option value="">اختار الطاولة</option>${others.map((x) =>
+              `<option value="${olvEsc(x.raw || x.label)}">${olvEsc(x.label)}${x.tabs && x.tabs.length ? " (عليها حساب مفتوح — دمج)" : ""}</option>`).join("")}</select></div>
+        </div>
+        <div class="sh-foot">
+          <button type="button" class="btn" data-act="moveback">${olvIcon("undo")}<span>رجوع</span></button>
+          <button type="button" class="btn go" id="mv-go" disabled>${olvIcon("check")}<span>انقل الحساب</span></button>
+        </div>`;
+      const sel = box.querySelector("#mv-to"), go = box.querySelector("#mv-go");
+      sel.addEventListener("change", () => { go.disabled = !sel.value; });
+      go.addEventListener("click", async () => {
+        go.disabled = true;
+        const { error } = await db.rpc("move_table_tab", { p_from: t.raw || t.label, p_to: sel.value });
+        if (error) {
+          olvToast(/move_table_tab/.test(error.message || "") && /function|schema cache/i.test(error.message || "")
+            ? "ميزة النقل لسا ما تفعّلت بقاعدة البيانات" : error.message, { type: "danger", icon: "warning", ms: 6000 });
+          go.disabled = false; return;
+        }
+        moveKey = null;
+        sheet.close();
+        olvToast(`اننقل حساب طاولة ${t.label} لطاولة ${sel.options[sel.selectedIndex].text.split(" (")[0]}`, { type: "ok", icon: "check", ms: 5000 });
+        load();
+      });
+    }
+
+    // ---------- الفاتورة المبدئية (طباعة من المتصفح، مش فاتورة نهائية) ----------
+    function printPreBill(t) {
+      const agg = new Map();
+      t.tabs.forEach((s) => liveItems(s).forEach((it) => {
+        const n = it.product_name + (it.addons_summary ? ` (${it.addons_summary})` : "");
+        const line = (Number(it.unit_price || 0) + Number(it.addons_total || 0)) * Number(it.qty || 0);
+        const cur = agg.get(n) || { q: 0, amt: 0 };
+        cur.q += Number(it.qty || 0); cur.amt += line; agg.set(n, cur);
+      }));
+      const rows = Array.from(agg).map(([n, v]) => `<tr><td>${v.q}</td><td>${olvEsc(n)}</td><td class="a">${olvFormatMoney(v.amt)}</td></tr>`).join("");
+      const w = window.open("", "_blank", "width=380,height=600");
+      if (!w) { olvToast("المتصفح منع نافذة الطباعة، اسمح بالنوافذ المنبثقة", { type: "danger", icon: "warning", ms: 5000 }); return; }
+      w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة مبدئية</title>
+        <style>@page{size:80mm auto;margin:4mm}body{font-family:Tajawal,Arial,sans-serif;width:72mm;margin:0 auto;color:#000;font-size:13px}
+        h1{font-size:16px;text-align:center;margin:4px 0}.c{text-align:center}table{width:100%;border-collapse:collapse;margin:8px 0}
+        td{padding:3px 0;border-bottom:1px dashed #999}.a{text-align:left;white-space:nowrap}.t{font-size:16px;font-weight:700;display:flex;justify-content:space-between;margin-top:6px}</style></head>
+        <body><h1>OLV</h1><div class="c"><b>فاتورة مبدئية</b><br>ليست فاتورة نهائية</div>
+        <div class="c">طاولة ${olvEsc(t.label)} · ${new Date().toLocaleString("ar", { numberingSystem: "latn" })}</div>
+        <table>${rows}</table><div class="t"><span>المجموع</span><span>${olvFormatMoney(t.tabTotal)}</span></div></body></html>`);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); }, 300);
     }
 
     // ---------- حاسب الطاولة ----------
@@ -796,12 +857,12 @@
     }
 
     function openSheet(k) {
-      payKey = null;
+      payKey = null; moveKey = null;
       openKey = k;
       renderSheet(k);
       if (!sheet.open) sheet.showModal();
     }
-    sheet.addEventListener("close", () => { openKey = null; payKey = null; });
+    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; });
     sheet.addEventListener("click", async (e) => {
       if (e.target === sheet) { sheet.close(); return; }
       const b = e.target.closest("[data-act]");
@@ -812,6 +873,9 @@
       if (!t) return;
       if (act === "pay") { payKey = t.key; renderSheet(t.key); return; }
       if (act === "payback") { payKey = null; renderSheet(t.key); return; }
+      if (act === "move") { moveKey = t.key; renderSheet(t.key); return; }
+      if (act === "moveback") { moveKey = null; renderSheet(t.key); return; }
+      if (act === "prebill") { printPreBill(t); return; }
       if (act === "free") { b.disabled = true; await freeTable(t); }
       else if (act === "clean") { b.disabled = true; await cleanTable(t); }
       else if (act === "register") { b.disabled = true; await addTables([t.label]); }
