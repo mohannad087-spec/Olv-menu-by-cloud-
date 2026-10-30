@@ -85,6 +85,7 @@
   .io-card.io-prep{background:var(--ink-3);}
   .io-card .hint .icon{width:13px; height:13px; vertical-align:-2px;}
   .io-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px;}
+  .io-time{font-size:14px; font-weight:700; color:var(--muted,#6b6b6b); margin-inline-end:auto; display:inline-flex; align-items:center; gap:4px;}
   .io-head b{font-weight:800; font-size:21px; color:var(--gold-hi);}
   .io-total{font-weight:800; font-size:20px; white-space:nowrap; font-variant-numeric:tabular-nums;}
   .io-badges{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
@@ -228,6 +229,17 @@
       `;
     }
 
+    // وقت وصول الطلب (توقيت عمّان) + كم صار له
+    function orderTimeHtml(o) {
+      const t = o.createdAt ? new Date(o.createdAt) : null;
+      if (!t || isNaN(t)) return "";
+      const hm = t.toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit", numberingSystem: "latn", timeZone: "Asia/Amman" });
+      const mins = Math.max(0, Math.round((Date.now() - t.getTime()) / 60000));
+      const ago = mins < 1 ? "هلأ" : mins < 60 ? `قبل ${mins} د` : `قبل ${Math.floor(mins / 60)} س ${mins % 60} د`;
+      return `<span class="io-time">${olvIcon("clock")} ${hm} · ${ago}</span>`;
+    }
+    setInterval(() => { if (typeof renderOrders === "function" && lastOrders && lastOrders.length) renderOrders(); }, 60000);
+
     const ioTracker = olvNewTracker();
     function renderOrders() {
       const list = document.getElementById("orders-list");
@@ -249,6 +261,7 @@
           <div class="io-card${isNew ? " io-new" : " io-prep"}" data-row-id="${olvEsc(String(o.id))}">
             <div class="io-head">
               <b>#${olvEsc(o.number)}</b>
+              ${orderTimeHtml(o)}
               <div class="io-total">${olvFormatMoney(o.total)}</div>
             </div>
             <div class="io-badges">
