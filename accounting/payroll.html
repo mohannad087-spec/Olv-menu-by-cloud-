@@ -109,7 +109,8 @@
   .pay-net b{display:block; font-size:21px; font-weight:800; font-variant-numeric:tabular-nums;}
   .pay-net small{color:var(--muted); font-size:11.5px;}
   .pay-net.neg b{color:var(--danger-hi);}
-  .pay-eq{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;}
+  .pay-eq{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
+  @media (min-width:560px){.pay-eq{grid-template-columns:repeat(4,minmax(0,1fr));}}
   .pay-eq div{background:var(--ink-2); border-radius:12px; padding:8px 10px; min-width:0;}
   .pay-eq span{display:block; font-size:11.5px; color:var(--muted);}
   .pay-eq b{display:block; font-size:14px; font-weight:800; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -255,6 +256,8 @@
     const errBox = $("err");
     const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
     const HIST_STEP = 20;
+    // مكافأة ثابتة لكل موظف عن الفترة (بدل أجر يوم الإجازة): الراتب = ساعات × أجر الساعة + هالمبلغ
+    const FIXED_BONUS = 10;
     let myRole = null;
     let canManage = false;
     let profilesById = new Map();
@@ -408,9 +411,10 @@
             const h = hoursMap.get(profileId) || { hours: 0, openCount: 0 };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
-            const gross = hourlyWage != null ? h.hours * hourlyWage : 0;
+            const bonus = h.hours > 0 ? FIXED_BONUS : 0;
+            const gross = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus;
             const advancesTotal = advancesTotalFor(profileId);
-            return { profileId, hours: h.hours, openCount: h.openCount, hourlyWage, gross, advancesTotal, net: gross - advancesTotal };
+            return { profileId, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, gross, advancesTotal, net: gross - advancesTotal };
           })
           .filter((r) => r.hours > 0 || r.advancesTotal > 0)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
@@ -435,11 +439,12 @@
         <li class="pay-card">
           <div class="pay-top">
             <span class="av" aria-hidden="true">${olvEsc(initial(r.profileId)) || olvIcon("person")}</span>
-            <span class="t"><b>${olvEsc(empName(r.profileId))}</b><small>${fmtHrs(r.hours)} ساعة${r.hourlyWage != null ? ` × ${olvFormatMoney(r.hourlyWage)}` : ""}</small></span>
+            <span class="t"><b>${olvEsc(empName(r.profileId))}</b><small>${fmtHrs(r.hours)} ساعة${r.hourlyWage != null ? ` × ${olvFormatMoney(r.hourlyWage)}` : ""}${r.bonus ? ` + ${olvFormatMoney(r.bonus)}` : ""}</small></span>
             <span class="pay-net${r.net < 0 ? " neg" : ""}"><b>${olvFormatMoney(r.net)}</b><small>الصافي</small></span>
           </div>
           <div class="pay-eq">
             <div><span>الساعات</span><b>${fmtHrs(r.hours)}</b></div>
+            <div><span>مكافأة ثابتة</span><b>${olvFormatMoney(r.bonus)}</b></div>
             <div><span>الإجمالي</span><b>${olvFormatMoney(r.gross)}</b></div>
             <div class="minus"><span>سلف مخصومة</span><b>${olvFormatMoney(r.advancesTotal)}</b></div>
           </div>
@@ -454,7 +459,7 @@
       const row = previewRows.find((r) => r.profileId === profileId);
       if (!row) return;
       const msg = `تأكيد دفع ${olvFormatMoney(row.net)} لـ${empName(profileId)}؟\n` +
-        `(${row.hours.toFixed(1)} ساعة × ${row.hourlyWage != null ? olvFormatMoney(row.hourlyWage) : "—"} = ${olvFormatMoney(row.gross)}` +
+        `(${row.hours.toFixed(1)} ساعة × ${row.hourlyWage != null ? olvFormatMoney(row.hourlyWage) : "—"}${row.bonus ? ` + ${olvFormatMoney(row.bonus)} ثابت` : ""} = ${olvFormatMoney(row.gross)}` +
         `${row.advancesTotal ? `، مطروح منه سلف ${olvFormatMoney(row.advancesTotal)}` : ""})`;
       if (!confirm(msg)) return;
       if (btn) btn.disabled = true;
