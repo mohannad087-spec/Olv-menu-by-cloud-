@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>طلبات الطاولات — OLV</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
@@ -160,15 +161,14 @@
     const MINUS = `<svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>`;
     const newRef = () => (crypto.randomUUID ? crypto.randomUUID()
       : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
-    $("logout").innerHTML = olvIcon("undo") + "<span>خروج</span>";
+    $("logout").innerHTML = olvIcon("undo") + "<span>خروج (اضغط مطوّلاً)</span>";
     $("back").innerHTML = olvIcon("grid") + "<span>الطاولات</span>";
 
     const session = await olvRequireAuth();
     if (!session) return;
-    try {
-      const { data } = await sb().from("profiles").select("full_name").eq("id", session.user.id).single();
-      $("who").textContent = (data && data.full_name) || "";
-    } catch (_) {}
+    // الاسم بيجي بالخلفية، ما بنوقف الصفحة عليه
+    sb().from("profiles").select("full_name").eq("id", session.user.id).single()
+      .then(({ data }) => { $("who").textContent = (data && data.full_name) || ""; }, () => {});
 
     let menu = { products: [], addons: [] };
     let printers = [];
@@ -194,12 +194,23 @@
       if (error) { showErr(error.message || "تعذّر تحميل الطاولات"); return; }
       showErr("");
       data = d;
-      if (!table) renderTables(); else renderOrder();
+      if (!table) renderTables(); else paintSide();
+    }
+    // القائمة بتنعرض فورًا من آخر نسخة محفوظة على التابلت وبتتحدّث بالخلفية
+    const MENU_KEY = "olv_waiter_menu_v1";
+    function cachedMenu() {
+      try { const c = JSON.parse(localStorage.getItem(MENU_KEY) || "null"); return c && Array.isArray(c.products) && c.products.length ? c : null; } catch (_) { return null; }
     }
     async function loadMenu() {
       const { data: d, error } = await sb().rpc("waiter_menu");
-      if (error) { showErr(error.message || "تعذّر تحميل القائمة"); return; }
+      if (error) { if (!menu.products.length) showErr(error.message || "تعذّر تحميل القائمة"); return; }
+      const changed = JSON.stringify(d) !== JSON.stringify(menu);
       menu = d;
+      try { localStorage.setItem(MENU_KEY, JSON.stringify(d)); } catch (_) {}
+      if (changed && table && $("menu-pane")) paintMenu(false);
+    }
+    async function loadPrinters() {
+      if (printers.length) return;
       const pr = await sb().rpc("waiter_printers");
       printers = pr.error ? [] : (pr.data || []);
     }
@@ -224,25 +235,40 @@
 
     function openTable(n) { table = n; cart = []; ref = newRef(); cat = null; renderOrder(true); }
 
+    // رسم شاشة الطلب: الهيكل مرة وحدة، والقائمة والتذكرة بتتحدّثوا لحالهم (بدل ما نعيد رسم كل شي مع كل ضغطة)
     function renderOrder(first) {
       $("title").textContent = "طاولة " + table; $("back").hidden = false;
+      if (!$("menu-pane")) $("view").innerHTML = `<div class="wt-order"><section id="menu-pane"></section><aside class="wt-side" id="side-pane"></aside></div>`;
+      paintMenu(first); paintSide();
+    }
+    const qtyOf = (id) => cart.filter((l) => l.p.id === id).reduce((s, l) => s + l.qty, 0);
+    function paintMenu(first) {
       const cats = [...new Set(menu.products.map((p) => p.category).filter(Boolean))];
       if (!cat || !cats.includes(cat)) cat = cats[0] || null;
-      const qtyOf = (id) => cart.filter((l) => l.p.id === id).reduce((s, l) => s + l.qty, 0);
+      $("menu-pane").innerHTML = `
+        <div class="wt-cats">${cats.map((c) => `<button class="wt-cat${c === cat ? " on" : ""}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+        <div class="wt-grid">${menu.products.filter((p) => p.category === cat).map((p, i) => `
+          <button class="wt-prod${first ? " wt-enter" : ""}" style="--i:${Math.min(i, 12)}" data-p="${esc(p.id)}">
+            <span class="nm">${esc(p.name)}</span>
+            <span class="pr">${money(unit(p))}</span>
+            ${qtyOf(p.id) ? `<span class="q">${qtyOf(p.id)}</span>` : ""}
+          </button>`).join("")}</div>`;
+    }
+    // عدّادات الكمية على الأصناف بدون إعادة رسم القائمة
+    function paintBadges() {
+      $("menu-pane").querySelectorAll("[data-p]").forEach((b) => {
+        const n = qtyOf(b.dataset.p);
+        let q = b.querySelector(".q");
+        if (!n) { if (q) q.remove(); return; }
+        if (!q) { q = document.createElement("span"); q.className = "q"; b.appendChild(q); }
+        if (q.textContent !== String(n)) q.textContent = n;
+      });
+    }
+    function paintSide() {
       const tab = tabOf(table);
-      const keepScroll = $("view").querySelector(".wt-side") ? $("view").querySelector(".wt-side").scrollTop : 0;
-      $("view").innerHTML = `
-        <div class="wt-order">
-          <section>
-            <div class="wt-cats">${cats.map((c) => `<button class="wt-cat${c === cat ? " on" : ""}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
-            <div class="wt-grid">${menu.products.filter((p) => p.category === cat).map((p, i) => `
-              <button class="wt-prod${first ? " wt-enter" : ""}" style="--i:${Math.min(i, 12)}" data-p="${esc(p.id)}">
-                <span class="nm">${esc(p.name)}</span>
-                <span class="pr">${money(unit(p))}</span>
-                ${qtyOf(p.id) ? `<span class="q">${qtyOf(p.id)}</span>` : ""}
-              </button>`).join("")}</div>
-          </section>
-          <aside class="wt-side">
+      const side = $("side-pane");
+      const keepScroll = side.scrollTop;
+      side.innerHTML = `
             <div class="wt-card">
               <h2>${olvIcon("receipt")} طلب جديد</h2>
               ${cart.length ? cart.map((l, i) => `
@@ -271,26 +297,30 @@
                 : `<div class="wt-empty">ما في حساب مفتوح على هالطاولة</div>`}
               ${tab && liveItems(tab).length ? `<button class="btn wt-void" id="bill" style="width:100%">${olvIcon("printer")} اطبع الحساب</button>` : ""}
               <div class="wt-empty" style="padding:4px 0 0;font-size:13px">الدفع والفاتورة النهائية عند الكاشير</div>
-            </div>
-          </aside>
-        </div>`;
-      const side = $("view").querySelector(".wt-side"); if (side) side.scrollTop = keepScroll;
-      $("view").querySelectorAll("[data-c]").forEach((b) => b.addEventListener("click", () => { cat = b.dataset.c; renderOrder(true); }));
-      $("view").querySelectorAll("[data-p]").forEach((b) => b.addEventListener("click", () => pickProduct(b.dataset.p)));
-      $("view").querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => { const l = cart[+b.dataset.m]; l.qty -= 1; if (l.qty < 1) cart.splice(+b.dataset.m, 1); renderOrder(); }));
-      $("view").querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => { cart[+b.dataset.a].qty += 1; renderOrder(); }));
-      $("view").querySelectorAll("[data-n]").forEach((inp) => inp.addEventListener("input", () => { cart[+inp.dataset.n].note = inp.value; }));
-      $("view").querySelectorAll("[data-v]").forEach((b) => b.addEventListener("click", () => voidSheet(b.dataset.v)));
-      const send = $("send"); if (send) send.addEventListener("click", sendOrder);
-      const bill = $("bill"); if (bill) bill.addEventListener("click", () => billSheet(tab));
+            </div>`;
+      side.scrollTop = keepScroll;
     }
+
+    // مستمعين مرة وحدة على الحاوية (بدل ربطهم من جديد بعد كل رسم)
+    $("view").addEventListener("click", (e) => {
+      const t = e.target.closest("[data-t],[data-c],[data-p],[data-m],[data-a],[data-v],#send,#bill");
+      if (!t) return;
+      if (t.dataset.t != null) return openTable(t.dataset.t);
+      if (t.dataset.c != null) { cat = t.dataset.c; return paintMenu(true); }
+      if (t.dataset.p != null) return pickProduct(t.dataset.p);
+      if (t.dataset.m != null) { const i = +t.dataset.m; cart[i].qty -= 1; if (cart[i].qty < 1) cart.splice(i, 1); paintSide(); return paintBadges(); }
+      if (t.dataset.a != null) { cart[+t.dataset.a].qty += 1; paintSide(); return paintBadges(); }
+      if (t.dataset.v != null) return voidSheet(t.dataset.v);
+      if (t.id === "send") return sendOrder();
+      if (t.id === "bill") return billSheet(tabOf(table));
+    });
+    $("view").addEventListener("input", (e) => { const n = e.target.dataset && e.target.dataset.n; if (n != null) cart[+n].note = e.target.value; });
 
     // طباعة الحساب: مسودة أو نسخة زبون، وعلى أي طابعة (كاش، بار...). ما بيسكّر الحساب وما في دفع
     function billSheet(tab) {
       let kind = "customer";
       let pid = null;
       try { pid = localStorage.getItem("olv_waiter_printer"); } catch (_) {}
-      if (!printers.some((p) => p.id === pid)) pid = printers[0] ? printers[0].id : null;
       const bg = sheetShell("");
       const box = bg.firstChild;
       const render = () => {
@@ -302,8 +332,8 @@
           </div>
           ${printers.length ? `<div class="wt-empty" style="padding:0;text-align:start">اطبع على:</div>
             <div class="wt-opts">${printers.map((p) => `<button class="wt-opt" data-pr="${esc(p.id)}" aria-pressed="${pid === p.id}">${olvIcon("printer")} ${esc(p.name)}</button>`).join("")}</div>`
-            : `<div class="wt-empty">ما في طابعات مفعّلة. خبّر المدير.</div>`}
-          <div class="wt-btns"><button class="btn" id="bx" style="flex:1">رجوع</button><button class="btn gold" id="bok" style="flex:2" ${pid ? "" : "disabled"}>${olvIcon("printer")} اطبع</button></div>`;
+            : `<div class="wt-empty">جاري تحميل الطابعات...</div>`}
+          <div class="wt-btns"><button class="btn" id="bx" style="flex:1">رجوع</button><button class="btn gold" id="bok" style="flex:2" ${pid && printers.length ? "" : "disabled"}>${olvIcon("printer")} اطبع</button></div>`;
         box.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { kind = b.dataset.k; render(); }));
         box.querySelectorAll("[data-pr]").forEach((b) => b.addEventListener("click", () => { pid = b.dataset.pr; render(); }));
         box.querySelector("#bx").addEventListener("click", () => bg.remove());
@@ -319,6 +349,12 @@
         });
       };
       render();
+      // الطابعات بتنجاب أول مرة نفتح فيها هالورقة بس (مو مع تحميل الصفحة)
+      loadPrinters().then(() => {
+        if (!bg.isConnected) return;
+        if (!printers.some((p) => p.id === pid)) pid = printers[0] ? printers[0].id : null;
+        render();
+      });
     }
 
     // خيارات الصنف: إضافات عادية + (كبير / وجبة / وجبة دبل) إذا الصنف إله إضافة مربوطة
@@ -371,7 +407,7 @@
           const addons = [...chosen.values()];
           const same = cart.find((l) => l.p.id === p.id && !note && !l.note && l.addons.length === addons.length && l.addons.every((a) => chosen.has(a.id)));
           if (same) same.qty += qty; else cart.push({ p, qty, addons, note });
-          bg.remove(); renderOrder();
+          bg.remove(); paintSide(); paintBadges();
         });
       };
       render();
@@ -415,7 +451,7 @@
 
     async function sendOrder() {
       if (sending || !cart.length) return;
-      sending = true; showErr(""); renderOrder();
+      sending = true; showErr(""); paintSide();
       try {
         const items = cart.map((l) => ({ product_id: l.p.id, qty: l.qty, addon_ids: l.addons.map((a) => a.id), note: l.note.trim() || null }));
         const { error } = await sb().rpc("waiter_place_order", {
@@ -429,7 +465,7 @@
       } catch (e) {
         sending = false;
         showErr((e && e.message) || "ما انرسل الطلب، جرّب كمان مرة (ما رح يتكرر)");
-        renderOrder();
+        paintSide();
       }
     }
 
@@ -437,10 +473,16 @@
       if (cart.length && !confirm("في أصناف ما انرسلت، تتركها؟")) return;
       table = null; cart = []; ref = newRef(); renderTables();
     });
-    $("logout").addEventListener("click", async () => { await sb().auth.signOut(); window.location.href = "login.html"; });
+    // الخروج مو سهل: ضغط مطوّل ثانيتين (حتى ما يطلع الويتر بالغلط)
+    olvHoldConfirm($("logout"), async () => { await sb().auth.signOut(); window.location.href = "login.html"; }, { ms: 2000, hint: "اضغط مطوّلاً ثانيتين للخروج" });
 
+    const cm = cachedMenu();
+    if (cm) menu = cm;
     await Promise.all([loadMenu(), loadTables()]);
-    setInterval(() => { if (!sending && !document.querySelector(".wt-sheet-bg") && document.activeElement.tagName !== "INPUT") loadTables(); }, 15000);
+    // تحديث الحسابات كل 15 ثانية، بس والشاشة ظاهرة؛ وأول ما يرجع للصفحة بيتحدّث فورًا
+    const idle = () => !sending && !document.querySelector(".wt-sheet-bg") && !(document.activeElement && document.activeElement.tagName === "INPUT");
+    setInterval(() => { if (!document.hidden && idle()) loadTables(); }, 15000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && idle()) loadTables(); });
   });
   </script>
 </body>
