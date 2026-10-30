@@ -120,6 +120,9 @@
   .pay-warn a{color:inherit; text-decoration:underline;}
   .pay-card .btn{min-height:48px; width:100%; justify-content:center;}
   .pay-card .btn:disabled{opacity:.6;}
+  .pay-edit{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
+  .pay-edit label{display:block; font-size:11.5px; color:var(--muted);}
+  .pay-edit input{display:block; width:100%; margin-top:2px; padding:8px 10px; border-radius:12px; border:1px solid var(--line, rgba(128,128,128,.3)); background:var(--ink-2); color:inherit; font:inherit; font-size:14px; font-weight:800; font-variant-numeric:tabular-nums;}
   .pay-nowage{font-size:12.5px; color:var(--danger-hi); font-weight:700;}
   /* السلف */
   .adv-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
@@ -451,17 +454,36 @@
             <div><span>الإجمالي</span><b>${olvFormatMoney(r.gross)}</b></div>
             <div class="minus"><span>سلف مخصومة</span><b>${olvFormatMoney(r.advancesTotal)}</b></div>
           </div>
+          <div class="pay-edit">
+            <label>المكافأة (صفّرها إذا أخذ إجازة)<input type="number" inputmode="decimal" min="0" step="0.5" data-bonus="${r.profileId}" value="${r.bonus}"></label>
+            <label>المبلغ اللي بدفعه (إذا مش كامل)<input type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${(r.payAmount != null ? r.payAmount : r.net).toFixed(2)}"></label>
+          </div>
           ${r.hourlyWage == null ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
           ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
           <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
         </li>`).join("")}</ul>`;
+      box.querySelectorAll("input[data-bonus]").forEach((inp) => inp.addEventListener("change", () => {
+        const row = previewRows.find((x) => x.profileId === inp.dataset.bonus);
+        const v = Number(inp.value);
+        if (!row || !Number.isFinite(v) || v < 0) { renderPreview(); return; }
+        row.gross += v - row.bonus; row.bonus = v; row.net = row.gross - row.advancesTotal; row.payAmount = null;
+        renderPreview();
+      }));
+      box.querySelectorAll("input[data-amount]").forEach((inp) => inp.addEventListener("change", () => {
+        const row = previewRows.find((x) => x.profileId === inp.dataset.amount);
+        const v = Number(inp.value);
+        if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else renderPreview();
+      }));
       box.querySelectorAll("button[data-pay]").forEach((btn) => btn.addEventListener("click", () => confirmPay(btn.dataset.pay, btn)));
     }
 
     async function confirmPay(profileId, btn) {
       const row = previewRows.find((r) => r.profileId === profileId);
       if (!row) return;
-      const msg = `تأكيد دفع ${olvFormatMoney(row.net)} لـ${empName(profileId)}؟\n` +
+      const pay = row.payAmount != null ? row.payAmount : row.net;
+      const partial = pay < row.net - 0.005;
+      const msg = `تأكيد دفع ${olvFormatMoney(pay)} لـ${empName(profileId)}؟\n` +
+        `${partial ? `(دفع جزئي: الصافي ${olvFormatMoney(row.net)}، المتبقي ${olvFormatMoney(row.net - pay)})\n` : ""}` +
         `(${row.hours.toFixed(1)} ساعة × ${row.hourlyWage != null ? olvFormatMoney(row.hourlyWage) : "—"}${row.bonus ? ` + ${olvFormatMoney(row.bonus)} ثابت` : ""} = ${olvFormatMoney(row.gross)}` +
         `${row.advancesTotal ? `، مطروح منه سلف ${olvFormatMoney(row.advancesTotal)}` : ""})`;
       if (!confirm(msg)) return;
@@ -478,7 +500,8 @@
           hourly_wage: row.hourlyWage || 0,
           gross_amount: row.gross,
           advances_deducted: row.advancesTotal,
-          net_amount: row.net,
+          net_amount: pay,
+          note: partial ? `دفع جزئي: الصافي ${row.net.toFixed(2)}، المتبقي ${(row.net - pay).toFixed(2)}` : null,
           paid_by: session ? session.user.id : null,
         });
         if (insertErr) throw insertErr;
