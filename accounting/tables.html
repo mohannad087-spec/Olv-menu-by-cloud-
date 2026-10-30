@@ -167,6 +167,12 @@
   .pay-f{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .pay-f .field{margin:0;}
   .pay-f .full{grid-column:1/-1;}
+  .split-l li{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0;}
+  .split-l li.on .nm{font-weight:700; color:var(--olive);}
+  .split-l .nm small{color:var(--muted, #888); font-weight:400;}
+  .split-l .stp{display:inline-flex; align-items:center; gap:6px;}
+  .split-l .stp .btn{min-height:40px; min-width:40px; padding:0; font-size:18px; line-height:1;}
+  .split-l .stp .of{color:var(--muted, #888); font-size:13px;}
   .pay-q{display:flex; gap:8px; flex-wrap:wrap;}
   .pay-q .btn{flex:1 1 120px; min-height:44px;}
   .pay-chk{font-size:14px; color:var(--muted); min-height:20px;}
@@ -617,7 +623,7 @@
         grid.innerHTML = shown.map(card).join("");
       }
       olvMarkNew(grid, tracker.diff(tables.filter((t) => t.state !== "free").map((t) => t.state + ":" + t.key)));
-      if (openKey && sheet.open && !payKey) renderSheet(openKey);
+      if (openKey && sheet.open && !payKey && !moveKey && !splitKey) renderSheet(openKey);
       renderRes();
     }
 
@@ -664,6 +670,7 @@
       let body = "", sub = "", acts = "";
       if (payKey === k && t.tabs && t.tabs.length) { renderPay(t, box); return; }
       if (moveKey === k && t.tabs && t.tabs.length) { renderMove(t, box); return; }
+      if (splitKey === k && t.tabs && t.tabs.length) { renderSplit(t, box); return; }
       const newOrder = (label, primary) => `<a class="btn${primary ? " go" : ""}" href="${olvEsc(posLink(t.label, t.lastName))}">${olvIcon("plus")}<span>${label}</span></a>`;
       if (t.state === "busy") {
         const agg = new Map();
@@ -685,7 +692,7 @@
               ${s.kitchen_status === PENDING ? `<span class="tc-k pending">${olvIcon("flame")}بالتحضير</span>` : `<span class="tc-k ready">${olvIcon("check")}جاهز</span>`}
               <span class="o-amt">${olvFormatMoney(saleTotal(s))}</span></li>`).join("")}</ul></div>`;
         acts = t.tabs.length
-          ? newOrder("زيد طلب") + `<button type="button" class="btn" data-act="prebill">${olvIcon("receipt")}<span>فاتورة مبدئية</span></button><button type="button" class="btn" data-act="move">${olvIcon("people")}<span>انقل / ادمج</span></button><button type="button" class="btn go" data-act="pay">${olvIcon("banknote")}<span>حاسب الطاولة · ${olvFormatMoney(t.tabTotal)}</span></button>`
+          ? newOrder("زيد طلب") + `<button type="button" class="btn" data-act="prebill">${olvIcon("receipt")}<span>فاتورة مبدئية</span></button><button type="button" class="btn" data-act="split">${olvIcon("receipt")}<span>قسّم الحساب</span></button><button type="button" class="btn" data-act="move">${olvIcon("people")}<span>انقل / ادمج</span></button><button type="button" class="btn go" data-act="pay">${olvIcon("banknote")}<span>حاسب الطاولة · ${olvFormatMoney(t.tabTotal)}</span></button>`
           : newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="free">${olvIcon("check")}<span>حرّر الطاولة</span></button>`;
       } else if (t.state === "seated") {
         sub = `وصلوا من ${dur(mins(t.seated.updated_at))}، لسا ما طلبوا`;
@@ -757,6 +764,73 @@
       });
     }
 
+    // ---------- تقسيم الحساب: اختار أصناف وادفعها لحالها، والباقي بيضل مفتوح ----------
+    let splitKey = null, payIds = null;
+    function renderSplit(t, box) {
+      const sel = new Map(); // معرّف الصنف ← الكمية المختارة
+      const lines = [];
+      t.tabs.forEach((s) => liveItems(s).forEach((it) => lines.push({ sale: s.id, it })));
+      const price = (it) => Number(it.unit_price || 0) + Number(it.addons_total || 0);
+      box.innerHTML = `
+        <div class="sh-head">
+          <div><h2 id="sh-title">قسّم حساب طاولة ${olvEsc(t.label)}</h2><div class="sh-sub">اختار الأصناف اللي بدها تدفع لحالها</div></div>
+          <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
+        </div>
+        <div class="sh-body">
+          <ul class="sh-items split-l">${lines.map((l, i) => `
+            <li data-i="${i}"><span class="nm">${olvEsc(l.it.product_name)}${l.it.addons_summary ? ` (${olvEsc(l.it.addons_summary)})` : ""}<small> · ${olvFormatMoney(price(l.it))}</small></span>
+              <span class="stp"><button type="button" class="btn" data-d="-1" aria-label="أنقص">−</button><b>0</b><span class="of">/ ${Number(l.it.qty)}</span><button type="button" class="btn" data-d="1" aria-label="زد">+</button></span></li>`).join("")}</ul>
+          <div class="sh-sum"><div><div class="l">اللي بينفصل</div><div class="v gold" id="sp-amt">${olvFormatMoney(0)}</div></div></div>
+          <div class="pay-chk" id="sp-chk"></div>
+        </div>
+        <div class="sh-foot">
+          <button type="button" class="btn" data-act="splitback">${olvIcon("undo")}<span>رجوع</span></button>
+          <button type="button" class="btn go" id="sp-go" disabled>${olvIcon("check")}<span>تابع للدفع</span></button>
+        </div>`;
+      const amt = box.querySelector("#sp-amt"), go = box.querySelector("#sp-go"), chk = box.querySelector("#sp-chk");
+      const refresh = () => {
+        let sum = 0, picked = 0, all = 0;
+        lines.forEach((l, i) => { const q = sel.get(i) || 0; sum += q * price(l.it); picked += q; all += Number(l.it.qty); });
+        amt.textContent = olvFormatMoney(sum);
+        chk.classList.toggle("bad", picked >= all && all > 0);
+        chk.textContent = picked >= all && all > 0 ? "اخترت كل الحساب — استخدم «حاسب الطاولة» عادي" : "";
+        go.disabled = !(picked > 0 && picked < all);
+      };
+      box.querySelector(".split-l").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-d]");
+        if (!b) return;
+        const li = b.closest("li"), i = Number(li.dataset.i);
+        const q = Math.min(Number(lines[i].it.qty), Math.max(0, (sel.get(i) || 0) + Number(b.dataset.d)));
+        sel.set(i, q);
+        li.querySelector("b").textContent = q;
+        li.classList.toggle("on", q > 0);
+        refresh();
+      });
+      go.addEventListener("click", async () => {
+        go.disabled = true;
+        const bySale = new Map();
+        lines.forEach((l, i) => {
+          const q = sel.get(i) || 0;
+          if (q > 0) { if (!bySale.has(l.sale)) bySale.set(l.sale, []); bySale.get(l.sale).push({ id: l.it.id, qty: q }); }
+        });
+        const ids = [];
+        for (const [sale, items] of bySale) {
+          const { data, error } = await db.rpc("split_table_tab", { p_sale_id: sale, p_items: items });
+          if (error) {
+            olvToast(/split_table_tab/.test(error.message || "") && /function|schema cache/i.test(error.message || "")
+              ? "ميزة التقسيم لسا ما تفعّلت بقاعدة البيانات" : error.message, { type: "danger", icon: "warning", ms: 6000 });
+            if (ids.length) { await load(); }
+            go.disabled = false; return;
+          }
+          ids.push(data);
+        }
+        splitKey = null; payIds = ids; payKey = t.key;
+        await load();
+        renderSheet(t.key);
+      });
+      refresh();
+    }
+
     // ---------- الفاتورة المبدئية (طباعة من المتصفح، مش فاتورة نهائية) ----------
     function printPreBill(t) {
       const agg = new Map();
@@ -785,11 +859,13 @@
     let payKey = null;
     const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
     function renderPay(t, box) {
-      const ids = t.tabs.map((x) => x.id);
-      const total = r2(t.tabTotal);
+      const part = payIds ? t.tabs.filter((x) => payIds.includes(x.id)) : t.tabs;
+      const ids = part.map((x) => x.id);
+      const total = r2(part.reduce((a, x) => a + saleTotal(x), 0));
+      if (!ids.length) { payKey = null; payIds = null; renderSheet(t.key); return; }
       box.innerHTML = `
         <div class="sh-head">
-          <div><h2 id="sh-title">حساب طاولة ${olvEsc(t.label)}</h2><div class="sh-sub">${t.tabs.length > 1 ? t.tabs.length + " حسابات بينجمعوا بفاتورة وحدة" : "كل أصناف الطاولة بفاتورة وحدة"}</div></div>
+          <div><h2 id="sh-title">حساب طاولة ${olvEsc(t.label)}</h2><div class="sh-sub">${payIds ? "الأصناف المفصولة بس، والباقي بيضل مفتوح" : t.tabs.length > 1 ? t.tabs.length + " حسابات بينجمعوا بفاتورة وحدة" : "كل أصناف الطاولة بفاتورة وحدة"}</div></div>
           <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
         </div>
         <div class="sh-body">
@@ -848,7 +924,7 @@
             ? "ميزة الحساب المفتوح لسا ما تفعّلت بقاعدة البيانات" : error.message, { type: "danger", icon: "warning", ms: 6000 });
           go.disabled = false; return;
         }
-        payKey = null;
+        payKey = null; payIds = null;
         sheet.close();
         olvToast(`طاولة ${t.label}: انسدّد الحساب ${olvFormatMoney(total - num(disc))}`, { type: "ok", icon: "check", ms: 5000 });
         load();
@@ -857,12 +933,12 @@
     }
 
     function openSheet(k) {
-      payKey = null; moveKey = null;
+      payKey = null; moveKey = null; splitKey = null; payIds = null;
       openKey = k;
       renderSheet(k);
       if (!sheet.open) sheet.showModal();
     }
-    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; });
+    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; splitKey = null; payIds = null; });
     sheet.addEventListener("click", async (e) => {
       if (e.target === sheet) { sheet.close(); return; }
       const b = e.target.closest("[data-act]");
@@ -872,7 +948,9 @@
       if (act === "close") { sheet.close(); return; }
       if (!t) return;
       if (act === "pay") { payKey = t.key; renderSheet(t.key); return; }
-      if (act === "payback") { payKey = null; renderSheet(t.key); return; }
+      if (act === "payback") { payKey = null; payIds = null; renderSheet(t.key); return; }
+      if (act === "split") { splitKey = t.key; renderSheet(t.key); return; }
+      if (act === "splitback") { splitKey = null; renderSheet(t.key); return; }
       if (act === "move") { moveKey = t.key; renderSheet(t.key); return; }
       if (act === "moveback") { moveKey = null; renderSheet(t.key); return; }
       if (act === "prebill") { printPreBill(t); return; }
