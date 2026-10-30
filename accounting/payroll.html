@@ -256,7 +256,7 @@
     const errBox = $("err");
     const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
     const HIST_STEP = 20;
-    // مكافأة ثابتة لكل موظف عن الفترة (بدل أجر يوم الإجازة): الراتب = ساعات × أجر الساعة + هالمبلغ
+    // مكافأة ثابتة لكل موظف عن كل أسبوع من الفترة (بدل أجر يوم الإجازة): الراتب = ساعات × أجر الساعة + هالمبلغ × عدد الأسابيع
     const FIXED_BONUS = 10;
     let myRole = null;
     let canManage = false;
@@ -383,6 +383,9 @@
       return result;
     }
 
+    // عدد الأسابيع (كل 7 أيام أو جزء منها) بالفترة
+    const weeksIn = (rg) => Math.max(1, Math.ceil((Math.round((parse(rg.to) - parse(rg.from)) / 86400000) + 1) / 7));
+
     function rangeFor(p) {
       const t = todayIso();
       if (p === "week") return { from: addDays(t, -6), to: t };
@@ -411,7 +414,7 @@
             const h = hoursMap.get(profileId) || { hours: 0, openCount: 0 };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
-            const bonus = h.hours > 0 ? FIXED_BONUS : 0;
+            const bonus = h.hours > 0 ? FIXED_BONUS * weeksIn(range) : 0;
             const gross = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus;
             const advancesTotal = advancesTotalFor(profileId);
             return { profileId, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, gross, advancesTotal, net: gross - advancesTotal };
