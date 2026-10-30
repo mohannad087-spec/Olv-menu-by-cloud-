@@ -162,7 +162,7 @@ async function processJob(job, settings, printers, saleCache) {
           localRef = add ? add.client_ref : null;
         }
       }
-      if (!job.reprint_no && wasPrintedLocally(localRef)) {
+      if (!job.reprint_no && !job.bill_kind && wasPrintedLocally(localRef)) {
         await markJob(job.id, { status: "skipped", error_message: "انطبعت أصلًا وقت انقطاع النت" });
         return;
       }
@@ -183,7 +183,8 @@ async function processJob(job, settings, printers, saleCache) {
         canvas = buildReceiptTicket(
           sale, settings,
           job.reprint_no ? { no: job.reprint_no, reason: job.reprint_reason || "—", by: job.reprint_by } : null,
-          layout
+          layout,
+          job.bill_kind ? { kind: job.bill_kind, by: job.reprint_by } : null
         );
       }
     }
@@ -191,11 +192,11 @@ async function processJob(job, settings, printers, saleCache) {
     // درج الكاش موصول بطابعة الكاشير: بينفتح مع فاتورة البيع (مش إعادة الطباعة)
     // وبالطباعة التجريبية حتى تتأكد إنو الدرج شغّال
     const openDrawer = !!(printer && printer.open_drawer &&
-      ((job.job_type === "receipt" && !job.reprint_no) || isTest));
+      ((job.job_type === "receipt" && !job.reprint_no && !job.bill_kind) || isTest));
     // تذكرة القسم وفاتورة البيع الحقيقيتين (مش تجريبي ولا إعادة طباعة) بتنطبعوا نسختين؛ الإلغاء نسخة وحدة
     const copies = isTest ? 1
       : job.job_type === "kitchen" ? kitchenCopies()
-      : job.job_type === "receipt" && !job.reprint_no ? receiptCopies() : 1;
+      : job.job_type === "receipt" && !job.reprint_no && !job.bill_kind ? receiptCopies() : 1;
     const buffer = buildTicketBuffer(canvas, openDrawer, copies);
     await sendToPrinter(target.ip, target.port || 9100, buffer);
 

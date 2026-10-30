@@ -171,6 +171,7 @@
     } catch (_) {}
 
     let menu = { products: [], addons: [] };
+    let printers = [];
     let data = { tables: [], tabs: [] };
     let table = null;              // الطاولة المفتوحة حاليًا
     let cart = [];                 // { p, qty, addons:[], note }
@@ -199,6 +200,8 @@
       const { data: d, error } = await sb().rpc("waiter_menu");
       if (error) { showErr(error.message || "تعذّر تحميل القائمة"); return; }
       menu = d;
+      const pr = await sb().rpc("waiter_printers");
+      printers = pr.error ? [] : (pr.data || []);
     }
 
     function renderTables() {
@@ -266,7 +269,8 @@
                 </div>`).join("")
                 + `<div class="wt-total"><span>المجموع</span><span>${money(tabTotal(tab))}</span></div>`
                 : `<div class="wt-empty">ما في حساب مفتوح على هالطاولة</div>`}
-              <div class="wt-empty" style="padding:4px 0 0;font-size:13px">الدفع والفاتورة عند الكاشير</div>
+              ${tab && liveItems(tab).length ? `<button class="btn wt-void" id="bill" style="width:100%">${olvIcon("printer")} اطبع الحساب</button>` : ""}
+              <div class="wt-empty" style="padding:4px 0 0;font-size:13px">الدفع والفاتورة النهائية عند الكاشير</div>
             </div>
           </aside>
         </div>`;
@@ -278,6 +282,43 @@
       $("view").querySelectorAll("[data-n]").forEach((inp) => inp.addEventListener("input", () => { cart[+inp.dataset.n].note = inp.value; }));
       $("view").querySelectorAll("[data-v]").forEach((b) => b.addEventListener("click", () => voidSheet(b.dataset.v)));
       const send = $("send"); if (send) send.addEventListener("click", sendOrder);
+      const bill = $("bill"); if (bill) bill.addEventListener("click", () => billSheet(tab));
+    }
+
+    // طباعة الحساب: مسودة أو نسخة زبون، وعلى أي طابعة (كاش، بار...). ما بيسكّر الحساب وما في دفع
+    function billSheet(tab) {
+      let kind = "customer";
+      let pid = null;
+      try { pid = localStorage.getItem("olv_waiter_printer"); } catch (_) {}
+      if (!printers.some((p) => p.id === pid)) pid = printers[0] ? printers[0].id : null;
+      const bg = sheetShell("");
+      const box = bg.firstChild;
+      const render = () => {
+        box.innerHTML = `
+          <h3>طباعة حساب طاولة ${esc(table)} · ${money(tabTotal(tab))}</h3>
+          <div class="wt-opts">
+            <button class="wt-opt" data-k="customer" aria-pressed="${kind === "customer"}">نسخة زبون</button>
+            <button class="wt-opt" data-k="draft" aria-pressed="${kind === "draft"}">مسودة</button>
+          </div>
+          ${printers.length ? `<div class="wt-empty" style="padding:0;text-align:start">اطبع على:</div>
+            <div class="wt-opts">${printers.map((p) => `<button class="wt-opt" data-pr="${esc(p.id)}" aria-pressed="${pid === p.id}">${olvIcon("printer")} ${esc(p.name)}</button>`).join("")}</div>`
+            : `<div class="wt-empty">ما في طابعات مفعّلة. خبّر المدير.</div>`}
+          <div class="wt-btns"><button class="btn" id="bx" style="flex:1">رجوع</button><button class="btn gold" id="bok" style="flex:2" ${pid ? "" : "disabled"}>${olvIcon("printer")} اطبع</button></div>`;
+        box.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { kind = b.dataset.k; render(); }));
+        box.querySelectorAll("[data-pr]").forEach((b) => b.addEventListener("click", () => { pid = b.dataset.pr; render(); }));
+        box.querySelector("#bx").addEventListener("click", () => bg.remove());
+        box.querySelector("#bok").addEventListener("click", async () => {
+          const ok = box.querySelector("#bok"); ok.disabled = true;
+          const { error } = await sb().rpc("waiter_print_bill", { p_sale_id: tab.sale_id, p_kind: kind, p_printer_id: pid });
+          bg.remove();
+          if (error) { showErr(error.message || "ما انطلبت الطباعة"); return; }
+          showErr("");
+          try { localStorage.setItem("olv_waiter_printer", pid); } catch (_) {}
+          const pn = (printers.find((p) => p.id === pid) || {}).name || "";
+          olvToast(`انرسلت للطباعة${pn ? " على " + pn : ""}`, { type: "gold", icon: "check" });
+        });
+      };
+      render();
     }
 
     // خيارات الصنف: إضافات عادية + (كبير / وجبة / وجبة دبل) إذا الصنف إله إضافة مربوطة
