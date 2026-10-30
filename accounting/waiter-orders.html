@@ -546,9 +546,9 @@
     const cm = cachedMenu();
     if (cm) menu = cm;
     await Promise.all([loadMenu(), loadTables()]);
-    // تحديث الحسابات كل 15 ثانية، بس والشاشة ظاهرة؛ وأول ما يرجع للصفحة بيتحدّث فورًا
+    // تحديث الحسابات كل 5 ثواني، بس والشاشة ظاهرة؛ وأول ما يرجع للصفحة بيتحدّث فورًا
     const idle = () => !sending && !document.querySelector(".wt-sheet-bg") && !(document.activeElement && document.activeElement.tagName === "INPUT");
-    setInterval(() => { if (!document.hidden && idle()) loadTables(); }, 15000);
+    setInterval(() => { if (!document.hidden && idle()) loadTables(); }, 5000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden && idle()) loadTables(); });
   });
   </script>
