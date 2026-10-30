@@ -223,7 +223,7 @@
       document.querySelectorAll(".lk-chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === period)));
       const from = fromDate(period);
       const db = window.supabaseClient;
-      const [sR, mR, pR, iR, uR, aR, tR] = await Promise.all([
+      const [sR, mR, pR, iR, uR, aR, tR, vR] = await Promise.all([
         db.from("sales_entries")
           .select("id, created_at, status, void_reason, voided_at, voided_by, created_by, discount_amount, cash_amount, card_amount, delivery_amount, table_number")
           .gte("entry_date", from).limit(5000),
@@ -237,6 +237,8 @@
           .or("and(table_name.eq.approvals,op.eq.APPROVE),and(table_name.eq.sales_entries,op.eq.UPDATE)")
           .order("at", { ascending: false }).limit(3000),
         db.from("sales_entries").select("id, order_no, created_at, table_number, created_by").eq("tab_open", true).eq("status", "completed"),
+        db.from("sale_items").select("product_name, qty, unit_price, addons_total, void_reason, voided_by, voided_at, sales_entries!inner(table_number)")
+          .eq("status", "voided").gte("voided_at", from + "T00:00:00Z").not("sales_entries.table_number", "is", null).limit(2000),
       ]);
       if (my !== seq) return;
       if (sR.error) throw sR.error;
@@ -286,7 +288,7 @@
       });
 
       // ---- الطاولات والموافقات ----
-      const tb = { logErr: !!aR.error, appr: [], moves: [], tabsErr: !!tR.error, oldTabs: [], tabsN: 0, tableVoids: 0, tableVoidVal: 0 };
+      const tb = { logErr: !!aR.error, appr: [], moves: [], tabsErr: !!tR.error, oldTabs: [], tabsN: 0, tableVoids: 0, tableVoidVal: 0, itemVoids: [] };
       (aR.data || []).forEach((a) => {
         if (a.table_name === "approvals") {
           tb.appr.push({ at: a.at, who: a.actor_name || nameOf(a.actor), kind: (a.new_data || {}).kind, by: (a.new_data || {}).approved_by || "—" });
@@ -299,6 +301,12 @@
         const tabs = tR.data || [];
         tb.tabsN = tabs.length;
         tb.oldTabs = tabs.filter((t) => (Date.now() - new Date(t.created_at)) / 36e5 > TAB_HOURS);
+      }
+      if (!vR.error) {
+        tb.itemVoids = (vR.data || []).map((v) => ({
+          who: nameOf(v.voided_by), name: v.product_name, reason: v.void_reason || "",
+          val: ((Number(v.unit_price) || 0) + (Number(v.addons_total) || 0)) * (Number(v.qty) || 0),
+        }));
       }
       sales.forEach((s) => { if (s.status === "voided" && s.table_number) { tb.tableVoids++; tb.tableVoidVal += saleTotal(s); } });
 
@@ -352,6 +360,8 @@
         tb.tabsErr ? "" : line("حسابات مفتوحة هلأ", `${tb.tabsN}`, false),
         tb.tabsErr ? "" : line(`مفتوحة من أكتر من ${TAB_HOURS} ساعات`, `${tb.oldTabs.length}`, tb.oldTabs.length > 0),
         line("طلبات طاولات ملغاة", `${tb.tableVoids} (${money(tb.tableVoidVal)})`, tb.tableVoids > 0),
+        line("أصناف انشطبت من حسابات الطاولات", `${tb.itemVoids.length} (${money(tb.itemVoids.reduce((a, v) => a + v.val, 0))})`, tb.itemVoids.length >= APPROVAL_MANY),
+        tb.itemVoids.length ? `<small>${cnt(tb.itemVoids, (x) => x.who).map(([n, c]) => `${esc(n)} ×${c}`).join("، ")} · آخر الأسباب: ${tb.itemVoids.slice(-4).map((v) => `${esc(v.name)} (${esc(v.reason)})`).join("، ")}</small>` : "",
         tb.logErr ? `<div class="lk-empty">سجل الموافقات والنقل للمالك بس.</div>` : [
           line("موافقات المدير", `${tb.appr.length}${tb.appr.length ? " (" + tb.appr.filter((x) => x.kind === "void").length + " إلغاء، " + tb.appr.filter((x) => x.kind === "discount").length + " خصم)" : ""}`, tb.appr.length >= APPROVAL_MANY),
           byWho.length ? `<small>طلبها: ${byWho.map(([n, c]) => `${esc(n)} ×${c}`).join("، ")} · وافق: ${byMgr.map(([n, c]) => `${esc(n)} ×${c}`).join("، ")}</small>` : "",
