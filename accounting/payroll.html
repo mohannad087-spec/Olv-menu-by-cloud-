@@ -386,8 +386,8 @@
       return result;
     }
 
-    // عدد الأسابيع (كل 7 أيام أو جزء منها) بالفترة
-    const weeksIn = (rg) => Math.max(1, Math.ceil((Math.round((parse(rg.to) - parse(rg.from)) / 86400000) + 1) / 7));
+    // عدد الأسابيع الكاملة (كل 7 أيام كاملة) بالفترة: شهر 30 يوم = 4
+    const weeksIn = (rg) => Math.floor((Math.round((parse(rg.to) - parse(rg.from)) / 86400000) + 1) / 7);
 
     function rangeFor(p) {
       const t = todayIso();
