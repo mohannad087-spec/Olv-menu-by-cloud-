@@ -41,7 +41,7 @@
     const [sR, eR, cR, lR, bR] = await Promise.allSettled([
       db.from("sales_entries").select("entry_date, status, discount_amount, cash_amount, card_amount, delivery_amount")
         .in("entry_date", [day, prev]).limit(5000),
-      db.from("expenses").select("amount").eq("expense_date", day),
+      olvExpensesPaid(db, "amount", day, day),
       db.from("cash_closings").select("difference, created_at").eq("closing_date", day).order("created_at", { ascending: false }).limit(1),
       db.from("low_stock_items").select("name"),
       db.from("supplier_balances").select("balance"),

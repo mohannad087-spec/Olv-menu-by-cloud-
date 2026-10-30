@@ -46,7 +46,7 @@
       db.from("sales_entries")
         .select("id, cash_amount, card_amount, delivery_amount, created_at, sale_items(product_name, qty, unit_price, status)")
         .eq("entry_date", date).eq("status", "completed").limit(3000),
-      db.from("expenses").select("amount").eq("expense_date", date),
+      olvExpensesPaid(db, "amount", date, date),
       db.from("cash_closings").select("expected_closing, actual_closing, difference, created_at")
         .eq("closing_date", date).order("created_at", { ascending: false }).limit(1),
     ]);

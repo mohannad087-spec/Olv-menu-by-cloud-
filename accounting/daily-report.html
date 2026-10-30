@@ -209,7 +209,7 @@
         const [salesR, expR, closeR, prodR] = await Promise.allSettled([
           db.from("sales_entries").select("id, order_type, cash_amount, card_amount, delivery_amount, sale_items(product_id, product_name, qty, unit_price, status)")
             .eq("entry_date", day).eq("status", "completed").limit(3000),
-          db.from("expenses").select("amount, description, expense_categories(name)").eq("expense_date", day).order("amount", { ascending: false }),
+          olvExpensesPaid(db, "amount, description, expense_categories(name)", day, day).then((r) => (r.data ? { ...r, data: r.data.sort((a, b) => Number(b.amount) - Number(a.amount)) } : r)),
           db.from("cash_closings").select("expected_closing, actual_closing, difference").eq("closing_date", day).order("created_at", { ascending: false }).limit(1),
           db.from("products").select("id, category").limit(5000),
         ]);

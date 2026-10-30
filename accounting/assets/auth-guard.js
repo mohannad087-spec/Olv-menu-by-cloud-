@@ -157,6 +157,21 @@ function olvToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// المصروفات اللي انحسبت فعلياً بين تاريخين (شامل): الكاش بتاريخ المصروف، والذمة بتاريخ ما انسدّدت (settled_at).
+// الذمة اللي لسا ما اندفعت ما بتنحسب لا بالمبيعات ولا بالأرباح. بترجع {data, error} وكل صف عنده expense_date = اليوم اللي انحسب فيه.
+async function olvExpensesPaid(db, select, from, to) {
+  const cols = select + ", expense_date, settled_at";
+  const nextDay = new Date(new Date(to + "T00:00:00Z").getTime() + 864e5).toISOString().slice(0, 10);
+  const [cashR, settledR] = await Promise.all([
+    db.from("expenses").select(cols).eq("payment_type", "cash").is("settled_at", null).gte("expense_date", from).lte("expense_date", to),
+    db.from("expenses").select(cols).not("settled_at", "is", null).gte("settled_at", from + "T00:00:00Z").lt("settled_at", nextDay + "T00:00:00Z"),
+  ]);
+  const error = cashR.error || settledR.error;
+  if (error) return { data: null, error };
+  const settled = (settledR.data || []).map((r) => ({ ...r, expense_date: String(r.settled_at).slice(0, 10) }));
+  return { data: [...(cashR.data || []), ...settled], error: null };
+}
+
 // موافقة المدير برمز: لو عملية الكاشير انرفضت لأنها تحتاج مدير (إلغاء بعد المهلة أو خصم فوق حدّه)،
 // منسأل عن رمز المدير وبنعيد نفس العملية. الرمز بيتفحص بالسيرفر (request_approval) ويصلح لعملية وحدة وأقل من 3 دقايق.
 // run لازم ترمي الخطأ لما تفشل. المدير/المالك ما بيحتاج رمز. kind: "void" أو "discount"

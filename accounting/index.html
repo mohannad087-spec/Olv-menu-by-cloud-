@@ -444,7 +444,7 @@
           { data: recentExpenses, error: e4 },
         ] = await Promise.all([
           window.supabaseClient.from("sales_entries").select("id, cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", today).eq("status", "completed"),
-          window.supabaseClient.from("expenses").select("amount").eq("expense_date", today),
+          olvExpensesPaid(window.supabaseClient, "amount", today, today),
           window.supabaseClient.from("sales_entries").select("*").eq("status", "completed").order("entry_date", { ascending: false }).limit(8),
           window.supabaseClient.from("expenses").select("*, expense_categories(name)").order("expense_date", { ascending: false }).limit(8),
         ]);
