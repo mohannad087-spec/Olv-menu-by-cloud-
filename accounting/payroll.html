@@ -97,37 +97,48 @@
   .group h2.py-h .icon{width:18px; height:18px; color:var(--gold-hi);}
   .py-note{color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.7;}
   .py-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
-  /* بطاقات «مستحق للدفع»: المعادلة واضحة: ساعات × أجر − سلف = صافي */
-  .pay-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px;}
-  .pay-card{border-radius:18px; background:var(--ink-3); padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0;}
-  .pay-top{display:flex; align-items:center; gap:12px;}
-  .av{width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:16px; background:var(--ink-2); color:var(--muted); flex:none;}
-  .pay-top .t{flex:1; min-width:0;}
-  .pay-top .t b{display:block; font-size:15.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .pay-top .t small{display:block; color:var(--muted); font-size:12.5px; margin-top:2px;}
-  .pay-net{text-align:left; white-space:nowrap;}
-  .pay-net b{display:block; font-size:21px; font-weight:800; font-variant-numeric:tabular-nums;}
-  .pay-net small{color:var(--muted); font-size:11.5px;}
-  .pay-net.neg b{color:var(--danger-hi);}
-  .pay-eq{display:grid; grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); gap:8px;}
+  /* بطاقات «مستحق للدفع»: كشف حساب واضح لكل موظف: ساعات + مكافأة + مرحّل − سلف = صافي، وتحته الدفع */
+  .pay-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px;}
+  .pay-card{border-radius:20px; background:var(--ink-3); padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0;}
+  .pc-head{display:flex; align-items:center; gap:12px;}
+  .av{width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:17px; background:var(--ink-2); color:var(--gold-hi); flex:none; border:1px solid var(--hair-soft);}
+  .pc-who{flex:1; min-width:0;}
+  .pc-who b{display:block; font-size:16.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pc-who small{display:block; color:var(--muted); font-size:12.5px; margin-top:2px; font-variant-numeric:tabular-nums;}
+  .pc-chip{flex:none; padding:5px 11px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; background:rgba(var(--gold-rgb),.16); color:var(--gold-hi);}
+  .pc-chip.ok{background:rgba(86,105,46,.16); color:var(--olive);}
+  .pc-chip.bad{background:rgba(179,65,42,.14); color:var(--danger-hi);}
+  [data-theme="dark"] .pc-chip.ok{background:rgba(143,160,85,.18);}
+  .pc-lines{margin:0; padding:4px 14px; background:var(--ink-2); border-radius:16px; border:1px solid var(--hair-soft);}
+  .pc-lines .ln{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:46px; border-top:1px solid var(--hair-soft);}
+  .pc-lines .ln:first-child{border-top:0;}
+  .pc-lines dt{font-size:14px; font-weight:500; min-width:0;}
+  .pc-lines dt small{display:block; color:var(--muted); font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
+  .pc-lines dd{margin:0; font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; display:flex; align-items:center; gap:6px;}
+  .pc-lines .ln.minus dd{color:var(--danger-hi);}
+  .pc-lines .ln.sum{background:transparent;}
+  .pc-lines .ln.sum dt{font-weight:700;}
+  .pc-lines .ln.total{min-height:62px;}
+  .pc-lines .ln.total dt{font-size:15px; font-weight:800;}
+  .pc-lines .ln.total dd{font-size:26px; color:var(--olive);}
+  .pc-lines .ln.total.neg dd{color:var(--danger-hi);}
+  .pc-lines input{width:92px; min-height:40px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3); color:inherit; font:inherit; font-size:15px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums;}
+  .pc-lines input:focus-visible,.pc-pay input:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .pc-pay{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:10px; align-items:end;}
+  .pc-pay label{display:block; font-size:12px; color:var(--muted);}
+  .pc-pay input{display:block; width:100%; margin-top:3px; min-height:48px; padding:0 12px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-2); color:inherit; font:inherit; font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .pay-card .btn{min-height:48px; width:100%; justify-content:center;}
+  .pay-card .btn:disabled{opacity:.6;}
   .pay-stmt{font-size:12.5px; color:var(--muted);}
-  .pay-stmt summary{cursor:pointer; font-weight:700; color:var(--gold-hi);}
-  .pay-stmt ul{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:6px;}
-  .pay-stmt li{background:var(--ink-2); border-radius:10px; padding:7px 10px; line-height:1.7;}
+  .pay-stmt summary{cursor:pointer; min-height:36px; display:flex; align-items:center; font-weight:700; color:var(--gold-hi);}
+  .pay-stmt ul{list-style:none; margin:4px 0 0; padding:0; display:grid; gap:6px;}
+  .pay-stmt li{background:var(--ink-2); border-radius:12px; padding:8px 11px; line-height:1.7;}
   .pay-carry{font-size:12.5px; font-weight:700; color:var(--gold-hi);}
-  .pay-eq div{background:var(--ink-2); border-radius:12px; padding:8px 10px; min-width:0;}
-  .pay-eq span{display:block; font-size:11.5px; color:var(--muted);}
-  .pay-eq b{display:block; font-size:14px; font-weight:800; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .pay-eq .minus b{color:var(--danger-hi);}
   .pay-warn{display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-radius:12px; background:rgba(var(--gold-rgb),.14); color:var(--gold-hi); font-size:12.5px; font-weight:700; line-height:1.6;}
   .pay-warn .icon{width:16px; height:16px; flex:none; margin-top:2px;}
   .pay-warn a{color:inherit; text-decoration:underline;}
-  .pay-card .btn{min-height:48px; width:100%; justify-content:center;}
-  .pay-card .btn:disabled{opacity:.6;}
-  .pay-edit{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
-  .pay-edit label{display:block; font-size:11.5px; color:var(--muted);}
-  .pay-edit input{display:block; width:100%; margin-top:2px; padding:8px 10px; border-radius:12px; border:1px solid var(--line, rgba(128,128,128,.3)); background:var(--ink-2); color:inherit; font:inherit; font-size:14px; font-weight:800; font-variant-numeric:tabular-nums;}
   .pay-nowage{font-size:12.5px; color:var(--danger-hi); font-weight:700;}
+  @media (max-width:420px){ .pay-list{grid-template-columns:1fr;} .pc-pay{grid-template-columns:1fr;} }
   /* السلف */
   .adv-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
   .adv-head h2{margin:0;}
@@ -445,12 +456,13 @@
             const h = (hoursByStart.get(from) || new Map()).get(profileId) || { hours: 0, openCount: 0 };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
-            const bonus = h.hours > 0 ? FIXED_BONUS * weeksIn({ from, to: range.to }) : 0;
+            const weeks = weeksIn({ from, to: range.to });
+            const bonus = h.hours > 0 ? FIXED_BONUS * weeks : 0;
             const earned = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus;
             const carry = ledger.has(profileId) ? ledger.get(profileId).carry : 0;
             const advancesTotal = advancesTotalFor(profileId);
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
-            return { profileId, from, advanceIds, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
+            return { profileId, from, weeks, advanceIds, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
           })
           .filter((r) => r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
@@ -484,30 +496,34 @@
       $("k-hrs-note").className = "note" + (open ? " warn" : "");
       $("k-hrs-note").textContent = open ? `${open} يوم ببصمة وحدة مش محسوب` : "من أول لآخر بصمة باليوم";
       if (!previewRows.length) { box.innerHTML = `<div class="py-empty">ما في ساعات عمل ولا سلف بهالفترة.</div>`; return; }
-      box.innerHTML = `<ul class="pay-list">${previewRows.map((r) => `
+      box.innerHTML = `<ul class="pay-list">${previewRows.map((r) => {
+        const noWage = r.hourlyWage == null;
+        const chip = noWage ? ["بدون أجر", "bad"] : r.net < -0.005 ? ["زيادة عليه", "bad"] : r.carry > 0.005 ? ["باقي له من قبل", ""] : r.net > 0.005 ? ["جاهز للدفع", "ok"] : ["مسوّى", "ok"];
+        const period = r.from > range.to ? "ما في أيام جديدة" : `${shortDate(r.from)} لـ ${shortDate(range.to)}`;
+        const payVal = (r.payAmount != null ? r.payAmount : r.net).toFixed(2);
+        return `
         <li class="pay-card">
-          <div class="pay-top">
+          <header class="pc-head">
             <span class="av" aria-hidden="true">${olvEsc(initial(r.profileId)) || olvIcon("person")}</span>
-            <span class="t"><b>${olvEsc(empName(r.profileId))}</b><small>${r.from > range.to ? "ما في أيام جديدة" : `${shortDate(r.from)} لـ ${shortDate(range.to)}`} · ${fmtHrs(r.hours)} ساعة${r.hourlyWage != null ? ` × ${olvFormatMoney(r.hourlyWage)}` : ""}${r.bonus ? ` + ${olvFormatMoney(r.bonus)}` : ""}</small></span>
-            <span class="pay-net${r.net < 0 ? " neg" : ""}"><b>${olvFormatMoney(r.net)}</b><small>الصافي</small></span>
-          </div>
-          <div class="pay-eq">
-            <div><span>الساعات</span><b>${fmtHrs(r.hours)}</b></div>
-            <div><span>مكافأة ثابتة</span><b>${olvFormatMoney(r.bonus)}</b></div>
-            <div><span>مستحق هالفترة</span><b>${olvFormatMoney(r.earned)}</b></div>
-            <div><span>${r.carry < 0 ? "مرحّل عليه" : "مرحّل له"}</span><b>${olvFormatMoney(Math.abs(r.carry))}</b></div>
-            <div class="minus"><span>سلف مخصومة</span><b>${olvFormatMoney(r.advancesTotal)}</b></div>
-          </div>
-          <div class="pay-edit">
-            <label>المكافأة (صفّرها إذا أخذ إجازة)<input type="number" inputmode="decimal" min="0" step="0.5" data-bonus="${r.profileId}" value="${r.bonus}"></label>
-            <label>المبلغ اللي بدفعه (إذا مش كامل)<input type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${(r.payAmount != null ? r.payAmount : r.net).toFixed(2)}"></label>
-          </div>
-          ${Math.abs(r.carry) >= 0.005 && ledger.has(r.profileId) ? `<div class="pay-carry">${r.carry > 0 ? "لسا له" : "عليه"} ${olvFormatMoney(Math.abs(r.carry))} من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)</div>` : ""}
-          ${statementHtml(r.profileId)}
-          ${r.hourlyWage == null ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
+            <span class="pc-who"><b>${olvEsc(empName(r.profileId))}</b><small>${period}</small></span>
+            <span class="pc-chip ${chip[1]}">${chip[0]}</span>
+          </header>
+          <dl class="pc-lines">
+            <div class="ln"><dt>الساعات<small>${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></dt><dd>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</dd></div>
+            <div class="ln"><dt>مكافأة أسبوعية<small>${r.weeks} أسبوع × ${FIXED_BONUS} · صفّرها إذا أخذ إجازة</small></dt><dd><input type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></dd></div>
+            <div class="ln sum"><dt>مستحق هالفترة</dt><dd>${olvFormatMoney(r.earned)}</dd></div>
+            ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><dt>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></dt><dd>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</dd></div>` : ""}
+            ${r.advancesTotal ? `<div class="ln minus"><dt>سلف مخصومة</dt><dd>− ${olvFormatMoney(r.advancesTotal)}</dd></div>` : ""}
+            <div class="ln total${r.net < 0 ? " neg" : ""}"><dt>الصافي</dt><dd>${olvFormatMoney(r.net)}</dd></div>
+          </dl>
+          ${noWage ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
           ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
-          <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
-        </li>`).join("")}</ul>`;
+          <div class="pc-pay">
+            <label>المبلغ اللي بدفعه<input type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${payVal}"></label>
+            <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
+          </div>
+          ${statementHtml(r.profileId)}
+        </li>`; }).join("")}</ul>`;
       box.querySelectorAll("input[data-bonus]").forEach((inp) => inp.addEventListener("change", () => {
         const row = previewRows.find((x) => x.profileId === inp.dataset.bonus);
         const v = Number(inp.value);
