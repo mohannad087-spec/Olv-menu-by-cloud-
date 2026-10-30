@@ -16,6 +16,8 @@ const OLV_STAFF_PAGES = [
   "recipes.html", // دليل تحضير المشروبات — مرجع ثابت للباريستا، ما فيه بيانات حساسة
 ];
 window.OLV_STAFF_PAGES = OLV_STAFF_PAGES;
+// الويتر (role = waiter): صفحة واحدة بس. الحماية الفعلية بقاعدة البيانات (schema-waiter-role.sql)
+const OLV_WAITER_PAGES = ["waiter-orders.html", "login.html"];
 
 // يتحقق من وجود جلسة دخول؛ وفي حال عدم وجودها يُعاد توجيه المستخدم إلى صفحة تسجيل الدخول
 async function olvRequireAuth() {
@@ -50,6 +52,10 @@ async function olvRequireAuth() {
   if (profile && profile.role) {
     window.olvRole = profile.role;
     const page = (window.location.pathname.split("/").pop() || "index.html");
+    if (profile.role === "waiter" && !OLV_WAITER_PAGES.includes(page)) {
+      window.location.replace("waiter-orders.html");
+      return null;
+    }
     if (profile.role === "staff" && !OLV_STAFF_PAGES.includes(page)) {
       window.location.replace("pos.html");
       return null;

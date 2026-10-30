@@ -229,7 +229,7 @@
     olvRenderNav("employees");
 
     const $ = (id) => document.getElementById(id);
-    const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "موظف" };
+    const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "موظف", waiter: "ويتر (تابلت الطاولات)" };
     let employees = [];
     let myRole = null;
     let myId = null;
@@ -243,7 +243,7 @@
 
     // اختيار الدور بحبوب (بدل القائمة المنسدلة). المدير بيضيف كاشير بس (نفس القيد بالوسيط)
     function rolesFor(group, selected) {
-      const roles = myRole === "manager" ? ["staff"] : ["staff", "manager", "owner"];
+      const roles = myRole === "manager" ? ["staff", "waiter"] : ["staff", "waiter", "manager", "owner"];
       if (!roles.includes(selected)) roles.push(selected);
       group.innerHTML = roles.map((r) =>
         `<button class="em-chip" type="button" role="radio" data-role="${r}" aria-checked="${r === selected}">${ROLE_LABELS[r]}</button>`).join("");
@@ -302,8 +302,8 @@
       const off = employees.filter((e) => !e.is_active);
       $("k-all").textContent = employees.length;
       $("k-all-note").textContent = `${active.length} فعّال`;
-      $("k-staff").textContent = active.filter((e) => e.role === "staff").length;
-      $("k-mgr").textContent = active.filter((e) => e.role !== "staff").length;
+      $("k-staff").textContent = active.filter((e) => e.role === "staff" || e.role === "waiter").length;
+      $("k-mgr").textContent = active.filter((e) => e.role === "owner" || e.role === "manager").length;
       $("k-off").textContent = off.length;
       if (!employees.length) { $("employees-box").innerHTML = `<div class="em-empty">ما في موظفين لسا. اكبس «موظف جديد» لإضافة أول حساب.</div>`; return; }
       const byName = (a, b) => String(a.full_name || "").localeCompare(String(b.full_name || ""), "ar");
@@ -311,6 +311,7 @@
         ["owner", "أصحاب المطعم", active.filter((e) => e.role === "owner").sort(byName)],
         ["manager", "المدراء", active.filter((e) => e.role === "manager").sort(byName)],
         ["staff", "الموظفون", active.filter((e) => e.role === "staff").sort(byName)],
+        ["waiter", "الويترية", active.filter((e) => e.role === "waiter").sort(byName)],
         ["off", "موقوفين", off.sort(byName)],
       ].filter((g) => g[2].length);
       $("employees-box").innerHTML = groups.map(([id, label, list]) => `

@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     if (!/^[0-9a-f-]{36}$/i.test(targetId)) return json({ ok: false, error: "userId غير صالح" }, 400);
     const { data: target } = await admin.from("profiles").select("role").eq("id", targetId).single();
     if (!target) return json({ ok: false, error: "المستخدم غير موجود" }, 404);
-    if (callerProfile.role === "manager" && target.role !== "staff") {
+    if (callerProfile.role === "manager" && !["staff", "waiter"].includes(target.role)) {
       return json({ ok: false, error: "المدير يتعامل مع الكاشير بس — هذا الحساب لمدير أو مالك ويحتاج صاحب المطعم" }, 403);
     }
     return null;
@@ -82,10 +82,10 @@ Deno.serve(async (req) => {
       const fullName = String(body.full_name || "").trim();
       const role = String(body.role || "staff");
       if (!email || !fullName) return json({ ok: false, error: "البريد والاسم مطلوبين" }, 400);
-      if (!["owner", "manager", "staff"].includes(role)) return json({ ok: false, error: "دور غير صالح" }, 400);
+      if (!["owner", "manager", "staff", "waiter"].includes(role)) return json({ ok: false, error: "دور غير صالح" }, 400);
       // المدير يقدر يضيف كاشير بس — إضافة مدير أو مالك جديد تحتاج صاحب
       // المطعم نفسه، حتى مدير ما يقدر يصنع مدراء/مالكين آخرين
-      if (callerProfile.role === "manager" && role !== "staff") {
+      if (callerProfile.role === "manager" && !["staff", "waiter"].includes(role)) {
         return json({ ok: false, error: "المدير يقدر يضيف كاشير بس — إضافة مدير أو مالك تحتاج صاحب المطعم" }, 403);
       }
       const tempPassword = randomTempPassword();
