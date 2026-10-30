@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>طلبات الطاولات — OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  /* تابلت الويتر (2026-10-30): ما فيه شريط تنقل ولا دفع، شاشتين بس: الطاولات ثم الطلب */
+  body{margin:0; background:var(--ink); color:var(--paper); font-family:Tajawal,sans-serif; -webkit-tap-highlight-color:transparent;}
+  .wt-top{display:flex; align-items:center; gap:12px; padding:12px 18px; background:var(--ink-2); border-bottom:1px solid var(--hair-soft); position:sticky; top:0; z-index:5;}
+  .wt-top h1{font-size:20px; font-weight:800; margin:0; flex:1;}
+  .wt-top .who{color:var(--muted); font-size:14px;}
+  .wt-btn{min-height:48px; padding:0 18px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font:inherit; font-weight:700; font-size:16px; cursor:pointer;}
+  .wt-btn.gold{background:var(--gold); color:var(--on-gold); border-color:transparent;}
+  .wt-btn.olive{background:var(--olive); color:var(--on-olive); border-color:transparent;}
+  .wt-btn:disabled{opacity:.5; cursor:default;}
+  .wt-err{margin:12px 18px 0; padding:12px 14px; border-radius:14px; background:var(--ink-3); color:var(--danger-hi); font-weight:700; display:none;}
+  .wt-tables{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; padding:18px;}
+  .wt-table{min-height:104px; border-radius:22px; border:1px solid var(--hair-soft); background:var(--ink-2); color:var(--paper); font:inherit; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:10px;}
+  .wt-table .n{font-size:30px; font-weight:800; line-height:1;}
+  .wt-table .s{font-size:13.5px; color:var(--muted);}
+  .wt-table.busy{border-color:var(--gold); background:var(--ink-3);}
+  .wt-table.busy .s{color:var(--gold-hi); font-weight:700;}
+  .wt-order{display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:14px; padding:14px 18px; align-items:start;}
+  .wt-cats{display:flex; gap:8px; overflow-x:auto; padding-bottom:10px;}
+  .wt-cat{flex:none; min-height:48px; padding:0 18px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-weight:700; font-size:15px; cursor:pointer;}
+  .wt-cat.on{background:var(--gold); color:var(--on-gold); border-color:transparent;}
+  .wt-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px;}
+  .wt-prod{min-height:92px; border-radius:18px; border:1px solid var(--hair-soft); background:var(--ink-2); color:var(--paper); font:inherit; cursor:pointer; padding:10px; display:flex; flex-direction:column; justify-content:space-between; text-align:right;}
+  .wt-prod .nm{font-weight:700; font-size:16px; line-height:1.35;}
+  .wt-prod .pr{color:var(--gold-hi); font-weight:800; font-size:14px;}
+  .wt-prod .q{align-self:flex-start; background:var(--olive); color:var(--on-olive); border-radius:999px; padding:0 9px; font-weight:800; font-size:13px;}
+  .wt-side{position:sticky; top:76px; display:grid; gap:12px; max-height:calc(100vh - 92px); overflow:auto;}
+  .wt-card{background:var(--ink-2); border:1px solid var(--hair-soft); border-radius:22px; padding:14px;}
+  .wt-card h2{font-size:16px; font-weight:800; margin:0 0 10px;}
+  .wt-line{padding:10px 0; border-bottom:1px solid var(--hair-soft);}
+  .wt-line:last-child{border-bottom:0;}
+  .wt-line .r1{display:flex; justify-content:space-between; gap:8px; font-weight:700;}
+  .wt-line .sub{color:var(--muted); font-size:13px; margin-top:2px;}
+  .wt-line .ctl{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .wt-line .ctl button{width:44px; height:44px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font-size:22px; font-weight:800; cursor:pointer;}
+  .wt-line .ctl .qty{min-width:28px; text-align:center; font-weight:800; font-size:18px;}
+  .wt-line input{flex:1; min-width:0; min-height:44px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font:inherit; font-size:16px; padding:0 10px;}
+  .wt-total{display:flex; justify-content:space-between; font-weight:800; font-size:18px; margin:6px 0 10px;}
+  .wt-empty{color:var(--muted); text-align:center; padding:16px 4px; line-height:1.7;}
+  .wt-sheet-bg{position:fixed; inset:0; background:var(--overlay-bg, rgba(0,0,0,.45)); z-index:20; display:flex; align-items:flex-end; justify-content:center;}
+  .wt-sheet{width:min(560px,100%); background:var(--ink-2); border-radius:24px 24px 0 0; padding:18px; display:grid; gap:12px; max-height:90vh; overflow:auto;}
+  .wt-sheet h3{margin:0; font-size:20px; font-weight:800;}
+  .wt-opts{display:flex; flex-wrap:wrap; gap:8px;}
+  .wt-opt{min-height:48px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font:inherit; font-weight:700; cursor:pointer;}
+  .wt-opt[aria-pressed="true"]{background:var(--gold); color:var(--on-gold); border-color:transparent;}
+  .wt-sheet input{min-height:48px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3); color:var(--paper); font:inherit; font-size:16px; padding:0 12px;}
+  .wt-toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--olive); color:var(--on-olive); padding:14px 22px; border-radius:16px; font-weight:800; z-index:30;}
+  @media (max-width:900px){ .wt-order{grid-template-columns:1fr;} .wt-side{position:static; max-height:none;} }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f7f1e6">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+</head>
+<body>
+  <header class="wt-top">
+    <button class="wt-btn" id="back" hidden>رجوع</button>
+    <h1 id="title">الطاولات</h1>
+    <span class="who" id="who"></span>
+    <button class="wt-btn" id="logout">خروج</button>
+  </header>
+  <div class="wt-err" id="err" role="alert"></div>
+  <main id="view"></main>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script>
+  document.addEventListener("DOMContentLoaded", async () => {
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => olvEsc(v);
+    const sb = () => window.supabaseClient;
+    const money = (n) => (Math.round(Number(n || 0) * 100) / 100).toLocaleString("en", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const key = (v) => olvNormTable(v).toLowerCase();
+    const SAVORY_CAT = /برغر|ساندويش|سناك|بيتزا|معجنات|باستا|عروض/;
+    const addonFits = (a, cat) => !/جبن/.test(a.name || "") || SAVORY_CAT.test(cat || "");
+    const newRef = () => (crypto.randomUUID ? crypto.randomUUID()
+      : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
+
+    const session = await olvRequireAuth();
+    if (!session) return;
+    let myName = "";
+    try {
+      const { data } = await sb().from("profiles").select("full_name").eq("id", session.user.id).single();
+      myName = (data && data.full_name) || "";
+    } catch (_) {}
+    $("who").textContent = myName;
+
+    let menu = { products: [], addons: [] };
+    let data = { tables: [], tabs: [] };
+    let table = null;              // الطاولة المفتوحة حاليًا
+    let cart = [];                 // { p, qty, addons:[], note }
+    let ref = newRef();            // نفس المعرّف لحد ما ينجح الإرسال (ما بيتكرر الطلب لو انقطع النت)
+    let cat = null;
+    let sending = false;
+
+    function showErr(msg) { const e = $("err"); e.textContent = msg || ""; e.style.display = msg ? "block" : "none"; }
+    function toast(msg) {
+      const t = document.createElement("div"); t.className = "wt-toast"; t.textContent = msg;
+      document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+    }
+    const unit = (p) => (Number(p.hall_price) > 0 ? Number(p.hall_price) : Number(p.price));
+    const lineTotal = (l) => (unit(l.p) + l.addons.reduce((s, a) => s + Number(a.price), 0)) * l.qty;
+    const cartTotal = () => cart.reduce((s, l) => s + lineTotal(l), 0);
+    const tabOf = (n) => data.tabs.find((t) => key(t.table_number) === key(n));
+    const tabTotal = (t) => t.items.reduce((s, i) => s + (Number(i.unit_price || 0) + Number(i.addons_total || 0)) * Number(i.qty || 0), 0);
+
+    async function loadTables() {
+      const { data: d, error } = await sb().rpc("waiter_tables");
+      if (error) { showErr(error.message || "تعذّر تحميل الطاولات"); return; }
+      showErr("");
+      data = d;
+      if (!table) renderTables(); else renderOrder();
+    }
+    async function loadMenu() {
+      const { data: d, error } = await sb().rpc("waiter_menu");
+      if (error) { showErr(error.message || "تعذّر تحميل القائمة"); return; }
+      menu = d;
+    }
+
+    function renderTables() {
+      $("title").textContent = "الطاولات"; $("back").hidden = true;
+      const names = data.tables.slice();
+      data.tabs.forEach((t) => { if (!names.some((n) => key(n) === key(t.table_number))) names.push(t.table_number); });
+      names.sort((a, b) => String(a).localeCompare(String(b), "en", { numeric: true }));
+      $("view").innerHTML = names.length
+        ? `<div class="wt-tables">${names.map((n) => {
+            const t = tabOf(n);
+            return `<button class="wt-table${t ? " busy" : ""}" data-t="${esc(n)}"><span class="n">${esc(n)}</span><span class="s">${t ? "عليها حساب · " + money(tabTotal(t)) : "فاضية"}</span></button>`;
+          }).join("")}</div>`
+        : `<div class="wt-empty">ما في طاولات مسجّلة. خبّر المدير.</div>`;
+      $("view").querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => openTable(b.dataset.t)));
+    }
+
+    function openTable(n) {
+      table = n; cart = []; ref = newRef(); cat = null;
+      renderOrder();
+    }
+
+    function renderOrder() {
+      $("title").textContent = "طاولة " + table; $("back").hidden = false;
+      const cats = [...new Set(menu.products.map((p) => p.category).filter(Boolean))];
+      if (!cat || !cats.includes(cat)) cat = cats[0] || null;
+      const qtyOf = (id) => cart.filter((l) => l.p.id === id).reduce((s, l) => s + l.qty, 0);
+      const tab = tabOf(table);
+      $("view").innerHTML = `
+        <div class="wt-order">
+          <section>
+            <div class="wt-cats">${cats.map((c) => `<button class="wt-cat${c === cat ? " on" : ""}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+            <div class="wt-grid">${menu.products.filter((p) => p.category === cat).map((p) => `
+              <button class="wt-prod" data-p="${esc(p.id)}">
+                <span class="nm">${esc(p.name)}</span>
+                <span class="pr">${money(unit(p))}</span>
+                ${qtyOf(p.id) ? `<span class="q">× ${qtyOf(p.id)}</span>` : ""}
+              </button>`).join("")}</div>
+          </section>
+          <aside class="wt-side">
+            <div class="wt-card">
+              <h2>طلب جديد</h2>
+              ${cart.length ? cart.map((l, i) => `
+                <div class="wt-line">
+                  <div class="r1"><span>${esc(l.p.name)}</span><span>${money(lineTotal(l))}</span></div>
+                  ${l.addons.length ? `<div class="sub">${esc(l.addons.map((a) => a.name).join("، "))}</div>` : ""}
+                  <div class="ctl">
+                    <button data-m="${i}" aria-label="أنقص">−</button><span class="qty">${l.qty}</span><button data-a="${i}" aria-label="زيد">+</button>
+                    <input data-n="${i}" placeholder="ملاحظة" value="${esc(l.note)}" maxlength="120">
+                  </div>
+                </div>`).join("") : `<div class="wt-empty">اختار أصناف من القائمة</div>`}
+              ${cart.length ? `<div class="wt-total"><span>المجموع</span><span>${money(cartTotal())}</span></div>` : ""}
+              <button class="wt-btn olive" id="send" style="width:100%" ${cart.length && !sending ? "" : "disabled"}>${sending ? "جاري الإرسال..." : "أرسل للمطبخ والبار"}</button>
+            </div>
+            <div class="wt-card">
+              <h2>الحساب المفتوح</h2>
+              ${tab && tab.items.length ? tab.items.map((i) => `
+                <div class="wt-line"><div class="r1"><span>${i.qty} × ${esc(i.name)}</span></div>
+                ${i.addons || i.note ? `<div class="sub">${esc([i.addons, i.note].filter(Boolean).join(" · "))}</div>` : ""}</div>`).join("")
+                + `<div class="wt-total"><span>المجموع</span><span>${money(tabTotal(tab))}</span></div>`
+                : `<div class="wt-empty">ما في حساب مفتوح على هالطاولة</div>`}
+            </div>
+          </aside>
+        </div>`;
+      $("view").querySelectorAll("[data-c]").forEach((b) => b.addEventListener("click", () => { cat = b.dataset.c; renderOrder(); }));
+      $("view").querySelectorAll("[data-p]").forEach((b) => b.addEventListener("click", () => pickProduct(b.dataset.p)));
+      $("view").querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => { const l = cart[+b.dataset.m]; l.qty -= 1; if (l.qty < 1) cart.splice(+b.dataset.m, 1); renderOrder(); }));
+      $("view").querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => { cart[+b.dataset.a].qty += 1; renderOrder(); }));
+      $("view").querySelectorAll("[data-n]").forEach((inp) => inp.addEventListener("input", () => { cart[+inp.dataset.n].note = inp.value; }));
+      const send = $("send"); if (send) send.addEventListener("click", sendOrder);
+    }
+
+    // خيارات الصنف: إضافات عادية + (كبير / وجبة / وجبة دبل) إذا الصنف إله إضافة مربوطة
+    function optionsFor(p) {
+      const byId = (id) => menu.addons.find((a) => a.id === id);
+      const extras = menu.addons.filter((a) => !a.is_meal && !a.is_size && addonFits(a, p.category));
+      const kinds = [["large_addon_id", "كبير"], ["meal_addon_id", "وجبة"], ["double_addon_id", "وجبة دبل"]]
+        .map(([f, label]) => (p[f] && byId(p[f]) ? { addon: byId(p[f]), label, exclusive: f !== "large_addon_id" } : null)).filter(Boolean);
+      return { extras, kinds };
+    }
+
+    function pickProduct(id) {
+      const p = menu.products.find((x) => x.id === id);
+      const { extras, kinds } = optionsFor(p);
+      const hookah = /[أا]رجيل/.test(p.category || "");
+      let qty = 1; const chosen = new Map(); let note = "";
+      const bg = document.createElement("div"); bg.className = "wt-sheet-bg";
+      const render = () => {
+        const all = [...kinds.map((k) => ({ a: k.addon, label: k.label + " +" + money(k.addon.price), kind: k })), ...extras.map((a) => ({ a, label: a.name + (Number(a.price) ? " +" + money(a.price) : "") }))];
+        bg.innerHTML = `<div class="wt-sheet" role="dialog" aria-modal="true">
+          <h3>${esc(p.name)} · ${money(unit(p))}</h3>
+          ${all.length ? `<div class="wt-opts">${all.map((o, i) => `<button class="wt-opt" data-o="${i}" aria-pressed="${chosen.has(o.a.id)}">${esc(o.label)}</button>`).join("")}</div>` : ""}
+          <input id="sh-note" placeholder="${hookah ? "النكهة / ملاحظة" : "ملاحظة (مثال: بدون بصل)"}" value="${esc(note)}" maxlength="120">
+          <div class="ctl" style="display:flex;align-items:center;gap:12px;justify-content:center">
+            <button class="wt-btn" id="sh-m">−</button><b style="font-size:24px;min-width:34px;text-align:center">${qty}</b><button class="wt-btn" id="sh-p">+</button>
+          </div>
+          <div style="display:flex;gap:10px"><button class="wt-btn" id="sh-x" style="flex:1">إلغاء</button><button class="wt-btn gold" id="sh-ok" style="flex:2">أضف للطلب</button></div>
+        </div>`;
+        bg.querySelectorAll("[data-o]").forEach((b) => b.addEventListener("click", () => {
+          note = bg.querySelector("#sh-note").value;
+          const o = all[+b.dataset.o];
+          if (chosen.has(o.a.id)) chosen.delete(o.a.id);
+          else {
+            if (o.kind && o.kind.exclusive) kinds.filter((k) => k.exclusive).forEach((k) => chosen.delete(k.addon.id));
+            chosen.set(o.a.id, o.a);
+          }
+          render();
+        }));
+        bg.querySelector("#sh-m").addEventListener("click", () => { note = bg.querySelector("#sh-note").value; qty = Math.max(1, qty - 1); render(); });
+        bg.querySelector("#sh-p").addEventListener("click", () => { note = bg.querySelector("#sh-note").value; qty += 1; render(); });
+        bg.querySelector("#sh-x").addEventListener("click", () => bg.remove());
+        bg.querySelector("#sh-ok").addEventListener("click", () => {
+          note = bg.querySelector("#sh-note").value.trim();
+          const addons = [...chosen.values()];
+          const same = cart.find((l) => l.p.id === p.id && !note && !l.note && l.addons.length === addons.length && l.addons.every((a) => chosen.has(a.id)));
+          if (same) same.qty += qty; else cart.push({ p, qty, addons, note });
+          bg.remove(); renderOrder();
+        });
+      };
+      bg.addEventListener("click", (e) => { if (e.target === bg) bg.remove(); });
+      render(); document.body.appendChild(bg);
+    }
+
+    async function sendOrder() {
+      if (sending || !cart.length) return;
+      sending = true; showErr(""); renderOrder();
+      try {
+        const items = cart.map((l) => ({ product_id: l.p.id, qty: l.qty, addon_ids: l.addons.map((a) => a.id), note: l.note.trim() || null }));
+        const { error } = await sb().rpc("waiter_place_order", {
+          p_entry_date: olvToday(), p_total: cartTotal(), p_items: items, p_client_ref: ref, p_table_number: olvNormTable(table),
+        });
+        if (error) throw error;
+        toast("انرسل الطلب ✓");
+        cart = []; ref = newRef(); table = null; sending = false;
+        await loadTables();
+      } catch (e) {
+        sending = false;
+        showErr((e && e.message) || "ما انرسل الطلب، جرّب كمان مرة (ما رح يتكرر)");
+        renderOrder();
+      }
+    }
+
+    $("back").addEventListener("click", () => {
+      if (cart.length && !confirm("في أصناف ما انرسلت، تتركها؟")) return;
+      table = null; cart = []; ref = newRef(); renderTables();
+    });
+    $("logout").addEventListener("click", async () => { await sb().auth.signOut(); window.location.href = "login.html"; });
+
+    await Promise.all([loadMenu(), loadTables()]);
+    setInterval(() => { if (!sending && !document.querySelector(".wt-sheet-bg") && document.activeElement.tagName !== "INPUT") loadTables(); }, 15000);
+  });
+  </script>
+</body>
+</html>
