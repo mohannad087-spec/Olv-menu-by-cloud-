@@ -147,6 +147,12 @@
       <ul class="lk-alerts" id="alerts"><li><span class="ai"></span><span>جاري التحميل...</span></li></ul>
     </section>
 
+    <section class="group">
+      <h2 id="tb-title"></h2>
+      <div id="tables-box"></div>
+      <p class="lk-note">من سجل التدقيق (للمالك بس): موافقات المدير بتنحسب على الكاشير اللي طلبها وعلى المدير اللي وافق، ونقل الحساب من طاولة لطاولة. الحساب المفتوح «قديم» لو صار له أكتر من 3 ساعات.</p>
+    </section>
+
     <div class="lk-grid">
       <section class="group">
         <h2 id="pp-title"></h2>
@@ -187,6 +193,7 @@
     $("ic-waste").innerHTML = olvIcon("trash");
     $("ic-count").innerHTML = olvIcon("clipboard");
     $("al-title").innerHTML = olvIcon("warning") + " شو لازم تنتبه له";
+    $("tb-title").innerHTML = olvIcon("dineIn") + " الطاولات والموافقات";
     $("pp-title").innerHTML = olvIcon("people") + " كل موظف";
     $("ls-title").innerHTML = olvIcon("box") + " أكتر مواد ضايعة";
 
@@ -194,6 +201,8 @@
     const VOID_RATE = 0.05, VOID_MIN = 3;       // إلغاء 5%+ من مبيعاته وعلى الأقل 3 طلبات
     const DISC_SHARE = 0.03, DISC_TIMES = 2;    // خصم 3%+ وضعف المعدل العام
     const LATE_MIN = 60;                        // إلغاء بعد أكتر من ساعة من البيع
+    const TAB_HOURS = 3;                        // حساب طاولة مفتوح أكتر من 3 ساعات = قديم
+    const APPROVAL_MANY = 3;                    // 3 موافقات أو أكتر لنفس الكاشير
 
     function shiftDay(dateStr, d) {
       const t = new Date(dateStr + "T12:00:00Z");
@@ -214,15 +223,20 @@
       document.querySelectorAll(".lk-chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === period)));
       const from = fromDate(period);
       const db = window.supabaseClient;
-      const [sR, mR, pR, iR, uR] = await Promise.all([
+      const [sR, mR, pR, iR, uR, aR, tR] = await Promise.all([
         db.from("sales_entries")
-          .select("id, created_at, status, void_reason, voided_at, voided_by, created_by, discount_amount, cash_amount, card_amount, delivery_amount")
+          .select("id, created_at, status, void_reason, voided_at, voided_by, created_by, discount_amount, cash_amount, card_amount, delivery_amount, table_number")
           .gte("entry_date", from).limit(5000),
         db.from("stock_movements").select("item_kind, item_id, item_name, delta, reason, created_at")
           .gte("created_at", from + "T00:00:00Z").in("reason", ["count", "waste"]).lt("delta", 0).limit(5000),
         db.from("profiles").select("id, full_name"),
         db.from("ingredients").select("id, unit, unit_price"),
         db.from("supplies").select("id, unit, unit_price"),
+        db.from("audit_log").select("at, actor, actor_name, table_name, op, old_data, new_data")
+          .gte("at", from + "T00:00:00Z")
+          .or("and(table_name.eq.approvals,op.eq.APPROVE),and(table_name.eq.sales_entries,op.eq.UPDATE)")
+          .order("at", { ascending: false }).limit(3000),
+        db.from("sales_entries").select("id, order_no, created_at, table_number, created_by").eq("tab_open", true).eq("status", "completed"),
       ]);
       if (my !== seq) return;
       if (sR.error) throw sR.error;
@@ -271,7 +285,24 @@
         loss.set(key, o);
       });
 
-      render({ done, doneTotal, voids, voidVal, late, disc, discOrders, discShare, per, nameOf, loss, wasteVal, wasteN, countVal, countN, movesErr: !!mR.error });
+      // ---- الطاولات والموافقات ----
+      const tb = { logErr: !!aR.error, appr: [], moves: [], tabsErr: !!tR.error, oldTabs: [], tabsN: 0, tableVoids: 0, tableVoidVal: 0 };
+      (aR.data || []).forEach((a) => {
+        if (a.table_name === "approvals") {
+          tb.appr.push({ at: a.at, who: a.actor_name || nameOf(a.actor), kind: (a.new_data || {}).kind, by: (a.new_data || {}).approved_by || "—" });
+        } else if (a.old_data && a.new_data && a.old_data.tab_open && a.new_data.tab_open
+                   && String(a.old_data.table_number || "").trim() !== String(a.new_data.table_number || "").trim()) {
+          tb.moves.push({ at: a.at, who: a.actor_name || nameOf(a.actor), from: a.old_data.table_number, to: a.new_data.table_number });
+        }
+      });
+      if (!tR.error) {
+        const tabs = tR.data || [];
+        tb.tabsN = tabs.length;
+        tb.oldTabs = tabs.filter((t) => (Date.now() - new Date(t.created_at)) / 36e5 > TAB_HOURS);
+      }
+      sales.forEach((s) => { if (s.status === "voided" && s.table_number) { tb.tableVoids++; tb.tableVoidVal += saleTotal(s); } });
+
+      render({ tb, done, doneTotal, voids, voidVal, late, disc, discOrders, discShare, per, nameOf, loss, wasteVal, wasteN, countVal, countN, movesErr: !!mR.error });
     }
 
     function render(d) {
@@ -311,6 +342,24 @@
         </div>`;
       }).join("") : `<div class="lk-empty">ما في مبيعات بهالفترة.</div>`;
 
+      // ---- الطاولات والموافقات ----
+      const tb = d.tb;
+      const kindW = (k) => (k === "void" ? "إلغاء" : k === "discount" ? "خصم" : esc(k || ""));
+      const cnt = (arr, f) => { const m = new Map(); arr.forEach((x) => m.set(f(x), (m.get(f(x)) || 0) + 1)); return [...m].sort((a, b) => b[1] - a[1]); };
+      const byWho = cnt(tb.appr, (x) => x.who), byMgr = cnt(tb.appr, (x) => x.by);
+      const line = (label, val, bad) => `<div class="lk-loss"><span class="nm">${label}</span><span class="v" style="${bad ? "" : "color:var(--paper)"}">${val}</span></div>`;
+      $("tables-box").innerHTML = [
+        tb.tabsErr ? "" : line("حسابات مفتوحة هلأ", `${tb.tabsN}`, false),
+        tb.tabsErr ? "" : line(`مفتوحة من أكتر من ${TAB_HOURS} ساعات`, `${tb.oldTabs.length}`, tb.oldTabs.length > 0),
+        line("طلبات طاولات ملغاة", `${tb.tableVoids} (${money(tb.tableVoidVal)})`, tb.tableVoids > 0),
+        tb.logErr ? `<div class="lk-empty">سجل الموافقات والنقل للمالك بس.</div>` : [
+          line("موافقات المدير", `${tb.appr.length}${tb.appr.length ? " (" + tb.appr.filter((x) => x.kind === "void").length + " إلغاء، " + tb.appr.filter((x) => x.kind === "discount").length + " خصم)" : ""}`, tb.appr.length >= APPROVAL_MANY),
+          byWho.length ? `<small>طلبها: ${byWho.map(([n, c]) => `${esc(n)} ×${c}`).join("، ")} · وافق: ${byMgr.map(([n, c]) => `${esc(n)} ×${c}`).join("، ")}</small>` : "",
+          line("حسابات انتقلت بين طاولات", `${tb.moves.length}`, false),
+          tb.moves.length ? `<small>${tb.moves.slice(0, 5).map((m) => `${esc(m.who)}: ${esc(m.from)} ← ${esc(m.to)}`).join("، ")}</small>` : "",
+        ].join(""),
+      ].join("");
+
       // ---- المواد الضايعة ----
       const top = [...d.loss.values()].sort((a, b) => b.v - a.v || b.q - a.q).slice(0, 8);
       $("losses").innerHTML = top.length ? top.map((o) => `<div class="lk-loss">
@@ -325,6 +374,8 @@
         if (r.badVoid) A.push(["warn", "x", `<b>${esc(r.name)}</b> ألغى ${r.voids} طلب بقيمة ${money(r.voidVal)}، يعني ${Math.round(r.vr * 1000) / 10}% من طلباته. اسأله عن الأسباب.`]);
         if (r.badDisc) A.push(["warn", "tag", `<b>${esc(r.name)}</b> عطى خصومات ${money(r.disc)} (${Math.round(r.ds * 1000) / 10}% من مبيعاته)، أكتر من ضعف معدل المحل (${Math.round(d.discShare * 1000) / 10}%).`]);
       });
+      if (!tb.tabsErr && tb.oldTabs.length) A.push(["warn", "clock", `<b>${tb.oldTabs.length}</b> حساب طاولة مفتوح من أكتر من ${TAB_HOURS} ساعات (${tb.oldTabs.slice(0, 4).map((t) => "طاولة " + esc(t.table_number)).join("، ")}). تأكد إنه الزبون لسا قاعد وما انسي الحساب.`]);
+      if (!tb.logErr) cnt(tb.appr, (x) => x.who).forEach(([n, c]) => { if (c >= APPROVAL_MANY) A.push(["warn", "warning", `<b>${esc(n)}</b> احتاج موافقة مدير ${c} مرات بهالفترة (إلغاء أو خصم فوق حدّه). راجع الأسباب.`]); });
       if (d.late >= 1) A.push(["warn", "clock", `<b>${d.late}</b> طلب انلغى بعد أكتر من ساعة من البيع. الإلغاء المتأخر هو الأكتر إثارة للشك، راجعهم من «المبيعات» (فلتر الملغاة).`]);
       const bigLoss = [...d.loss.values()].filter((o) => o.v > 0).sort((a, b) => b.v - a.v)[0];
       if (bigLoss && bigLoss.v >= 5) A.push(["warn", "box", `أكتر مادة ضايعة: <b>${esc(bigLoss.name)}</b> بقيمة ${money(bigLoss.v)}.`]);
