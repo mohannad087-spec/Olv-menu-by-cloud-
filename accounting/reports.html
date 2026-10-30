@@ -643,8 +643,7 @@
         const [{ data: priorSales, error: e1 }, { data: priorExpenses, error: e2 }] = await Promise.all([
           window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount")
             .eq("status", "completed").gte("entry_date", priorFrom).lte("entry_date", priorTo),
-          window.supabaseClient.from("expenses").select("amount")
-            .gte("expense_date", priorFrom).lte("expense_date", priorTo),
+          olvExpensesPaid(window.supabaseClient, "amount", priorFrom, priorTo),
         ]);
         if (!e1 && !e2 && ((priorSales || []).length || (priorExpenses || []).length)) {
           const priorTotalSales = (priorSales || []).reduce((s, r) => s + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
@@ -754,9 +753,7 @@
         ] = await Promise.all([
           window.supabaseClient
             .from("sales_entries").select("*, sale_items(product_id, product_name, qty, unit_price, status)").eq("status", "completed").gte("entry_date", from).lte("entry_date", to),
-          window.supabaseClient
-            .from("expenses").select("amount, expense_date, expense_categories(name)")
-            .gte("expense_date", from).lte("expense_date", to),
+          olvExpensesPaid(window.supabaseClient, "amount, expense_categories(name)", from, to),
         ]);
         if (e1) throw e1;
         if (e2) throw e2;
