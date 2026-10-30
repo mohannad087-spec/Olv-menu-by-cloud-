@@ -408,13 +408,13 @@
     // آخر دفعة لكل موظف: منها بنعرف لأي يوم انحسب راتبه وكم باقي له/عليه (الإجمالي المسجّل − السلف − المدفوع)
     async function loadLedger() {
       const { data, error } = await window.supabaseClient
-        .from("payroll_payments").select("profile_id, period_end, gross_amount, advances_deducted, net_amount, paid_at").order("paid_at", { ascending: false });
+        .from("payroll_payments").select("profile_id, period_start, period_end, hours_worked, gross_amount, advances_deducted, net_amount, paid_at").order("paid_at", { ascending: false });
       if (error) throw error;
       ledger = new Map();
       (data || []).forEach((p) => {
         if (ledger.has(p.profile_id)) return;
         const carry = Math.round((Number(p.gross_amount) - Number(p.advances_deducted) - Number(p.net_amount)) * 100) / 100;
-        ledger.set(p.profile_id, { lastEnd: fmtDate(p.period_end), carry });
+        ledger.set(p.profile_id, { lastEnd: fmtDate(p.period_end), lastStart: fmtDate(p.period_start), lastHours: Number(p.hours_worked) || 0, carry });
       });
     }
 
@@ -502,6 +502,7 @@
             <label>المكافأة (صفّرها إذا أخذ إجازة)<input type="number" inputmode="decimal" min="0" step="0.5" data-bonus="${r.profileId}" value="${r.bonus}"></label>
             <label>المبلغ اللي بدفعه (إذا مش كامل)<input type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${(r.payAmount != null ? r.payAmount : r.net).toFixed(2)}"></label>
           </div>
+          ${Math.abs(r.carry) >= 0.005 && ledger.has(r.profileId) ? `<div class="pay-carry">${r.carry > 0 ? "لسا له" : "عليه"} ${olvFormatMoney(Math.abs(r.carry))} من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)</div>` : ""}
           ${statementHtml(r.profileId)}
           ${r.hourlyWage == null ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
           ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
