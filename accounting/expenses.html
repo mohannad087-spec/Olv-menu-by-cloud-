@@ -255,6 +255,10 @@
   .today-mode .ex-grid, .today-mode #rec-group, .today-mode #kind-chips [data-kind=manual], .today-mode #kind-chips [data-kind=rec], .today-mode #kind-chips [data-kind=inv]{display:none;}
   .td-sum{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 14px; border-radius:14px; background:var(--ink-3); margin-bottom:8px; font-size:13.5px; color:var(--muted);}
   .td-sum b{color:var(--paper); font-size:18px; font-variant-numeric:tabular-nums;}
+  .td-sum{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .td-tile{display:flex; flex-direction:column; gap:2px; align-items:flex-start; min-height:56px; padding:8px 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-2); color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; text-align:right;}
+  .td-tile:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .td-all{grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; font-size:13px;}
   .td-list{list-style:none; margin:0; padding:0;}
   .td{display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:12px; align-items:start; padding:12px 8px; border-bottom:1px solid var(--hair-soft);}
   .td:last-child{border-bottom:0;}
@@ -440,11 +444,12 @@
       </div>
       <div class="ex-chips ex-kind" id="kind-chips" role="group" aria-label="نوع المصروف">
         <button class="ex-chip" type="button" data-kind="all" aria-pressed="true">الكل</button>
-        <button class="ex-chip" type="button" data-kind="drawer" aria-pressed="false">من الدرج (كاش)</button>
+        <button class="ex-chip" type="button" data-kind="drawer" aria-pressed="false">مصروفات الدرج</button>
+        <button class="ex-chip" type="button" data-kind="buy" aria-pressed="false">مشتريات الدرج</button>
         <button class="ex-chip" type="button" data-kind="manual" aria-pressed="false">يدوي</button>
         <button class="ex-chip" type="button" data-kind="rec" aria-pressed="false">ثابت</button>
         <button class="ex-chip" type="button" data-kind="inv" aria-pressed="false">من المشتريات</button>
-        <button class="ex-chip" type="button" data-kind="credit" aria-pressed="false">ذمة</button>
+        <button class="ex-chip" type="button" data-kind="credit" aria-pressed="false">آجل / ذمة</button>
       </div>
       <div class="ex-credit-bar" id="credit-bar" hidden></div>
       <div id="ex-list"><p class="empty-state">جاري التحميل...</p></div>
@@ -538,6 +543,16 @@
     let nameOf = {};          // مين سجّل المصروف (بعرض اليوم)
 
     const catName = (id) => { const c = categories.find((x) => x.id === id); return c ? c.name : "بدون تصنيف"; };
+    // وين راح المبلغ: من الدرج (مصروف أو مشتريات كاش) ولا آجل. فاتورة المشتريات الآجل ما بتنزل من الدرج
+    function split(x) {
+      const amt = Number(x.amount), inv = invoiceOf[x.id];
+      if (inv && !inv.old) {
+        const d = inv.pay === "credit" ? 0 : inv.pay === "partial" ? Math.min(Math.max(inv.paid || 0, 0), amt) : amt;
+        return { inv: true, drawer: d, credit: amt - d };
+      }
+      if (inv) return { inv: true, drawer: amt, credit: 0 };
+      return x.payment_type === "credit" ? { inv: false, drawer: 0, credit: amt } : { inv: false, drawer: amt, credit: 0 };
+    }
     const kindOf = (r) => invoiceOf[r.id] ? "inv" : r.recurring_id ? "rec" : "manual";
 
     // ---------------------------------------------------------------
@@ -611,10 +626,10 @@
         for (let i = 0; i < ids.length; i += 150) {
           const part = ids.slice(i, i + 150);
           const [pi, pu] = await Promise.all([
-            db.from("purchase_invoices").select("id, invoice_no, expense_id, status, suppliers(name)").in("expense_id", part),
+            db.from("purchase_invoices").select("id, invoice_no, expense_id, status, payment_type, paid_amount, total_amount, suppliers(name)").in("expense_id", part),
             db.from("purchases").select("id, expense_id").in("expense_id", part),
           ]);
-          (pi.data || []).forEach((x) => { invoiceOf[x.expense_id] = { no: x.invoice_no, supplier: x.suppliers && x.suppliers.name, voided: x.status === "voided" }; });
+          (pi.data || []).forEach((x) => { invoiceOf[x.expense_id] = { no: x.invoice_no, supplier: x.suppliers && x.suppliers.name, voided: x.status === "voided", pay: x.payment_type, paid: Number(x.paid_amount) }; });
           (pu.data || []).forEach((x) => { if (!invoiceOf[x.expense_id]) invoiceOf[x.expense_id] = { old: true }; });
         }
         if (seq !== loadSeq) return;
@@ -663,10 +678,10 @@
         setVal("k-ratio", "—");
         $("k-ratio-note").textContent = salesTotal === 0 ? "ما في مبيعات بهالفترة" : " ";
       }
-      const cr = rows.filter((x) => x.payment_type === "credit");
+      const cr = rows.filter((x) => split(x).credit > 0.004);
       const bar = $("credit-bar");
       bar.hidden = !cr.length;
-      if (cr.length) bar.innerHTML = olvIcon("clock") + `<span>ذمة لسا ما انسدّدت: ${olvFormatMoney(cr.reduce((s, x) => s + Number(x.amount), 0))} (${cr.length})</span>`;
+      if (cr.length) bar.innerHTML = olvIcon("clock") + `<span>آجل (ما نزل من الدرج): ${olvFormatMoney(cr.reduce((s, x) => s + split(x).credit, 0))} (${cr.length})</span>`;
       renderChart();
       renderCatBars(total);
       renderList();
@@ -778,8 +793,10 @@
     // السجل: مجمّع حسب التصنيف، مسكّر لحد ما تفتحه
     // ---------------------------------------------------------------
     function matches(x) {
-      if (kind === "drawer") { if (x.payment_type === "credit") return false; }
-      else if (kind === "credit") { if (x.payment_type !== "credit") return false; }
+      const sp = split(x);
+      if (kind === "drawer") { if (sp.inv || !sp.drawer) return false; }
+      else if (kind === "buy") { if (!sp.inv || !sp.drawer) return false; }
+      else if (kind === "credit") { if (!sp.credit) return false; }
       else if (kind !== "all" && kindOf(x) !== kind) return false;
       if (!query) return true;
       const inv = invoiceOf[x.id] || {};
@@ -790,7 +807,8 @@
       const inv = invoiceOf[x.id];
       const tags = [];
       if (x.recurring_id) tags.push(`<span class="tag rec">${olvIcon("refresh")}ثابت</span>`);
-      if (x.payment_type === "credit") tags.push(`<span class="tag credit">${olvIcon("clock")}ذمة</span>`);
+      const sp0 = split(x);
+      if (sp0.credit > 0.004) tags.push(`<span class="tag credit">${olvIcon("clock")}${sp0.drawer > 0.004 ? "آجل " + olvFormatMoney(sp0.credit) : sp0.inv ? "آجل" : "ذمة"}</span>`);
       else if (x.settled_at) tags.push(`<span class="tag rec">${olvIcon("check")}انسدّد</span>`);
       if (inv) tags.push(`<span class="tag inv">${olvIcon("receipt")}${inv.old ? "مشتريات" : "فاتورة مشتريات" + (inv.voided ? " (ملغاة)" : "")}</span>`);
       const open = openRow === x.id;
@@ -827,7 +845,8 @@
       const t = x.created_at ? new Date(x.created_at) : null;
       const time = t ? t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "—";
       const who = x.created_by ? (nameOf[x.created_by] || "مستخدم غير معروف") : (x.recurring_id ? "تلقائي (ثابت)" : "—");
-      const credit = x.payment_type === "credit";
+      const sp = split(x), credit = sp.credit > 0.004, part = credit && sp.drawer > 0.004;
+      const kindLbl = sp.inv ? "مشتريات" : "مصروف";
       const meta = [`<span>${olvIcon(catIcon(catName(x.category_id)))} ${olvEsc(catName(x.category_id))}</span>`, `<span>سجّله: ${olvEsc(who)}</span>`];
       if (inv && inv.supplier) meta.push(`<span>المورّد: ${olvEsc(inv.supplier)}</span>`);
       if (x.recurring_id) meta.push("<span>من مصروف ثابت</span>");
@@ -840,7 +859,7 @@
         <span class="tm">${olvEsc(time)}</span>
         <div class="bd"><b>${olvEsc(catName(x.category_id))}</b>${x.description ? `<span class="note">${olvEsc(x.description)}</span>` : ""}
           <div class="meta">${meta.join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>
-        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${credit ? olvIcon("clock") + "ذمة" : olvIcon("check") + "كاش"}</span></span>
+        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${part ? olvIcon("clock") + "كاش " + olvFormatMoney(sp.drawer) + " + آجل" : credit ? olvIcon("clock") + (sp.inv ? "آجل" : "ذمة") : olvIcon("check") + (sp.inv ? "مشتريات كاش" : "كاش")}</span></span>
       </li>`;
     }
     function renderToday() {
@@ -848,9 +867,10 @@
       $("list-count").textContent = rows.length ? `(${rows.length})` : "";
       if (!rows.length) { box.innerHTML = `<p class="ex-empty">ما سُجّل أي مصروف اليوم</p>`; return; }
       const list = rows.filter(matches).slice().sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
-      const cash = rows.filter((x) => x.payment_type !== "credit").reduce((s, x) => s + Number(x.amount), 0);
-      const cr = rows.filter((x) => x.payment_type === "credit").reduce((s, x) => s + Number(x.amount), 0);
-      box.innerHTML = `<div class="td-sum"><span>مصروفات الدرج (كاش) <b>${olvFormatMoney(cash)}</b></span>${cr ? `<span>ذمة <b>${olvFormatMoney(cr)}</b></span>` : ""}</div>`
+      const sum = (f) => rows.reduce((t, x) => t + f(split(x)), 0);
+      const exp = sum((p) => (p.inv ? 0 : p.drawer)), buy = sum((p) => (p.inv ? p.drawer : 0)), cr = sum((p) => p.credit);
+      const tile = (l, v, k) => `<button type="button" class="td-tile" data-jump="${k}"><span>${l}</span><b>${olvFormatMoney(v)}</b></button>`;
+      box.innerHTML = `<div class="td-sum">${tile("مصروفات الدرج", exp, "drawer")}${tile("مشتريات الدرج", buy, "buy")}${tile("آجل (برّا الدرج)", cr, "credit")}<span class="td-all">المجموع الكلي <b>${olvFormatMoney(exp + buy + cr)}</b></span></div>`
         + (list.length ? `<ul class="td-list">${list.map(todayHtml).join("")}</ul>` : `<p class="ex-empty">ما في نتيجة</p>`);
     }
     function renderList() {
@@ -922,6 +942,10 @@
       }
     });
     $("ex-search").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
+    $("ex-list").addEventListener("click", (e) => {
+      const t = e.target.closest("[data-jump]"); if (!t) return;
+      kind = t.dataset.jump; setPressed("kind-chips", "kind", kind); renderList();
+    });
     $("kind-chips").addEventListener("click", (e) => {
       const b = e.target.closest(".ex-chip"); if (!b) return;
       kind = b.dataset.kind; setPressed("kind-chips", "kind", kind); renderList();
