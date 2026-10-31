@@ -623,7 +623,7 @@
         grid.innerHTML = shown.map(card).join("");
       }
       olvMarkNew(grid, tracker.diff(tables.filter((t) => t.state !== "free").map((t) => t.state + ":" + t.key)));
-      if (openKey && sheet.open && !payKey && !moveKey && !splitKey) renderSheet(openKey);
+      if (openKey && sheet.open && !payKey && !moveKey && !splitKey && !billKey && !voidKey) renderSheet(openKey);
       renderRes();
     }
 
@@ -671,6 +671,7 @@
       if (payKey === k && t.tabs && t.tabs.length) { renderPay(t, box); return; }
       if (moveKey === k && t.tabs && t.tabs.length) { renderMove(t, box); return; }
       if (billKey === k && t.tabs && t.tabs.length) { renderBill(t, box); return; }
+      if (voidKey === k && voidItemId && t.tabs && t.tabs.length) { renderVoidItem(t, box); return; }
       if (splitKey === k && t.tabs && t.tabs.length) { renderSplit(t, box); return; }
       const newOrder = (label, primary) => `<a class="btn${primary ? " go" : ""}" href="${olvEsc(posLink(t.label, t.lastName))}">${olvIcon("plus")}<span>${label}</span></a>`;
       if (t.state === "busy") {
@@ -686,7 +687,10 @@
             <div><div class="l">طلبات</div><div class="v">${t.orders.length}</div></div>
             <div><div class="l">بالتحضير</div><div class="v">${t.pending}</div></div>
           </div>
-          <div><h3>عالطاولة</h3><ul class="sh-items">${Array.from(agg).map(([n, q]) =>
+          <div><h3>عالطاولة</h3><ul class="sh-items">${t.tabs.length
+            ? t.tabs.flatMap((s) => liveItems(s)).map((it) =>
+              `<li><span class="q">${Number(it.qty || 0)}</span><span class="nm">${olvEsc(it.product_name + (it.addons_summary ? ` (${it.addons_summary})` : ""))}</span><button type="button" class="btn small" data-act="voiditem" data-id="${olvEsc(it.id)}" aria-label="شطب">${olvIcon("x")}<span>شطب</span></button></li>`).join("") || `<li><span class="nm">—</span></li>`
+            : Array.from(agg).map(([n, q]) =>
             `<li><span class="q">${q}</span><span class="nm">${olvEsc(n)}</span></li>`).join("") || `<li><span class="nm">—</span></li>`}</ul></div>
           <div><h3>الطلبات</h3><ul class="sh-orders">${t.orders.map((s) => `
             <li><span class="o-no">#${olvEsc(s.order_no ?? "")}</span><span class="o-t">${clock(s.created_at)}</span>
@@ -730,7 +734,7 @@
     }
 
     // ---------- نقل / دمج الحساب لطاولة ثانية ----------
-    let moveKey = null, billKey = null;
+    let moveKey = null, billKey = null, voidKey = null, voidItemId = null;
     let billPrinters = null;
     function renderMove(t, box) {
       const others = tables.filter((x) => x.key !== t.key && x.registered)
@@ -855,6 +859,50 @@
       w.document.close();
       w.focus();
       setTimeout(() => { w.print(); }, 300);
+    }
+
+    // ---------- شطب صنف من حساب مفتوح (سبب إلزامي، بيضل ظاهر للإدارة) ----------
+    function renderVoidItem(t, box) {
+      const item = t.tabs.flatMap((s) => liveItems(s)).find((x) => x.id === voidItemId);
+      if (!item) { voidKey = null; voidItemId = null; renderSheet(t.key); return; }
+      const REASONS = ["الزبون غيّر رأيه", "تبديل بصنف ثاني", "غلط بالطلب", "تأخر الطلب"];
+      let reason = "";
+      box.innerHTML = `
+        <div class="sh-head">
+          <div><h2 id="sh-title">شطب ${Number(item.qty || 0)} × ${olvEsc(item.product_name)}</h2><div class="sh-sub">طاولة ${olvEsc(t.label)} · بيضل ظاهر مشطوب عند الإدارة مع السبب واسمك</div></div>
+          <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
+        </div>
+        <div class="sh-body">
+          <div class="pay-q">${REASONS.map((r) => `<button type="button" class="btn" data-r="${olvEsc(r)}">${olvEsc(r)}</button>`).join("")}</div>
+          <div class="field"><label for="vi-reason">أو اكتب السبب</label><input id="vi-reason" type="text" maxlength="200" autocomplete="off"></div>
+        </div>
+        <div class="sh-foot">
+          <button type="button" class="btn" data-act="voidback">${olvIcon("undo")}<span>رجوع</span></button>
+          <button type="button" class="btn go" id="vi-go" disabled>${olvIcon("x")}<span>اضغط مطوّلاً للشطب</span></button>
+        </div>`;
+      const inp = box.querySelector("#vi-reason"), go = box.querySelector("#vi-go");
+      const sync = () => { go.disabled = reason.trim().length < 3; };
+      box.querySelectorAll("[data-r]").forEach((b) => b.addEventListener("click", () => {
+        reason = b.dataset.r; inp.value = reason;
+        box.querySelectorAll("[data-r]").forEach((x) => x.classList.toggle("go", x === b));
+        sync();
+      }));
+      inp.addEventListener("input", () => { reason = inp.value; box.querySelectorAll("[data-r]").forEach((x) => x.classList.remove("go")); sync(); });
+      olvHoldConfirm(go, async () => {
+        go.disabled = true;
+        let error = null;
+        try {
+          await olvWithApproval("void", async () => {
+            const r = await db.rpc("void_sale_item", { p_sale_item_id: voidItemId, p_reason: reason.trim() });
+            if (r.error) throw r.error;
+          });
+        } catch (e) { error = e; }
+        if (error) { olvToast(error.message || "ما انشطب الصنف", { type: "danger", icon: "warning", ms: 6000 }); go.disabled = false; return; }
+        voidKey = null; voidItemId = null;
+        olvToast("انشطب الصنف وانطبعت تذكرة إلغاء للقسم", { type: "ok", icon: "check", ms: 4000 });
+        await load();
+        if (sheet.open && openKey) renderSheet(openKey);
+      }, { hint: "اضغط مطوّلاً لتأكيد الشطب" });
     }
 
     // ---------- طباعة الحساب: مسودة أو نسخة زبون على أي طابعة يختارها الكاشير ----------
@@ -990,12 +1038,12 @@
     }
 
     function openSheet(k) {
-      payKey = null; moveKey = null; billKey = null; splitKey = null; payIds = null;
+      payKey = null; moveKey = null; billKey = null; voidKey = null; voidItemId = null; splitKey = null; payIds = null;
       openKey = k;
       renderSheet(k);
       if (!sheet.open) sheet.showModal();
     }
-    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; billKey = null; splitKey = null; payIds = null; });
+    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; billKey = null; voidKey = null; voidItemId = null; splitKey = null; payIds = null; });
     sheet.addEventListener("click", async (e) => {
       if (e.target === sheet) { sheet.close(); return; }
       const b = e.target.closest("[data-act]");
@@ -1011,6 +1059,8 @@
       if (act === "move") { moveKey = t.key; renderSheet(t.key); return; }
       if (act === "moveback") { moveKey = null; renderSheet(t.key); return; }
       if (act === "prebill") { billKey = t.key; renderSheet(t.key); return; }
+      if (act === "voiditem") { voidKey = t.key; voidItemId = b.dataset.id; renderSheet(t.key); return; }
+      if (act === "voidback") { voidKey = null; voidItemId = null; renderSheet(t.key); return; }
       if (act === "billback") { billKey = null; renderSheet(t.key); return; }
       if (act === "billbrowser") { printPreBill(t); return; }
       if (act === "free") { b.disabled = true; await freeTable(t); }
