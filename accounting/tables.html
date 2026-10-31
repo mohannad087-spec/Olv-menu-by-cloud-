@@ -671,7 +671,7 @@
       if (payKey === k && t.tabs && t.tabs.length) { renderPay(t, box); return; }
       if (moveKey === k && t.tabs && t.tabs.length) { renderMove(t, box); return; }
       if (billKey === k && t.tabs && t.tabs.length) { renderBill(t, box); return; }
-      if (voidKey === k && voidItemId && t.tabs && t.tabs.length) { renderVoidItem(t, box); return; }
+      if (voidKey === k && voidItemId && t.tabs && t.tabs.length) { (editMode ? renderEditItem : renderVoidItem)(t, box); return; }
       if (splitKey === k && t.tabs && t.tabs.length) { renderSplit(t, box); return; }
       const newOrder = (label, primary) => `<a class="btn${primary ? " go" : ""}" href="${olvEsc(posLink(t.label, t.lastName))}">${olvIcon("plus")}<span>${label}</span></a>`;
       if (t.state === "busy") {
@@ -689,7 +689,7 @@
           </div>
           <div><h3>عالطاولة</h3><ul class="sh-items">${t.tabs.length
             ? t.tabs.flatMap((s) => liveItems(s)).map((it) =>
-              `<li><span class="q">${Number(it.qty || 0)}</span><span class="nm">${olvEsc(it.product_name + (it.addons_summary ? ` (${it.addons_summary})` : ""))}</span><button type="button" class="btn small" data-act="voiditem" data-id="${olvEsc(it.id)}" aria-label="شطب">${olvIcon("x")}<span>شطب</span></button></li>`).join("") || `<li><span class="nm">—</span></li>`
+              `<li><span class="q">${Number(it.qty || 0)}</span><span class="nm">${olvEsc(it.product_name + (it.addons_summary ? ` (${it.addons_summary})` : ""))}</span>${Number(it.qty) > 1 ? `<button type="button" class="btn small" data-act="edititem" data-id="${olvEsc(it.id)}" aria-label="تقليل الكمية">${olvIcon("note")}<span>عدّل</span></button>` : ""}<button type="button" class="btn small" data-act="voiditem" data-id="${olvEsc(it.id)}" aria-label="شطب">${olvIcon("x")}<span>شطب</span></button></li>`).join("") || `<li><span class="nm">—</span></li>`
             : Array.from(agg).map(([n, q]) =>
             `<li><span class="q">${q}</span><span class="nm">${olvEsc(n)}</span></li>`).join("") || `<li><span class="nm">—</span></li>`}</ul></div>
           <div><h3>الطلبات</h3><ul class="sh-orders">${t.orders.map((s) => `
@@ -734,7 +734,7 @@
     }
 
     // ---------- نقل / دمج الحساب لطاولة ثانية ----------
-    let moveKey = null, billKey = null, voidKey = null, voidItemId = null;
+    let moveKey = null, billKey = null, voidKey = null, voidItemId = null, editMode = false;
     let billPrinters = null;
     function renderMove(t, box) {
       const others = tables.filter((x) => x.key !== t.key && x.registered)
@@ -905,6 +905,54 @@
       }, { hint: "اضغط مطوّلاً لتأكيد الشطب" });
     }
 
+    // ---------- تقليل كمية صنف على حساب مفتوح (سبب إلزامي) ----------
+    function renderEditItem(t, box) {
+      const item = t.tabs.flatMap((s) => liveItems(s)).find((x) => x.id === voidItemId);
+      if (!item || Number(item.qty) < 2) { voidKey = null; voidItemId = null; editMode = false; renderSheet(t.key); return; }
+      const REASONS = ["الزبون قلّل الكمية", "غلط بالطلب", "تأخر الطلب"];
+      let reason = "", qty = Number(item.qty) - 1;
+      const draw = () => {
+        box.innerHTML = `
+          <div class="sh-head">
+            <div><h2 id="sh-title">تعديل كمية ${olvEsc(item.product_name)}</h2><div class="sh-sub">طاولة ${olvEsc(t.label)} · الكمية الحالية ${Number(item.qty)}. للزيادة استعمل «زيد طلب»</div></div>
+            <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
+          </div>
+          <div class="sh-body">
+            <div class="pay-q" style="align-items:center;justify-content:center">
+              <button type="button" class="btn" id="ei-m" ${qty <= 1 ? "disabled" : ""} aria-label="أنقص">−</button>
+              <b style="font-size:26px;min-width:44px;text-align:center">${qty}</b>
+              <button type="button" class="btn" id="ei-p" ${qty >= Number(item.qty) - 1 ? "disabled" : ""} aria-label="زيد">${olvIcon("plus")}</button>
+            </div>
+            <div class="pay-q">${REASONS.map((r) => `<button type="button" class="btn${reason === r ? " go" : ""}" data-r="${olvEsc(r)}">${olvEsc(r)}</button>`).join("")}</div>
+            <div class="field"><label for="ei-reason">أو اكتب السبب</label><input id="ei-reason" type="text" maxlength="200" autocomplete="off" value="${REASONS.includes(reason) ? "" : olvEsc(reason)}"></div>
+            <div class="sh-sub">بلّغ المطبخ إذا الصنف انطبع عندهم قبل.</div>
+          </div>
+          <div class="sh-foot">
+            <button type="button" class="btn" data-act="voidback">${olvIcon("undo")}<span>رجوع</span></button>
+            <button type="button" class="btn go" id="ei-go" ${reason.trim().length < 3 ? "disabled" : ""}>${olvIcon("check")}<span>اضغط مطوّلاً للتعديل</span></button>
+          </div>`;
+        box.querySelector("#ei-m").addEventListener("click", () => { qty -= 1; draw(); });
+        box.querySelector("#ei-p").addEventListener("click", () => { qty += 1; draw(); });
+        box.querySelectorAll("[data-r]").forEach((b) => b.addEventListener("click", () => { reason = b.dataset.r; draw(); }));
+        const inp = box.querySelector("#ei-reason"), go = box.querySelector("#ei-go");
+        inp.addEventListener("input", () => { reason = inp.value; go.disabled = reason.trim().length < 3; box.querySelectorAll("[data-r]").forEach((x) => x.classList.remove("go")); });
+        olvHoldConfirm(go, async () => {
+          go.disabled = true;
+          const { error } = await db.rpc("tab_reduce_item", { p_sale_item_id: voidItemId, p_new_qty: qty, p_reason: reason.trim() });
+          if (error) {
+            olvToast(/tab_reduce_item/.test(error.message || "") && /function|schema cache/i.test(error.message || "")
+              ? "ميزة تعديل الكمية لسا ما تفعّلت بقاعدة البيانات" : error.message, { type: "danger", icon: "warning", ms: 6000 });
+            go.disabled = false; return;
+          }
+          voidKey = null; voidItemId = null; editMode = false;
+          olvToast(`انعدّلت الكمية لـ ${qty}`, { type: "ok", icon: "check", ms: 4000 });
+          await load();
+          if (sheet.open && openKey) renderSheet(openKey);
+        }, { hint: "اضغط مطوّلاً لتأكيد التعديل" });
+      };
+      draw();
+    }
+
     // ---------- طباعة الحساب: مسودة أو نسخة زبون على أي طابعة يختارها الكاشير ----------
     function renderBill(t, box) {
       let kind = "draft", pid = null;
@@ -1038,12 +1086,12 @@
     }
 
     function openSheet(k) {
-      payKey = null; moveKey = null; billKey = null; voidKey = null; voidItemId = null; splitKey = null; payIds = null;
+      payKey = null; moveKey = null; billKey = null; voidKey = null; voidItemId = null; editMode = false; splitKey = null; payIds = null;
       openKey = k;
       renderSheet(k);
       if (!sheet.open) sheet.showModal();
     }
-    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; billKey = null; voidKey = null; voidItemId = null; splitKey = null; payIds = null; });
+    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; billKey = null; voidKey = null; voidItemId = null; editMode = false; splitKey = null; payIds = null; });
     sheet.addEventListener("click", async (e) => {
       if (e.target === sheet) { sheet.close(); return; }
       const b = e.target.closest("[data-act]");
@@ -1059,8 +1107,9 @@
       if (act === "move") { moveKey = t.key; renderSheet(t.key); return; }
       if (act === "moveback") { moveKey = null; renderSheet(t.key); return; }
       if (act === "prebill") { billKey = t.key; renderSheet(t.key); return; }
-      if (act === "voiditem") { voidKey = t.key; voidItemId = b.dataset.id; renderSheet(t.key); return; }
-      if (act === "voidback") { voidKey = null; voidItemId = null; renderSheet(t.key); return; }
+      if (act === "voiditem") { voidKey = t.key; voidItemId = b.dataset.id; editMode = false; renderSheet(t.key); return; }
+      if (act === "edititem") { voidKey = t.key; voidItemId = b.dataset.id; editMode = true; renderSheet(t.key); return; }
+      if (act === "voidback") { voidKey = null; voidItemId = null; editMode = false; renderSheet(t.key); return; }
       if (act === "billback") { billKey = null; renderSheet(t.key); return; }
       if (act === "billbrowser") { printPreBill(t); return; }
       if (act === "free") { b.disabled = true; await freeTable(t); }
