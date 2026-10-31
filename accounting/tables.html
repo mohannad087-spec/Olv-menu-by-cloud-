@@ -670,6 +670,7 @@
       let body = "", sub = "", acts = "";
       if (payKey === k && t.tabs && t.tabs.length) { renderPay(t, box); return; }
       if (moveKey === k && t.tabs && t.tabs.length) { renderMove(t, box); return; }
+      if (billKey === k && t.tabs && t.tabs.length) { renderBill(t, box); return; }
       if (splitKey === k && t.tabs && t.tabs.length) { renderSplit(t, box); return; }
       const newOrder = (label, primary) => `<a class="btn${primary ? " go" : ""}" href="${olvEsc(posLink(t.label, t.lastName))}">${olvIcon("plus")}<span>${label}</span></a>`;
       if (t.state === "busy") {
@@ -729,7 +730,8 @@
     }
 
     // ---------- نقل / دمج الحساب لطاولة ثانية ----------
-    let moveKey = null;
+    let moveKey = null, billKey = null;
+    let billPrinters = null;
     function renderMove(t, box) {
       const others = tables.filter((x) => x.key !== t.key && x.registered)
         .sort((a, b) => String(a.label).localeCompare(String(b.label), "ar", { numeric: true }));
@@ -855,6 +857,61 @@
       setTimeout(() => { w.print(); }, 300);
     }
 
+    // ---------- طباعة الحساب: مسودة أو نسخة زبون على أي طابعة يختارها الكاشير ----------
+    function renderBill(t, box) {
+      let kind = "draft", pid = null;
+      try { pid = localStorage.getItem("olv_cashier_bill_printer"); } catch (_) {}
+      const draw = () => {
+        const pr = billPrinters || [];
+        const cash = pr.find((p) => p.kind === "receipt") || pr[0] || null;
+        if (!pr.some((p) => p.id === pid)) pid = cash ? cash.id : null;
+        box.innerHTML = `
+          <div class="sh-head">
+            <div><h2 id="sh-title">طباعة حساب طاولة ${olvEsc(t.label)}</h2><div class="sh-sub">${olvFormatMoney(t.tabTotal)} · ما بيسكّر الحساب وما في دفع</div></div>
+            <button class="sh-x" type="button" data-act="close" aria-label="سكّر">${olvIcon("x")}</button>
+          </div>
+          <div class="sh-body">
+            <div class="pay-q">
+              <button type="button" class="btn${kind === "draft" ? " go" : ""}" data-bk="draft"><span>مسودة</span></button>
+              <button type="button" class="btn${kind === "customer" ? " go" : ""}" data-bk="customer"><span>نسخة زبون</span></button>
+            </div>
+            ${billPrinters === null ? `<div class="sh-sub">جاري تحميل الطابعات...</div>`
+              : pr.length ? `<div class="sh-sub">اطبع على:</div><div class="pay-q">${pr.map((p) => `<button type="button" class="btn${p.id === pid ? " go" : ""}" data-bp="${olvEsc(p.id)}">${olvIcon("printer")}<span>${olvEsc(p.name)}</span></button>`).join("")}</div>`
+              : `<div class="sh-sub">ما في طابعات مسجّلة، فيك تطبع من المتصفح.</div>`}
+          </div>
+          <div class="sh-foot">
+            <button type="button" class="btn" data-act="billback">${olvIcon("undo")}<span>رجوع</span></button>
+            ${pr.length ? "" : `<button type="button" class="btn" data-act="billbrowser">${olvIcon("printer")}<span>طباعة من المتصفح</span></button>`}
+            <button type="button" class="btn go" id="bill-go" ${pid ? "" : "disabled"}>${olvIcon("printer")}<span>اطبع</span></button>
+          </div>`;
+        box.querySelectorAll("[data-bk]").forEach((b) => b.addEventListener("click", () => { kind = b.dataset.bk; draw(); }));
+        box.querySelectorAll("[data-bp]").forEach((b) => b.addEventListener("click", () => { pid = b.dataset.bp; draw(); }));
+        box.querySelector("#bill-go").addEventListener("click", async (e) => {
+          e.currentTarget.disabled = true;
+          let err = null;
+          for (const s of t.tabs) {
+            const r = await db.rpc("staff_print_bill", { p_sale_id: s.id, p_kind: kind, p_printer_id: pid });
+            if (r.error) { err = r.error; break; }
+          }
+          if (err) {
+            olvToast(/staff_print_bill/.test(err.message || "") && /function|schema cache/i.test(err.message || "")
+              ? "ميزة الطباعة لسا ما تفعّلت بقاعدة البيانات" : err.message, { type: "danger", icon: "warning", ms: 6000 });
+            draw(); return;
+          }
+          try { localStorage.setItem("olv_cashier_bill_printer", pid); } catch (_) {}
+          const pn = ((billPrinters || []).find((p) => p.id === pid) || {}).name || "";
+          billKey = null;
+          sheet.close();
+          olvToast(`انرسل للطباعة${pn ? " على " + pn : ""}`, { type: "ok", icon: "check", ms: 4000 });
+        });
+      };
+      draw();
+      if (billPrinters === null) {
+        db.from("printers").select("id, name, kind").eq("enabled", true).order("sort_order").order("created_at")
+          .then((r) => { billPrinters = r.error ? [] : (r.data || []); if (billKey === t.key && sheet.open) draw(); }, () => { billPrinters = []; if (billKey === t.key && sheet.open) draw(); });
+      }
+    }
+
     // ---------- حاسب الطاولة ----------
     let payKey = null;
     const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -933,12 +990,12 @@
     }
 
     function openSheet(k) {
-      payKey = null; moveKey = null; splitKey = null; payIds = null;
+      payKey = null; moveKey = null; billKey = null; splitKey = null; payIds = null;
       openKey = k;
       renderSheet(k);
       if (!sheet.open) sheet.showModal();
     }
-    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; splitKey = null; payIds = null; });
+    sheet.addEventListener("close", () => { openKey = null; payKey = null; moveKey = null; billKey = null; splitKey = null; payIds = null; });
     sheet.addEventListener("click", async (e) => {
       if (e.target === sheet) { sheet.close(); return; }
       const b = e.target.closest("[data-act]");
@@ -953,7 +1010,9 @@
       if (act === "splitback") { splitKey = null; renderSheet(t.key); return; }
       if (act === "move") { moveKey = t.key; renderSheet(t.key); return; }
       if (act === "moveback") { moveKey = null; renderSheet(t.key); return; }
-      if (act === "prebill") { printPreBill(t); return; }
+      if (act === "prebill") { billKey = t.key; renderSheet(t.key); return; }
+      if (act === "billback") { billKey = null; renderSheet(t.key); return; }
+      if (act === "billbrowser") { printPreBill(t); return; }
       if (act === "free") { b.disabled = true; await freeTable(t); }
       else if (act === "clean") { b.disabled = true; await cleanTable(t); }
       else if (act === "register") { b.disabled = true; await addTables([t.label]); }
