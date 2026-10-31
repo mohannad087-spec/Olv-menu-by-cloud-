@@ -2250,6 +2250,12 @@
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
       document.getElementById("send-tab-btn").addEventListener("click", sendToTable);
       document.getElementById("table-number").addEventListener("input", updateTabBtn);
+      // رجوع من صفحة ثانية (الطاولات مثلاً): المتصفح بيرجّع الشاشة بحقولها القديمة؛ لو التذكرة فاضية منفضّي الطاولة والاسم
+      window.addEventListener("pageshow", (e) => {
+        if (!e.persisted || OlvCart.all().length) return;
+        ["table-number", "customer-name", "customer-phone"].forEach((id) => { document.getElementById(id).value = ""; });
+        updateTabBtn();
+      });
       // فحص سريع (مو إجباري) لما الكاشير يخلص كتابة رقم هاتف — لو الرقم
       // لزبون متكرر موجود أصلًا ببرنامج الولاء، بيطلعله تنبيه ترحيبي
       document.getElementById("customer-phone").addEventListener("blur", async (e) => {
