@@ -445,7 +445,7 @@
       </div>
       <div class="ex-chips ex-kind" id="kind-chips" role="group" aria-label="نوع المصروف">
         <button class="ex-chip" type="button" data-kind="all" aria-pressed="true">الكل</button>
-        <button class="ex-chip" type="button" data-kind="drawer" aria-pressed="false">مصروفات الدرج</button>
+        <button class="ex-chip" type="button" data-kind="drawer" aria-pressed="false">طلع من الدرج</button>
         <button class="ex-chip" type="button" data-kind="manual" aria-pressed="false">يدوي</button>
         <button class="ex-chip" type="button" data-kind="rec" aria-pressed="false">ثابت</button>
         <button class="ex-chip" type="button" data-kind="inv" aria-pressed="false">من المشتريات</button>
@@ -547,9 +547,13 @@
     // مصروفات الدرج = مصاري طلعت من درج الكاش وبس، والكاشير أو صاحب المحل هو اللي بيحدد هيك وقت التسجيل (from_drawer).
     // المشتريات (كاش أو آجل) والثابتة والذمة مالها علاقة بالدرج، وبتنضاف آخر اليوم للمصروفات الكلية
     function split(x) {
-      if (invoiceOf[x.id]) return { drawer: false, purchase: true };
-      return { drawer: x.from_drawer === true && x.payment_type !== "credit", purchase: false };
+      const inv = invoiceOf[x.id];
+      // مشتريات من الدرج: بس لو فاتورة كاش كاملة وانحدّدت «طلعت من الدرج»
+      if (inv) return { purchase: true, drawer: x.from_drawer === true && (inv.old || inv.pay === "cash") };
+      return { purchase: false, drawer: x.from_drawer === true && x.payment_type !== "credit" };
     }
+    const canMarkDrawer = (x) => { const i = invoiceOf[x.id]; return isAdmin() && (i ? !i.voided && (i.old || i.pay === "cash") : x.payment_type !== "credit"); };
+    const drawerBtn = (x) => canMarkDrawer(x) ? `<button class="btn small" type="button" data-act="drawer">${olvIcon(x.from_drawer ? "minusCircle" : "check")}<span>${x.from_drawer ? "شيله من الدرج" : "علّمه طلع من الدرج"}</span></button>` : "";
     const kindOf = (r) => invoiceOf[r.id] ? "inv" : r.recurring_id ? "rec" : "manual";
 
     // ---------------------------------------------------------------
@@ -828,7 +832,7 @@
       let acts = "";
       if (inv) {
         acts = `<span class="ex-locked" style="margin:0">انسجّل من المشتريات، فتعديله أو إلغاؤه من هناك حتى يضل المخزون وحساب المورّد مزبوط.</span>
-          <a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
+          ${drawerBtn(x)}<a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
       } else if (isAdmin()) {
         acts = (x.payment_type === "credit" ? `<button class="btn small go" type="button" data-act="settle">${olvIcon("check")}<span>سدّد (كاش)</span></button>` : "") + `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button>
           <button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}<span>حذف</span></button>`;
@@ -846,14 +850,14 @@
       if (x.recurring_id) meta.push("<span>من مصروف ثابت</span>");
       if (inv) meta.push(`<span>${inv.old ? "من المشتريات" : "فاتورة مشتريات" + (inv.voided ? " (ملغاة)" : "")}</span>`);
       let acts = "";
-      if (inv) acts = `<a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
+      if (inv) acts = drawerBtn(x) + `<a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
       else if (isAdmin()) acts = (credit ? `<button class="btn small go" type="button" data-act="settle">${olvIcon("check")}<span>سدّد (كاش)</span></button>` : "")
-        + `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button><button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}<span>حذف</span></button>`;
+        + drawerBtn(x) + `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button><button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}<span>حذف</span></button>`;
       return `<li class="td ex" data-id="${olvEsc(x.id)}">
         <span class="tm">${olvEsc(time)}</span>
         <div class="bd"><b>${olvEsc(catName(x.category_id))}</b>${x.description ? `<span class="note">${olvEsc(x.description)}</span>` : ""}
           <div class="meta">${meta.join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>
-        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${sp.purchase ? olvIcon("cart") + "مشتريات" : credit ? olvIcon("clock") + "ذمة" : sp.drawer ? olvIcon("check") + "من الدرج" : x.recurring_id ? olvIcon("refresh") + "ثابت" : "برّا الدرج"}</span></span>
+        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${sp.purchase ? olvIcon("cart") + (sp.drawer ? "مشتريات · من الدرج" : "مشتريات") : credit ? olvIcon("clock") + "ذمة" : sp.drawer ? olvIcon("check") + "من الدرج" : x.recurring_id ? olvIcon("refresh") + "ثابت" : "برّا الدرج"}</span></span>
       </li>`;
     }
     function renderToday() {
@@ -862,9 +866,10 @@
       if (!rows.length) { box.innerHTML = `<p class="ex-empty">ما سُجّل أي مصروف اليوم</p>`; return; }
       const list = rows.filter(matches).slice().sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
       const money = (f) => rows.filter(f).reduce((t, x) => t + Number(x.amount), 0);
-      const drawer = money((x) => split(x).drawer), buy = money((x) => split(x).purchase), other = money((x) => !split(x).drawer && !split(x).purchase);
+      const drawer = money((x) => split(x).drawer && !split(x).purchase), buy = money((x) => split(x).purchase), buyDrawer = money((x) => split(x).drawer && split(x).purchase);
+      const other = money((x) => !split(x).drawer && !split(x).purchase);
       const tile = (l, v, k) => `<button type="button" class="td-tile" data-jump="${k}"><span>${l}</span><b>${olvFormatMoney(v)}</b></button>`;
-      box.innerHTML = `<div class="td-sum">${tile("مصروفات الدرج", drawer, "drawer")}${tile("المشتريات", buy, "inv")}${tile("مصروفات أخرى", other, "all")}<span class="td-all">المجموع الكلي للمحل <b>${olvFormatMoney(drawer + buy + other)}</b></span></div>`
+      box.innerHTML = `<div class="td-sum">${tile("طلع من الدرج", drawer + buyDrawer, "drawer")}${tile("المشتريات (كلها)", buy, "inv")}${tile("مصروفات أخرى", other, "all")}<span class="td-all">المجموع الكلي للمحل <b>${olvFormatMoney(drawer + buy + other)}</b></span></div>`
         + (list.length ? `<ul class="td-list">${list.map(todayHtml).join("")}</ul>` : `<p class="ex-empty">ما في نتيجة</p>`);
     }
     function renderList() {
@@ -914,6 +919,12 @@
       const x = rows.find((r) => r.id === li.dataset.id); if (!x) return;
       const act = e.target.closest("[data-act]");
       if (act && act.dataset.act === "edit") { startEdit(x); return; }
+      if (act && act.dataset.act === "drawer") {
+        act.disabled = true;
+        window.supabaseClient.from("expenses").update({ from_drawer: !x.from_drawer }).eq("id", x.id)
+          .then(({ error }) => { if (error) { act.disabled = false; olvShowError(errBox, error); } else { olvToast(x.from_drawer ? "انشال من الدرج" : "انعلّم: طلع من الدرج"); load(); } });
+        return;
+      }
       if (act && act.dataset.act === "settle") {
         if (!confirm(`تسديد ${olvFormatMoney(x.amount)} كاش؟ رح ينحسب من درج اليوم.`)) return;
         act.disabled = true;
