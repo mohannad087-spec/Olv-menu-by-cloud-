@@ -182,7 +182,10 @@
         <tbody>
           <tr><td>إجمالي المبيعات</td><td id="print-sales"></td></tr>
           <tr><td>إجمالي المصروفات</td><td id="print-expenses"></td></tr>
-          <tr class="totals"><td>صافي الربح</td><td id="print-net"></td></tr>
+          <tr class="totals"><td>صافي نقدي (مبيعات − مصروفات مدفوعة)</td><td id="print-net"></td></tr>
+          <tr><td>تكلفة المواد المباعة (تقديرية)</td><td id="print-cogs"></td></tr>
+          <tr class="totals"><td>ربح تقديري بعد تكلفة المواد</td><td id="print-est"></td></tr>
+          <tr><td colspan="2" id="print-cov" style="font-size:12px;color:#777"></td></tr>
         </tbody>
       </table>
       <table>
@@ -231,8 +234,17 @@
         <div class="value" id="r-expenses">—</div>
       </div>
       <div class="stat">
-        <div class="label">صافي الربح</div>
+        <div class="label">صافي نقدي (مبيعات − مصروفات مدفوعة)</div>
         <div class="value" id="r-net">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">تكلفة المواد المباعة (تقديرية)</div>
+        <div class="value" id="r-cogs">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">ربح تقديري بعد تكلفة المواد</div>
+        <div class="value" id="r-est">—</div>
+        <div class="label" id="r-cov" style="margin-top:6px;font-size:12px"></div>
       </div>
     </div>
 
@@ -771,6 +783,26 @@
         netEl.textContent = olvFormatMoney(net);
         netEl.className = "value " + (net >= 0 ? "good" : "bad");
 
+        // تكلفة المواد المباعة: من الوصفات فقط، فالأصناف بدون وصفة تكلفتها صفر هون.
+        // وبما إن مشتريات المخزون الكاش داخلة بالمصروفات، لازم ما نطرح التكلفة
+        // من المصروفات مرتين: الربح التقديري = المبيعات − التكلفة − المصروفات غير المخزنية.
+        const prof = computeProfitability(sales);
+        const cogsKnown = prof.reduce((s, r) => s + r.cost, 0);
+        const itemsRev = prof.reduce((s, r) => s + r.revenue, 0);
+        const covRev = prof.filter((r) => r.hasRecipe).reduce((s, r) => s + r.revenue, 0);
+        const covPct = itemsRev > 0 ? Math.round((covRev / itemsRev) * 100) : 0;
+        const stockBuys = (expenses || []).filter((r) => r.expense_categories && r.expense_categories.name === "مشتريات ومخزون")
+          .reduce((s, r) => s + Number(r.amount), 0);
+        // الأصناف بدون وصفة تكلفتها مجهولة: بنفترض إلها نفس نسبة التكلفة للأصناف المعروفة
+        const cogs = covRev > 0 ? cogsKnown * (itemsRev / covRev) : 0;
+        const est = totalSales - cogs - (totalExpenses - stockBuys);
+        const covNote = `الوصفات تغطي ${covPct}% من المبيعات، والباقي مقدّر بنفس نسبة التكلفة. كل ما كملت الوصفات صار الرقم أدق. مشتريات المخزون ما انطرحت مرتين.`;
+        document.getElementById("r-cogs").textContent = olvFormatMoney(cogs);
+        const estEl = document.getElementById("r-est");
+        estEl.textContent = olvFormatMoney(est);
+        estEl.className = "value " + (est >= 0 ? "good" : "bad");
+        document.getElementById("r-cov").textContent = covNote;
+
         await loadInsights(from, to, sales, totalSales, net);
         renderProfitability(sales);
         renderProfitRank(sales);
@@ -796,7 +828,7 @@
         await loadEmployeePerformance(from, to);
 
         lastReport = {
-          from, to, totalSales, totalExpenses, net,
+          from, to, totalSales, totalExpenses, net, cogs, est, covNote,
           payment: [
             { label: "كاش", value: cash },
             { label: "شبكة / فيزا", value: card },
@@ -817,6 +849,9 @@
       document.getElementById("print-sales").textContent = olvFormatMoney(r.totalSales);
       document.getElementById("print-expenses").textContent = olvFormatMoney(r.totalExpenses);
       document.getElementById("print-net").textContent = olvFormatMoney(r.net);
+      document.getElementById("print-cogs").textContent = olvFormatMoney(r.cogs);
+      document.getElementById("print-est").textContent = olvFormatMoney(r.est);
+      document.getElementById("print-cov").textContent = r.covNote;
       document.getElementById("print-payment-body").innerHTML = r.payment
         .map((i) => `<tr><td>${olvEsc(i.label)}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("");
       document.getElementById("print-category-body").innerHTML = r.categories.length
