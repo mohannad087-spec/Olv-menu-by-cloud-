@@ -513,7 +513,9 @@
       const dayStart = new Date(date + "T00:00:00"), dayEnd = new Date(dayStart.getTime() + 864e5);
       let qe2 = sb.from("expenses").select("amount, settled_at").gte("settled_at", dayStart.toISOString()).lt("settled_at", dayEnd.toISOString());
       if (prev) { qs = qs.gt("created_at", prev.created_at); qe = qe.gt("created_at", prev.created_at); qe2 = qe2.gt("settled_at", prev.created_at); }
-      const [{ data: sales, error: e1 }, { data: exps }, { data: exps2 }] = await Promise.all([qs, qe, qe2]);
+      // المصروف بيدخل بحساب الدرج بس لو انحدّد «طلع من الدرج» (عمود from_drawer)
+      let [{ data: sales, error: e1 }, { data: exps, error: e3 }, { data: exps2 }] = await Promise.all([qs, qe.eq("from_drawer", true), qe2]);
+      if (e3) exps = (await qe).data; // العمود لسا ما انضاف بالداتابيس: السلوك القديم
       if (seq !== loadSeq) return;
       if (e1) throw e1;
       const cashRows = (sales || []).filter((s) => Number(s.cash_amount) > 0);

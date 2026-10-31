@@ -326,7 +326,8 @@
         </div>
         <span class="ex-label" id="pay-label">طريقة الدفع</span>
         <div class="ex-chips" id="pay-chips" role="radiogroup" aria-labelledby="pay-label">
-          <button class="ex-chip" type="button" data-pay="cash" aria-pressed="true">كاش</button>
+          <button class="ex-chip" type="button" data-pay="drawer" aria-pressed="true">طلع من درج الكاش</button>
+          <button class="ex-chip" type="button" data-pay="cash" aria-pressed="false">دفع من برّا الدرج (بنك، جيب...)</button>
           <button class="ex-chip" type="button" data-pay="credit" aria-pressed="false">ذمة (لسا ما اندفع)</button>
         </div>
         <label class="ex-repeat" id="repeat-wrap" hidden>
@@ -531,7 +532,8 @@
     let period = "month";
     let range = null;
     let kind = "all";
-    let payType = "cash";
+    let payType = "drawer"; // drawer = طلع من الدرج | cash = كاش/بنك من برّا الدرج | credit = ذمة
+    const payFields = () => ({ payment_type: payType === "credit" ? "credit" : "cash", from_drawer: payType === "drawer" });
     function setPay(v) { payType = v; setPressed("pay-chips", "pay", v); }
     $("pay-chips").addEventListener("click", (e) => { const b = e.target.closest(".ex-chip"); if (b) setPay(b.dataset.pay); });
     let query = "";
@@ -542,11 +544,11 @@
     let nameOf = {};          // مين سجّل المصروف (بعرض اليوم)
 
     const catName = (id) => { const c = categories.find((x) => x.id === id); return c ? c.name : "بدون تصنيف"; };
-    // مصروفات الدرج = مصاري طلعت من درج الكاش (كاشير أو صاحب المحل) وبس: مصروف يدوي كاش.
+    // مصروفات الدرج = مصاري طلعت من درج الكاش وبس، والكاشير أو صاحب المحل هو اللي بيحدد هيك وقت التسجيل (from_drawer).
     // المشتريات (كاش أو آجل) والثابتة والذمة مالها علاقة بالدرج، وبتنضاف آخر اليوم للمصروفات الكلية
     function split(x) {
       if (invoiceOf[x.id]) return { drawer: false, purchase: true };
-      return { drawer: !x.recurring_id && x.payment_type !== "credit", purchase: false };
+      return { drawer: x.from_drawer === true && x.payment_type !== "credit", purchase: false };
     }
     const kindOf = (r) => invoiceOf[r.id] ? "inv" : r.recurring_id ? "rec" : "manual";
 
@@ -851,7 +853,7 @@
         <span class="tm">${olvEsc(time)}</span>
         <div class="bd"><b>${olvEsc(catName(x.category_id))}</b>${x.description ? `<span class="note">${olvEsc(x.description)}</span>` : ""}
           <div class="meta">${meta.join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>
-        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${sp.purchase ? olvIcon("cart") + "مشتريات" : credit ? olvIcon("clock") + "ذمة" : x.recurring_id ? olvIcon("refresh") + "ثابت" : olvIcon("check") + "من الدرج"}</span></span>
+        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${sp.purchase ? olvIcon("cart") + "مشتريات" : credit ? olvIcon("clock") + "ذمة" : sp.drawer ? olvIcon("check") + "من الدرج" : x.recurring_id ? olvIcon("refresh") + "ثابت" : "برّا الدرج"}</span></span>
       </li>`;
     }
     function renderToday() {
@@ -862,7 +864,7 @@
       const money = (f) => rows.filter(f).reduce((t, x) => t + Number(x.amount), 0);
       const drawer = money((x) => split(x).drawer), buy = money((x) => split(x).purchase), other = money((x) => !split(x).drawer && !split(x).purchase);
       const tile = (l, v, k) => `<button type="button" class="td-tile" data-jump="${k}"><span>${l}</span><b>${olvFormatMoney(v)}</b></button>`;
-      box.innerHTML = `<div class="td-sum">${tile("مصروفات الدرج", drawer, "drawer")}${tile("المشتريات", buy, "inv")}${tile("ثابتة وذمة", other, "all")}<span class="td-all">المجموع الكلي للمحل <b>${olvFormatMoney(drawer + buy + other)}</b></span></div>`
+      box.innerHTML = `<div class="td-sum">${tile("مصروفات الدرج", drawer, "drawer")}${tile("المشتريات", buy, "inv")}${tile("مصروفات أخرى", other, "all")}<span class="td-all">المجموع الكلي للمحل <b>${olvFormatMoney(drawer + buy + other)}</b></span></div>`
         + (list.length ? `<ul class="td-list">${list.map(todayHtml).join("")}</ul>` : `<p class="ex-empty">ما في نتيجة</p>`);
     }
     function renderList() {
@@ -979,7 +981,7 @@
         ? localStorage.getItem("olv_exp_last_cat") : firstOther ? firstOther.id : (categories[0] || {}).id;
       renderCatChips();
       setDate(bizToday());
-      setPay("cash");
+      setPay("drawer");
       $("add-title").innerHTML = olvIcon("plus") + " مصروف جديد";
       $("save-btn").textContent = "حفظ المصروف";
       $("edit-note").hidden = true;
@@ -992,7 +994,7 @@
       $("description").value = x.description || "";
       pickedCat = x.category_id; renderCatChips();
       setDate(x.expense_date);
-      setPay(x.payment_type === "credit" ? "credit" : "cash");
+      setPay(x.payment_type === "credit" ? "credit" : x.from_drawer ? "drawer" : "cash");
       $("add-title").innerHTML = olvIcon("note") + " تعديل مصروف";
       $("save-btn").textContent = "حفظ التعديل";
       $("repeat-wrap").hidden = true;
@@ -1019,7 +1021,9 @@
       try {
         const db = window.supabaseClient;
         if (editing) {
-          const { error } = await db.from("expenses").update({ amount, category_id: pickedCat, expense_date: date, description: desc, ...(payType === "credit" ? { payment_type: "credit", settled_at: null } : { payment_type: "cash" }) }).eq("id", editing);
+          const upd = { amount, category_id: pickedCat, expense_date: date, description: desc, ...payFields(), ...(payType === "credit" ? { settled_at: null } : {}) };
+          let { error } = await db.from("expenses").update(upd).eq("id", editing);
+          if (error && /from_drawer/.test(error.message || "")) ({ error } = await db.from("expenses").update({ ...upd, from_drawer: undefined }).eq("id", editing));
           if (error) throw error;
           olvToast("تم تعديل المصروف");
         } else if ($("repeat").checked && isAdmin()) {
@@ -1033,7 +1037,10 @@
           await loadRecs();
           olvToast(date > todayIso() ? "تم حفظ المصروف الثابت. أول دفعة بتنزل بموعدها" : "تم حفظ المصروف الثابت، وبينزل لحاله كل شهر");
         } else {
-          const { error } = await db.from("expenses").insert({ expense_date: date, category_id: pickedCat, amount, description: desc, payment_type: payType, created_by: session.user.id });
+          const row = { expense_date: date, category_id: pickedCat, amount, description: desc, ...payFields(), created_by: session.user.id };
+          let { error } = await db.from("expenses").insert(row);
+          // لو عمود from_drawer لسا ما انضاف بالداتابيس، منحفظ المصروف بدونه
+          if (error && /from_drawer/.test(error.message || "")) ({ error } = await db.from("expenses").insert({ ...row, from_drawer: undefined }));
           if (error) throw error;
           olvToast("تم حفظ المصروف");
         }
