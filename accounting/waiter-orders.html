@@ -390,28 +390,34 @@
       try { pid = localStorage.getItem("olv_waiter_printer"); } catch (_) {}
       const bg = sheetShell("");
       const box = bg.firstChild;
+      // المسودة دائمًا على طابعة الكاشير (أول طابعة من نوع فاتورة)
+      const cashP = () => printers.find((p) => p.kind === "receipt") || printers[0] || null;
       const render = () => {
+        const draft = kind === "draft";
+        const target = draft ? (cashP() ? cashP().id : null) : pid;
         box.innerHTML = `
           <h3>طباعة حساب طاولة ${esc(table)} · ${money(tabTotal(tab))}</h3>
           <div class="wt-opts">
             <button class="wt-opt" data-k="customer" aria-pressed="${kind === "customer"}">نسخة زبون</button>
             <button class="wt-opt" data-k="draft" aria-pressed="${kind === "draft"}">مسودة</button>
           </div>
-          ${printers.length ? `<div class="wt-empty" style="padding:0;text-align:start">اطبع على:</div>
+          ${draft && printers.length ? `<div class="wt-empty" style="padding:0;text-align:start">المسودة بتنطبع على طابعة الكاشير: <b>${esc(cashP().name)}</b></div>`
+          : printers.length ? `<div class="wt-empty" style="padding:0;text-align:start">اطبع على:</div>
             <div class="wt-opts">${printers.map((p) => `<button class="wt-opt" data-pr="${esc(p.id)}" aria-pressed="${pid === p.id}">${olvIcon("printer")} ${esc(p.name)}</button>`).join("")}</div>`
             : `<div class="wt-empty">جاري تحميل الطابعات...</div>`}
-          <div class="wt-btns"><button class="btn" id="bx" style="flex:1">رجوع</button><button class="btn gold" id="bok" style="flex:2" ${pid && printers.length ? "" : "disabled"}>${olvIcon("printer")} اطبع</button></div>`;
+          <div class="wt-btns"><button class="btn" id="bx" style="flex:1">رجوع</button><button class="btn gold" id="bok" style="flex:2" ${target && printers.length ? "" : "disabled"}>${olvIcon("printer")} اطبع</button></div>`;
         box.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { kind = b.dataset.k; render(); }));
         box.querySelectorAll("[data-pr]").forEach((b) => b.addEventListener("click", () => { pid = b.dataset.pr; render(); }));
         box.querySelector("#bx").addEventListener("click", () => bg.remove());
         box.querySelector("#bok").addEventListener("click", async () => {
           const ok = box.querySelector("#bok"); ok.disabled = true;
-          const { error } = await sb().rpc("waiter_print_bill", { p_sale_id: tab.sale_id, p_kind: kind, p_printer_id: pid });
+          const { error } = await sb().rpc("waiter_print_bill", { p_sale_id: tab.sale_id, p_kind: kind, p_printer_id: kind === "draft" && cashP() ? cashP().id : pid });
           bg.remove();
           if (error) { showErr(error.message || "ما انطلبت الطباعة"); return; }
           showErr("");
-          try { localStorage.setItem("olv_waiter_printer", pid); } catch (_) {}
-          const pn = (printers.find((p) => p.id === pid) || {}).name || "";
+          const usedId = kind === "draft" && cashP() ? cashP().id : pid;
+          if (kind !== "draft") { try { localStorage.setItem("olv_waiter_printer", pid); } catch (_) {} }
+          const pn = (printers.find((p) => p.id === usedId) || {}).name || "";
           olvToast(`انرسلت للطباعة${pn ? " على " + pn : ""}`, { type: "gold", icon: "check" });
         });
       };
