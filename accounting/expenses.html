@@ -239,6 +239,7 @@
   .tag.credit{color:var(--danger, #b3402f);}
   .ex-credit-bar{display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:10px 14px; border-radius:14px; background:rgba(179,64,47,.08); color:var(--paper); font-size:13.5px; font-weight:600;}
   .ex-credit-bar .icon{width:16px; height:16px;}
+  .ex-credit-bar[hidden]{display:none;}
   .ex-row .am{font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:left;}
   .ex-detail{padding:2px 10px 14px; padding-inline-start:74px;}
   .ex-detail:not([hidden]){animation:od-in .18s var(--spring) both;}
@@ -250,6 +251,24 @@
   .cat-more{display:flex; justify-content:center; padding-top:8px;}
   .cat-more .btn{min-height:44px;}
 
+  /* عرض «اليوم»: سجل مسطّح حسب الوقت، بدون رسوم ولا ثابتة */
+  .today-mode .ex-grid, .today-mode #rec-group, .today-mode #kind-chips{display:none;}
+  .td-sum{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 14px; border-radius:14px; background:var(--ink-3); margin-bottom:8px; font-size:13.5px; color:var(--muted);}
+  .td-sum b{color:var(--paper); font-size:18px; font-variant-numeric:tabular-nums;}
+  .td-list{list-style:none; margin:0; padding:0;}
+  .td{display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:12px; align-items:start; padding:12px 8px; border-bottom:1px solid var(--hair-soft);}
+  .td:last-child{border-bottom:0;}
+  .td .tm{font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; direction:ltr; text-align:right;}
+  .td .tm small{display:block; color:var(--muted); font-size:11px; font-weight:500;}
+  .td .bd b{display:block; font-size:14.5px; font-weight:700; overflow-wrap:anywhere;}
+  .td .bd .note{display:block; color:var(--paper); font-size:13.5px; margin-top:2px; overflow-wrap:anywhere;}
+  .td .bd .meta{display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:4px; font-size:12px; color:var(--muted);}
+  .td .am{font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:left;}
+  .td .am .tag{display:flex; justify-content:flex-end; margin-top:3px;}
+  .td .acts{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .td .acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;}
+  @media (max-width:640px){ .td{grid-template-columns:54px minmax(0,1fr) auto; gap:10px;} }
+
   @media (prefers-reduced-motion: reduce){
     .cat-h .chev, .ex-chip, .ex-bars .bar{transition:none;}
     .cat-body:not([hidden]), .ex-detail:not([hidden]), .cat-bars .tr i{animation:none;}
@@ -259,7 +278,7 @@
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap ex-wrap">
+  <div class="wrap ex-wrap" id="ex-wrap">
     <div class="err" id="err"></div>
 
     <header class="ex-head">
@@ -319,6 +338,7 @@
     </section>
 
     <div class="ex-chips" id="period-chips" role="group" aria-label="الفترة">
+      <button class="ex-chip" type="button" data-period="today" aria-pressed="false">اليوم</button>
       <button class="ex-chip" type="button" data-period="month" aria-pressed="true">هالشهر</button>
       <button class="ex-chip" type="button" data-period="last" aria-pressed="false">الشهر الماضي</button>
       <button class="ex-chip" type="button" data-period="q" aria-pressed="false">3 شهور</button>
@@ -477,6 +497,8 @@
     const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
     const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
     const todayIso = () => iso(new Date());
+    // يوم العمل بيتسكّر الساعة 3 الفجر (بتوقيت الجهاز): قبلها لسا نفس يوم أمس
+    const bizToday = () => { const d = new Date(); if (d.getHours() < 3) d.setDate(d.getDate() - 1); return iso(d); };
     const shortDate = (s) => Number(s.slice(8, 10)) + "/" + Number(s.slice(5, 7));
     const monthName = (s) => MONTHS[Number(s.slice(5, 7)) - 1];
     const lastDayOf = (s) => { const d = parse(s.slice(0, 8) + "01"); d.setMonth(d.getMonth() + 1); d.setDate(0); return iso(d); };
@@ -512,6 +534,7 @@
     let openRow = null;
     let shown = {};           // كم سطر ظاهر بكل تصنيف
     let editing = null;       // المصروف اللي عم يتعدّل
+    let nameOf = {};          // مين سجّل المصروف (بعرض اليوم)
 
     const catName = (id) => { const c = categories.find((x) => x.id === id); return c ? c.name : "بدون تصنيف"; };
     const kindOf = (r) => invoiceOf[r.id] ? "inv" : r.recurring_id ? "rec" : "manual";
@@ -521,6 +544,7 @@
     // ---------------------------------------------------------------
     function rangeFor(p) {
       const t = todayIso(), m0 = t.slice(0, 8) + "01";
+      if (p === "today") { const b = bizToday(); return { from: b, to: b, label: "اليوم", prevLabel: "أمس" }; }
       if (p === "month") return { from: m0, to: t, label: "هالشهر", prevLabel: "نفس الأيام من الشهر الماضي" };
       if (p === "last") { const f = monthShift(t, -1); return { from: f, to: lastDayOf(f), label: "الشهر الماضي", prevLabel: "الشهر اللي قبله" }; }
       if (p === "q") return { from: monthShift(t, -2), to: t, label: "آخر 3 شهور", prevLabel: "الـ3 شهور اللي قبلها" };
@@ -531,6 +555,7 @@
       return { from, to, label: `من ${shortDate(from)} لـ ${shortDate(to)}`, prevLabel: "الفترة اللي قبلها" };
     }
     function prevRange(r, p) {
+      if (p === "today") { const y = addDays(r.from, -1); return { from: y, to: y }; }
       if (p === "month") {
         const f = monthShift(r.from, -1);
         const to = f.slice(0, 8) + String(Math.min(Number(r.to.slice(8)), Number(lastDayOf(f).slice(8)))).padStart(2, "0");
@@ -592,6 +617,13 @@
           (pu.data || []).forEach((x) => { if (!invoiceOf[x.expense_id]) invoiceOf[x.expense_id] = { old: true }; });
         }
         if (seq !== loadSeq) return;
+        nameOf = {};
+        const uids = [...new Set(rows.map((r) => r.created_by).filter(Boolean))];
+        if (period === "today" && uids.length) {
+          const pr = await db.from("profiles").select("id, full_name").in("id", uids);
+          (pr.data || []).forEach((p) => { nameOf[p.id] = p.full_name; });
+        }
+        if (seq !== loadSeq) return;
         const prevTotal = old.error ? null : (old.data || []).reduce((s, r) => s + Number(r.amount), 0);
         const salesTotal = sales.error ? null : (sales.data || []).filter((r) => r.status !== "voided")
           .reduce((s, r) => s + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
@@ -603,7 +635,9 @@
 
     function renderAll(prevTotal, salesTotal) {
       const r = range;
-      $("ex-sub").textContent = period === "custom" ? r.label
+      $("ex-wrap").classList.toggle("today-mode", period === "today");
+      $("ex-sub").textContent = period === "today" ? `اليوم · ${DAY_NAMES[parse(r.from).getDay()]} ${shortDate(r.from)} (اليوم بيسكّر الساعة 3 الفجر)`
+        : period === "custom" ? r.label
         : period === "month" || period === "last" ? `${r.label} · ${monthName(r.from)} ${r.from.slice(0, 4)}`
         : `${r.label} (${shortDate(r.from)} – ${shortDate(r.to)})`;
 
@@ -786,7 +820,39 @@
       }
       return `<div class="ex-detail"><div class="facts">${facts.map((f) => `<span>${f}</span>`).join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>`;
     }
+    function todayHtml(x) {
+      const inv = invoiceOf[x.id];
+      const t = x.created_at ? new Date(x.created_at) : null;
+      const time = t ? t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "—";
+      const who = x.created_by ? (nameOf[x.created_by] || "مستخدم غير معروف") : (x.recurring_id ? "تلقائي (ثابت)" : "—");
+      const credit = x.payment_type === "credit";
+      const meta = [`<span>${olvIcon(catIcon(catName(x.category_id)))} ${olvEsc(catName(x.category_id))}</span>`, `<span>سجّله: ${olvEsc(who)}</span>`];
+      if (inv && inv.supplier) meta.push(`<span>المورّد: ${olvEsc(inv.supplier)}</span>`);
+      if (x.recurring_id) meta.push("<span>من مصروف ثابت</span>");
+      if (inv) meta.push(`<span>${inv.old ? "من المشتريات" : "فاتورة مشتريات" + (inv.voided ? " (ملغاة)" : "")}</span>`);
+      let acts = "";
+      if (inv) acts = `<a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
+      else if (isAdmin()) acts = (credit ? `<button class="btn small go" type="button" data-act="settle">${olvIcon("check")}<span>سدّد (كاش)</span></button>` : "")
+        + `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button><button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}<span>حذف</span></button>`;
+      return `<li class="td ex" data-id="${olvEsc(x.id)}">
+        <span class="tm">${olvEsc(time)}</span>
+        <div class="bd"><b>${olvEsc(catName(x.category_id))}</b>${x.description ? `<span class="note">${olvEsc(x.description)}</span>` : ""}
+          <div class="meta">${meta.join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>
+        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${credit ? olvIcon("clock") + "ذمة" : olvIcon("check") + "كاش"}</span></span>
+      </li>`;
+    }
+    function renderToday() {
+      const box = $("ex-list");
+      $("list-count").textContent = rows.length ? `(${rows.length})` : "";
+      if (!rows.length) { box.innerHTML = `<p class="ex-empty">ما سُجّل أي مصروف اليوم</p>`; return; }
+      const list = rows.filter(matches).slice().sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+      const cash = rows.filter((x) => x.payment_type !== "credit").reduce((s, x) => s + Number(x.amount), 0);
+      const cr = rows.filter((x) => x.payment_type === "credit").reduce((s, x) => s + Number(x.amount), 0);
+      box.innerHTML = `<div class="td-sum"><span>نزل من الدرج كاش <b>${olvFormatMoney(cash)}</b></span>${cr ? `<span>ذمة <b>${olvFormatMoney(cr)}</b></span>` : ""}</div>`
+        + (list.length ? `<ul class="td-list">${list.map(todayHtml).join("")}</ul>` : `<p class="ex-empty">ما في نتيجة</p>`);
+    }
     function renderList() {
+      if (period === "today") { renderToday(); return; }
       const box = $("ex-list");
       const gs = groups().map((g) => ({ ...g, items: g.items.filter(matches) })).filter((g) => g.items.length);
       const n = gs.reduce((s, g) => s + g.items.length, 0);
@@ -874,9 +940,9 @@
     });
     function setDate(v) {
       $("expense_date").value = v;
-      document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.setAttribute("aria-pressed", String(addDays(todayIso(), Number(b.dataset.day)) === v)));
+      document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.setAttribute("aria-pressed", String(addDays(bizToday(), Number(b.dataset.day)) === v)));
     }
-    document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.addEventListener("click", () => setDate(addDays(todayIso(), Number(b.dataset.day)))));
+    document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.addEventListener("click", () => setDate(addDays(bizToday(), Number(b.dataset.day)))));
     $("expense_date").addEventListener("change", (e) => setDate(e.target.value));
 
     function openForm(open) {
@@ -894,7 +960,7 @@
       pickedCat = (localStorage.getItem("olv_exp_last_cat") && categories.some((c) => c.id === localStorage.getItem("olv_exp_last_cat")))
         ? localStorage.getItem("olv_exp_last_cat") : firstOther ? firstOther.id : (categories[0] || {}).id;
       renderCatChips();
-      setDate(todayIso());
+      setDate(bizToday());
       setPay("cash");
       $("add-title").innerHTML = olvIcon("plus") + " مصروف جديد";
       $("save-btn").textContent = "حفظ المصروف";
