@@ -97,82 +97,95 @@
   .group h2.py-h .icon{width:18px; height:18px; color:var(--gold-hi);}
   .py-note{color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.7;}
   .py-empty{padding:22px 8px; text-align:center; color:var(--muted); line-height:1.7;}
-  /* ملف الموظف: رأس (هوية + الصافي) ثم عمودين: كشف الحساب والدفع | تبويبات الحضور والسلف والدفعات */
-  .pay-list{list-style:none; margin:0; padding:0; display:grid; gap:16px;}
-  .pf{border-radius:22px; background:var(--ink-3); overflow:hidden; min-width:0;}
-  .pf-head{display:flex; align-items:center; gap:14px; padding:16px 18px; background:var(--ink-2); border-bottom:1px solid var(--hair-soft); flex-wrap:wrap;}
-  .av{width:54px; height:54px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:20px; background:var(--ink-3); color:var(--gold-hi); flex:none; border:1px solid var(--hair);}
-  .pf-id{flex:1; min-width:200px;}
-  .pf-id h3{margin:0; font-size:19px; font-weight:800; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .pf-meta{display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:4px; color:var(--muted); font-size:12.5px;}
-  .pf-meta span{display:inline-flex; align-items:center; gap:5px; white-space:nowrap; font-variant-numeric:tabular-nums;}
-  .pf-meta .icon{width:14px; height:14px;}
-  .pf-net{text-align:left; margin-inline-start:auto;}
-  .pf-net small{display:block; color:var(--muted); font-size:12px; margin-bottom:1px;}
-  .pf-net b{display:block; font-size:32px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; color:var(--olive);}
-  .pf-net.neg b{color:var(--danger-hi);}
-  .pf-net .pc-chip{margin-top:6px; display:inline-block;}
+  /* ملف الموظف (الخيار B): قائمة الموظفين على الجنب، وبالنص ملف المختار: لوحة داكنة فيها الصافي، تبويبات، تقويم الحضور، وعمود كشف الحساب والدفع */
+  .pf-layout{display:grid; grid-template-columns:300px minmax(0,1fr); gap:16px; align-items:start;}
+  @media (max-width:900px){ .pf-layout{grid-template-columns:1fr;} }
+  .pf-side{background:var(--ink-3); border-radius:20px; padding:8px; display:flex; flex-direction:column; gap:2px;}
+  @media (max-width:900px){ .pf-side{flex-direction:row; overflow-x:auto; padding:8px; gap:8px;} .pf-pick{min-width:230px;} .pf-sum{display:none;} }
+  .pf-pick{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:15px; border:0; background:transparent; color:inherit; font:inherit; text-align:right; cursor:pointer; min-height:64px; width:100%; transition:background .15s var(--ease);}
+  .pf-pick:hover{background:var(--ink-2);}
+  .pf-pick[aria-selected="true"]{background:var(--ink-2); box-shadow:0 0 0 1px var(--hair);}
+  .pf-pick:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .pf-pick .av{width:40px; height:40px; font-size:16px;}
+  .pf-pick .w{flex:1; min-width:0;}
+  .pf-pick .w b{display:block; font-size:15px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pf-pick .w small{display:block; color:var(--muted); font-size:12px; margin-top:1px;}
+  .pf-pick .a{text-align:left; font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .pf-pick .a .pc-chip{display:block; margin-top:3px; font-size:11px; padding:2px 8px; font-weight:700;}
+  .pf-sum{display:flex; justify-content:space-between; align-items:baseline; padding:12px 12px 6px; margin-top:4px; border-top:1px solid var(--hair-soft); font-size:13px; color:var(--muted);}
+  .pf-sum b{color:var(--paper); font-size:17px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .av{width:54px; height:54px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:20px; background:var(--ink-2); color:var(--gold-hi); flex:none; border:1px solid var(--hair);}
+  .pf{background:var(--ink-3); border-radius:22px; overflow:hidden; min-width:0;}
+  .pf-hero{background:#211a13; color:#f3eadb; padding:20px 22px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  .pf-hero .av{width:60px; height:60px; font-size:24px; background:#2b2219; border-color:rgba(230,201,131,.3); color:#e6c983;}
+  .pf-hero h3{margin:0; font-size:23px; font-weight:800; color:#f3eadb; line-height:1.25;}
+  .pf-meta{display:flex; flex-wrap:wrap; gap:3px 14px; margin-top:4px; color:#b4a28a; font-size:12.5px;}
+  .pf-meta span{white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .pf-net{margin-inline-start:auto; text-align:left;}
+  .pf-net small{display:block; color:#b4a28a; font-size:12px;}
+  .pf-net b{display:block; font-size:38px; font-weight:800; line-height:1.05; color:#c5d58a; font-variant-numeric:tabular-nums;}
+  .pf-net.neg b{color:#eba18e;}
+  [data-theme="dark"] .pf-hero{background:#2f251a; box-shadow:inset 0 0 0 1px rgba(230,201,131,.14);}
+  [data-theme="dark"] .pf-hero .av{background:#3a2d20;}
+  @media (max-width:640px){ .pf-net{margin-inline-start:0; text-align:right; width:100%;} .pf-net b{font-size:34px;} }
   .pc-chip{padding:4px 11px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; background:rgba(var(--gold-rgb),.16); color:var(--gold-hi);}
   .pc-chip.ok{background:rgba(86,105,46,.16); color:var(--olive);}
   .pc-chip.bad{background:rgba(179,65,42,.14); color:var(--danger-hi);}
   [data-theme="dark"] .pc-chip.ok{background:rgba(143,160,85,.18);}
-  .pf-body{display:grid; grid-template-columns:minmax(0,5fr) minmax(0,6fr); gap:14px; padding:14px;}
-  @media (max-width:860px){ .pf-body{grid-template-columns:1fr;} .pf-net{margin-inline-start:0; text-align:right; width:100%;} }
-  .pf-col{display:flex; flex-direction:column; gap:12px; min-width:0;}
+  .pf-tabs{display:flex; gap:4px; padding:8px 14px 0; background:var(--ink-2); border-bottom:1px solid var(--hair-soft); overflow-x:auto;}
+  .pf-tab{min-height:48px; padding:0 16px; border:0; border-bottom:3px solid transparent; margin-bottom:-1px; background:none; color:var(--muted); font:inherit; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap;}
+  .pf-tab[aria-selected="true"]{color:var(--paper); border-color:var(--gold);}
+  .pf-tab:focus-visible{outline:2px solid var(--gold); outline-offset:-2px;}
+  .pf-tab em{font-style:normal; font-size:12px; margin-inline-start:4px; opacity:.75; font-variant-numeric:tabular-nums;}
+  .pf-cols{display:grid; grid-template-columns:minmax(0,1fr) 300px; background:var(--ink-2);}
+  @media (max-width:900px){ .pf-cols{grid-template-columns:1fr;} }
+  .pf-main{padding:16px 18px; min-width:0;}
+  .pf-pay{padding:16px 18px; background:var(--ink-3); border-inline-start:1px solid var(--hair-soft); display:flex; flex-direction:column; gap:10px; min-width:0;}
+  @media (max-width:900px){ .pf-pay{border-inline-start:0; border-top:1px solid var(--hair-soft);} }
+  .pf-pay h4,.pf-main h4{margin:0; font-size:14px; font-weight:800;}
+  .pf-pay .ln{display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; border-top:1px solid var(--hair-soft); font-size:14px;}
+  .pf-pay h4 + .ln{border-top:0;}
+  .pf-pay .ln span{min-width:0;}
+  .pf-pay .ln small{display:block; color:var(--muted); font-size:11.5px; line-height:1.5; margin-top:1px; font-variant-numeric:tabular-nums;}
+  .pf-pay .ln b{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .pf-pay .ln.minus b{color:var(--danger-hi);}
+  .pf-pay .ln.total{min-height:54px;}
+  .pf-pay .ln.total b{font-size:22px; color:var(--olive);}
+  .pf-pay .ln.total.neg b{color:var(--danger-hi);}
+  .pf-pay .bi{width:78px; min-height:38px; padding:0; border-radius:10px; border:1px solid var(--hair); background:var(--ink-2); color:inherit; font:inherit; font-size:15px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums;}
+  .pf-pay label{font-size:12px; color:var(--muted); display:block;}
+  .pf-pay input.amt{display:block; width:100%; min-height:50px; margin-top:4px; padding:0 12px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-2); color:inherit; font:inherit; font-size:20px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .pf-pay input:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .pf .btn{min-height:48px; width:100%; justify-content:center;}
+  .pf .btn:disabled{opacity:.6;}
+  .cal-dow,.cal-grid{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px;}
+  .cal-dow span{font-size:11.5px; color:var(--muted); text-align:center; padding-bottom:4px;}
+  .cal-cell{aspect-ratio:1.15; border-radius:10px; background:var(--ink-3); padding:5px 6px; display:flex; flex-direction:column; justify-content:space-between; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:0;}
+  .cal-cell b{font-size:14px; font-weight:800; color:var(--paper); line-height:1;}
+  .cal-cell.l1{background:rgba(86,105,46,.22);}
+  .cal-cell.l2{background:rgba(86,105,46,.45);}
+  .cal-cell.l3{background:var(--olive); color:#e6edcf;}
+  .cal-cell.l3 b{color:#fff;}
+  .cal-cell.off{background:transparent; border:1px dashed var(--hair);}
+  .cal-cell.fut{background:transparent; opacity:.4;}
+  .cal-cell.cov{opacity:.5;}
+  .cal-cell.open{background:repeating-linear-gradient(135deg,rgba(176,138,62,.38) 0 4px,rgba(176,138,62,.16) 4px 8px);}
+  .cal-empty{visibility:hidden;}
+  .cal-legend{display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:12px; font-size:12px; color:var(--muted);}
+  .cal-legend i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-inline-end:6px; vertical-align:-1px;}
   .pf-card{background:var(--ink-2); border:1px solid var(--hair-soft); border-radius:18px; padding:4px 14px; min-width:0;}
   .pf-card.pad{padding:14px;}
-  .pf-card .ln{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:46px; border-top:1px solid var(--hair-soft);}
-  .pf-card .ln:first-child{border-top:0;}
-  .pf-card dl{margin:0;}
-  .pf-card dt{font-size:14px; font-weight:500; min-width:0;}
-  .pf-card dt small{display:block; color:var(--muted); font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
-  .pf-card dd{margin:0; font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap;}
-  .pf-card .ln.minus dd{color:var(--danger-hi);}
-  .pf-card .ln.sum dt{font-weight:700;}
-  .pf-card .ln.total{min-height:56px;}
-  .pf-card .ln.total dt{font-size:15px; font-weight:800;}
-  .pf-card .ln.total dd{font-size:22px;}
-  .pf-card input{width:92px; min-height:40px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3); color:inherit; font:inherit; font-size:15px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums;}
-  .pf-card input:focus-visible,.pc-pay input:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
-  .pc-pay{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:10px; align-items:end;}
-  .pc-pay label{display:block; font-size:12px; color:var(--muted);}
-  .pc-pay input{display:block; width:100%; margin-top:3px; min-height:48px; padding:0 12px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-3); color:inherit; font:inherit; font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;}
-  .pay-card .btn,.pf .btn{min-height:48px; width:100%; justify-content:center;}
-  .pf .btn:disabled{opacity:.6;}
-  .pf-tabs{display:flex; gap:6px; padding:10px 0 0; overflow-x:auto;}
-  .pf-tab{min-height:44px; padding:0 15px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:13.5px; font-weight:500; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;}
-  .pf-tab[aria-selected="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
-  .pf-tab:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
-  .pf-tab em{font-style:normal; font-size:11.5px; opacity:.8; font-variant-numeric:tabular-nums;}
-  .att-sum{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:12px;}
-  .att-sum div{background:var(--ink-3); border-radius:12px; padding:8px 10px;}
-  .att-sum span{display:block; font-size:11.5px; color:var(--muted);}
-  .att-sum b{display:block; font-size:16px; font-weight:800; margin-top:1px; font-variant-numeric:tabular-nums;}
-  .att-bars{display:grid; grid-template-columns:repeat(31,minmax(0,1fr)); gap:3px; align-items:end; height:92px;}
-  .att-bar{display:flex; flex-direction:column; justify-content:flex-end; height:100%;}
-  .att-bar i{display:block; width:100%; border-radius:4px 4px 2px 2px; background:var(--olive); min-height:3px;}
-  .att-bar.paid i{background:var(--hair);}
-  .att-bar.zero i{background:var(--hair-soft);}
-  .att-bar.open i{background:var(--gold); background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,255,255,.45) 3px 5px);}
-  .att-days{display:grid; grid-template-columns:repeat(31,minmax(0,1fr)); gap:3px; margin-top:4px; font-size:9.5px; color:var(--muted); text-align:center; font-variant-numeric:tabular-nums;}
-  .att-key{display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:10px; font-size:12px; color:var(--muted);}
-  .att-key span{display:inline-flex; align-items:center; gap:6px;}
-  .att-key i{width:10px; height:10px; border-radius:3px; background:var(--olive);}
-  .att-key i.paid{background:var(--hair);}
-  .att-key i.open{background:var(--gold);}
   .pf-list{list-style:none; margin:0; padding:0; display:grid;}
-  .pf-list li{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:48px; border-top:1px solid var(--hair-soft); font-size:13.5px;}
+  .pf-list li{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:52px; border-top:1px solid var(--hair-soft); font-size:13.5px;}
   .pf-list li:first-child{border-top:0;}
   .pf-list li small{display:block; color:var(--muted); font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
   .pf-list li b{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
   .pf-list li b.neg{color:var(--danger-hi);}
   .pf-empty{padding:18px 4px; text-align:center; color:var(--muted); font-size:13.5px; line-height:1.7;}
-  .pay-carry{font-size:12.5px; font-weight:700; color:var(--gold-hi);}
   .pay-warn{display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-radius:12px; background:rgba(var(--gold-rgb),.14); color:var(--gold-hi); font-size:12.5px; font-weight:700; line-height:1.6;}
   .pay-warn .icon{width:16px; height:16px; flex:none; margin-top:2px;}
   .pay-warn a{color:inherit; text-decoration:underline;}
   .pay-nowage{font-size:12.5px; color:var(--danger-hi); font-weight:700;}
-  @media (max-width:420px){ .pc-pay{grid-template-columns:1fr;} .att-bars{height:76px;} }
   /* السلف */
   .adv-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
   .adv-head h2{margin:0;}
@@ -251,7 +264,7 @@
 
         <section class="group">
           <h2 class="py-h" id="due-title"></h2>
-          <p class="py-note">لكل موظف كشف حساب: مستحقه من آخر دفعة لهلأ (ساعات الدوام × الأجر بالساعة + المكافأة الأسبوعية) + المرحّل من دفعة سابقة (له أو عليه) − السلف غير المسوّاة. أي مبلغ بتدفعه بينخصم مباشرة من حسابه، والباقي (أو الزيادة) بيترحّل لدفعته الجاية.</p>
+          <p class="py-note">اختار الموظف من القائمة وافتح ملفه. الصافي = ساعات × الأجر + المكافأة الأسبوعية + المرحّل (له أو عليه) − السلف. أي مبلغ بتدفعه بينخصم مباشرة، والباقي بيترحّل للدفعة الجاية.</p>
           <div id="due-box"><div class="py-empty">جاري الحساب...</div></div>
         </section>
 
@@ -318,6 +331,7 @@
     let unsettledAdvances = [];
     let punchDays = new Map(); // profileId -> Map(يوم الدوام -> ساعات | null إذا ناقص خروج)
     const fileTab = new Map(); // التبويب المفتوح بملف كل موظف
+    let selectedId = null; // الموظف المفتوح ملفه
     const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "موظف", waiter: "ويتر" };
     let ledger = new Map(); // آخر دفعة لكل موظف: لحد أي يوم انحسب + الباقي المرحّل (مستحق − مدفوع)
     let previewRows = [];
@@ -519,7 +533,7 @@
           .filter((r) => r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         // حضور آخر 31 يوم لملف كل موظف (إذا فشل ما بنوقف الصفحة)
-        try { await loadPunchDays(previewRows.map((x) => x.profileId), addDays(range.to, -30), range.to); } catch (e) { punchDays = new Map(); }
+        try { await loadPunchDays(previewRows.map((x) => x.profileId), range.to.slice(0, 8) + "01", range.to); } catch (e) { punchDays = new Map(); }
         renderPreview();
       } catch (err) {
         olvShowError(errBox, err);
@@ -527,34 +541,32 @@
     }
 
     // ملف الموظف: الهوية + الصافي بالرأس، وتحتها كشف الحساب والدفع، وتبويبات الحضور والسلف والدفعات
-    function attendanceHtml(r) {
-      const days = [];
-      for (let i = 30; i >= 0; i--) days.push(addDays(range.to, -i));
+    // تقويم الحضور لشهر آخر يوم بالفترة: سبت..جمعة، لون الخلية حسب الساعات
+    function calendarHtml(r) {
+      const to = range.to;
+      const first = to.slice(0, 8) + "01";
+      const dim = new Date(Number(to.slice(0, 4)), Number(to.slice(5, 7)), 0).getDate();
+      const lead = (parse(first).getDay() + 1) % 7; // الأسبوع بيبدأ سبت
       const map = punchDays.get(r.profileId) || new Map();
-      const vals = days.map((d) => map.get(d));
-      const worked = vals.filter((h) => h != null && h > 0);
-      const total = worked.reduce((a, b) => a + b, 0);
-      const maxH = Math.max(8, ...worked);
-      const fresh = days.map((d) => d >= r.from); // أيام لسا ما انحسبت بدفعة
-      const freshWorked = days.map((d, i) => (fresh[i] && vals[i] > 0 ? vals[i] : 0)).filter((h) => h > 0);
-      const bars = days.map((d, i) => {
-        const h = vals[i];
-        const cls = h === undefined || h === 0 ? "zero" : h === null ? "open" : fresh[i] ? "" : "paid";
-        const pct = h ? Math.max(6, Math.min(100, (h / maxH) * 100)) : h === null ? 40 : 4;
-        const tip = `${shortDate(d)}: ${h === undefined ? "ما داوم" : h === null ? "ناقص بصمة خروج" : fmtHrs(h) + " ساعة"}`;
-        return `<div class="att-bar ${cls}" title="${tip}"><i style="height:${pct}%"></i></div>`;
-      }).join("");
-      const dayNums = days.map((d, i) => `<span>${i % 5 === 0 || i === 30 ? Number(d.slice(8)) : ""}</span>`).join("");
-      return `<div class="pf-card pad">
-        <div class="att-sum">
-          <div><span>أيام الدوام (31 يوم)</span><b>${worked.length}</b></div>
-          <div><span>متوسط اليوم</span><b>${worked.length ? fmtHrs(total / worked.length) : "—"} ساعة</b></div>
-          <div><span>غير محسوب بعد</span><b>${fmtHrs(freshWorked.reduce((a, b) => a + b, 0))} ساعة</b></div>
-        </div>
-        <div class="att-bars" role="img" aria-label="ساعات الدوام اليومية لآخر 31 يوم">${bars}</div>
-        <div class="att-days" aria-hidden="true">${dayNums}</div>
-        <div class="att-key"><span><i></i>أيام لسا ما انحسبت</span><span><i class="paid"></i>انحسبت بدفعة سابقة</span><span><i class="open"></i>ناقص بصمة خروج</span></div>
-      </div>`;
+      let total = 0, worked = 0, fresh = 0;
+      const cells = [];
+      for (let i = 0; i < lead; i++) cells.push('<div class="cal-empty"></div>');
+      for (let d = 1; d <= dim; d++) {
+        const day = first.slice(0, 8) + String(d).padStart(2, "0");
+        const h = map.get(day);
+        const isFut = day > to;
+        const cov = day < r.from;
+        let cls = "off", label = "";
+        if (isFut) cls = "fut";
+        else if (h === null) { cls = "open"; label = "؟"; }
+        else if (h > 0) { cls = h > 9 ? "l3" : h >= 6 ? "l2" : "l1"; label = fmtHrs(h); total += h; worked++; if (!cov) fresh += h; }
+        const tip = isFut ? "" : `${shortDate(day)}: ${h === undefined || h === 0 ? "ما داوم" : h === null ? "ناقص بصمة خروج" : fmtHrs(h) + " ساعة"}${cov && h ? " (انحسب بدفعة سابقة)" : ""}`;
+        cells.push(`<div class="cal-cell ${cls}${cov && !isFut ? " cov" : ""}" title="${tip}"><span>${d}</span><b>${label}</b></div>`);
+      }
+      return `<h4>${MONTHS[Number(to.slice(5, 7)) - 1]} · ${fmtHrs(total)} ساعة · ${worked} يوم دوام${fresh !== total ? ` · غير محسوب بعد ${fmtHrs(fresh)} ساعة` : ""}</h4>
+        <div class="cal-dow" aria-hidden="true"><span>سبت</span><span>أحد</span><span>اثنين</span><span>ثلاثاء</span><span>أربعاء</span><span>خميس</span><span>جمعة</span></div>
+        <div class="cal-grid" role="img" aria-label="ساعات الدوام اليومية بالشهر">${cells.join("")}</div>
+        <div class="cal-legend"><span><i style="background:rgba(86,105,46,.22)"></i>أقل من 6 ساعات</span><span><i style="background:rgba(86,105,46,.45)"></i>6 – 9</span><span><i style="background:var(--olive)"></i>أكثر من 9</span><span><i style="border:1px dashed var(--hair)"></i>ما داوم</span><span><i style="background:var(--gold)"></i>ناقص بصمة خروج</span><span>باهت = انحسب بدفعة سابقة</span></div>`;
     }
     function advancesHtml(r) {
       const advs = unsettledAdvances.filter((a) => a.profile_id === r.profileId);
@@ -569,22 +581,30 @@
         return `<li><span>${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة<small>مستحق ${olvFormatMoney(p.gross_amount)}${Number(p.advances_deducted) ? ` − سلف ${olvFormatMoney(p.advances_deducted)}` : ""}${Math.abs(left) >= 0.005 ? ` · ${left > 0 ? "باقي له" : "زيادة عليه"} ${olvFormatMoney(Math.abs(left))}` : ""} · اندفع ${shortDate(p.paid_at)}</small></span><b>${olvFormatMoney(p.net_amount)}</b></li>`;
       }).join("")}</ul></div>`;
     }
+    const statusOf = (r) => (r.hourlyWage == null ? ["بدون أجر", "bad"] : r.net < -0.005 ? ["زيادة عليه", "bad"] : r.carry > 0.005 ? ["باقي له", ""] : r.net > 0.005 ? ["جاهز", "ok"] : ["مسوّى", "ok"]);
+    function pickHtml(r) {
+      const prof = profilesById.get(r.profileId) || {};
+      const st = statusOf(r);
+      return `<button class="pf-pick" type="button" role="tab" aria-selected="${r.profileId === selectedId}" data-pick="${r.profileId}">
+        <span class="av" aria-hidden="true">${olvEsc(initial(r.profileId)) || olvIcon("person")}</span>
+        <span class="w"><b>${olvEsc(empName(r.profileId))}</b><small>${olvEsc(prof.job_title || ROLE_LABELS[prof.role] || "")}</small></span>
+        <span class="a">${olvFormatMoney(r.net)}<span class="pc-chip ${st[1]}">${st[0]}</span></span></button>`;
+    }
     function fileHtml(r) {
       const noWage = r.hourlyWage == null;
       const prof = profilesById.get(r.profileId) || {};
-      const chip = noWage ? ["بدون أجر", "bad"] : r.net < -0.005 ? ["زيادة عليه", "bad"] : r.carry > 0.005 ? ["باقي له من قبل", ""] : r.net > 0.005 ? ["جاهز للدفع", "ok"] : ["مسوّى", "ok"];
       const period = r.from > range.to ? "ما في أيام جديدة" : `${shortDate(r.from)} لـ ${shortDate(range.to)}`;
       const payVal = (r.payAmount != null ? r.payAmount : r.net).toFixed(2);
       const advCount = unsettledAdvances.filter((a) => a.profile_id === r.profileId).length;
       const payCount = history.filter((p) => p.profile_id === r.profileId).length;
       const tab = fileTab.get(r.profileId) || "att";
       const tabs = [["att", "الحضور", ""], ["adv", "السلف", advCount ? `<em>${advCount}</em>` : ""], ["pay", "الدفعات", payCount ? `<em>${payCount}</em>` : ""]];
-      const pane = tab === "adv" ? advancesHtml(r) : tab === "pay" ? paymentsHtml(r) : attendanceHtml(r);
+      const main = tab === "adv" ? advancesHtml(r) : tab === "pay" ? paymentsHtml(r) : calendarHtml(r);
       return `
-      <li class="pf">
-        <header class="pf-head">
+      <section class="pf" aria-label="ملف ${olvEsc(empName(r.profileId))}">
+        <header class="pf-hero">
           <span class="av" aria-hidden="true">${olvEsc(initial(r.profileId)) || olvIcon("person")}</span>
-          <div class="pf-id">
+          <div>
             <h3>${olvEsc(empName(r.profileId))}</h3>
             <div class="pf-meta">
               <span>${olvEsc(prof.job_title || ROLE_LABELS[prof.role] || "")}</span>
@@ -593,31 +613,25 @@
               <span>${noWage ? "بدون أجر بالساعة" : `${olvFormatMoney(r.hourlyWage)} / ساعة`}</span>
             </div>
           </div>
-          <div class="pf-net${r.net < 0 ? " neg" : ""}"><small>الصافي المستحق</small><b>${olvFormatMoney(r.net)}</b><span class="pc-chip ${chip[1]}">${chip[0]}</span></div>
+          <div class="pf-net${r.net < 0 ? " neg" : ""}"><small>الصافي المستحق</small><b>${olvFormatMoney(r.net)}</b></div>
         </header>
-        <div class="pf-body">
-          <div class="pf-col">
-            <dl class="pf-card">
-              <div class="ln"><dt>الساعات<small>${period} · ${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></dt><dd>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</dd></div>
-              <div class="ln"><dt>مكافأة أسبوعية<small>${r.weeks} أسبوع × ${FIXED_BONUS} · صفّرها إذا أخذ إجازة</small></dt><dd><input type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></dd></div>
-              <div class="ln sum"><dt>مستحق هالفترة</dt><dd>${olvFormatMoney(r.earned)}</dd></div>
-              ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><dt>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></dt><dd>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</dd></div>` : ""}
-              ${r.advancesTotal ? `<div class="ln minus"><dt>سلف مخصومة</dt><dd>− ${olvFormatMoney(r.advancesTotal)}</dd></div>` : ""}
-              <div class="ln total"><dt>الصافي</dt><dd>${olvFormatMoney(r.net)}</dd></div>
-            </dl>
+        <div class="pf-tabs" role="tablist" aria-label="ملف ${olvEsc(empName(r.profileId))}">${tabs.map(([k, label, em]) => `<button class="pf-tab" type="button" role="tab" aria-selected="${tab === k}" data-tab="${k}" data-id="${r.profileId}">${label}${em}</button>`).join("")}</div>
+        <div class="pf-cols">
+          <div class="pf-main">${main}</div>
+          <div class="pf-pay">
+            <h4>كشف الحساب · ${period}</h4>
+            <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
+            <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع × ${FIXED_BONUS} · صفّرها إذا أخذ إجازة</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
+            ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><span>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></span><b>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</b></div>` : ""}
+            ${r.advancesTotal ? `<div class="ln minus"><span>سلف مخصومة</span><b>− ${olvFormatMoney(r.advancesTotal)}</b></div>` : ""}
+            <div class="ln total${r.net < 0 ? " neg" : ""}"><span>الصافي</span><b>${olvFormatMoney(r.net)}</b></div>
             ${noWage ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
             ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
-            <div class="pc-pay">
-              <label>المبلغ اللي بدفعه<input type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${payVal}"></label>
-              <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
-            </div>
-          </div>
-          <div class="pf-col">
-            <div class="pf-tabs" role="tablist" aria-label="ملف ${olvEsc(empName(r.profileId))}">${tabs.map(([k, label, em]) => `<button class="pf-tab" type="button" role="tab" aria-selected="${tab === k}" data-tab="${k}" data-id="${r.profileId}">${label}${em}</button>`).join("")}</div>
-            ${pane}
+            <div><label for="amt-${r.profileId}">المبلغ اللي بدفعه</label><input class="amt" id="amt-${r.profileId}" type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${payVal}"></div>
+            <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
           </div>
         </div>
-      </li>`;
+      </section>`;
     }
 
     function renderPreview() {
@@ -631,19 +645,24 @@
       $("k-hrs-note").className = "note" + (open ? " warn" : "");
       $("k-hrs-note").textContent = open ? `${open} يوم ببصمة وحدة مش محسوب` : "من أول لآخر بصمة باليوم";
       if (!previewRows.length) { box.innerHTML = `<div class="py-empty">ما في ساعات عمل ولا سلف بهالفترة.</div>`; return; }
-      box.innerHTML = `<ul class="pay-list">${previewRows.map(fileHtml).join("")}</ul>`;
+      if (!previewRows.some((x) => x.profileId === selectedId)) selectedId = previewRows[0].profileId;
+      const cur = previewRows.find((x) => x.profileId === selectedId);
+      box.innerHTML = `<div class="pf-layout">
+        <div class="pf-side" role="tablist" aria-label="الموظفين">${previewRows.map(pickHtml).join("")}<div class="pf-sum"><span>مجموع المستحق</span><b>${olvFormatMoney(net)}</b></div></div>
+        ${fileHtml(cur)}</div>`;
+      box.querySelectorAll("button[data-pick]").forEach((btn) => btn.addEventListener("click", () => { selectedId = btn.dataset.pick; renderPreview(); }));
       box.querySelectorAll("button[data-tab]").forEach((btn) => btn.addEventListener("click", () => { fileTab.set(btn.dataset.id, btn.dataset.tab); renderPreview(); }));
       box.querySelectorAll("input[data-bonus]").forEach((inp) => inp.addEventListener("change", () => {
         const row = previewRows.find((x) => x.profileId === inp.dataset.bonus);
         const v = Number(inp.value);
-        if (!row || !Number.isFinite(v) || v < 0) { renderPreview(); return; }
+        if (!row || !Number.isFinite(v) || v < 0) { setTimeout(renderPreview, 0); return; }
         row.earned += v - row.bonus; row.bonus = v; row.net = row.earned + row.carry - row.advancesTotal; row.payAmount = null;
-        renderPreview();
+        setTimeout(renderPreview, 0); // بعد ما يخلص حدث blur، حتى ما نمسح الحقل وهو بعده بينتقل منه التركيز
       }));
       box.querySelectorAll("input[data-amount]").forEach((inp) => inp.addEventListener("change", () => {
         const row = previewRows.find((x) => x.profileId === inp.dataset.amount);
         const v = Number(inp.value);
-        if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else renderPreview();
+        if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else setTimeout(renderPreview, 0);
       }));
       box.querySelectorAll("button[data-pay]").forEach((btn) => btn.addEventListener("click", () => confirmPay(btn.dataset.pay, btn)));
     }
