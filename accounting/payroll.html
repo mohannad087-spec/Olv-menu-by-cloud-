@@ -186,6 +186,8 @@
   .adj-form input[name=note]{grid-column:1 / -1;}
   .adj-form .btn{grid-column:1 / -1;}
   .pf-list li .del{border:0; background:none; color:var(--muted); min-width:44px; min-height:44px; cursor:pointer;}
+  .pf-meta .wg{display:inline-flex; align-items:center; gap:6px;}
+  .pf-meta .wg input{width:76px; min-height:36px; border:1px solid var(--hair); border-radius:10px; padding:0 8px; font:inherit; background:var(--ink-2); color:inherit; text-align:center;}
   .st-actions{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;}
   .pf-empty{padding:18px 4px; text-align:center; color:var(--muted); font-size:13.5px; line-height:1.7;}
   .pay-warn{display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-radius:12px; background:rgba(var(--gold-rgb),.14); color:var(--gold-hi); font-size:12.5px; font-weight:700; line-height:1.6;}
@@ -642,7 +644,7 @@
               <span>${olvEsc(prof.job_title || ROLE_LABELS[prof.role] || "")}</span>
               ${prof.phone ? `<span dir="ltr">${olvEsc(prof.phone)}</span>` : ""}
               ${prof.device_user_id ? `<span>بصمة ${olvEsc(prof.device_user_id)}</span>` : ""}
-              <span>${noWage ? "بدون أجر بالساعة" : `${olvFormatMoney(r.hourlyWage)} / ساعة`}</span>
+              <label class="wg">سعر الساعة <input type="number" inputmode="decimal" min="0" step="0.05" data-wage="${r.profileId}" value="${noWage ? "" : r.hourlyWage}" placeholder="حدّده" aria-label="سعر الساعة"> دينار</label>
             </div>
           </div>
           <div class="pf-net${r.net < 0 ? " neg" : ""}"><small>الصافي المستحق</small><b>${olvFormatMoney(r.net)}</b></div>
@@ -697,6 +699,17 @@
         const row = previewRows.find((x) => x.profileId === inp.dataset.amount);
         const v = Number(inp.value);
         if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else setTimeout(renderPreview, 0);
+      }));
+      box.querySelectorAll("input[data-wage]").forEach((inp) => inp.addEventListener("change", async () => {
+        const v = inp.value === "" ? null : Number(inp.value);
+        if (v !== null && (!Number.isFinite(v) || v < 0)) { setTimeout(renderPreview, 0); return; }
+        try {
+          const { error } = await window.supabaseClient.from("profiles").update({ hourly_wage: v }).eq("id", inp.dataset.wage);
+          if (error) throw error;
+          const prof = profilesById.get(inp.dataset.wage); if (prof) prof.hourly_wage = v;
+          olvToast("انحفظ سعر الساعة", { type: "ok", icon: "check" });
+          await runCompute();
+        } catch (err) { olvShowError(errBox, err); setTimeout(renderPreview, 0); }
       }));
       box.querySelectorAll("form[data-adjform]").forEach((f) => f.addEventListener("submit", (e) => { e.preventDefault(); addAdjustment(f); }));
       box.querySelectorAll("button[data-deladj]").forEach((btn) => btn.addEventListener("click", () => olvUndoDelete(btn, {
