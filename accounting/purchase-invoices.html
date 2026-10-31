@@ -477,7 +477,7 @@
     const round2 = (n) => Math.round(n * 100) / 100;
 
     function newLine(over) {
-      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, bMode: "total", bPct: "", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     // نوع السطر: مادة خام ولا مستلزم. الصنف المربوط هو المرجع، وغير هيك اللي اختاره المستخدم (أو تخمين من الاسم للسطور المقروءة من الصورة)
@@ -567,6 +567,11 @@
     // البونص بوحدة المخزون. إما رقم إجمالي مباشرة، أو نسبة «كمية بونص لكل كمية مشتراة»: بنحسب المجموعات الكاملة بس (٢٥ كيلو مع «نص لكل ١٠» = مجموعتين)
     function bonusInfo(line) {
       const it = itemOf(line);
+      if (line.bMode === "percent") {
+        // نسبة مئوية من الكمية المشتراة (١٠٪ من ٢٠ كيلو = ٢ كيلو مجانًا)
+        const pct = Math.max(Number(line.bPct) || 0, 0), sq = it ? stockQtyOf(line, it) : 0;
+        return { total: r3(sq * pct / 100), groups: null };
+      }
       if (line.bMode !== "ratio") {
         const b = Math.max(Number(line.bonus) || 0, 0);
         return { total: b, groups: null };
@@ -597,7 +602,7 @@
     }
     function bonusHtml(line, it) {
       if (!it) return "";
-      if (!line.bonusOpen && !bonusOf(line) && line.bMode !== "ratio") return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في بونص (مجاني)؟</button>`;
+      if (!line.bonusOpen && !bonusOf(line) && line.bMode !== "ratio" && line.bMode !== "percent") return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في بونص (مجاني)؟</button>`;
       const hasPU = it.purchase_unit && it.purchase_unit_factor;
       const ratio = line.bMode === "ratio";
       const buyUnit = line.unitMode === "purchase" && hasPU ? it.purchase_unit : it.unit;
@@ -608,7 +613,12 @@
       const foreign = gu !== "stock" && gu !== "purchase";
       const unitName = gu === "other" ? (line.bOther || "وحدة") : gu;
       const factorHtml = foreign ? `<div class="pi-bonus-row"><span>${gu === "other" ? `<input type="text" data-f="bOther" value="${olvEsc(line.bOther)}" placeholder="اسم الوحدة" aria-label="اسم الوحدة" style="max-width:110px;">` : ""} 1 ${olvEsc(unitName)} =</span><input type="number" data-f="bFactor" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bFactor)}" placeholder="كم" aria-label="كم بتساوي"><span>${olvEsc(it.unit)}</span></div>` : "";
-      const body = ratio
+      const pctMode = line.bMode === "percent";
+      const body = pctMode
+        ? `<div class="pi-bonus-row"><span>بونص</span>
+            <input type="number" data-f="bPct" min="0" max="1000" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.bPct)}" placeholder="مثلًا 10" aria-label="نسبة البونص">
+            <span>% من الكمية المشتراة</span></div>`
+        : ratio
         ? `<div class="pi-bonus-row"><span>بونص</span>
             <input type="number" data-f="bGet" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bGet)}" placeholder="مثلًا 0.5" aria-label="كمية البونص">
             ${getUnitHtml}
@@ -620,7 +630,9 @@
       return `<div class="pi-bonus" style="margin-top:6px;">
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <b style="font-size:13px;">🎁 بونص</b>
-          <button type="button" class="pi-mini" data-act="bonus-mode">${ratio ? "أدخل الرقم الإجمالي" : "احسبه بنسبة (مثلًا نص كيلو لكل 10)"}</button>
+          ${line.bMode !== "total" ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="total">أدخل الرقم الإجمالي</button>` : ""}
+          ${!ratio ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="ratio">نسبة (نص كيلو لكل 10)</button>` : ""}
+          ${!pctMode ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="percent">نسبة مئوية %</button>` : ""}
         </div>
         ${body}
         <div data-bonus-sum>${bonusSum(line, it)}</div>
@@ -944,6 +956,7 @@
       else if (f === "price") line.price = e.target.value;
       else if (f === "bonus") line.bonus = e.target.value;
       else if (f === "tax") line.tax = e.target.value;
+      else if (f === "bPct") line.bPct = e.target.value;
       else if (f === "bGet") line.bGet = e.target.value;
       else if (f === "bFactor") line.bFactor = e.target.value;
       else if (f === "bOther") line.bOther = e.target.value;
@@ -1013,8 +1026,9 @@
       if (btn.dataset.act === "tax-open") { line.taxOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="tax"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-mode") {
-        if (line.bMode === "ratio") { const t = bonusOf(line); line.bonus = t > 0 ? String(t) : ""; line.bMode = "total"; }
-        else line.bMode = "ratio";
+        const to = btn.dataset.to || "total";
+        if (to === "total") { const t = bonusOf(line); line.bonus = t > 0 ? String(t) : ""; }
+        line.bMode = to;
         renderLines(); return;
       }
       if (btn.dataset.act === "pick") {
