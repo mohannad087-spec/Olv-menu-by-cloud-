@@ -252,7 +252,7 @@
   .cat-more .btn{min-height:44px;}
 
   /* عرض «اليوم»: سجل مسطّح حسب الوقت، بدون رسوم ولا ثابتة */
-  .today-mode .ex-grid, .today-mode #rec-group, .today-mode #kind-chips{display:none;}
+  .today-mode .ex-grid, .today-mode #rec-group, .today-mode #kind-chips [data-kind=manual], .today-mode #kind-chips [data-kind=rec], .today-mode #kind-chips [data-kind=inv]{display:none;}
   .td-sum{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 14px; border-radius:14px; background:var(--ink-3); margin-bottom:8px; font-size:13.5px; color:var(--muted);}
   .td-sum b{color:var(--paper); font-size:18px; font-variant-numeric:tabular-nums;}
   .td-list{list-style:none; margin:0; padding:0;}
@@ -440,6 +440,7 @@
       </div>
       <div class="ex-chips ex-kind" id="kind-chips" role="group" aria-label="نوع المصروف">
         <button class="ex-chip" type="button" data-kind="all" aria-pressed="true">الكل</button>
+        <button class="ex-chip" type="button" data-kind="drawer" aria-pressed="false">من الدرج (كاش)</button>
         <button class="ex-chip" type="button" data-kind="manual" aria-pressed="false">يدوي</button>
         <button class="ex-chip" type="button" data-kind="rec" aria-pressed="false">ثابت</button>
         <button class="ex-chip" type="button" data-kind="inv" aria-pressed="false">من المشتريات</button>
@@ -777,7 +778,8 @@
     // السجل: مجمّع حسب التصنيف، مسكّر لحد ما تفتحه
     // ---------------------------------------------------------------
     function matches(x) {
-      if (kind === "credit") { if (x.payment_type !== "credit") return false; }
+      if (kind === "drawer") { if (x.payment_type === "credit") return false; }
+      else if (kind === "credit") { if (x.payment_type !== "credit") return false; }
       else if (kind !== "all" && kindOf(x) !== kind) return false;
       if (!query) return true;
       const inv = invoiceOf[x.id] || {};
@@ -848,7 +850,7 @@
       const list = rows.filter(matches).slice().sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
       const cash = rows.filter((x) => x.payment_type !== "credit").reduce((s, x) => s + Number(x.amount), 0);
       const cr = rows.filter((x) => x.payment_type === "credit").reduce((s, x) => s + Number(x.amount), 0);
-      box.innerHTML = `<div class="td-sum"><span>نزل من الدرج كاش <b>${olvFormatMoney(cash)}</b></span>${cr ? `<span>ذمة <b>${olvFormatMoney(cr)}</b></span>` : ""}</div>`
+      box.innerHTML = `<div class="td-sum"><span>مصروفات الدرج (كاش) <b>${olvFormatMoney(cash)}</b></span>${cr ? `<span>ذمة <b>${olvFormatMoney(cr)}</b></span>` : ""}</div>`
         + (list.length ? `<ul class="td-list">${list.map(todayHtml).join("")}</ul>` : `<p class="ex-empty">ما في نتيجة</p>`);
     }
     function renderList() {
