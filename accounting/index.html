@@ -126,6 +126,32 @@
   @keyframes olv-grow{from{transform:scaleX(0);}}
   .legend{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; font-size:12.5px; color:var(--muted);}
   .legend em{display:inline-block; width:10px; height:10px; border-radius:3px; margin-inline-end:6px; vertical-align:-1px;}
+
+  /* ---- تجديد 2026-11-01: بلاطات بيضاء + أيقونة ملوّنة لكل بلاطة (بدون الدرجة الكمّونية) ---- */
+  .bento .t{--tc:#4c6b2a; --tb:#e6efd9; border-radius:24px; padding:20px; background:var(--ink-2);
+    box-shadow:0 1px 2px rgba(40,35,20,.05), 0 10px 26px -16px rgba(40,35,20,.18);}
+  .bento .t:nth-child(2),.bento .t:nth-child(8){--tc:#2f6f9f; --tb:#e1eef7;}
+  .bento .t:nth-child(3){--tc:#c2503a; --tb:#fbe6e0;}
+  .bento .t:nth-child(5){--tc:#c8641a; --tb:#fdebd9;}
+  .bento .t:nth-child(6),.bento .t:nth-child(10){--tc:#7c4a9e; --tb:#efe5f6;}
+  .bento .t:nth-child(7){--tc:#1f8a80; --tb:#dcf1ee;}
+  .t .lbl{font-size:14px; font-weight:700; color:var(--paper); gap:10px;}
+  .t .lbl > .icon{box-sizing:content-box; width:19px; height:19px; padding:8.5px; border-radius:12px; background:var(--tb); color:var(--tc); flex:none;}
+  .t .mid{color:var(--paper);} .t .tag{color:var(--muted);}
+  .t.dark, :root[data-theme="dark"] .t.dark{background:var(--ink-2); border-color:var(--hair-soft); color:var(--paper);}
+  .t.dark .lbl{color:var(--paper);} .t.dark .tag{color:var(--muted);}
+  .t.dark .mid, .bento .t:not(.cta):not(.hero) .mid{color:var(--tc);}
+  .t.alert .mid{color:var(--tc);} .t.alert.ok .mid{color:var(--ok);}
+  .t.cta{background:linear-gradient(145deg,#5f7a34,#3f5a22); border-color:transparent; color:#fff;}
+  .t.cta .lbl{color:#fff; opacity:1;} .t.cta .mid{color:#fff;}
+  .hero .big{color:var(--tc);}
+  .best .ph{background:var(--tb); color:var(--tc);}
+  .ord{background:var(--tb); border-radius:14px;}
+  .ord span{color:var(--tc); font-weight:700;}
+  .vs-chip{background:#e6efd9; color:#3f5a22;}
+  :root[data-theme="dark"] .t{--tb:rgba(255,255,255,.07);}
+  :root[data-theme="dark"] .t .lbl > .icon{color:var(--paper);}
+  :root[data-theme="dark"] .vs-chip{background:rgba(143,160,85,.18); color:var(--olive-hi);}
   @media (max-width:900px){
     .bento{grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(140px,auto);}
     .s12{grid-row:span 1;}
@@ -188,7 +214,7 @@
         <span class="vs-chip" id="vs-chip" hidden></span>
         <a class="vs-chip down" id="margin-chip" href="product-recipes.html#profit" hidden></a>
         <button class="btn small" id="morning-btn" hidden></button>
-        <button class="btn small gold" id="share-day-btn"></button>
+        <button class="btn small" id="share-day-btn" style="background:#4c6b2a;color:#fff;border:none"></button>
         <button class="btn small" id="pdf-btn"></button>
       </div>
     </div>
@@ -474,7 +500,7 @@
         // طرق الدفع: كاش / شبكة / توصيل كنسبة من مبيعات اليوم
         const parts = [
           ["كاش", sales.reduce((s, r) => s + Number(r.cash_amount), 0), "var(--olive)"],
-          ["شبكة", sales.reduce((s, r) => s + Number(r.card_amount), 0), "var(--gold)"],
+          ["شبكة", sales.reduce((s, r) => s + Number(r.card_amount), 0), "#2f6f9f"],
           ["توصيل", sales.reduce((s, r) => s + Number(r.delivery_amount), 0), "#c9a993"],
         ].filter((p) => p[1] > 0);
         document.getElementById("split").innerHTML = totalSales
