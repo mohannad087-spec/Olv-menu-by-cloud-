@@ -552,14 +552,18 @@
             const h = (hoursByStart.get(from) || new Map()).get(profileId) || { hours: 0, openCount: 0 };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
-            // المكافأة: 10 عن كل أسبوع كامل، ناقص 10 عن كل يوم إجازة. الحساب من أول يوم دوام للموظف لحد أمس (اليوم لسا ما خلص)
+            // المكافأة أسبوعية: بنهاية كل أسبوع (الجمعة) اللي خلص بينضاف 10، وما بنحسب الأسابيع اللي لسا ما خلصت.
+            // ناقص 10 عن كل يوم إجازة (يوم بلا بصمة) من أول دوام للموظف لحد آخر جمعة محسوبة
             const days = attended.get(profileId) || new Set();
             const firstWork = days.size ? [...days].sort()[0] : null;
             const spanFrom = firstWork && firstWork > from ? firstWork : from;
             const spanTo = range.to < yesterday ? range.to : yesterday;
-            const weeks = firstWork && spanFrom <= spanTo ? weeksIn({ from: spanFrom, to: spanTo }) : 0;
-            const spanDays = firstWork && spanFrom <= spanTo ? Math.round((parse(spanTo) - parse(spanFrom)) / 86400000) + 1 : 0;
-            const off = firstWork ? Math.max(0, spanDays - [...days].filter((d) => d >= spanFrom && d <= spanTo).length) : 0;
+            let weeks = 0, lastFri = null;
+            if (firstWork && spanFrom <= spanTo) {
+              for (let d = spanFrom; d <= spanTo; d = addDays(d, 1)) if (parse(d).getDay() === 5) { weeks++; lastFri = d; }
+            }
+            let off = 0;
+            if (lastFri) for (let d = spanFrom; d <= lastFri; d = addDays(d, 1)) if (!days.has(d)) off++;
             const bonus = h.hours > 0 ? Math.max(0, FIXED_BONUS * weeks - FIXED_BONUS * off) : 0;
             const adjTotal = adjTotalFor(profileId);
             const earned = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus + adjTotal;
@@ -672,7 +676,7 @@
           <div class="pf-pay">
             <h4>كشف الحساب · ${period}</h4>
             <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
-            <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع × ${FIXED_BONUS}${r.off ? ` − ${r.off} يوم إجازة × ${FIXED_BONUS}` : ""}</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
+            <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع خلص × ${FIXED_BONUS}${r.off ? ` − ${r.off} يوم إجازة × ${FIXED_BONUS}` : ""}</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
             ${Math.abs(r.adjTotal) >= 0.005 ? `<div class="ln${r.adjTotal < 0 ? " minus" : ""}"><span>إضافات وخصومات<small>${adjFor(r.profileId).length} بند</small></span><b>${r.adjTotal > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.adjTotal))}</b></div>` : ""}
             ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><span>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></span><b>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</b></div>` : ""}
             ${r.advancesTotal ? `<div class="ln minus"><span>سلف مخصومة</span><b>− ${olvFormatMoney(r.advancesTotal)}</b></div>` : ""}
