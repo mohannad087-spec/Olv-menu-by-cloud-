@@ -181,6 +181,14 @@
   .pf-list li small{display:block; color:var(--muted); font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
   .pf-list li b{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
   .pf-list li b.neg{color:var(--danger-hi);}
+  .adj-form{display:grid; grid-template-columns:1fr 110px; gap:8px; margin-bottom:10px;}
+  .adj-form select,.adj-form input{min-height:44px; border:1px solid var(--hair); border-radius:12px; padding:0 12px; font:inherit; background:var(--ink-2); color:inherit; min-width:0;}
+  .adj-form input[name=note]{grid-column:1 / -1;}
+  .adj-form .btn{grid-column:1 / -1;}
+  .pf-list li .del{border:0; background:none; color:var(--muted); min-width:44px; min-height:44px; cursor:pointer;}
+  .pf-meta .wg{display:inline-flex; align-items:center; gap:6px;}
+  .pf-meta .wg input{width:76px; min-height:36px; border:1px solid var(--hair); border-radius:10px; padding:0 8px; font:inherit; background:var(--ink-2); color:inherit; text-align:center;}
+  .st-actions{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;}
   .pf-empty{padding:18px 4px; text-align:center; color:var(--muted); font-size:13.5px; line-height:1.7;}
   .pay-warn{display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-radius:12px; background:rgba(var(--gold-rgb),.14); color:var(--gold-hi); font-size:12.5px; font-weight:700; line-height:1.6;}
   .pay-warn .icon{width:16px; height:16px; flex:none; margin-top:2px;}
@@ -329,6 +337,8 @@
     let profilesById = new Map();
     let employees = [];
     let unsettledAdvances = [];
+    let unsettledAdj = []; // إضافات/خصومات يدوية غير محسوبة بعد (جدول payroll_adjustments)
+    let adjMissing = false; // الجدول مش منشأ بعد (ما انطبّق schema-payroll-adjustments.sql)
     let punchDays = new Map(); // profileId -> Map(يوم الدوام -> ساعات | null إذا ناقص خروج)
     const fileTab = new Map(); // التبويب المفتوح بملف كل موظف
     let selectedId = null; // الموظف المفتوح ملفه
@@ -385,6 +395,16 @@
     }
     const advancesTotalFor = (profileId) => unsettledAdvances
       .filter((a) => a.profile_id === profileId).reduce((s, a) => s + Number(a.amount), 0);
+
+    async function loadAdjustments() {
+      const { data, error } = await window.supabaseClient
+        .from("payroll_adjustments").select("*").is("settled_payroll_id", null).order("adj_date");
+      if (error) { adjMissing = true; unsettledAdj = []; return; }
+      adjMissing = false;
+      unsettledAdj = data || [];
+    }
+    const adjFor = (profileId) => unsettledAdj.filter((a) => a.profile_id === profileId);
+    const adjTotalFor = (profileId) => adjFor(profileId).reduce((s, a) => s + Number(a.amount), 0);
 
     function renderAdvances() {
       const box = $("adv-box");
@@ -502,10 +522,14 @@
       $("py-sub").textContent = `لحد ${shortDate(range.to)} (من آخر دفعة لكل موظف)`;
       const employeeId = $("f-employee").value;
       try {
-        await loadLedger();
-        const startOf = (id) => { const l = ledger.get(id); return l ? addDays(l.lastEnd, 1) : range.from; };
+        await Promise.all([loadLedger(), loadAdjustments()]);
+        // الموظف اللي ما إله دفعة بيبدأ حسابه من أول بصمة بالنظام (مش من أول الشهر المختار)، حتى ما تضيع ساعات الشهر اللي قبل
+        const { data: first } = await window.supabaseClient.from("employee_punches").select("punched_at").neq("source", "excluded").order("punched_at", { ascending: true }).limit(1);
+        const firstDay = first && first[0] ? olvWorkDay(first[0].punched_at) : range.from;
+        const noPayStart = firstDay < range.from ? firstDay : range.from;
+        const startOf = (id) => { const l = ledger.get(id); return l ? addDays(l.lastEnd, 1) : noPayStart; };
         // الموظفين اللي إلهم دفعة سابقة بيبدأ حسابهم من اليوم اللي بعدها، والباقي من بداية الفترة المختارة
-        const starts = new Set([range.from, ...[...ledger.keys()].map(startOf)]);
+        const starts = new Set([noPayStart, range.from, ...[...ledger.keys()].map(startOf)]);
         const hoursByStart = new Map();
         for (const from of starts) {
           if (from > range.to) { hoursByStart.set(from, new Map()); continue; }
@@ -513,7 +537,7 @@
           if (error) throw error;
           hoursByStart.set(from, hoursMapFrom(data));
         }
-        const profileIds = new Set([...(hoursByStart.get(range.from) || new Map()).keys(), ...unsettledAdvances.map((a) => a.profile_id), ...ledger.keys()]);
+        const profileIds = new Set([...(hoursByStart.get(noPayStart) || new Map()).keys(), ...unsettledAdvances.map((a) => a.profile_id), ...unsettledAdj.map((a) => a.profile_id), ...ledger.keys()]);
         [...starts].forEach((f) => (hoursByStart.get(f) || new Map()).forEach((_, id) => profileIds.add(id)));
         if (employeeId) [...profileIds].forEach((id) => { if (id !== employeeId) profileIds.delete(id); });
         previewRows = [...profileIds]
@@ -524,13 +548,14 @@
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
             const weeks = weeksIn({ from, to: range.to });
             const bonus = h.hours > 0 ? FIXED_BONUS * weeks : 0;
-            const earned = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus;
+            const adjTotal = adjTotalFor(profileId);
+            const earned = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus + adjTotal;
             const carry = ledger.has(profileId) ? ledger.get(profileId).carry : 0;
             const advancesTotal = advancesTotalFor(profileId);
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
-            return { profileId, from, weeks, advanceIds, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
+            return { profileId, from, weeks, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
           })
-          .filter((r) => r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.carry) >= 0.005)
+          .filter((r) => r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         // حضور آخر 31 يوم لملف كل موظف (إذا فشل ما بنوقف الصفحة)
         try { await loadPunchDays(previewRows.map((x) => x.profileId), range.to.slice(0, 8) + "01", range.to); } catch (e) { punchDays = new Map(); }
@@ -573,6 +598,18 @@
       if (!advs.length) return `<div class="pf-card pad"><div class="pf-empty">ما في سلف غير مخصومة على ${olvEsc(empName(r.profileId))}.</div></div>`;
       return `<div class="pf-card"><ul class="pf-list">${advs.map((a) => `<li><span>${shortDate(fmtDate(a.advance_date))}<small>${olvEsc(a.note) || "سلفة"} · بتنخصم من الدفعة الجاية</small></span><b class="neg">− ${olvFormatMoney(a.amount)}</b></li>`).join("")}</ul></div>`;
     }
+    function adjustHtml(r) {
+      const list = adjFor(r.profileId);
+      const form = adjMissing
+        ? `<div class="pf-empty">ميزة الإضافات والخصومات لسا ما انفعّلت: لازم ينطبّق ملف <b dir="ltr">schema-payroll-adjustments.sql</b> مرة وحدة بـ Supabase.</div>`
+        : `<form class="adj-form" data-adjform="${r.profileId}">
+            <select name="kind" aria-label="النوع"><option value="1">إضافة (مكافأة، بدل...)</option><option value="-1">خصم (تأخير، غرامة...)</option></select>
+            <input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="المبلغ" required aria-label="المبلغ">
+            <input name="note" type="text" placeholder="السبب (مثلاً مكافأة شهر 10)" aria-label="السبب">
+            <button class="btn go" type="submit">أضف</button></form>`;
+      const items = list.length ? `<ul class="pf-list">${list.map((a) => `<li><span>${shortDate(fmtDate(a.adj_date))}<small>${olvEsc(a.note) || (Number(a.amount) > 0 ? "إضافة" : "خصم")} · بتنحسب بالدفعة الجاية</small></span><b class="${Number(a.amount) < 0 ? "neg" : ""}">${Number(a.amount) > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(a.amount))}</b><button type="button" class="del" data-deladj="${a.id}" aria-label="حذف">${olvIcon("trash")}</button></li>`).join("")}</ul>` : (adjMissing ? "" : `<div class="pf-empty">ما في إضافات أو خصومات معلّقة على ${olvEsc(empName(r.profileId))}.</div>`);
+      return `<div class="pf-card pad">${form}${items}</div>`;
+    }
     function paymentsHtml(r) {
       const pays = history.filter((p) => p.profile_id === r.profileId).slice(0, 8);
       if (!pays.length) return `<div class="pf-card pad"><div class="pf-empty">ما انسجلت أي دفعة لهالموظف لسا.</div></div>`;
@@ -598,8 +635,9 @@
       const advCount = unsettledAdvances.filter((a) => a.profile_id === r.profileId).length;
       const payCount = history.filter((p) => p.profile_id === r.profileId).length;
       const tab = fileTab.get(r.profileId) || "att";
-      const tabs = [["att", "الحضور", ""], ["adv", "السلف", advCount ? `<em>${advCount}</em>` : ""], ["pay", "الدفعات", payCount ? `<em>${payCount}</em>` : ""]];
-      const main = tab === "adv" ? advancesHtml(r) : tab === "pay" ? paymentsHtml(r) : calendarHtml(r);
+      const adjCount = adjFor(r.profileId).length;
+      const tabs = [["att", "الحضور", ""], ["adj", "إضافات وخصومات", adjCount ? `<em>${adjCount}</em>` : ""], ["adv", "السلف", advCount ? `<em>${advCount}</em>` : ""], ["pay", "الدفعات", payCount ? `<em>${payCount}</em>` : ""]];
+      const main = tab === "adj" ? adjustHtml(r) : tab === "adv" ? advancesHtml(r) : tab === "pay" ? paymentsHtml(r) : calendarHtml(r);
       return `
       <section class="pf" aria-label="ملف ${olvEsc(empName(r.profileId))}">
         <header class="pf-hero">
@@ -610,7 +648,7 @@
               <span>${olvEsc(prof.job_title || ROLE_LABELS[prof.role] || "")}</span>
               ${prof.phone ? `<span dir="ltr">${olvEsc(prof.phone)}</span>` : ""}
               ${prof.device_user_id ? `<span>بصمة ${olvEsc(prof.device_user_id)}</span>` : ""}
-              <span>${noWage ? "بدون أجر بالساعة" : `${olvFormatMoney(r.hourlyWage)} / ساعة`}</span>
+              <label class="wg">سعر الساعة <input type="number" inputmode="decimal" min="0" step="0.05" data-wage="${r.profileId}" value="${noWage ? "" : r.hourlyWage}" placeholder="حدّده" aria-label="سعر الساعة"> دينار</label>
             </div>
           </div>
           <div class="pf-net${r.net < 0 ? " neg" : ""}"><small>الصافي المستحق</small><b>${olvFormatMoney(r.net)}</b></div>
@@ -622,6 +660,7 @@
             <h4>كشف الحساب · ${period}</h4>
             <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
             <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع × ${FIXED_BONUS} · صفّرها إذا أخذ إجازة</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
+            ${Math.abs(r.adjTotal) >= 0.005 ? `<div class="ln${r.adjTotal < 0 ? " minus" : ""}"><span>إضافات وخصومات<small>${adjFor(r.profileId).length} بند</small></span><b>${r.adjTotal > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.adjTotal))}</b></div>` : ""}
             ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><span>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></span><b>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</b></div>` : ""}
             ${r.advancesTotal ? `<div class="ln minus"><span>سلف مخصومة</span><b>− ${olvFormatMoney(r.advancesTotal)}</b></div>` : ""}
             <div class="ln total${r.net < 0 ? " neg" : ""}"><span>الصافي</span><b>${olvFormatMoney(r.net)}</b></div>
@@ -629,6 +668,7 @@
             ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
             <div><label for="amt-${r.profileId}">المبلغ اللي بدفعه</label><input class="amt" id="amt-${r.profileId}" type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${payVal}"></div>
             <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
+            <div class="st-actions"><button class="btn" type="button" data-stmt="print" data-id="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-stmt="wa" data-id="${r.profileId}">واتساب</button></div>
           </div>
         </div>
       </section>`;
@@ -664,7 +704,109 @@
         const v = Number(inp.value);
         if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else setTimeout(renderPreview, 0);
       }));
+      box.querySelectorAll("input[data-wage]").forEach((inp) => inp.addEventListener("change", async () => {
+        const v = inp.value === "" ? null : Number(inp.value);
+        if (v !== null && (!Number.isFinite(v) || v < 0)) { setTimeout(renderPreview, 0); return; }
+        try {
+          const { error } = await window.supabaseClient.from("profiles").update({ hourly_wage: v }).eq("id", inp.dataset.wage);
+          if (error) throw error;
+          const prof = profilesById.get(inp.dataset.wage); if (prof) prof.hourly_wage = v;
+          olvToast("انحفظ سعر الساعة", { type: "ok", icon: "check" });
+          await runCompute();
+        } catch (err) { olvShowError(errBox, err); setTimeout(renderPreview, 0); }
+      }));
+      box.querySelectorAll("form[data-adjform]").forEach((f) => f.addEventListener("submit", (e) => { e.preventDefault(); addAdjustment(f); }));
+      box.querySelectorAll("button[data-deladj]").forEach((btn) => btn.addEventListener("click", () => olvUndoDelete(btn, {
+        msg: "انحذف البند",
+        run: () => window.supabaseClient.from("payroll_adjustments").delete().eq("id", btn.dataset.deladj),
+        after: runCompute,
+      })));
+      box.querySelectorAll("button[data-stmt]").forEach((btn) => btn.addEventListener("click", () => openStatement(btn.dataset.id, btn.dataset.stmt, btn)));
       box.querySelectorAll("button[data-pay]").forEach((btn) => btn.addEventListener("click", () => confirmPay(btn.dataset.pay, btn)));
+    }
+
+    async function addAdjustment(form) {
+      const profileId = form.dataset.adjform;
+      const amt = Number(form.amount.value);
+      if (!Number.isFinite(amt) || amt <= 0) { olvToast("المبلغ غير صحيح", { type: "error" }); return; }
+      try {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const { error } = await window.supabaseClient.from("payroll_adjustments").insert({
+          profile_id: profileId,
+          amount: amt * Number(form.kind.value),
+          adj_date: todayIso(),
+          note: form.note.value.trim() || null,
+          created_by: session ? session.user.id : null,
+        });
+        if (error) throw error;
+        olvToast("انضاف البند", { type: "ok", icon: "check" });
+        await runCompute();
+      } catch (err) {
+        olvShowError(errBox, err);
+      }
+    }
+
+    // كشف الحساب: نص جاهز (واتساب) + صفحة للطباعة/PDF فيها الساعات يوم بيوم وكل البنود
+    async function statementData(r) {
+      const from = r.from > range.to ? range.to : r.from;
+      const b = olvWorkRangeBounds(from, range.to);
+      const { data, error } = await window.supabaseClient
+        .from("employee_punches").select("id, profile_id, punched_at").eq("profile_id", r.profileId).gte("punched_at", b.gte).lt("punched_at", b.lt).order("punched_at");
+      if (error) throw error;
+      const days = olvComputeShifts(data || []).map((sh) => ({ day: sh.work_date, h: olvShiftHours(sh) })).sort((a, c) => a.day.localeCompare(c.day));
+      return { from, days };
+    }
+    function statementText(r, st) {
+      const noWage = r.hourlyWage == null;
+      const L = [`*كشف حساب ${empName(r.profileId)}*`, `الفترة: ${shortDate(st.from)} لـ ${shortDate(range.to)}`, ""];
+      L.push(`الساعات: ${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)} = ${olvFormatMoney(r.hours * r.hourlyWage)}`}`);
+      if (r.bonus) L.push(`مكافأة أسبوعية: + ${olvFormatMoney(r.bonus)}`);
+      adjFor(r.profileId).forEach((a) => L.push(`${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")}: ${Number(a.amount) > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(a.amount))}`));
+      if (Math.abs(r.carry) >= 0.005) L.push(`${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}: ${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}`);
+      unsettledAdvances.filter((a) => a.profile_id === r.profileId).forEach((a) => L.push(`سلفة ${shortDate(fmtDate(a.advance_date))}: − ${olvFormatMoney(a.amount)}`));
+      L.push("", `*${r.net >= 0 ? "الصافي له" : "الصافي عليه"}: ${olvFormatMoney(Math.abs(r.net))}*`);
+      return L.join("\n");
+    }
+    function statementHtml(r, st) {
+      const noWage = r.hourlyWage == null;
+      const rows = [];
+      rows.push([`ساعات الدوام (${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`})`, noWage ? 0 : r.hours * r.hourlyWage]);
+      if (r.bonus) rows.push([`مكافأة أسبوعية (${r.weeks} أسبوع)`, r.bonus]);
+      adjFor(r.profileId).forEach((a) => rows.push([`${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")} (${shortDate(fmtDate(a.adj_date))})`, Number(a.amount)]));
+      if (Math.abs(r.carry) >= 0.005) rows.push([r.carry > 0 ? "مرحّل له من دفعة سابقة" : "مرحّل عليه من دفعة سابقة", r.carry]);
+      unsettledAdvances.filter((a) => a.profile_id === r.profileId).forEach((a) => rows.push([`سلفة (${shortDate(fmtDate(a.advance_date))})${a.note ? " - " + a.note : ""}`, -Number(a.amount)]));
+      const money = (v) => `${v < 0 ? "−" : ""}${olvFormatMoney(Math.abs(v))}`;
+      const dayRows = st.days.map((d) => `<tr><td>${shortDate(d.day)}</td><td>${d.h === null ? "ناقص بصمة خروج" : fmtHrs(d.h) + " ساعة"}</td></tr>`).join("");
+      const pays = history.filter((p) => p.profile_id === r.profileId).slice(0, 5)
+        .map((p) => `<tr><td>${shortDate(p.paid_at)}</td><td>${shortDate(p.period_start)} لـ ${shortDate(p.period_end)}</td><td>${olvFormatMoney(p.net_amount)}</td></tr>`).join("");
+      return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف حساب ${olvEsc(empName(r.profileId))}</title>
+<style>body{font-family:Tajawal,Arial,sans-serif;margin:24px auto;max-width:720px;color:#222;padding:0 16px}h1{font-size:22px;margin:0 0 4px}.sub{color:#777;margin-bottom:18px}table{width:100%;border-collapse:collapse;margin:8px 0 18px}td,th{padding:7px 4px;border-bottom:1px solid #ddd;text-align:right}td:last-child,th:last-child{text-align:left;font-variant-numeric:tabular-nums}h2{font-size:15px;margin:18px 0 0}.tot{font-size:20px;font-weight:800;border:2px solid #222;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between}.btns{margin-bottom:16px}@media print{.btns{display:none}}</style></head><body>
+<div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
+<h1>كشف حساب: ${olvEsc(empName(r.profileId))}</h1><div class="sub">الفترة ${shortDate(st.from)} لـ ${shortDate(range.to)}</div>
+<h2>الحساب</h2><table>${rows.map(([t, v]) => `<tr><td>${olvEsc(t)}</td><td>${money(v)}</td></tr>`).join("")}</table>
+<div class="tot"><span>${r.net >= 0 ? "الصافي له" : "الصافي عليه"}</span><span>${olvFormatMoney(Math.abs(r.net))}</span></div>
+${dayRows ? `<h2>الدوام يوم بيوم</h2><table>${dayRows}</table>` : ""}
+${pays ? `<h2>آخر الدفعات</h2><table><tr><th>تاريخ الدفع</th><th>الفترة</th><th>المبلغ</th></tr>${pays}</table>` : ""}
+</body></html>`;
+    }
+    async function openStatement(profileId, mode, btn) {
+      const r = previewRows.find((x) => x.profileId === profileId);
+      if (!r) return;
+      const win = mode === "print" ? window.open("", "_blank") : null;
+      if (btn) btn.disabled = true;
+      try {
+        const st = await statementData(r);
+        if (mode === "wa") {
+          const d = String((profilesById.get(profileId) || {}).phone || "").replace(/\D/g, "").replace(/^00/, "").replace(/^0/, "962");
+          const text = encodeURIComponent(statementText(r, st));
+          window.open(d ? `https://wa.me/${d}?text=${text}` : `https://wa.me/?text=${text}`, "_blank", "noopener");
+        } else if (win) {
+          win.document.open(); win.document.write(statementHtml(r, st)); win.document.close();
+        }
+      } catch (err) {
+        if (win) win.close();
+        olvShowError(errBox, err);
+      } finally { if (btn) btn.disabled = false; }
     }
 
     async function confirmPay(profileId, btn) {
@@ -677,6 +819,7 @@
       const totalOwed = row.earned + row.carry;
       const msg = `تأكيد دفع ${olvFormatMoney(pay)} لـ${empName(profileId)}؟\n` +
         `(مستحق هالفترة ${olvFormatMoney(row.earned)}` +
+        `${Math.abs(row.adjTotal) >= 0.005 ? `، إضافات/خصومات ${row.adjTotal > 0 ? "+" : "−"}${olvFormatMoney(Math.abs(row.adjTotal))}` : ""}` +
         `${row.carry ? `، ${row.carry > 0 ? "مرحّل له" : "مرحّل عليه"} ${olvFormatMoney(Math.abs(row.carry))}` : ""}` +
         `${row.advancesTotal ? `، مطروح سلف ${olvFormatMoney(row.advancesTotal)}` : ""} = الصافي ${olvFormatMoney(row.net)})\n` +
         `${diff > 0.005 ? `رح يضل باقي له ${olvFormatMoney(diff)} للدفعة الجاية.` : diff < -0.005 ? `المدفوع أكتر من الصافي بـ${olvFormatMoney(-diff)}، رح ينخصم من دفعته الجاية.` : "تسوية كاملة."}`;
@@ -698,10 +841,15 @@
           gross_amount: totalOwed,
           advances_deducted: row.advancesTotal,
           net_amount: pay,
-          note: [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null,
+          note: [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null,
           paid_by: session ? session.user.id : null,
         });
         if (insertErr) throw insertErr;
+        if (row.adjIds.length) {
+          const { error: adjErr } = await window.supabaseClient.from("payroll_adjustments")
+            .update({ settled_payroll_id: paymentId }).in("id", row.adjIds).is("settled_payroll_id", null);
+          if (adjErr) throw adjErr;
+        }
         if (row.advancesTotal > 0) {
           const { error: settleErr } = await window.supabaseClient.from("salary_advances")
             .update({ settled_payroll_id: paymentId }).in("id", row.advanceIds).is("settled_payroll_id", null);
