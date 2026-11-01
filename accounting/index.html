@@ -182,6 +182,25 @@
   :root:not([data-theme="dark"]) .bento .t:not(.hero):not(.cta){background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--tb) 55%,#fff)); border:1px solid rgba(255,255,255,.9);
     box-shadow:inset 0 1px 0 #fff,0 1px 1px rgba(0,0,0,.04),0 6px 12px -4px rgba(60,60,120,.12),0 24px 40px -16px rgba(60,70,170,.25);}
   @media (hover:hover) and (pointer:fine){ .bento .t{transition:transform .3s var(--spring), box-shadow .3s var(--spring);} .bento .t:hover{transform:translateY(-6px);} }
+
+  /* ---- حركة الداش بورد (2026-11-01): transform/opacity بس، وبتتوقف مع reduced-motion ---- */
+  @keyframes olv-drift{0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(14px,-10px) scale(1.12);}}
+  @keyframes olv-sheen{0%,70%{transform:translateX(-130%) skewX(-18deg);} 100%{transform:translateX(230%) skewX(-18deg);}}
+  @keyframes olv-pulse{0%,100%{transform:scale(1);} 50%{transform:scale(1.14);}}
+  @keyframes olv-ord-in{from{opacity:0; transform:translateX(16px);}}
+  @keyframes olv-wiggle{0%,100%{transform:rotate(0);} 25%{transform:rotate(-12deg) scale(1.1);} 60%{transform:rotate(9deg) scale(1.1);}}
+  .bento .t::after{animation:olv-drift 9s ease-in-out infinite;}
+  .bento .t:nth-child(even)::after{animation-duration:12s; animation-direction:reverse;}
+  .hero::before{content:""; position:absolute; top:0; bottom:0; width:38%; inset-inline-start:0; z-index:0; pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent); animation:olv-sheen 7s ease-in-out 1.2s infinite;}
+  .t.alert:not(.ok) .lbl>.icon{animation:olv-pulse 2s ease-in-out infinite;}
+  .ord{animation:olv-ord-in .45s var(--spring) backwards;}
+  .ord:nth-child(2){animation-delay:.08s} .ord:nth-child(3){animation-delay:.16s} .ord:nth-child(4){animation-delay:.24s}
+  @media (hover:hover) and (pointer:fine){
+    .bento .t:hover .lbl>.icon{animation:olv-wiggle .6s var(--spring);}
+    .bento .t:hover{box-shadow:0 8px 16px -6px rgba(60,60,120,.16),0 34px 50px -18px rgba(60,70,170,.34)!important;}
+  }
+  @media (prefers-reduced-motion: reduce){ .bento .t::after,.hero::before,.t.alert .lbl>.icon,.ord{animation:none!important;} }
   @media (max-width:900px){
     .bento{grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(140px,auto);}
     .s12{grid-row:span 1;}
