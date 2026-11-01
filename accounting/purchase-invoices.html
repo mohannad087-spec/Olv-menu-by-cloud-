@@ -477,12 +477,16 @@
     const round2 = (n) => Math.round(n * 100) / 100;
 
     function newLine(over) {
-      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, bMode: "total", bPct: "", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, disc: "", discOpen: false, bMode: "total", bPct: "", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     // نوع السطر: مادة خام ولا مستلزم. الصنف المربوط هو المرجع، وغير هيك اللي اختاره المستخدم (أو تخمين من الاسم للسطور المقروءة من الصورة)
     const kindOf = (line) => { const it = itemOf(line); return it ? it.kind : (line.kind || (line.unmatchedName ? guessKind(line.unmatchedName) : "ingredient")); };
-    const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
+    // المبلغ قبل خصم السطر، وخصم السطر (نسبة %)، والصافي (هو اللي بنجمعه ونحسب عليه الضريبة)
+    const lineGross = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
+    const lineDiscOf = (line) => round2(lineGross(line) * Math.min(Math.max(Number(line.disc) || 0, 0), 100) / 100);
+    const lineTotal = (line) => round2(lineGross(line) - lineDiscOf(line));
+    const lineDiscSum = () => round2(lines.reduce((s, l) => s + lineDiscOf(l), 0));
     // كل سطر فيه كمية وسعر بينحسب، حتى لو لسا مش مربوط بصنف — هيك الإجمالي بيطابق الورقة من أول ما تنقرا
     const subtotalOf = () => round2(lines.reduce((s, l) => s + lineTotal(l), 0));
     // نفس حساب السيرفر بالضبط (record_purchase_invoice): الخصم ثم الضريبة، والسيرفر هو المرجع
@@ -511,7 +515,7 @@
       } else taxRaw = 0;
       const tax = round2(taxRaw);
       const total = inclusive ? net : round2(net + tax);
-      return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct };
+      return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct, lineDisc: lineDiscSum() };
     }
     const invoiceTotal = () => computeTotals().total;
     const ROUND_TOL = 0.1; // أكبر فرق تقريب مقبول بين الورقة والمدخل (دينار)
@@ -590,6 +594,7 @@
     const stockPriceOf = (line, it) => {
       const b = bonusOf(line), q = stockQtyOf(line, it);
       if (b > 0 && q > 0) return lineTotal(line) / (q + b);
+      if (lineDiscOf(line) > 0 && q > 0) return lineTotal(line) / q;
       return Number(line.price) / factorOf(line, it);
     };
     // كمية المخزون الحالية تحت اسم الصنف، ومعها الكمية بعد الفاتورة (المشتراة + البونص)
@@ -786,6 +791,12 @@
       const eff = base > 0 ? Math.round(Number(i.tax_amount) / base * 10000) / 100 : Number(i.tax_rate);
       return Math.abs(eff - Number(i.tax_rate)) < 0.05 ? Number(i.tax_rate) : eff;
     }
+    // خصم خاص بالسطر بنسبة % (مثل عروض الموزّع: ٣٧٪ على العلب): الصافي = المبلغ − الخصم، وتكلفة الوحدة من الصافي
+    function discHtml(line) {
+      if (!line.discOpen && line.disc === "") return `<button type="button" class="pi-newbtn" data-act="disc-open">🏷 في خصم % على هالسطر؟</button>`;
+      const d = lineDiscOf(line);
+      return `<div class="pi-bonus-row"><span>خصم السطر %</span><input type="number" data-f="disc" min="0" max="100" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.disc)}" placeholder="مثلًا 37" aria-label="نسبة خصم السطر"><small class="hint" data-disc-sum>${d > 0 ? `المبلغ ${money(lineGross(line))} − خصم ${money(d)} = صافي ${money(lineTotal(line))}` : ""}</small></div>`;
+    }
     // ضريبة خاصة بالسطر (اختياري): فاضي = نسبة الفاتورة، 0 = معفى
     function taxHtml(line) {
       if (!line.taxOpen && line.tax === "") return `<button type="button" class="pi-newbtn" data-act="tax-open">％ ضريبة مختلفة لهالمادة؟</button>`;
@@ -812,6 +823,7 @@
             <div data-stock>${stockNote(line, it)}</div>
             <div data-warn>${priceWarning(line, it)}</div>
             ${bonusHtml(line, it)}
+            ${discHtml(line)}
             ${taxHtml(line)}
           </td>
           <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
@@ -834,8 +846,10 @@
       const qtySum = qtyOfLines();
       document.getElementById("pi-qty").textContent = String(qtySum);
       document.getElementById("pi-subtotal").textContent = money(T.subtotal);
-      document.getElementById("pi-row-discount").hidden = !(T.discount > 0);
-      document.getElementById("pi-discount-val").textContent = "- " + money(T.discount);
+      // إجمالي الخصم = خصم السطور + خصم الفاتورة (ونسبته من المبلغ قبل الخصم)
+      const allDisc = round2(T.discount + T.lineDisc), grossAll = round2(T.subtotal + T.lineDisc);
+      document.getElementById("pi-row-discount").hidden = !(allDisc > 0);
+      document.getElementById("pi-discount-val").textContent = "- " + money(allDisc) + (grossAll > 0 ? ` (${Math.round(allDisc / grossAll * 10000) / 100}%)` : "");
       document.getElementById("pi-row-tax").hidden = !(T.tax > 0);
       document.getElementById("pi-tax-val").textContent = money(T.tax) + (T.inclusive ? " (مضمّنة)" : "");
       document.getElementById("pi-total").textContent = money(total);
@@ -846,7 +860,7 @@
       // ملخّص القسم المطوي حتى تعرف شو فيه بدون ما تفتحه
       const more = [];
       if (document.getElementById("pi-no").value.trim()) more.push("رقم " + document.getElementById("pi-no").value.trim());
-      if (T.discount > 0) more.push("خصم " + money(T.discount));
+      if (T.discount + T.lineDisc > 0) more.push("خصم " + money(T.discount + T.lineDisc));
       if (T.rate > 0) more.push("ضريبة " + T.rate + "%");
       document.getElementById("pi-more-sum").textContent = more.join(" · ");
       const paper = document.getElementById("pi-paper-total").value;
@@ -956,6 +970,7 @@
       else if (f === "price") line.price = e.target.value;
       else if (f === "bonus") line.bonus = e.target.value;
       else if (f === "tax") line.tax = e.target.value;
+      else if (f === "disc") line.disc = e.target.value;
       else if (f === "bPct") line.bPct = e.target.value;
       else if (f === "bGet") line.bGet = e.target.value;
       else if (f === "bFactor") line.bFactor = e.target.value;
@@ -964,6 +979,7 @@
       const it = itemOf(line);
       const bs = tr.querySelector("[data-bonus-sum]"); if (bs && it) bs.innerHTML = bonusSum(line, it);
       tr.querySelector("[data-total]").textContent = money(lineTotal(line));
+      const ds = tr.querySelector("[data-disc-sum]"); if (ds) ds.textContent = lineDiscOf(line) > 0 ? `المبلغ ${money(lineGross(line))} − خصم ${money(lineDiscOf(line))} = صافي ${money(lineTotal(line))}` : "";
       tr.querySelector("[data-warn]").innerHTML = priceWarning(line, it);
       const sn = tr.querySelector("[data-stock]"); if (sn) sn.innerHTML = stockNote(line, it);
       updateTotals();
@@ -1024,6 +1040,7 @@
         renderLines(); return;
       }
       if (btn.dataset.act === "tax-open") { line.taxOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="tax"]`); if (q) q.focus(); return; }
+      if (btn.dataset.act === "disc-open") { line.discOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="disc"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-mode") {
         const to = btn.dataset.to || "total";
@@ -1402,6 +1419,7 @@
           unitMode: purchaseUnit ? "purchase" : "stock",
           qty: p.qty === "" || p.qty == null ? "" : String(p.qty),
           price: p.price === "" || p.price == null ? (it && it.unit_price ? String(it.unit_price) : "") : String(p.price),
+          disc: p.disc > 0 && p.disc <= 100 ? String(p.disc) : "", discOpen: p.disc > 0,
         });
       }));
       renderLines();
@@ -1539,7 +1557,7 @@
         const qty = it.qty;
         let price = it.unit_price;
         if ((price == null) && it.line_total != null && qty > 0) price = Math.round(it.line_total / qty * 1000) / 1000;
-        return { name: it.name, qty: qty == null ? "" : qty, price: price == null ? "" : price, unit: it.unit };
+        return { name: it.name, qty: qty == null ? "" : qty, price: price == null ? "" : price, unit: it.unit, disc: Number(it.discount_pct) || 0 };
       });
       // قراءة ثانية (بعد زيادة صورة): منشيل أسطر القراءة السابقة قبل ما نضيف الجديدة، حتى ما تتكرر
       if (lastAiLines) lines = lines.filter((l) => !lastAiLines.has(l));
@@ -1790,6 +1808,7 @@
           // السعر بدقة عالية (مو 3 خانات) حتى إجمالي السطر على السيرفر يطابق اللي انكتب بالفاتورة (مثال: 3 صناديق × 25 ÷ 24 حبة)
           const o = { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1e8) / 1e8 };
           // بونص: الكمية = المشتراة + المجانية، والسعر = المدفوع ÷ الكمية (بدقة عالية حتى يضل إجمالي السطر نفسه بالضبط)
+          if (bonus <= 0 && lineDiscOf(l) > 0 && o.qty > 0) o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8;
           if (bonus > 0) { o.qty = Math.round((Number(l.qty) * f + bonus) * 1000) / 1000; o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8; }
           if (l.tax !== "" && l.tax != null && Number.isFinite(Number(l.tax))) o.tax_rate = lineRate(l, 0);
           return o;
