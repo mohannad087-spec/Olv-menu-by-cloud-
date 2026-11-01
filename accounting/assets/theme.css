@@ -784,3 +784,21 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
 @media (prefers-reduced-motion: reduce){
   .olv-glass .top .tabs > *, .olv-glass .top .tab-link.on::after, .olv-glass .top .tab-link .icon, .rip::before{animation:none !important;}
 }
+
+/* ===== حياة الجداول والأزرار والشارات (2026-11-01) ===== */
+@keyframes olv-row-in{from{opacity:0; transform:translateY(8px);}}
+@keyframes olv-pop{0%{transform:scale(.6); opacity:0;} 70%{transform:scale(1.08);} 100%{transform:scale(1); opacity:1;}}
+.olv-glass tbody tr{animation:olv-row-in .35s var(--spring) backwards;}
+.olv-glass tbody tr:nth-child(2){animation-delay:.03s} .olv-glass tbody tr:nth-child(3){animation-delay:.06s} .olv-glass tbody tr:nth-child(4){animation-delay:.09s}
+.olv-glass tbody tr:nth-child(5){animation-delay:.12s} .olv-glass tbody tr:nth-child(6){animation-delay:.15s} .olv-glass tbody tr:nth-child(n+7){animation-delay:.18s}
+.olv-glass .badge, .olv-glass .tab-badge{animation:olv-pop .45s var(--spring-bounce) backwards;}
+.olv-glass .btn{transition:transform .22s var(--spring-bounce), box-shadow .22s var(--spring), background .18s var(--spring), border-color .18s var(--spring);}
+@media (hover:hover) and (pointer:fine){
+  .olv-glass .btn:not(:disabled):hover{transform:translateY(-2px); box-shadow:0 10px 18px -10px rgba(var(--gold-rgb),.55);}
+  .olv-glass tbody tr:hover td{background:rgba(var(--gold-rgb),.07);}
+}
+.olv-glass .btn:not(:disabled):active{transform:scale(.95); transition-duration:.08s;}
+.olv-glass .olv-modal-backdrop > *{animation:olv-pop .35s var(--spring-bounce) backwards;}
+@media (prefers-reduced-motion: reduce){ .olv-glass tbody tr, .olv-glass .badge, .olv-glass .tab-badge, .olv-glass .olv-modal-backdrop > *{animation:none !important;} }
+/* شيل البني الكمّوني من الحقول والنصوص بالوضع الفاتح: حقول لافندر خفيفة ونص نيلي غامق */
+:root:not([data-theme="dark"]){--ink-3:#f3f2fb; --paper:#25223a; --muted:#625d78; --hair:rgba(60,60,120,.16); --hair-soft:rgba(60,60,120,.09);}

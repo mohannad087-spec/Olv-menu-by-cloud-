@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fcfaf5">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -116,20 +116,20 @@
   .pf-sum b{color:var(--paper); font-size:17px; font-weight:800; font-variant-numeric:tabular-nums;}
   .av{width:54px; height:54px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:20px; background:var(--ink-2); color:var(--gold-hi); flex:none; border:1px solid var(--hair);}
   .pf{background:var(--ink-3); border-radius:22px; overflow:hidden; min-width:0;}
-  .pf-hero{background:#211a13; color:#f3eadb; padding:20px 22px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
-  .pf-hero .av{width:60px; height:60px; font-size:24px; background:#2b2219; border-color:rgba(230,201,131,.3); color:#e6c983;}
-  .pf-hero h3{margin:0; font-size:23px; font-weight:800; color:#f3eadb; line-height:1.25;}
-  .pf-meta{display:flex; flex-wrap:wrap; gap:3px 14px; margin-top:4px; color:#b4a28a; font-size:12.5px;}
+  .pf-hero{background:linear-gradient(135deg,#4254e8,#7c4de6 60%,#b04fe0); color:#fff; padding:20px 22px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  .pf-hero .av{width:60px; height:60px; font-size:24px; background:rgba(255,255,255,.2); border-color:rgba(255,255,255,.4); color:#fff;}
+  .pf-hero h3{margin:0; font-size:23px; font-weight:800; color:#fff; line-height:1.25;}
+  .pf-meta{display:flex; flex-wrap:wrap; gap:3px 14px; margin-top:4px; color:rgba(255,255,255,.8); font-size:12.5px;}
   .pf-meta span{white-space:nowrap; font-variant-numeric:tabular-nums;}
   .pf-net{margin-inline-start:auto; text-align:left;}
-  .pf-net small{display:block; color:#b4a28a; font-size:12px;}
-  .pf-net b{display:block; font-size:38px; font-weight:800; line-height:1.05; color:#c5d58a; font-variant-numeric:tabular-nums;}
+  .pf-net small{display:block; color:rgba(255,255,255,.8); font-size:12px;}
+  .pf-net b{display:block; font-size:38px; font-weight:800; line-height:1.05; color:#fff; font-variant-numeric:tabular-nums;}
   .pf-net.neg b{color:#eba18e;}
-  [data-theme="dark"] .pf-hero{background:#2f251a; box-shadow:inset 0 0 0 1px rgba(230,201,131,.14);}
-  [data-theme="dark"] .pf-hero .av{background:#3a2d20;}
+  [data-theme="dark"] .pf-hero{background:linear-gradient(135deg,#2b3394,#5a36a8); box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);}
+  [data-theme="dark"] .pf-hero .av{background:rgba(255,255,255,.14);}
   @media (max-width:640px){ .pf-net{margin-inline-start:0; text-align:right; width:100%;} .pf-net b{font-size:34px;} }
   .pc-chip{padding:4px 11px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; background:rgba(var(--gold-rgb),.16); color:var(--gold-hi);}
-  .pc-chip.ok{background:rgba(86,105,46,.16); color:var(--olive);}
+  .pc-chip.ok{background:rgba(91,71,230,.16); color:var(--olive);}
   .pc-chip.bad{background:rgba(179,65,42,.14); color:var(--danger-hi);}
   [data-theme="dark"] .pc-chip.ok{background:rgba(143,160,85,.18);}
   .pf-tabs{display:flex; gap:4px; padding:8px 14px 0; background:var(--ink-2); border-bottom:1px solid var(--hair-soft); overflow-x:auto;}
@@ -162,14 +162,14 @@
   .cal-dow span{font-size:11.5px; color:var(--muted); text-align:center; padding-bottom:4px;}
   .cal-cell{aspect-ratio:1.15; border-radius:10px; background:var(--ink-3); padding:5px 6px; display:flex; flex-direction:column; justify-content:space-between; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:0;}
   .cal-cell b{font-size:14px; font-weight:800; color:var(--paper); line-height:1;}
-  .cal-cell.l1{background:rgba(86,105,46,.22);}
-  .cal-cell.l2{background:rgba(86,105,46,.45);}
+  .cal-cell.l1{background:rgba(91,71,230,.22);}
+  .cal-cell.l2{background:rgba(91,71,230,.45);}
   .cal-cell.l3{background:var(--olive); color:#e6edcf;}
   .cal-cell.l3 b{color:#fff;}
   .cal-cell.off{background:transparent; border:1px dashed var(--hair);}
   .cal-cell.fut{background:transparent; opacity:.4;}
   .cal-cell.cov{opacity:.5;}
-  .cal-cell.open{background:repeating-linear-gradient(135deg,rgba(176,138,62,.38) 0 4px,rgba(176,138,62,.16) 4px 8px);}
+  .cal-cell.open{background:repeating-linear-gradient(135deg,rgba(66,84,232,.38) 0 4px,rgba(66,84,232,.16) 4px 8px);}
   .cal-empty{visibility:hidden;}
   .cal-legend{display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:12px; font-size:12px; color:var(--muted);}
   .cal-legend i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-inline-end:6px; vertical-align:-1px;}
@@ -604,7 +604,7 @@
       return `<h4>${MONTHS[Number(to.slice(5, 7)) - 1]} · ${fmtHrs(total)} ساعة · ${worked} يوم دوام${fresh !== total ? ` · غير محسوب بعد ${fmtHrs(fresh)} ساعة` : ""}</h4>
         <div class="cal-dow" aria-hidden="true"><span>سبت</span><span>أحد</span><span>اثنين</span><span>ثلاثاء</span><span>أربعاء</span><span>خميس</span><span>جمعة</span></div>
         <div class="cal-grid" role="img" aria-label="ساعات الدوام اليومية بالشهر">${cells.join("")}</div>
-        <div class="cal-legend"><span><i style="background:rgba(86,105,46,.22)"></i>أقل من 6 ساعات</span><span><i style="background:rgba(86,105,46,.45)"></i>6 – 9</span><span><i style="background:var(--olive)"></i>أكثر من 9</span><span><i style="border:1px dashed var(--hair)"></i>ما داوم</span><span><i style="background:var(--gold)"></i>ناقص بصمة خروج</span><span>باهت = انحسب بدفعة سابقة</span></div>`;
+        <div class="cal-legend"><span><i style="background:rgba(91,71,230,.22)"></i>أقل من 6 ساعات</span><span><i style="background:rgba(91,71,230,.45)"></i>6 – 9</span><span><i style="background:var(--olive)"></i>أكثر من 9</span><span><i style="border:1px dashed var(--hair)"></i>ما داوم</span><span><i style="background:var(--gold)"></i>ناقص بصمة خروج</span><span>باهت = انحسب بدفعة سابقة</span></div>`;
     }
     function advancesHtml(r) {
       const advs = unsettledAdvances.filter((a) => a.profile_id === r.profileId);
