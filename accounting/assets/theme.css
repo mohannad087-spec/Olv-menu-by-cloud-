@@ -691,3 +691,49 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
 @media (display-mode:standalone){
   html, body{overscroll-behavior-y:none;}
 }
+
+/* ===== طبقة الحياة (2026-11-01): بطاقات نافرة بألوان وحركة على كل الصفحات =====
+   نفس أسلوب لوحة الرئيسية: خلفية بنفسجية فاتحة، أيقونات ملوّنة، ظلال طبقات،
+   دوائر ضوء بتنجرف ببطء، ودخول متتابع. transform/opacity بس، وبتتوقف مع reduced-motion. */
+:root{--life-1:#4254e8; --life-1b:#e9ecff; --life-2:#0b86c9; --life-2b:#dff2fd; --life-3:#e0367a; --life-3b:#fde4ef;
+  --life-4:#e08a00; --life-4b:#fff0cf; --life-5:#8b3fe0; --life-5b:#f0e5fd; --life-6:#0f9d83; --life-6b:#d9f6ef;}
+:root:not([data-theme="dark"]){--bg-top:#fbf9ff; --bg-bottom:#fff8f3;}
+:root:not([data-theme="dark"]) body.olv-glass::before{background:radial-gradient(900px 500px at 85% 0,#e4e8ff,transparent),linear-gradient(180deg,var(--bg-top),var(--bg-bottom));}
+:root[data-theme="dark"]{--life-1b:rgba(255,255,255,.07); --life-2b:rgba(255,255,255,.07); --life-3b:rgba(255,255,255,.07); --life-4b:rgba(255,255,255,.07); --life-5b:rgba(255,255,255,.07); --life-6b:rgba(255,255,255,.07);
+  --life-1:#8f9cff; --life-2:#5cc0f2; --life-3:#f07aa8; --life-4:#f2b33d; --life-5:#c096f5; --life-6:#4fd1b6;}
+@keyframes olv-life-in{from{opacity:0; transform:translateY(14px) scale(.985);}}
+@keyframes olv-life-drift{0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(14px,-10px) scale(1.12);}}
+@keyframes olv-life-wiggle{0%,100%{transform:rotate(0);} 25%{transform:rotate(-12deg) scale(1.1);} 60%{transform:rotate(9deg) scale(1.1);}}
+.olv-glass .stats .stat{--tc:var(--life-1); --tb:var(--life-1b); position:relative; overflow:hidden; border-radius:22px; border:1px solid rgba(255,255,255,.9);
+  animation:olv-life-in .5s var(--spring) backwards;}
+.olv-glass .stats .stat:nth-child(2){--tc:var(--life-2); --tb:var(--life-2b); animation-delay:.05s}
+.olv-glass .stats .stat:nth-child(3){--tc:var(--life-5); --tb:var(--life-5b); animation-delay:.1s}
+.olv-glass .stats .stat:nth-child(4){--tc:var(--life-3); --tb:var(--life-3b); animation-delay:.15s}
+.olv-glass .stats .stat:nth-child(5){--tc:var(--life-6); --tb:var(--life-6b); animation-delay:.2s}
+.olv-glass .stats .stat:nth-child(6){--tc:var(--life-4); --tb:var(--life-4b); animation-delay:.25s}
+:root:not([data-theme="dark"]) .olv-glass .stats .stat{background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--tb) 55%,#fff));
+  box-shadow:inset 0 1px 0 #fff,0 1px 1px rgba(0,0,0,.04),0 6px 12px -4px rgba(60,60,120,.12),0 24px 40px -16px rgba(60,70,170,.25);}
+:root[data-theme="dark"] .olv-glass .stats .stat{border-color:var(--hair-soft);}
+.olv-glass .stats .stat::after{content:""; position:absolute; width:120px; height:120px; border-radius:50%; inset-inline-start:-34px; bottom:-48px;
+  background:radial-gradient(circle at 30% 30%,var(--tb),transparent 70%); pointer-events:none; animation:olv-life-drift 10s ease-in-out infinite;}
+.olv-glass .stats .stat:nth-child(even)::after{animation-duration:13s; animation-direction:reverse;}
+.olv-glass .stats .stat > *{position:relative; z-index:1;}
+.olv-glass .stats .stat .stat-icon, .olv-glass .stats .stats .stat:first-child .stat-icon, .olv-glass .stats .stat:first-child .stat-icon{background:var(--tb); color:var(--tc);}
+.olv-glass .stats .stat .value{color:var(--tc);}
+.olv-glass .stats .stat .value.bad{color:var(--danger-hi);}
+:root:not([data-theme="dark"]) .olv-glass .group{border-color:rgba(255,255,255,.9);
+  box-shadow:inset 0 1px 0 #fff,0 1px 1px rgba(0,0,0,.04),0 6px 12px -4px rgba(60,60,120,.10),0 24px 40px -18px rgba(60,70,170,.2);}
+.olv-glass .group{animation:olv-life-in .5s var(--spring) backwards;}
+.olv-glass .bar-row .bar-fill{background:linear-gradient(90deg,var(--life-1),var(--life-5));}
+@media (hover:hover) and (pointer:fine){
+  .olv-glass .stats .stat:hover{transform:translateY(-6px);}
+  .olv-glass .stats .stat:hover .stat-icon{animation:olv-life-wiggle .6s var(--spring);}
+}
+@media (prefers-reduced-motion: reduce){
+  .olv-glass .stats .stat, .olv-glass .group, .olv-glass .stats .stat::after{animation:none !important;}
+}
+/* شيل الدرجة الكمّونية من الوضع الفاتح: الذهبي صار نيلي (الشعار على بلاطة سودا فما بيتأثر) */
+:root:not([data-theme="dark"]){--gold:#4254e8; --gold-hi:#3341c4; --gold-dp:#2c36a8; --gold-rgb:66,84,232; --on-gold:#fff;}
+:root:not([data-theme="dark"]){--olive:#5b47e6; --olive-hi:#4631c9; --ok:#0f9d83; --on-olive:#fff;}
+:root:not([data-theme="dark"]) .tab-link.on{background:linear-gradient(135deg,#4254e8,#7c4de6); border-color:transparent; color:#fff; box-shadow:0 10px 20px -10px rgba(80,70,220,.7);}
+:root:not([data-theme="dark"]) .spark .l{stroke:var(--olive);}
