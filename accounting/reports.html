@@ -699,6 +699,11 @@
         const entry = map.get(r.product_id);
         entry.cost += Number(r.quantity) * (priceById.get(r.ingredient_id) || 0);
       });
+      // تكلفة يدوية من «بطاقة المادة» بتغلب على المحسوبة من الوصفة (العمود ممكن ما يكون مضاف بعد، فنتجاهل الخطأ)
+      try {
+        const { data: man, error: e3 } = await window.supabaseClient.from("products").select("id, cost_manual").gt("cost_manual", 0);
+        if (!e3) (man || []).forEach((m) => map.set(m.id, { cost: Number(m.cost_manual), hasRecipe: true }));
+      } catch (_) { /* تجاهل */ }
       productCostById = map;
     }
 
