@@ -137,6 +137,16 @@
       <div id="backup-line" style="font-size:14.5px; line-height:1.8;">جاري التحميل...</div>
     </div>
 
+    <div class="group" id="cash-closings-group">
+      <h2>تقفيلات الخزينة باليوم</h2>
+      <div class="hint" style="margin-bottom:12px;">اختار كم مرة بتقفّل الخزينة باليوم. اليوم بيبدأ الساعة 3 الفجر.</div>
+      <div class="sub-tabs" role="radiogroup" aria-label="عدد تقفيلات الخزينة" style="margin-bottom:8px;">
+        <button type="button" class="sub-tab" role="radio" data-cc="1">تقفيلة وحدة (آخر اليوم)</button>
+        <button type="button" class="sub-tab" role="radio" data-cc="2">تقفيلتين (وردية لكل موظف)</button>
+      </div>
+      <div class="hint" id="cc-msg" aria-live="polite"></div>
+    </div>
+
     <div class="group">
       <h2>تصنيفات المصروفات</h2>
       <form id="cat-form" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
@@ -879,6 +889,22 @@
       } catch (err) { /* القسم اختياري */ }
     }
 
+    // عدد تقفيلات الخزينة باليوم (app_settings.cash_closings_per_day = 1 أو 2)
+    async function loadCashClosings() {
+      const btns = document.querySelectorAll("[data-cc]");
+      const paint = (v) => btns.forEach((b) => { b.classList.toggle("on", b.dataset.cc === v); b.setAttribute("aria-checked", String(b.dataset.cc === v)); });
+      try {
+        const r = await window.supabaseClient.from("app_settings").select("value").eq("key", "cash_closings_per_day").maybeSingle();
+        paint(r.data && String(r.data.value).trim() === "2" ? "2" : "1");
+      } catch (err) { paint("1"); }
+      btns.forEach((b) => b.addEventListener("click", async () => {
+        const { error } = await window.supabaseClient.from("app_settings").upsert({ key: "cash_closings_per_day", value: b.dataset.cc });
+        if (error) { olvShowError(document.getElementById("err"), error); return; }
+        paint(b.dataset.cc);
+        document.getElementById("cc-msg").textContent = "انحفظ. صفحة الخزينة بتشتغل على " + (b.dataset.cc === "2" ? "تقفيلتين" : "تقفيلة وحدة") + " باليوم.";
+      }));
+    }
+
     async function importFromMenu() {
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
@@ -1552,6 +1578,7 @@
         loadProducts(),
         loadAddons(),
         loadMealCats(),
+        loadCashClosings(),
         loadPrinterSettings(),
         loadPrinters().then(loadPrintJobs),
         loadSecurity(),

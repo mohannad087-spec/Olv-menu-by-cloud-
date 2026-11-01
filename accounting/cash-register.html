@@ -475,6 +475,15 @@
     }));
     $("fill-exp").addEventListener("click", () => { $("cash_out").value = ctx.expToday.toFixed(2); recalc(); });
 
+    // ---------- عدد تقفيلات اليوم (من الإعدادات: 1 أو 2) ----------
+    let perDay = 1;
+    async function loadPerDay() {
+      try {
+        const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "cash_closings_per_day").maybeSingle();
+        perDay = data && String(data.value).trim() === "2" ? 2 : 1;
+      } catch (e) { perDay = 1; }
+    }
+
     // ---------- تحميل اليوم ----------
     async function loadDay() {
       const seq = ++loadSeq;
@@ -544,10 +553,16 @@
       // اليوم متقفّل؟
       showForm = !sameDay.length;
       $("done-box").hidden = !sameDay.length;
+      const canAgain = sameDay.length < perDay;
+      $("again-btn").hidden = !canAgain;
+      $("again-btn").textContent = perDay === 2 ? "تقفيل الوردية التانية" : "تقفيل تاني لنفس اليوم";
       if (sameDay.length) {
         const s = state(prev.difference);
         $("done-ic").innerHTML = olvIcon("checkCircle");
-        $("done-text").innerHTML = `<b>هاليوم متقفّل</b>${sameDay.length > 1 ? ` (${sameDay.length} مرات)` : ""}. آخر مرة الساعة ${timeOf(prev.created_at)}:
+        const head = perDay === 2
+          ? (canAgain ? `تقفيل الوردية الأولى تم (1 من 2)` : `تقفيلات اليوم كاملة (${Math.min(sameDay.length, 2)} من 2)`)
+          : `هاليوم متقفّل${sameDay.length > 1 ? ` (${sameDay.length} مرات)` : ""}`;
+        $("done-text").innerHTML = `<b>${head}</b>. آخر مرة الساعة ${timeOf(prev.created_at)}:
           بالدرج <b>${money(prev.actual_closing)}</b>، ${s.cls === "ok" ? "مزبوط" : s.word + " " + money(Math.abs(prev.difference))}.`;
       }
       $("form-grid").hidden = !showForm;
@@ -764,6 +779,7 @@
       if (!session) return;
       $("closing_date").value = olvToday();
       try {
+        await loadPerDay();
         await loadClosings();
         await loadDay();
       } catch (err) { olvShowError($("err"), err); }
