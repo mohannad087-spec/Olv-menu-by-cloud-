@@ -1066,3 +1066,14 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); olvA11yTables(); olvArabicDates(); olvScrollFades(); });
   }).observe(document.body, { childList: true, subtree: true });
 });
+
+// موجة مكان اللمس على أزرار الشريط العلوي (بتتحرك بـCSS، هون بس بنحدد النقطة)
+document.addEventListener("pointerdown", (e) => {
+  const el = e.target.closest && e.target.closest(".top .tab-link, .top .olv-acct-btn, .top .actions .btn");
+  if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty("--rx", (e.clientX - r.left) + "px");
+  el.style.setProperty("--ry", (e.clientY - r.top) + "px");
+  el.classList.remove("rip"); void el.offsetWidth; el.classList.add("rip");
+  setTimeout(() => el.classList.remove("rip"), 650);
+}, { passive: true });
