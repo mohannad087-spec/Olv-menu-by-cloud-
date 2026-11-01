@@ -224,6 +224,18 @@
       <a class="btn" id="daily-link" href="daily-report.html"></a>
     </div>
 
+    <section class="group" id="drawer-box" hidden>
+      <h2 style="margin:0 0 4px">حركة درج الكاش</h2>
+      <p class="hint" id="drawer-sub" style="margin:0 0 12px"></p>
+      <div class="stats" style="margin-bottom:12px">
+        <div class="stat"><div class="label">طلع من الدرج كاش</div><div class="value" id="dr-total">—</div></div>
+        <div class="stat"><div class="label">مصروفات من الدرج</div><div class="value" id="dr-exp">—</div></div>
+        <div class="stat"><div class="label">مشتريات علّمها الموظف من الدرج</div><div class="value" id="dr-buy">—</div></div>
+        <div class="stat"><div class="label">مشتريات الفواتير (برّا الدرج)</div><div class="value" id="dr-inv">—</div></div>
+      </div>
+      <div id="dr-who"></div>
+    </section>
+
     <div class="stats">
       <div class="stat">
         <div class="label">إجمالي المبيعات</div>
@@ -758,6 +770,35 @@
       `).join("");
     }
 
+    // حركة الدرج: اللي طلع من درج الكاش حسب تحديد الموظف وقت الإدخال (from_drawer)، ومشتريات الفواتير لحالها
+    async function renderDrawer(from, to) {
+      const box = document.getElementById("drawer-box"), db = window.supabaseClient;
+      const { data: rows, error } = await db.from("expenses").select("id, amount, from_drawer, created_by, payment_type").eq("payment_type", "cash").gte("expense_date", from).lte("expense_date", to).limit(5000);
+      if (error || !rows) { box.hidden = true; return; }
+      const inv = new Set();
+      for (let i = 0; i < rows.length; i += 150) {
+        const { data } = await db.from("purchase_invoices").select("expense_id, status, payment_type").in("expense_id", rows.slice(i, i + 150).map((r) => r.id));
+        (data || []).forEach((x) => { if (x.status !== "voided") inv.add(x.expense_id); });
+      }
+      let exp = 0, buy = 0, invAll = 0; const who = {};
+      rows.forEach((r) => {
+        const a = Number(r.amount) || 0;
+        if (inv.has(r.id)) { if (r.from_drawer) buy += a; else invAll += a; }
+        else if (r.from_drawer) { exp += a; const k = r.created_by || "?"; (who[k] = who[k] || { sum: 0, n: 0 }); who[k].sum += a; who[k].n++; }
+        if (inv.has(r.id) && r.from_drawer) { const k = r.created_by || "?"; (who[k] = who[k] || { sum: 0, n: 0 }); who[k].sum += a; who[k].n++; }
+      });
+      const ids = Object.keys(who).filter((k) => k !== "?"), names = {};
+      if (ids.length) { const { data } = await db.from("profiles").select("id, full_name").in("id", ids); (data || []).forEach((p) => { names[p.id] = p.full_name; }); }
+      box.hidden = false;
+      document.getElementById("drawer-sub").textContent = "حسب اللي حدّده الكاشير أو صاحب المحل وقت التسجيل (طلع من درج الكاش)";
+      document.getElementById("dr-total").textContent = olvFormatMoney(exp + buy);
+      document.getElementById("dr-exp").textContent = olvFormatMoney(exp);
+      document.getElementById("dr-buy").textContent = olvFormatMoney(buy);
+      document.getElementById("dr-inv").textContent = olvFormatMoney(invAll);
+      document.getElementById("dr-who").innerHTML = Object.entries(who).sort((a, b) => b[1].sum - a[1].sum)
+        .map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:8px 2px;border-top:1px solid var(--hair-soft)"><span>${olvEsc(names[k] || "مستخدم غير معروف")} <small style="color:var(--muted)">(${v.n})</small></span><b>${olvFormatMoney(v.sum)}</b></div>`).join("");
+    }
+
     async function runReport() {
       const errBox = document.getElementById("err");
       errBox.style.display = "none";
@@ -808,6 +849,7 @@
         estEl.className = "value " + (est >= 0 ? "good" : "bad");
         document.getElementById("r-cov").textContent = covNote;
 
+        renderDrawer(from, to).catch(() => { document.getElementById("drawer-box").hidden = true; });
         await loadInsights(from, to, sales, totalSales, net);
         renderProfitability(sales);
         renderProfitRank(sales);
