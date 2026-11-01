@@ -523,9 +523,13 @@
       const employeeId = $("f-employee").value;
       try {
         await Promise.all([loadLedger(), loadAdjustments()]);
-        const startOf = (id) => { const l = ledger.get(id); return l ? addDays(l.lastEnd, 1) : range.from; };
+        // الموظف اللي ما إله دفعة بيبدأ حسابه من أول بصمة بالنظام (مش من أول الشهر المختار)، حتى ما تضيع ساعات الشهر اللي قبل
+        const { data: first } = await window.supabaseClient.from("employee_punches").select("punched_at").neq("source", "excluded").order("punched_at", { ascending: true }).limit(1);
+        const firstDay = first && first[0] ? olvWorkDay(first[0].punched_at) : range.from;
+        const noPayStart = firstDay < range.from ? firstDay : range.from;
+        const startOf = (id) => { const l = ledger.get(id); return l ? addDays(l.lastEnd, 1) : noPayStart; };
         // الموظفين اللي إلهم دفعة سابقة بيبدأ حسابهم من اليوم اللي بعدها، والباقي من بداية الفترة المختارة
-        const starts = new Set([range.from, ...[...ledger.keys()].map(startOf)]);
+        const starts = new Set([noPayStart, range.from, ...[...ledger.keys()].map(startOf)]);
         const hoursByStart = new Map();
         for (const from of starts) {
           if (from > range.to) { hoursByStart.set(from, new Map()); continue; }
@@ -533,7 +537,7 @@
           if (error) throw error;
           hoursByStart.set(from, hoursMapFrom(data));
         }
-        const profileIds = new Set([...(hoursByStart.get(range.from) || new Map()).keys(), ...unsettledAdvances.map((a) => a.profile_id), ...unsettledAdj.map((a) => a.profile_id), ...ledger.keys()]);
+        const profileIds = new Set([...(hoursByStart.get(noPayStart) || new Map()).keys(), ...unsettledAdvances.map((a) => a.profile_id), ...unsettledAdj.map((a) => a.profile_id), ...ledger.keys()]);
         [...starts].forEach((f) => (hoursByStart.get(f) || new Map()).forEach((_, id) => profileIds.add(id)));
         if (employeeId) [...profileIds].forEach((id) => { if (id !== employeeId) profileIds.delete(id); });
         previewRows = [...profileIds]
