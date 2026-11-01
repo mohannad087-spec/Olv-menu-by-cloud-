@@ -60,6 +60,21 @@
   .ic-foot{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-start; margin-top:6px; position:sticky; bottom:0; padding-top:10px; background:linear-gradient(transparent, var(--ink) 30%);}
   .ic-list{margin:8px 0 0; padding:0; list-style:none; display:grid; gap:6px; font-size:13.5px; line-height:1.6;}
   .ic-list li{padding:8px 10px; border-radius:10px; background:var(--ink-3);}
+  .ic-cost{border:1px solid var(--hair); border-radius:16px; padding:12px; margin:2px 0 14px; background:var(--ink-2);}
+  .ic-cost h3{margin:0 0 4px; font-size:16px; font-weight:800; display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .ic-cost .hint{font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:8px;}
+  .ic-cl{display:grid; grid-template-columns:minmax(0,1fr) 92px auto 28px; gap:6px; align-items:center; padding:6px 0; border-bottom:1px solid var(--hair-soft); font-size:13.5px;}
+  .ic-cl select, .ic-cl input{min-height:40px; font-size:16px; width:100%; min-width:0;}
+  .ic-cl .lc{font-variant-numeric:tabular-nums; color:var(--muted); white-space:nowrap; font-size:12.5px;}
+  .ic-cl .x{min-height:40px; min-width:28px; border:0; background:transparent; color:var(--danger-hi); cursor:pointer; font-size:18px;}
+  .ic-cl.unsure select, .ic-cl.unsure input{border-color:var(--danger-hi);}
+  .ic-cres{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px;}
+  .ic-cres div{background:var(--ink-3); border-radius:12px; padding:8px 10px; font-size:12.5px; color:var(--muted);}
+  .ic-cres b{display:block; font-size:17px; color:var(--paper); font-variant-numeric:tabular-nums;}
+  .ic-cres .bad b{color:var(--danger-hi);}
+  .ic-cacts{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .ic-cost .badge.src{font-weight:700;}
+  @media (max-width:520px){ .ic-cl{grid-template-columns:minmax(0,1fr) 80px 28px;} .ic-cl .lc{display:none;} }
   @media (prefers-reduced-motion: reduce){ .ic-card{transition:none;} .ic-card:active{transform:none;} }
 </style>
 <link rel="manifest" href="manifest.webmanifest">
@@ -176,7 +191,7 @@
     $("ic-i2").innerHTML = olvIcon("warning");
     $("ic-i3").innerHTML = olvIcon("note");
 
-    let products = [], addonById = new Map(), menuById = new Map(), menuCats = [], mode = "menu", menuOk = false;
+    let ingredients = [], recipeByProduct = new Map(), products = [], addonById = new Map(), menuById = new Map(), menuCats = [], mode = "menu", menuOk = false;
     const filt = { q: "", cat: "", diffOnly: false, showOff: false };
 
     // ---------- المصدر: وضع المزامنة ----------
@@ -226,11 +241,16 @@
     };
 
     async function load() {
-      const [pR, aR] = await Promise.all([
+      const [pR, aR, iR, rR] = await Promise.all([
         db.from("products").select("*").order("sort_order").order("name"),
         db.from("addons").select("id, price, is_active, is_size"),
+        db.from("ingredients").select("id, name, unit, unit_price").order("name").limit(3000),
+        db.from("product_ingredients").select("product_id, ingredient_id, quantity"),
       ]);
       if (pR.error) throw pR.error;
+      ingredients = iR.data || [];
+      recipeByProduct = new Map();
+      (rR.data || []).forEach((r) => { if (!recipeByProduct.has(r.product_id)) recipeByProduct.set(r.product_id, []); recipeByProduct.get(r.product_id).push(r); });
       products = pR.data || [];
       addonById = new Map((aR.data || []).map((a) => [a.id, a]));
       mode = await getMode();
@@ -244,6 +264,20 @@
         olvShowError(errBox, new Error("تعذّر قراءة المنيو للمقارنة: " + e.message));
       }
       render();
+    }
+
+    // ---------- تكلفة المادة ----------
+    const ingById = (id) => ingredients.find((i) => i.id === id);
+    const linesCost = (lines) => r2(lines.reduce((t, l) => t + (Number(l.quantity) || 0) * (Number((ingById(l.ingredient_id) || {}).unit_price) || 0), 0));
+    const SRC_TXT = { manual: "يدوي", recipe: "محسوب من الوصفة", ai: "اقتراح ذكاء" };
+    // التكلفة الفعلية: اليدوية إذا انكتبت، وإلا المحسوبة من الوصفة
+    function costOf(p) {
+      const man = Number(p.cost_manual);
+      if (man > 0) return { cost: r2(man), src: "manual" };
+      const lines = recipeByProduct.get(p.id) || [];
+      const c = linesCost(lines);
+      if (lines.length && c > 0) return { cost: c, src: p.cost_source === "ai" ? "ai" : "recipe" };
+      return null;
     }
 
     // ---------- الفروقات بين البطاقة والمنيو ----------
@@ -325,6 +359,8 @@
     function cardHtml(p) {
       const d = diffs(p);
       const meal = num(p.meal_price), dbl = num(p.double_meal_price), lg = largePrice(p), hall = num(p.hall_price);
+      const ci = costOf(p);
+      const costTag = ci && Number(p.price) > 0 ? `<span class="badge">تكلفة ${money(ci.cost)} · ربح ${Math.round((1 - ci.cost / Number(p.price)) * 100)}%</span>` : "";
       const img = p.image_url ? `<img loading="lazy" src="${esc(p.image_url)}" alt="">` : olvIcon("coffee");
       return `<button type="button" class="ic-card${p.is_active === false ? " off" : ""}" data-id="${p.id}">
         <span class="ic-thumb">${img}</span>
@@ -334,6 +370,7 @@
           <span class="ic-tags">
             ${p.is_active === false ? `<span class="badge">موقوف</span>` : ""}
             ${isStock(p) ? `<span class="badge">من المخزون</span>` : ""}
+            ${costTag}
             ${d.map((x) => `<span class="badge warn">${olvIcon("warning")} ${esc(x.label)}: المنيو ${x.menu == null ? "بدون" : typeof x.menu === "number" ? money(x.menu) : esc(x.menu)}</span>`).join("")}
           </span>
         </span></button>`;
@@ -378,6 +415,7 @@
             <img class="ic-prev" id="f-prev" alt="" ${p && p.image_url ? `src="${esc(p.image_url)}"` : "hidden"}></div>
           <div class="field full"><label for="f-desc">الوصف (عربي)</label><textarea id="f-desc" rows="2" maxlength="400"${dis}>${esc(p ? p.description : "")}</textarea></div>
           <div class="field full"><label for="f-descen">الوصف (إنجليزي)</label><textarea id="f-descen" dir="ltr" rows="2" maxlength="400"${dis}>${esc(p ? p.description_en : "")}</textarea></div>
+          <div class="field full ic-cost" id="ic-cost"></div>
           <div class="field"><label><input type="checkbox" id="f-active"${!p || p.is_active !== false ? " checked" : ""}${dis}> متوفر (بيظهر بالمنيو والكاشير)</label></div>
           <div class="field"><label><input type="checkbox" id="f-pop"${p && p.popular ? " checked" : ""}${dis}> من «الأكثر طلبًا»</label></div>
         </div>
@@ -391,7 +429,7 @@
       const form = bd.querySelector("#ic-form");
       const snap = () => [...form.elements].map((x) => x.type === "checkbox" ? x.checked : x.value).join("\u0001");
       const start = snap();
-      const askClose = () => { if (!editable || snap() === start || confirm("في تعديلات ما انحفظت. بدك تسكّر بدون حفظ؟")) close(); };
+      const askClose = () => { if (!editable || (snap() === start && !(typeof cost !== "undefined" && cost.dirty)) || confirm("في تعديلات ما انحفظت. بدك تسكّر بدون حفظ؟")) close(); };
       const onKey = (e) => { if (e.key === "Escape") askClose(); };
       document.addEventListener("keydown", onKey);
       bd.querySelector("#f-close").onclick = askClose;
@@ -410,6 +448,83 @@
         const pv = bd.querySelector("#f-prev"); const v = e.target.value.trim();
         if (/^https?:\/\//i.test(v)) { pv.src = v; pv.hidden = false; } else pv.hidden = true;
       });
+
+      // ----- قسم التكلفة (داخل البطاقة): مكوّنات الصنف × آخر سعر شراء، أو تكلفة يدوية، أو اقتراح ذكاء -----
+      const cost = { lines: (p && recipeByProduct.get(p.id) || []).map((l) => ({ ingredient_id: l.ingredient_id, quantity: Number(l.quantity), unsure: false })),
+        dirty: false, ai: !!(p && p.cost_source === "ai" && !(Number(p.cost_manual) > 0)), manual: p && Number(p.cost_manual) > 0 ? String(p.cost_manual) : "", aiInfo: null };
+      const costBox = bd.querySelector("#ic-cost");
+      const curPrice = () => Number(bd.querySelector("#f-price").value) || (p ? Number(p.price) : 0);
+      const ingOpts = (sel) => ingredients.map((i) => `<option value="${esc(i.id)}"${i.id === sel ? " selected" : ""}>${esc(i.name)} (${esc(i.unit)})</option>`).join("");
+      function paintResult() {
+        const man = Number(cost.manual) > 0 ? Number(cost.manual) : null;
+        const calc = cost.lines.length ? linesCost(cost.lines) : null;
+        const eff = man != null ? man : calc;
+        const src = man != null ? "manual" : (calc ? (cost.ai ? "ai" : "recipe") : null);
+        const price = curPrice();
+        const profit = eff != null ? price - eff : null;
+        const pct = eff != null && price > 0 ? Math.round((profit / price) * 100) : null;
+        const res = costBox.querySelector(".ic-cres");
+        res.innerHTML = `<div><span>التكلفة${src ? ` · ${SRC_TXT[src]}` : ""}</span><b>${eff != null ? money(eff) : "—"}</b></div>
+          <div class="${profit != null && profit < 0 ? "bad" : ""}"><span>الربح</span><b>${profit != null ? money(profit) : "—"}</b></div>
+          <div class="${pct != null && pct < 0 ? "bad" : ""}"><span>هامش الربح</span><b>${pct != null ? pct + "%" : "—"}</b></div>`;
+        costBox.querySelector("[data-calc]").textContent = calc != null ? money(calc) : "—";
+        costBox.querySelectorAll(".ic-cl").forEach((row, i) => { const l = cost.lines[i]; const u = Number((ingById(l.ingredient_id) || {}).unit_price) || 0; row.querySelector(".lc").textContent = u > 0 ? money(l.quantity * u) : "بدون سعر"; });
+      }
+      function paintCost() {
+        const dis2 = editable ? "" : " disabled";
+        const missing = cost.lines.filter((l) => !(Number((ingById(l.ingredient_id) || {}).unit_price) > 0)).length;
+        costBox.innerHTML = `<h3>${olvIcon("wallet")} التكلفة والهامش ${cost.ai ? `<span class="badge src">اقتراح ذكاء</span>` : ""}</h3>
+          <div class="hint">التكلفة = كمية كل مادة × آخر سعر شراء لها. ممكن تعدّل أي رقم، أو تكتب تكلفة يدوية (بتغلب على المحسوبة).</div>
+          ${cost.aiInfo ? `<div class="ic-note">${olvIcon("star")} اقتراح الذكاء الاصطناعي (${esc(cost.aiInfo.conf)}): راجع الكميات، ما بينحفظ شي إلا لما تضغط «احفظ».${cost.aiInfo.note ? " " + esc(cost.aiInfo.note) : ""}${cost.aiInfo.missing.length ? `<br>مواد ناقصة بالمخزون: ${cost.aiInfo.missing.map(esc).join("، ")}` : ""}</div>` : ""}
+          <div id="ic-lines">${cost.lines.map((l, i) => `<div class="ic-cl${l.unsure ? " unsure" : ""}" data-i="${i}">
+            <select data-f="ing" aria-label="المادة"${dis2}>${ingOpts(l.ingredient_id)}</select>
+            <input data-f="qty" type="number" inputmode="decimal" step="0.001" min="0" value="${esc(l.quantity)}" aria-label="الكمية"${dis2}>
+            <span class="lc"></span>
+            ${editable ? `<button type="button" class="x" data-f="del" aria-label="احذف السطر">×</button>` : "<span></span>"}</div>`).join("") || `<div class="hint">ما في مكوّنات لهالصنف بعد.</div>`}</div>
+          ${missing ? `<div class="hint">${missing} مادة بدون سعر شراء، فتكلفتها محسوبة صفر لحد ما تنسجل فاتورة.</div>` : ""}
+          <div class="ic-cacts">${editable ? `<button class="btn small" type="button" id="c-add">${olvIcon("plus")} أضف مكوّن</button>
+            <button class="btn small" type="button" id="c-ai"${p ? "" : " disabled title=\"احفظ البطاقة أول مرة بعدين استعمل الذكاء\""}>${olvIcon("star")} احسب بالذكاء</button>` : ""}
+            <span class="hint" style="margin:0;align-self:center">المحسوبة من المكوّنات: <b data-calc>—</b></span></div>
+          <div class="field" style="margin:10px 0 0"><label for="f-costm">تكلفة يدوية (اختياري، بتغلب على المحسوبة)</label>
+            <input id="f-costm" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(cost.manual)}" placeholder="بدون"${dis2}></div>
+          <div class="ic-cres"></div>`;
+        paintResult();
+      }
+      paintCost();
+      costBox.addEventListener("input", (e) => {
+        const row = e.target.closest(".ic-cl");
+        if (row) { const l = cost.lines[Number(row.dataset.i)]; if (e.target.dataset.f === "qty") l.quantity = Number(e.target.value) || 0; l.unsure = false; row.classList.remove("unsure"); cost.dirty = true; paintResult(); }
+        else if (e.target.id === "f-costm") { cost.manual = e.target.value; paintResult(); }
+      });
+      costBox.addEventListener("change", (e) => {
+        const row = e.target.closest(".ic-cl");
+        if (row && e.target.dataset.f === "ing") { const l = cost.lines[Number(row.dataset.i)]; l.ingredient_id = e.target.value; l.unsure = false; cost.dirty = true; paintResult(); }
+      });
+      costBox.addEventListener("click", async (e) => {
+        const b = e.target.closest("button"); if (!b) return;
+        if (b.dataset.f === "del") { cost.lines.splice(Number(b.closest(".ic-cl").dataset.i), 1); cost.dirty = true; paintCost(); }
+        else if (b.id === "c-add") { if (!ingredients.length) return; const used = new Set(cost.lines.map((l) => l.ingredient_id)); const first = ingredients.find((i) => !used.has(i.id)) || ingredients[0]; cost.lines.push({ ingredient_id: first.id, quantity: 0, unsure: false }); cost.dirty = true; paintCost(); }
+        else if (b.id === "c-ai") {
+          if (cost.lines.length && !confirm("الاقتراح بيستبدل المكوّنات اللي بالشاشة (ما بينحفظ إلا لما تضغط احفظ). كمّل؟")) return;
+          b.disabled = true; const old = b.innerHTML; b.textContent = "جاري الحساب...";
+          try {
+            const { data: { session } } = await db.auth.getSession();
+            const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+            const res = await fetch(cfg.SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/suggest-recipes", {
+              method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token, apikey: cfg.SUPABASE_ANON_KEY },
+              body: JSON.stringify({ product_ids: [p.id] }) });
+            const out = await res.json().catch(() => ({}));
+            if (!res.ok || !out.ok) throw new Error(out.error || "فشل الاقتراح (" + res.status + ")");
+            const r = (out.recipes || []).find((x) => x.product_id === p.id);
+            if (!r || !r.lines.length) throw new Error("ما طلع اقتراح لهالصنف، جرّب كمان مرة أو ضيف المكوّنات يدوي");
+            cost.lines = r.lines.map((l) => ({ ingredient_id: l.ingredient_id, quantity: l.quantity, unsure: !!l.unsure }));
+            cost.ai = true; cost.dirty = true; cost.manual = "";
+            cost.aiInfo = { conf: { high: "واثق", medium: "تقديري", low: "مش متأكد" }[r.confidence] || "تقديري", note: r.note, missing: r.missing || [] };
+            paintCost();
+          } catch (err) { olvToast(err.message || String(err), { type: "danger", icon: "warning", ms: 6000 }); b.disabled = false; b.innerHTML = old; }
+        }
+      });
+      bd.querySelector("#f-price").addEventListener("input", paintResult);
       const nm = bd.querySelector("#f-name"); if (editable) nm.focus();
       bd.querySelector("#ic-form").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -422,6 +537,7 @@
             meal: bd.querySelector("#f-meal").value, dbl: bd.querySelector("#f-dbl").value, large: bd.querySelector("#f-large").value,
             img: bd.querySelector("#f-img").value.trim(), desc: bd.querySelector("#f-desc").value.trim(), descEn: bd.querySelector("#f-descen").value.trim(),
             active: bd.querySelector("#f-active").checked, pop: bd.querySelector("#f-pop").checked,
+            cost,
           });
           close();
         } catch (err) {
@@ -494,9 +610,30 @@
         if (error) throw error;
         if (window.OlvMenuSync) OlvMenuSync.syncNow().catch(() => {});
       }
+      if (f.cost) await saveCost(id, p, f.cost);
       if (await pushCards()) olvToast("انحفظت البطاقة وانعكست على المنيو (بتبين خلال دقيقة)", { icon: "check" });
       else olvToast("انحفظت البطاقة. الاتصال بالمنيو مقطوع هلق، ورح توصل للمنيو لحالها لما يرجع", { type: "gold", icon: "warning", ms: 7000 });
       await load();
+    }
+
+    // حفظ التكلفة: المكوّنات (الوصفة) + التكلفة اليدوية + مصدر الرقم. ما بنلمس شي إذا ما تغيّر
+    async function saveCost(id, p, c) {
+      const man = Number(c.manual) > 0 ? r2(c.manual) : null;
+      const lines = c.lines.filter((l) => l.ingredient_id && Number(l.quantity) > 0);
+      if (c.lines.some((l) => !(Number(l.quantity) > 0))) throw new Error("في مكوّن بدون كمية، اكتب الكمية أو احذف السطر");
+      if (new Set(lines.map((l) => l.ingredient_id)).size !== lines.length) throw new Error("نفس المادة مكررة بالمكوّنات");
+      const source = man != null ? "manual" : lines.length ? (c.ai ? "ai" : "recipe") : null;
+      const oldMan = p && Number(p.cost_manual) > 0 ? r2(p.cost_manual) : null;
+      if (c.dirty) {
+        const keep = lines.map((l) => l.ingredient_id);
+        const old = (recipeByProduct.get(id) || []).map((l) => l.ingredient_id).filter((x) => !keep.includes(x));
+        if (old.length) { const { error } = await db.from("product_ingredients").delete().eq("product_id", id).in("ingredient_id", old); if (error) throw error; }
+        if (lines.length) { const { error } = await db.from("product_ingredients").upsert(lines.map((l) => ({ product_id: id, ingredient_id: l.ingredient_id, quantity: l.quantity })), { onConflict: "product_id,ingredient_id" }); if (error) throw error; }
+      }
+      if (c.dirty || man !== oldMan || (p && (p.cost_source || null) !== source)) {
+        const { error } = await db.from("products").update({ cost_manual: man, cost_source: source }).eq("id", id);
+        if (error) throw new Error(/cost_(manual|source)/.test(error.message || "") ? "لازم تشغّل ملف accounting/schema-item-cost.sql بـ Supabase مرة وحدة قبل ما تنحفظ التكلفة" : error.message);
+      }
     }
 
     // نشر البطاقات للمنيو بعد الحفظ: 3 محاولات (الخدمة أحيانًا بترد 502/503 أو النت بيقطع لحظة)،
