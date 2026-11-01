@@ -766,6 +766,29 @@
     .cart-bar{padding:8px 0 10px;}
     .cart-bar .total{font-size:24px;}
   }
+
+  /* ---- تجديد 2026-11-01: ألوان وتمييز بدون ما نأخّر الكاشير ----
+     لا blur ولا حركة دخول ولا hover يتحرك: الضغطة بس بتصغّر البطاقة 80ms، والباقي ألوان ثابتة */
+  .h0{--tc:#4254e8; --tb:#e9ecff;} .h1{--tc:#0b86c9; --tb:#dff2fd;} .h2{--tc:#e0367a; --tb:#fde4ef;}
+  .h3{--tc:#d97a00; --tb:#fff0cf;} .h4{--tc:#8b3fe0; --tb:#f0e5fd;} .h5{--tc:#0f9d83; --tb:#d9f6ef;}
+  :root[data-theme="dark"] .h0{--tc:#8f9cff; --tb:rgba(143,156,255,.14);} :root[data-theme="dark"] .h1{--tc:#5cc0f2; --tb:rgba(92,192,242,.14);}
+  :root[data-theme="dark"] .h2{--tc:#f07aa8; --tb:rgba(240,122,168,.14);} :root[data-theme="dark"] .h3{--tc:#f2b33d; --tb:rgba(242,179,61,.14);}
+  :root[data-theme="dark"] .h4{--tc:#c096f5; --tb:rgba(192,150,245,.14);} :root[data-theme="dark"] .h5{--tc:#4fd1b6; --tb:rgba(79,209,182,.14);}
+  .card{transition:transform .08s linear; border-color:transparent; box-shadow:0 1px 2px rgba(40,40,100,.06), 0 8px 16px -10px rgba(60,70,170,.28);}
+  :root:not([data-theme="dark"]) .card{background:linear-gradient(180deg,#fff 40%,var(--tb,#fff));}
+  .card:nth-child(n){--tile:var(--tb);}
+  :root[data-theme="dark"] .card{--tile:var(--tb) !important;}
+  .card .thumb-fallback .icon, :root[data-theme="dark"] .card .thumb-fallback .icon{color:var(--tc); opacity:1;}
+  .card .price{color:var(--tc);}
+  .card .add-btn{background:var(--tc); color:#fff;}
+  :root[data-theme="dark"] .card .add-btn{color:#0e0e1a;}
+  @media (hover:hover) and (pointer:fine){ .card:hover{transform:none; border-color:var(--tc); box-shadow:0 1px 2px rgba(40,40,100,.06), 0 8px 16px -10px rgba(60,70,170,.28);} }
+  .cat-tab{transition:none; background:#fff; border-color:transparent; box-shadow:0 1px 2px rgba(40,40,100,.06), 0 6px 12px -8px rgba(60,70,170,.25);}
+  :root[data-theme="dark"] .cat-tab{background:var(--ink-2);}
+  .cat-tab .cat-tab-icon{color:var(--tc);}
+  .cat-tab.on{background:linear-gradient(135deg,var(--tc),color-mix(in srgb,var(--tc) 70%,#b04fe0)); color:#fff; border-color:transparent; box-shadow:0 8px 16px -8px var(--tc);}
+  .cat-tab.on .cat-tab-icon{color:#fff;}
+  .cat-chip.on{background:var(--gold); color:#fff;}
 </style>
 </head>
 <body class="olv-glass pos-page">
@@ -1353,6 +1376,13 @@
       return groups.find((g) => g.cats.includes(activeCategory)) || null;
     }
 
+    // لون ثابت لكل تصنيف (6 ألوان) من اسمه: تمييز بصري سريع بدون أي كلفة وقت
+    function catHue(name) {
+      let h = 0;
+      const t = String(name || "");
+      for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+      return h % 6;
+    }
     function renderCategoryTabs() {
       const hasBestSellers = Object.keys(popularity).length > 0;
       const groups = liveGroups();
@@ -1362,8 +1392,8 @@
         ...(hasBestSellers ? [{ k: BEST_SELLERS, t: BEST_SELLERS, icon: olvIcon("star"), on: activeCategory === BEST_SELLERS }] : []),
         ...groups.map((g) => ({ k: "g:" + g.id, t: g.name, icon: olvIcon(g.icon), on: !!cur && cur.id === g.id })),
       ];
-      document.getElementById("cat-tabs").innerHTML = tabs.map((c) => `
-        <button class="cat-tab${c.on ? " on" : ""}" data-cat="${olvEsc(c.k)}">
+      document.getElementById("cat-tabs").innerHTML = tabs.map((c, i) => `
+        <button class="cat-tab h${i % 6}${c.on ? " on" : ""}" data-cat="${olvEsc(c.k)}">
           <span class="cat-tab-icon">${c.icon}</span>
           <span class="cat-tab-label">${olvEsc(c.t)}</span>
         </button>
@@ -1437,9 +1467,10 @@
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => {
         const fallbackIcon = categoryIconName(p.category);
+        const hue = catHue(p.category);
         const src = OlvMenuProducts.imageUrl(p.image_url) || productPhotoUrl(p.name, p.category);
         return `
-        <div class="card" data-id="${p.id}" data-sound="add">
+        <div class="card h${hue}" data-id="${p.id}" data-sound="add">
           <span class="q" aria-hidden="true"></span>
           ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
           ${src
