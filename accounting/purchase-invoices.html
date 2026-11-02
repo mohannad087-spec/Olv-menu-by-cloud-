@@ -92,6 +92,9 @@
   .pi-pay{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;}
   .pi-pay label{flex:1; min-width:72px; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
   .pi-pay input{display:none;}
+  .pi-pay.need{outline:2px solid var(--bad,#d33); outline-offset:3px; border-radius:12px; animation:piNeed .35s;}
+  @keyframes piNeed{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  @media (prefers-reduced-motion:reduce){.pi-pay.need{animation:none}}
   .pi-pay label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .pi-snap{display:flex; align-items:center; gap:14px; padding:16px; border:1.5px dashed var(--gold); border-radius:14px; background:rgba(var(--gold-rgb),.07); cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .16s var(--spring);}
   .pi-snap:active{transform:scale(.98);}
@@ -313,11 +316,11 @@
         </div>
       </div>
 
-      <label style="font-size:13px; color:var(--muted); display:block; margin-top:18px;">الدفع</label>
+      <label style="font-size:13px; color:var(--muted); display:block; margin-top:18px;">طريقة الدفع <b style="color:var(--bad,#d33);">*</b> <span id="pi-pay-need" style="color:var(--bad,#d33); font-weight:700;" hidden>اختار كاش أو ذمة قبل الحفظ</span></label>
       <div class="pi-pay" id="pi-pay">
-        <label class="on" data-pay="cash"><input type="radio" name="pi-pay" value="cash" checked>كاش</label>
-        <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">آجل</label>
-        <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">جزء</label>
+        <label data-pay="cash"><input type="radio" name="pi-pay" value="cash">كاش</label>
+        <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">ذمة</label>
+        <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">جزء ذمة</label>
       </div>
       <div class="field" id="pi-partial-wrap" hidden>
         <label for="pi-partial">المبلغ المدفوع الآن</label>
@@ -456,7 +459,7 @@
     let items = [];              // مواد خام + مستلزمات
     let catalogOnly = [];        // أصناف الكتالوج اللي لسا مش عندك (بتنضاف تلقائيًا أول ما تنختار)
     let lines = [];              // سطور الفاتورة الحالية
-    let payMode = "cash";
+    let payMode = ""; // فاضي = لسا ما اختار (إلزامي قبل الحفظ)
     let editingId = null;        // لو عم تعدّل فاتورة محفوظة: رقمها (بتنلغى القديمة وبتنحفظ الجديدة مكانها)
     let editingAttach = null;
     let isOwner = false;
@@ -841,7 +844,7 @@
     function updateTotals() {
       const T = computeTotals();
       const total = T.total;
-      let paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
+      let paid = (payMode === "cash" || !payMode) ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
       document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l) || lineTotal(l) > 0).length;
       const qtySum = qtyOfLines();
       document.getElementById("pi-qty").textContent = String(qtySum);
@@ -855,8 +858,8 @@
       document.getElementById("pi-total").textContent = money(total);
       document.getElementById("pi-paid").textContent = money(paid);
       document.getElementById("pi-remaining").textContent = money(total - paid);
-      document.getElementById("pi-row-paid").hidden = payMode === "cash";
-      document.getElementById("pi-row-remaining").hidden = payMode === "cash";
+      document.getElementById("pi-row-paid").hidden = payMode === "cash" || !payMode;
+      document.getElementById("pi-row-remaining").hidden = payMode === "cash" || !payMode;
       // ملخّص القسم المطوي حتى تعرف شو فيه بدون ما تفتحه
       const more = [];
       if (document.getElementById("pi-no").value.trim()) more.push("رقم " + document.getElementById("pi-no").value.trim());
@@ -1328,6 +1331,7 @@
     // ---------- الدفع ----------
     document.getElementById("pi-pay").addEventListener("change", (e) => {
       payMode = e.target.value;
+      document.getElementById("pi-pay").classList.remove("need"); document.getElementById("pi-pay-need").hidden = true;
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
       updateTotals();
@@ -1702,8 +1706,8 @@
       if (!d || !Array.isArray(d.lines) || !d.lines.length || Date.now() - d.at > 3 * 24 * 3600 * 1000) { clearDraft(); return false; }
       lines = d.lines.map((l) => newLine(l));
       Object.keys(d.fields || {}).forEach((id) => { if (DRAFT_IDS.includes(id)) document.getElementById(id).value = d.fields[id]; });
-      payMode = ["cash", "credit", "partial"].includes(d.payMode) ? d.payMode : "cash";
-      const radio = document.querySelector('#pi-pay input[value="' + payMode + '"]');
+      payMode = ["cash", "credit", "partial"].includes(d.payMode) ? d.payMode : "";
+      const radio = payMode ? document.querySelector('#pi-pay input[value="' + payMode + '"]') : null;
       if (radio) radio.checked = true;
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
@@ -1720,9 +1724,9 @@
         lines = [newLine()];
         ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         document.getElementById("pi-supplier").value = "";
-        document.querySelector('#pi-pay input[value="cash"]').checked = true;
-        payMode = "cash";
-        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+        document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+        payMode = "";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
         document.getElementById("pi-partial-wrap").hidden = true;
         renderLines();
       });
@@ -1775,6 +1779,14 @@
           tr.scrollIntoView({ block: "center", behavior: "smooth" });
           if (fields[0]) fields[0].focus({ preventScroll: true });
         }
+        return;
+      }
+      if (!payMode) {
+        const box = document.getElementById("pi-pay");
+        box.classList.remove("need"); void box.offsetWidth; box.classList.add("need");
+        document.getElementById("pi-pay-need").hidden = false;
+        box.scrollIntoView({ block: "center", behavior: "smooth" });
+        olvShowError(errBox, new Error("اختار طريقة الدفع: كاش أو ذمة، قبل ما تحفظ الفاتورة"));
         return;
       }
       const supplierId = document.getElementById("pi-supplier").value || null;
@@ -1842,9 +1854,9 @@
         ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         clearPages();
         document.getElementById("pi-supplier").value = "";
-        document.querySelector('#pi-pay input[value="cash"]').checked = true;
-        payMode = "cash";
-        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+        document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+        payMode = "";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
         document.getElementById("pi-partial-wrap").hidden = true;
         await Promise.all([loadItems(), loadHistory()]);
         renderLines();
@@ -1860,7 +1872,7 @@
     });
 
     // ---------- السجل ----------
-    const PAY_LABELS = { cash: "كاش", credit: "آجل", partial: "جزئي" };
+    const PAY_LABELS = { cash: "كاش", credit: "ذمة", partial: "جزء ذمة" };
     let payable = {}; // الفواتير اللي عليها باقي وبينفع تتسدّد من هون: id → { supplierId, no, remaining }
     let invRows = [];
     let invChip = "all";
@@ -2142,6 +2154,13 @@
             <button type="button" class="btn small" data-q="half" style="flex:1;">النص</button>
           </div>
           <div class="field"><label for="pd-amount">المبلغ المدفوع</label><input type="number" id="pd-amount" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${inv.remaining.toFixed(2)}"></div>
+          <div class="field"><label>طريقة السداد</label>
+            <div class="pi-pay" id="pd-method" style="margin:4px 0 0;">
+              <label class="on" data-m="cash"><input type="radio" name="pd-m" value="cash" checked>كاش</label>
+              <label data-m="bank"><input type="radio" name="pd-m" value="bank">بنك</label>
+              <label data-m="click"><input type="radio" name="pd-m" value="click">كليك</label>
+            </div>
+          </div>
           <div class="field"><label for="pd-note">ملاحظة (اختياري)</label><input type="text" id="pd-note" maxlength="100" placeholder="مثال: حوالة، شيك رقم..."></div>
           <div class="pi-warn bad" id="pd-err" style="min-height:16px;"></div>
           <div style="display:flex; gap:8px; margin-top:6px;">
@@ -2156,13 +2175,16 @@
           amt.value = (b.dataset.q === "half" ? Math.round(inv.remaining * 50) / 100 : inv.remaining).toFixed(2);
           err.textContent = "";
         }));
+        box.querySelector("#pd-method").addEventListener("change", (e) => {
+          box.querySelectorAll("#pd-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
+        });
         box.querySelector("#pd-cancel").addEventListener("click", () => done(null));
         back.addEventListener("click", (e) => { if (e.target === back) done(null); });
         const go = () => {
           const amount = Math.round(Number(String(amt.value).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[,،\s]/g, "")) * 100) / 100;
           if (!(amount > 0)) { err.textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
           if (amount > inv.remaining + 0.004) { err.textContent = `المبلغ أكبر من الباقي على الفاتورة (${money(inv.remaining)}). الزيادة سجّلها من صفحة الموردين.`; return; }
-          done({ amount, note: box.querySelector("#pd-note").value.trim() });
+          done({ amount, method: (box.querySelector("#pd-method input:checked") || {}).value || "cash", note: box.querySelector("#pd-note").value.trim() });
         };
         box.querySelector("#pd-go").addEventListener("click", go);
         box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } if (e.key === "Escape") done(null); });
@@ -2188,14 +2210,19 @@
         if (!picked) return;
         const amount = picked.amount;
         payBtn.disabled = true;
-        const { error } = await window.supabaseClient.from("supplier_transactions").insert({
+        const row = {
           supplier_id: inv.supplierId,
           type: "payment",
           amount,
           description: "تسديد " + (inv.no ? "فاتورة #" + inv.no : "فاتورة مشتريات") + (picked.note ? " — " + picked.note : ""),
           transaction_date: olvToday(),
           applies_to_invoice: payBtn.dataset.pay,
-        });
+        };
+        let { error } = await window.supabaseClient.from("supplier_transactions").insert({ ...row, payment_method: picked.method });
+        // لو عمود طريقة السداد لسا ما انضاف بقاعدة البيانات: نسجّل الدفعة بدونه ونكتب الطريقة بالبيان
+        if (error && /payment_method/.test(error.message || "")) {
+          ({ error } = await window.supabaseClient.from("supplier_transactions").insert({ ...row, description: row.description + " [" + ({ cash: "كاش", bank: "بنك", click: "كليك" }[picked.method]) + "]" }));
+        }
         if (error) { payBtn.disabled = false; olvShowError(errBox, error); return; }
         if (window.olvToast) olvToast(amount >= inv.remaining - 0.004 ? "انسدّت الفاتورة" : "انسجلت الدفعة", { type: "ok" });
         await loadHistory();
@@ -2231,9 +2258,9 @@
       ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
       clearPages();
       document.getElementById("pi-supplier").value = "";
-      document.querySelector('#pi-pay input[value="cash"]').checked = true;
-      payMode = "cash";
-      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+      document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+      payMode = "";
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
       document.getElementById("pi-partial-wrap").hidden = true;
       renderLines();
     }

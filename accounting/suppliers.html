@@ -85,6 +85,10 @@
   .detail-acts{display:flex; gap:8px; flex-wrap:wrap;}
   .chips{display:flex; flex-wrap:wrap; gap:6px;}
   .chip{padding:5px 11px; border-radius:999px; background:var(--ink-3); border:1px solid var(--hair); font-size:12.5px;}
+  .pay-method{display:flex; gap:8px; margin-top:4px;}
+  .pay-method label{flex:1; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
+  .pay-method input{display:none;}
+  .pay-method label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .pay-box{background:var(--ink-3); border-radius:12px; padding:14px;}
   details.more{margin-top:12px; border:1px dashed var(--hair); border-radius:12px; padding:10px 14px;}
   details.more summary{cursor:pointer; font-weight:700; font-size:14px; min-height:32px; display:flex; align-items:center;}
@@ -227,6 +231,14 @@
           <div class="field">
             <label for="pay-date">التاريخ</label>
             <input type="date" id="pay-date" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>طريقة السداد</label>
+          <div class="pay-method" id="pay-method">
+            <label class="on" data-m="cash"><input type="radio" name="pay-m" value="cash" checked>كاش</label>
+            <label data-m="bank"><input type="radio" name="pay-m" value="bank">بنك</label>
+            <label data-m="click"><input type="radio" name="pay-m" value="click">كليك</label>
           </div>
         </div>
         <div class="field">
@@ -503,7 +515,7 @@
       body.innerHTML = rows.slice().reverse().map((t) => `
         <tr>
           <td>${olvEsc(t.transaction_date)}</td>
-          <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type] || olvEsc(t.type)}</td>
+          <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type] || olvEsc(t.type)}${t.payment_method ? " · " + ({ cash: "كاش", bank: "بنك", click: "كليك" }[t.payment_method] || "") : ""}</td>
           <td>${olvEsc(t.description) || "—"}</td>
           <td>${olvFormatMoney(t.amount)}</td>
           <td>${olvFormatMoney(t.running)}</td>
@@ -640,9 +652,16 @@
           description: $(prefix + "-desc").value.trim() || null,
           transaction_date: $(prefix + "-date").value || olvToday(),
         };
-        const { error } = await sb().from("supplier_transactions").insert(payload);
+        let method = null;
+        if (type === "payment") method = (document.querySelector("#pay-method input:checked") || {}).value || "cash";
+        let { error } = await sb().from("supplier_transactions").insert(method ? { ...payload, payment_method: method } : payload);
+        // لو عمود طريقة السداد لسا ما انضاف: نسجّل بدونه ونكتب الطريقة بالبيان
+        if (error && method && /payment_method/.test(error.message || "")) {
+          ({ error } = await sb().from("supplier_transactions").insert({ ...payload, description: ((payload.description || "") + " [" + ({ cash: "كاش", bank: "بنك", click: "كليك" }[method]) + "]").trim() }));
+        }
         if (error) throw error;
         $(prefix === "pay" ? "payment-form" : "invoice-form").reset();
+        document.querySelectorAll("#pay-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === "cash"));
         $(prefix + "-date").value = olvToday();
         if (prefix === "inv") $("opening-box").open = false;
         olvToast(type === "payment" ? "انسجلت الدفعة" : "انسجل الدين");
@@ -653,6 +672,9 @@
       }
     }
     $("invoice-form").addEventListener("submit", (e) => { e.preventDefault(); addTransaction("invoice", "inv"); });
+    $("pay-method").addEventListener("change", (e) => {
+      document.querySelectorAll("#pay-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
+    });
     $("payment-form").addEventListener("submit", (e) => { e.preventDefault(); addTransaction("payment", "pay"); });
 
     $("edit-supplier-btn").addEventListener("click", () => {
