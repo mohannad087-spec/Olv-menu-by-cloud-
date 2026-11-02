@@ -284,6 +284,40 @@
   .td .acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;}
   @media (max-width:640px){ .td{grid-template-columns:54px minmax(0,1fr) auto; gap:10px;} }
 
+  /* تقرير المصروفات اليومي: نافذة للعرض، وبتنطبع لحالها */
+  #day-dlg{width:min(960px,calc(100% - 20px)); max-height:92vh; padding:0; border:1px solid var(--hair); border-radius:20px; background:var(--ink-2); color:var(--paper); overflow:auto;}
+  #day-dlg::backdrop{background:rgba(0,0,0,.45);}
+  .dr-bar{position:sticky; top:0; z-index:2; display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 14px; background:var(--ink-2); border-bottom:1px solid var(--hair-soft);}
+  .dr-bar input{min-height:44px; padding:6px 10px; border:1px solid var(--hair); border-radius:12px; background:var(--ink-3); color:var(--paper); font:inherit; font-size:15px;}
+  .dr-bar .btn{min-height:44px;}
+  .dr-gap{flex:1;}
+  .dr-sheet{padding:18px 18px 24px;}
+  .dr-sheet h2{margin:0 0 2px; font-size:20px;}
+  .dr-sheet .dr-sub{color:var(--muted); font-size:13px; margin:0 0 14px;}
+  .dr-sec{margin:0 0 18px;}
+  .dr-sec h3{margin:0 0 6px; font-size:16px; display:flex; justify-content:space-between; gap:10px; align-items:baseline; padding:8px 12px; border-radius:12px; background:var(--ink-3);}
+  .dr-sec h3 small{color:var(--muted); font-weight:500; font-size:12.5px;}
+  .dr-tbl{width:100%; border-collapse:collapse; font-size:14px;}
+  .dr-tbl th{font-size:12px; color:var(--muted); font-weight:700; text-align:right; padding:6px 8px; border-bottom:1px solid var(--hair);}
+  .dr-tbl td{padding:8px; border-bottom:1px solid var(--hair-soft); vertical-align:top;}
+  .dr-tbl td.n, .dr-tbl th.n{text-align:left; font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:700;}
+  .dr-tbl td.t{white-space:nowrap; direction:ltr; text-align:right; color:var(--muted); font-size:12.5px;}
+  .dr-tbl tfoot td{font-weight:800; border-bottom:0; padding-top:10px;}
+  .dr-grand{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:14px 16px; border-radius:14px; background:var(--gold); color:var(--on-gold); font-size:18px; font-weight:800; margin-top:6px;}
+  .dr-grand span:last-child{font-variant-numeric:tabular-nums;}
+  .dr-sums{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:16px;}
+  .dr-sums div{padding:10px 12px; border-radius:12px; background:var(--ink-3); font-size:13px; color:var(--muted);}
+  .dr-sums b{display:block; color:var(--paper); font-size:18px; font-variant-numeric:tabular-nums;}
+  @media (max-width:640px){ .dr-tbl{font-size:13px;} .dr-tbl th:nth-child(5), .dr-tbl td:nth-child(5){display:none;} }
+  @media print{
+    body.day-printing #olv-nav, body.day-printing .wrap, body.day-printing .dr-bar{display:none !important;}
+    body.day-printing #day-dlg{position:static; display:block; width:auto; max-height:none; border:0; background:#fff; color:#000; overflow:visible;}
+    body.day-printing .dr-sheet{padding:0;}
+    body.day-printing .dr-sec h3, body.day-printing .dr-sums div{background:#f1ece2;}
+    body.day-printing .dr-grand{background:#e8dcc0; color:#000;}
+    body.day-printing .dr-tbl th:nth-child(5), body.day-printing .dr-tbl td:nth-child(5){display:table-cell;}
+  }
+
   @media (prefers-reduced-motion: reduce){
     .cat-h .chev, .ex-chip, .ex-bars .bar{transition:none;}
     .cat-body:not([hidden]), .ex-detail:not([hidden]), .cat-bars .tr i{animation:none;}
@@ -303,6 +337,7 @@
       </div>
       <div class="ex-head-actions">
         <button class="btn go" type="button" id="add-toggle" aria-expanded="false" aria-controls="add-group"></button>
+        <button class="btn" type="button" id="day-report-btn"></button>
         <a class="btn small" id="reports-link" href="reports.html" hidden></a>
       </div>
     </header>
@@ -467,6 +502,20 @@
     </section>
   </div>
 
+  <dialog id="day-dlg" aria-label="تقرير المصروفات اليومي">
+    <div class="dr-bar">
+      <label for="dr-date" class="olv-sr">اليوم</label>
+      <input type="date" id="dr-date">
+      <button class="ex-chip" type="button" data-drday="0">اليوم</button>
+      <button class="ex-chip" type="button" data-drday="-1">أمس</button>
+      <span class="dr-gap"></span>
+      <button class="btn small go" type="button" id="dr-print">طباعة / PDF</button>
+      <button class="btn small" type="button" id="dr-csv">تنزيل Excel</button>
+      <button class="btn small" type="button" id="dr-close">إغلاق</button>
+    </div>
+    <div id="day-rep" class="dr-sheet"></div>
+  </dialog>
+
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
@@ -523,6 +572,7 @@
 
     // أيقونات وأزرار ثابتة
     $("add-toggle").innerHTML = olvIcon("plus") + "<span>سجّل مصروف</span>";
+    $("day-report-btn").innerHTML = olvIcon("printer") + "<span>تقرير يومي</span>";
     $("reports-link").innerHTML = olvIcon("barChart") + "<span>التقارير</span>";
     $("custom-chip").innerHTML = olvIcon("calendar") + "<span>فترة…</span>";
     $("ic-total").innerHTML = olvIcon("minusCircle");
@@ -978,6 +1028,89 @@
     // ---------------------------------------------------------------
     // تسجيل/تعديل مصروف
     // ---------------------------------------------------------------
+    // ---------------------------------------------------------------
+    // تقرير المصروفات اليومي: كل دفعة وسببها، مفصول بين «من الدرج» و«من برّا الدرج»، والمجموع آخر شي
+    // ---------------------------------------------------------------
+    let drRows = [];
+    async function buildDayReport(date) {
+      const db = window.supabaseClient, box = $("day-rep");
+      box.innerHTML = `<p class="ex-empty">جاري التحميل...</p>`;
+      const { data, error } = await db.from("expenses").select("*").eq("expense_date", date).order("created_at", { ascending: true }).limit(2000);
+      if (error) { box.innerHTML = `<p class="ex-empty">${olvEsc(error.message || "خطأ")}</p>`; return; }
+      const list = data || [], inv = {};
+      for (let i = 0; i < list.length; i += 150) {
+        const ids = list.slice(i, i + 150).map((x) => x.id);
+        const [pi, pu] = await Promise.all([
+          db.from("purchase_invoices").select("expense_id, invoice_no, status, payment_type, suppliers(name)").in("expense_id", ids),
+          db.from("purchases").select("expense_id").in("expense_id", ids),
+        ]);
+        (pi.data || []).forEach((x) => { inv[x.expense_id] = { no: x.invoice_no, supplier: x.suppliers && x.suppliers.name, pay: x.payment_type, voided: x.status === "voided" }; });
+        (pu.data || []).forEach((x) => { if (!inv[x.expense_id]) inv[x.expense_id] = { old: true, pay: "cash" }; });
+      }
+      const uids = [...new Set(list.map((x) => x.created_by).filter(Boolean))], names = {};
+      if (uids.length) { const pr = await db.from("profiles").select("id, full_name").in("id", uids); (pr.data || []).forEach((p) => { names[p.id] = p.full_name; }); }
+      drRows = list.filter((x) => !(inv[x.id] && inv[x.id].voided)).map((x) => {
+        const iv = inv[x.id], credit = iv ? iv.pay === "credit" : x.payment_type === "credit";
+        const drawer = !credit && x.from_drawer === true;
+        let how;
+        if (drawer) how = iv ? "مشتريات من الدرج" : "من الدرج";
+        else if (iv) how = credit ? "فاتورة مشتريات آجل" : "فاتورة مشتريات (برّا الدرج)";
+        else if (x.recurring_id) how = "ثابت (برّا الدرج)";
+        else if (credit) how = "ذمة (لسا ما اندفع)";
+        else how = "برّا الدرج (بنك/جيب)";
+        const reason = [x.description, iv && iv.supplier ? "المورّد: " + iv.supplier : "", iv && iv.no ? "فاتورة #" + iv.no : ""].filter(Boolean).join(" · ");
+        const t = x.created_at ? new Date(x.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "—";
+        return { drawer, t, cat: catName(x.category_id), reason: reason || "—", how, who: x.created_by ? (names[x.created_by] || "غير معروف") : (x.recurring_id ? "تلقائي" : "—"), amount: Number(x.amount) || 0 };
+      });
+      renderDayReport(date);
+    }
+    function renderDayReport(date) {
+      const box = $("day-rep");
+      const A = drRows.filter((r) => r.drawer), B = drRows.filter((r) => !r.drawer);
+      const sum = (a) => a.reduce((t, r) => t + r.amount, 0);
+      const d = parse(date), title = `${DAY_NAMES[d.getDay()]} ${shortDate(date)}/${date.slice(0, 4)}`;
+      const table = (rows, label) => rows.length ? `<table class="dr-tbl"><thead><tr><th>الوقت</th><th>التصنيف</th><th>السبب / البيان</th><th>سجّله</th><th>${label}</th><th class="n">المبلغ</th></tr></thead><tbody>${
+        rows.map((r) => `<tr><td class="t">${olvEsc(r.t)}</td><td>${olvEsc(r.cat)}</td><td>${olvEsc(r.reason)}</td><td>${olvEsc(r.who)}</td><td>${olvEsc(r.how)}</td><td class="n">${olvFormatMoney(r.amount)}</td></tr>`).join("")
+      }</tbody></table>` : `<p class="ex-empty" style="padding:10px">ما في دفعات بهالقسم</p>`;
+      const aMore = A.length ? "" : "";
+      box.innerHTML = `<h2>تقرير المصروفات اليومي</h2><p class="dr-sub">${olvEsc(title)} · يوم العمل بيسكّر الساعة 3 الفجر</p>
+        <div class="dr-sums"><div>طلع من درج الكاش<b>${olvFormatMoney(sum(A))}</b></div><div>من برّا الدرج<b>${olvFormatMoney(sum(B))}</b></div></div>
+        <section class="dr-sec"><h3><span>أولاً: طلع من درج الكاش</span><small>${A.length} دفعة · ${olvFormatMoney(sum(A))}</small></h3>${table(A, "الطريقة")}</section>
+        <section class="dr-sec"><h3><span>ثانياً: طلع من برّا الدرج</span><small>${B.length} دفعة · ${olvFormatMoney(sum(B))}</small></h3>${table(B, "الطريقة")}</section>
+        <div class="dr-grand"><span>مجموع المصروفات الكلي لليوم (${drRows.length} دفعة)</span><span>${olvFormatMoney(sum(drRows))}</span></div>`;
+    }
+    function drCsv(date) {
+      const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+      const rows = [["القسم", "الوقت", "التصنيف", "السبب / البيان", "سجّله", "الطريقة", "المبلغ"]];
+      const add = (list, sec) => list.forEach((r) => rows.push([sec, r.t, r.cat, r.reason, r.who, r.how, r.amount.toFixed(2)]));
+      const A = drRows.filter((r) => r.drawer), B = drRows.filter((r) => !r.drawer);
+      const sum = (a) => a.reduce((t, r) => t + r.amount, 0).toFixed(2);
+      add(A, "طلع من الدرج"); rows.push(["مجموع من الدرج", "", "", "", "", "", sum(A)]);
+      add(B, "من برّا الدرج"); rows.push(["مجموع من برّا الدرج", "", "", "", "", "", sum(B)]);
+      rows.push(["المجموع الكلي", "", "", "", "", "", sum(drRows)]);
+      const blob = new Blob(["\ufeff" + rows.map((r) => r.map(q).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = `مصروفات-${date}.csv`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+    function openDayReport(date) {
+      const dlg = $("day-dlg");
+      $("dr-date").value = date;
+      if (!dlg.open) dlg.showModal();
+      buildDayReport(date);
+    }
+    $("day-report-btn").addEventListener("click", () => openDayReport(bizToday()));
+    $("dr-close").addEventListener("click", () => $("day-dlg").close());
+    $("dr-date").addEventListener("change", (e) => { if (e.target.value) buildDayReport(e.target.value); });
+    document.querySelectorAll("[data-drday]").forEach((b) => b.addEventListener("click", () => { const d = addDays(bizToday(), Number(b.dataset.drday)); $("dr-date").value = d; buildDayReport(d); }));
+    $("dr-csv").addEventListener("click", () => drCsv($("dr-date").value));
+    $("dr-print").addEventListener("click", () => {
+      document.body.classList.add("day-printing");
+      const done = () => { document.body.classList.remove("day-printing"); window.removeEventListener("afterprint", done); };
+      window.addEventListener("afterprint", done);
+      window.print();
+    });
+
     let pickedCat = null;
     function renderCatChips() {
       $("cat-chips").innerHTML = categories.map((c) =>
