@@ -13,6 +13,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
+const OLV_DRIVER_API = "https://olv-menu.pages.dev/api/driver-order";
 const OLV_CONTROLS_API = "https://olv-menu.pages.dev/api/controls";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
 const OLV_CARD_SYNC_API = "https://olv-menu.pages.dev/api/card-sync";
@@ -160,12 +161,22 @@ Deno.serve(async (req) => {
       const { status, out } = await olvFetchJson(OLV_MENU_API, {
         method: "PATCH",
         headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
-        body: JSON.stringify({ id: body.id, status: body.status, ...(typeof body.pickup === "string" ? { pickup: body.pickup } : {}) }),
+        body: JSON.stringify({ id: body.id, status: body.status, ...(typeof body.pickup === "string" ? { pickup: body.pickup } : {}), ...(typeof body.driver === "string" ? { driver: body.driver } : {}) }),
       });
       if (status < 400 && body.status === "ready" && typeof body.wa_phone === "string") {
         out.whatsapp = await sendWhatsAppReady(admin, String(body.id), body);
       }
       return json(out, status);
+    }
+
+    // رابط السائق لطلب توصيل (السائقين مش موظفين عندنا): رابط سري لهالطلب بس فيه العنوان والملاحة والمبلغ وأزرار الاستلام والتسليم.
+    // التوكن بيتولّد بموقع المنيو (HMAC من مفتاح الإدارة)؛ أي حساب فعّال بيقدر يطلبه (الكاشير مثلًا).
+    if (body.action === "driver_link") {
+      const id = String(body.id || "");
+      if (!id) return json({ ok: false, error: "id مطلوب" }, 400);
+      const { status, out } = await olvFetchJson(`${OLV_DRIVER_API}?id=${encodeURIComponent(id)}&link=1`, { headers: { "x-olv-admin-key": adminKey } }, 1);
+      if (status >= 400 || !out.token) return json({ ok: false, error: String(out.error || "تعذّر توليد رابط السائق") }, status >= 400 ? status : 502);
+      return json({ ok: true, url: `${OLV_SITE}/d.html?o=${encodeURIComponent(id)}&t=${out.token}` });
     }
 
     // مزامنة أصناف المخزون (مشروبات وبضاعة جاهزة) مع المنيو العام: كل مادة معلّمة menu_enabled
@@ -389,7 +400,7 @@ Deno.serve(async (req) => {
       return json(out, status);
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو menu_items أو push_cards أو staff_link أو get_controls أو set_controls)" }, 400);
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو menu_items أو push_cards أو staff_link أو driver_link أو get_controls أو set_controls)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }
