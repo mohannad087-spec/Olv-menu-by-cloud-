@@ -253,6 +253,7 @@
   .od-facts .bad, .od-facts .bad b{color:var(--danger-hi);}
   .od-reprints{margin:10px 2px 0; font-size:12px; color:var(--muted); line-height:1.7;}
   .od-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
+  .od-actions[hidden]{display:none;}
   .od-actions .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px;}
   /* نافذة إضافة أصناف: ورقة معتمة بتوكنات النظام، تنزل من تحت بالموبايل */
   .ai-dlg{border:1px solid var(--hair); border-radius:22px; padding:0; width:min(620px,94vw); max-height:min(88vh,760px); background:var(--ink-2); color:var(--paper); overflow:hidden; margin:auto;}
@@ -1000,6 +1001,12 @@
     // ---------------------------------------------------------------
     // تفاصيل الطلب: الأصناف + إلغاء صنف، معلومات الدفع، إعادات الطباعة، الأزرار
     // ---------------------------------------------------------------
+    // طريقة الدفع الحالية لو الطلب مدفوع بطريقة وحدة (وإلا ما بنقدر نصحّحه من هون)
+    function payKind(r) {
+      const c = Number(r.cash_amount) > 0, k = Number(r.card_amount) > 0, d = Number(r.delivery_amount) > 0;
+      if (c + k + d !== 1) return null;
+      return c ? "cash" : k ? "card" : "delivery";
+    }
     function detailHtml(r) {
       const voided = r.status === "voided";
       const items = r.sale_items || [];
@@ -1039,8 +1046,10 @@
           <button class="btn small" data-reprint="${r.id}" data-label="${olvEsc(label)}">${olvIcon("printer")} إعادة طباعة</button>
           <button class="btn small gold" data-add-items="${r.id}">${olvIcon("plus")} إضافة أصناف</button>
           <button class="btn small" data-merge="${r.id}">${olvIcon("receipt")} دمج مع طلبات</button>
+          ${canEdit && payKind(r) ? `<button class="btn small" data-pay-fix="${r.id}">${olvIcon("creditCard")} صحّح طريقة الدفع</button>` : ""}
           <button class="btn small danger" data-void="${r.id}">${olvIcon("x")} إلغاء الطلب</button>
-        </div>`;
+        </div>
+        <div class="od-actions" data-pay-opts="${r.id}" hidden></div>`;
       return `<div class="od-box">${itemsHtml}</div>${facts.length ? `<div class="od-facts">${facts.join("")}</div>` : ""}${rpHtml}${edHtml}${actions}`;
     }
 
@@ -1068,6 +1077,23 @@
       if (addBtn) addBtn.addEventListener("click", () => openAddItems(r));
       const mgBtn = wrap.querySelector("[data-merge]");
       if (mgBtn) mgBtn.addEventListener("click", () => openMerge(r));
+      const fixBtn = wrap.querySelector("[data-pay-fix]");
+      if (fixBtn) fixBtn.addEventListener("click", () => {
+        const box = wrap.querySelector("[data-pay-opts]");
+        const cur = payKind(r);
+        const opts = [["cash", "كاش"], ["cliq", "كليك"], ["card", "شبكة"], ["delivery", "توصيل"]].filter(([k]) => k !== cur);
+        box.innerHTML = `<span style="align-self:center;font-size:13px;color:var(--muted)">حوّله إلى:</span>` + opts.map(([k, l]) => `<button class="btn small gold" data-to="${k}">${l}</button>`).join("");
+        box.hidden = !box.hidden;
+        box.querySelectorAll("[data-to]").forEach((b) => b.addEventListener("click", async () => {
+          const reason = askReason("سبب التصحيح (مثال: دفع كليك انسجل كاش):");
+          if (!reason) return;
+          b.disabled = true;
+          const { error } = await window.supabaseClient.rpc("change_sale_payment", { p_sale_id: r.id, p_method: b.dataset.to, p_reason: reason });
+          if (error) { b.disabled = false; olvShowError(errBox, error); return; }
+          olvToast("انصحّحت طريقة الدفع", { type: "ok" });
+          await load();
+        }));
+      });
       const v = wrap.querySelector("[data-void]");
       if (v) olvHoldConfirm(v, async () => {
         const reason = askVoidReason();

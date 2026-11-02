@@ -78,6 +78,9 @@
   .eq li.total .op{background:var(--paper); color:var(--ink-2);}
   .eq li.total .nm b{font-size:16px; font-weight:800;}
   .eq li.total .v{font-size:clamp(26px,4vw,34px); color:var(--paper);}
+  .cr-match{margin-top:10px; padding:10px 12px; border-radius:14px; background:var(--ink-3);}
+  .cr-match summary{cursor:pointer; font-size:13.5px; font-weight:700; min-height:32px; display:flex; align-items:center;}
+  .cr-match input{width:100%; box-sizing:border-box; min-height:44px; margin-top:8px; padding:8px 12px; font-size:16px; border:1px solid var(--hair); border-radius:12px; background:var(--ink-2); color:var(--paper); font-family:'Tajawal',sans-serif;}
   .cr-aside{margin:6px 0 0; color:var(--muted); font-size:12.5px; line-height:1.6; display:flex; gap:6px; align-items:flex-start;}
   .cr-aside .icon{width:14px; height:14px; flex:none; margin-top:3px;}
 
@@ -299,6 +302,12 @@
             </li>
           </ul>
           <p class="cr-aside" id="other-pay" hidden></p>
+          <details class="cr-match" id="card-match">
+            <summary>طابق الشبكة وكليك (لو في عجز)</summary>
+            <p class="cr-aside" style="margin-top:8px">اكتب مجموع الشبكة وكليك اليوم حسب جهاز الشبكة وكشف كليك، وبنقارنه بالمسجّل بالنظام. لو أكتر، معناها دفعات كليك أو شبكة انسجلت كاش بالغلط، وهاي بتزيّد «المفروض بالدرج» وبتطلّع عجز وهمي.</p>
+            <input type="number" id="card_actual" step="0.01" min="0" inputmode="decimal" placeholder="مجموع الشبكة + كليك الفعلي" aria-label="مجموع الشبكة وكليك الفعلي">
+            <p class="cr-aside" id="card-match-out" aria-live="polite"></p>
+          </details>
         </section>
 
         <section class="group">
@@ -469,9 +478,19 @@
       $("r-val").innerHTML = `<span class="num">${s.cls === "ok" ? "0.00" : (diff > 0 ? "+" : "−") + money(Math.abs(diff))}</span>`;
       $("notes-label").textContent = s.cls === "ok" ? "ملاحظة (اختياري)" : "سبب " + s.word + " (اختياري)";
     }
+    // مطابقة الشبكة/كليك: الفرق بين الفعلي والمسجّل = دفعات انسجلت كاش بالغلط (بتزيّد المفروض بالدرج)
+    function recalcCardMatch() {
+      const out = $("card-match-out"), raw = $("card_actual").value;
+      if (raw === "") { out.textContent = ""; return; }
+      const diff = r2(Number(raw) - ctx.card);
+      if (Math.abs(diff) < 0.005) out.textContent = `مطابق. المسجّل بالنظام شبكة وكليك ${money(ctx.card)}.`;
+      else if (diff > 0) out.textContent = `الفعلي أكتر من المسجّل بـ ${money(diff)} (المسجّل ${money(ctx.card)}). غالباً ${money(diff)} دفعات شبكة أو كليك انسجلت كاش. صحّحها من صفحة المبيعات ← الطلب ← «صحّح طريقة الدفع»، وبينزل المفروض بالدرج لـ ${money(r2(expectedNow() - diff))}.`;
+      else out.textContent = `المسجّل شبكة أكتر من الفعلي بـ ${money(Math.abs(diff))}. ممكن دفعة كاش انسجلت شبكة.`;
+    }
+    $("card_actual").addEventListener("input", recalcCardMatch);
     ["opening_balance", "cash_out", "actual_closing"].forEach((id) => $(id).addEventListener("input", () => {
       if (id === "opening_balance") openingTouched = true;
-      recalc();
+      recalc(); recalcCardMatch();
     }));
     $("fill-exp").addEventListener("click", () => { $("cash_out").value = ctx.expToday.toFixed(2); recalc(); });
 
