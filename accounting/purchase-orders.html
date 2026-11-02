@@ -527,7 +527,8 @@
     async function linkItem(it) {
       const col = it.kind === "ingredient" ? "ingredient_id" : "supply_id";
       const { error } = await window.supabaseClient.from("supplier_items").insert({ supplier_id: supplier.id, [col]: it.id });
-      if (error) throw error;
+      // 23505 = مربوطة من قبل (مكررة): مش خطأ، نكمّل عادي
+      if (error && error.code !== "23505") throw error;
       linked.set(it.key, { auto: false });
     }
     async function unlink(idx) {
