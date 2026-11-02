@@ -928,7 +928,7 @@
       if (act && act.dataset.act === "settle") {
         if (!confirm(`تسديد ${olvFormatMoney(x.amount)} كاش؟ رح ينحسب من درج اليوم.`)) return;
         act.disabled = true;
-        window.supabaseClient.from("expenses").update({ payment_type: "cash", settled_at: new Date().toISOString() }).eq("id", x.id).eq("payment_type", "credit")
+        window.supabaseClient.from("expenses").update({ payment_type: "cash", settled_at: new Date().toISOString(), from_drawer: true }).eq("id", x.id).eq("payment_type", "credit")
           .then(({ error }) => { if (error) olvShowError(errBox, error); else { olvToast("تم التسديد"); load(); } });
         return;
       }

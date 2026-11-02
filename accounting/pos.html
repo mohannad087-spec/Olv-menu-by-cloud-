@@ -260,7 +260,16 @@
   .checkout-summary .row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:var(--muted);}
   .checkout-summary .row span:first-child{color:var(--paper);}
 
-  .pm-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
+  .pm-tiles{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;}
+  /* «على حساب موظف»: ذمة بتنخصم من الراتب، بسعر التكلفة */
+  .staff-panel{display:flex; flex-direction:column; gap:12px;}
+  .staff-panel label{font-size:12.5px; color:var(--muted); display:block; margin-bottom:5px;}
+  .staff-panel select, .staff-panel input{width:100%; min-height:50px; font-size:17px; padding:8px 12px; border-radius:14px; border:1.5px solid var(--hair); background:var(--ink-3); color:var(--paper); font-family:inherit; box-sizing:border-box;}
+  .staff-panel input{font-size:26px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums;}
+  .staff-panel select:focus, .staff-panel input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .staff-hint{font-size:12.5px; color:var(--muted); line-height:1.7; padding:10px 12px; border-radius:12px; background:rgba(var(--gold-rgb),.08);}
+  .staff-hint b{color:var(--paper);}
+  .staff-hint.warn{background:rgba(179,64,47,.1);}
   .pm-tile{
     background:var(--ink-3); border:1.5px solid var(--hair); border-radius:14px; padding:14px 6px;
     display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12.5px; color:var(--muted);
@@ -1964,6 +1973,39 @@
       let method = "cash";
       let receivedCents = 0;
       let isSubmitting = false;
+      // «على حساب موظف»: الموظف + المبلغ المحمّل عليه (تكلفة الطلب، قابل للتعديل)
+      let staffList = null, staffId = "", staffAmount = "", staffCost = null, staffErr = "";
+      async function loadStaffInfo() {
+        if (staffList) return;
+        try {
+          const { data, error } = await window.supabaseClient.rpc("staff_names");
+          if (error) throw error;
+          staffList = data || [];
+        } catch (e) {
+          staffList = [];
+          staffErr = /staff_names/.test(String(e && e.message)) ? "ميزة الحساب على الموظف لسا ما تفعّلت بقاعدة البيانات" : ((e && e.message) || "تعذّر تحميل الموظفين");
+        }
+        // تكلفة الطلب: التكلفة اليدوية للصنف، وإلا من الوصفة (آخر سعر شراء). الأصناف بدون تكلفة معروفة بتنعد غير معروفة
+        const costOf = new Map();
+        try {
+          const ids = cartSnapshot.map((i) => i.productId);
+          const [ri, ing] = await Promise.all([
+            window.supabaseClient.from("product_ingredients").select("product_id, ingredient_id, quantity").in("product_id", ids),
+            window.supabaseClient.from("ingredients").select("id, unit_price"),
+          ]);
+          const price = new Map((ing.data || []).map((x) => [x.id, Number(x.unit_price || 0)]));
+          (ri.data || []).forEach((r) => costOf.set(r.product_id, (costOf.get(r.product_id) || 0) + Number(r.quantity) * (price.get(r.ingredient_id) || 0)));
+        } catch (_) { /* نكمل بالتكلفة اليدوية */ }
+        let known = 0; const unknown = [];
+        cartSnapshot.forEach((i) => {
+          const pr = products.find((x) => x.id === i.productId);
+          const man = pr ? Number(pr.cost_manual) : 0;
+          const c = man > 0 ? man : (costOf.get(i.productId) || 0);
+          if (c > 0) known += c * i.qty; else unknown.push(i.name);
+        });
+        staffCost = { known: Math.round(known * 100) / 100, unknown };
+        if (!staffAmount && known > 0) staffAmount = staffCost.known.toFixed(2);
+      }
 
       const backdrop = document.createElement("div");
       backdrop.className = "checkout-backdrop";
@@ -1983,14 +2025,14 @@
       function render() {
         const receivedAmount = receivedCents / 100;
         const change = receivedAmount - exact;
-        const canConfirm = method !== "cash" || receivedAmount >= exact;
+        const canConfirm = method === "staff" ? !!staffId && Number(staffAmount) > 0 : (method !== "cash" || receivedAmount >= exact);
 
         modal.innerHTML = `
           <div class="checkout-head">
             <h2>إتمام الدفع</h2>
             <button type="button" class="checkout-close" id="checkout-close">${olvIcon("x")}</button>
           </div>
-          <div class="checkout-body${method === "cash" ? " has-cash" : ""}">
+          <div class="checkout-body${method === "cash" || method === "staff" ? " has-cash" : ""}">
           <div class="checkout-info">
           <div class="checkout-total">
             <div class="label">الإجمالي المطلوب</div>
@@ -2009,8 +2051,22 @@
             <button type="button" class="pm-tile${method === "cash" ? " on" : ""}" data-method="cash">${olvIcon("banknote")}كاش</button>
             <button type="button" class="pm-tile${method === "card" ? " on" : ""}" data-method="card">${olvIcon("creditCard")}شبكة</button>
             <button type="button" class="pm-tile${method === "delivery" ? " on" : ""}" data-method="delivery">${olvIcon("mapPin")}توصيل</button>
+            <button type="button" class="pm-tile${method === "staff" ? " on" : ""}" data-method="staff">${olvIcon("person")}على حساب موظف</button>
           </div>
           </div>
+          ${method === "staff" ? `
+            <div class="staff-panel">
+              <div>
+                <label for="staff-sel">الموظف</label>
+                <select id="staff-sel"><option value="">${staffList ? "اختار الموظف…" : "بنحمّل…"}</option>${(staffList || []).map((u) => `<option value="${olvEsc(u.id)}"${u.id === staffId ? " selected" : ""}>${olvEsc(u.full_name)}</option>`).join("")}</select>
+              </div>
+              <div>
+                <label for="staff-amt">المبلغ عليه (سعر التكلفة)</label>
+                <input id="staff-amt" type="number" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(staffAmount)}" placeholder="0.00">
+              </div>
+              ${staffErr ? `<div class="staff-hint warn">${olvEsc(staffErr)}</div>` : staffCost && staffCost.unknown.length ? `<div class="staff-hint warn">تكلفة <b>${olvEsc(staffCost.unknown.join("، "))}</b> مش مسجّلة. المبلغ فوق بيشمل المعروف بس (${olvFormatMoney(staffCost.known)})، عدّله إذا لازم.</div>` : `<div class="staff-hint">بينسجّل ذمة على الموظف وبينخصم من راتبه، أو بيسدّد قبلها. ما بينزل بالدرج. بالصالة قد يحتاج رمز المدير.</div>`}
+            </div>
+          ` : ""}
           ${method === "cash" ? `
             <div class="cash-panel">
               <div class="received-row">
@@ -2039,8 +2095,15 @@
 
         modal.querySelector("#checkout-close").addEventListener("click", close);
         modal.querySelectorAll(".pm-tile").forEach((btn) => {
-          btn.addEventListener("click", () => { method = btn.dataset.method; render(); });
+          btn.addEventListener("click", () => {
+            method = btn.dataset.method; render();
+            if (method === "staff" && !staffList) loadStaffInfo().then(() => { if (method === "staff") render(); });
+          });
         });
+        if (method === "staff") {
+          modal.querySelector("#staff-sel").addEventListener("change", (e) => { staffId = e.target.value; modal.querySelector("#checkout-confirm").disabled = !(staffId && Number(staffAmount) > 0); });
+          modal.querySelector("#staff-amt").addEventListener("input", (e) => { staffAmount = e.target.value; modal.querySelector("#checkout-confirm").disabled = !(staffId && Number(staffAmount) > 0); });
+        }
         if (method === "cash") {
           modal.querySelectorAll(".quick-amounts button").forEach((btn) => {
             btn.addEventListener("click", () => { receivedCents = Math.round(Number(btn.dataset.amt) * 100); render(); });
@@ -2075,12 +2138,32 @@
             extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
           }
           const queuedBefore = window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0;
+          let staffSaleId = null;
+          if (method === "staff") {
+            if (!navigator.onLine) throw new Error("الحساب على الموظف بيحتاج اتصال بالإنترنت. اختار كاش أو حاول لما يرجع النت");
+            const who = (staffList || []).find((u) => u.id === staffId);
+            if (!who || !(Number(staffAmount) > 0)) throw new Error("اختار الموظف واكتب المبلغ");
+            extraNotes = `على حساب الموظف ${who.full_name} — ${olvFormatMoney(Number(staffAmount))}`;
+          }
           // خصم فوق حد الكاشير: السيرفر بيرفض، فبنسأل عن رمز المدير وبنعيد نفس البيع (client_ref بيمنع التكرار)
-          await olvWithApproval("discount", () => OlvCart.checkout({
+          const itemsNote = cartSnapshot.map((i) => `${i.qty}× ${i.name}`).join("، ");
+          staffSaleId = await olvWithApproval("discount", () => OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
             discountAmount,
           }));
+          if (method === "staff") {
+            // البيعة انحفظت؛ هلأ منسجّل الذمة على الموظف. لو فشلت لازم الكاشير يعرف حتى ما تضيع
+            const { error: chErr } = await window.supabaseClient.rpc("add_staff_charge", {
+              p_profile_id: staffId, p_sale_id: staffSaleId, p_amount: Number(staffAmount), p_note: "طلب على الحساب: " + itemsNote,
+            });
+            if (chErr) {
+              clearDraft(); resetDiscount(); renderCart(); refreshPopularityAndGrid();
+              isSubmitting = false; close();
+              olvShowError(errBox, new Error("البيعة انحفظت بس الذمة على الموظف ما انسجلت (" + (chErr.message || "خطأ") + "). بلّغ المدير يسجّلها يدويًا من الرواتب > سلف: " + olvFormatMoney(Number(staffAmount))));
+              return;
+            }
+          }
           clearDraft();
           resetDiscount();
           // بعد كل بيع: فضّي الاسم ورقم الصالة والتلفون حتى الطلب الجاي يبدأ فاضي
