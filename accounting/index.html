@@ -227,6 +227,11 @@
     #print-area th{background:#f2f2f2;}
     #print-area .totals td{font-weight:700;}
   }
+  .t.cmp{--tc:#7c4de6; --tb:#efe5f6;}
+  .t.cmp .cmp-row{display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; font-size:13px; color:var(--muted);}
+  .t.cmp .cmp-row b{color:var(--paper); font-size:15px; font-variant-numeric:tabular-nums;}
+  .t.cmp .mid.up{color:#0f9d83!important;} .t.cmp .mid.down{color:#e0367a!important;}
+  .t.cmp #cmp-bar{background:linear-gradient(90deg,#4254e8,#7c4de6);}
 </style>
 </head>
 <body class="olv-glass">
@@ -287,10 +292,14 @@
         <div class="mid" id="stat-expenses">—</div>
         <div class="pbar" aria-hidden="true"><i id="exp-bar"></i></div><div class="tag" id="exp-note"></div>
       </section>
-      <a class="t cta" href="pos.html">
-        <div class="lbl">ابدأ بيع جديد</div>
-        <div class="mid"><span data-icon="bolt"></span>بيع سريع</div>
-      </a>
+      <section class="t cmp" id="cmp-tile">
+        <div class="lbl"><span data-icon="clock"></span>مقارنة بأمس</div>
+        <div class="mid" id="cmp-pct">—</div>
+        <div class="tag" id="cmp-note">مبيعات أمس لحد نفس الساعة</div>
+        <div class="pbar" aria-hidden="true"><i id="cmp-bar"></i></div>
+        <div class="cmp-row"><span>اليوم</span><b id="cmp-today">—</b></div>
+        <div class="cmp-row"><span>أمس</span><b id="cmp-yest">—</b></div>
+      </section>
       <a class="t alert" href="inventory.html" id="low-tile">
         <div class="lbl"><span data-icon="warning"></span>مخزون منخفض</div>
         <div class="mid" id="low-count">—</div>
@@ -551,6 +560,26 @@
           document.getElementById("first-sale").textContent = "أول فاتورة الساعة " + firstAt.toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" });
         }
         drawSpark(sales);
+        // مقارنة مبيعات أمس لحد نفس الساعة (الفواتير اللي انعملت قبل 24 ساعة من هسع)
+        try {
+          const yDate = new Date(new Date(today + "T00:00:00Z").getTime() - 864e5).toISOString().slice(0, 10);
+          const cutoff = Date.now() - 864e5;
+          const { data: yRows, error: yErr } = await window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", yDate).eq("status", "completed");
+          if (yErr) throw yErr;
+          const yTotal = (yRows || []).filter((r) => new Date(r.created_at).getTime() <= cutoff).reduce((a, r) => a + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
+          document.getElementById("cmp-today").textContent = money(totalSales);
+          document.getElementById("cmp-yest").textContent = money(yTotal);
+          const pctEl = document.getElementById("cmp-pct");
+          if (yTotal > 0) {
+            const d = Math.round((totalSales - yTotal) / yTotal * 100);
+            pctEl.textContent = "\u200E" + (d > 0 ? "▲ +" : d < 0 ? "▼ -" : "") + Math.abs(d) + "%";
+            pctEl.classList.add(d >= 0 ? "up" : "down");
+            document.getElementById("cmp-bar").style.width = Math.max(4, Math.min(100, totalSales / yTotal * 50)) + "%";
+          } else {
+            pctEl.textContent = "—";
+            document.getElementById("cmp-note").textContent = "ما في مبيعات أمس لهالساعة للمقارنة";
+          }
+        } catch (e) { document.getElementById("cmp-note").textContent = "تعذّرت المقارنة"; }
 
         // طرق الدفع: كاش / شبكة / توصيل كنسبة من مبيعات اليوم
         const parts = [
