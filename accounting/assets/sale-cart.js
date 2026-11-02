@@ -104,7 +104,7 @@ const OlvCart = (function () {
     const args = {
       p_entry_date: entryDate,
       p_cash: paymentMethod === "cash" ? grand : 0,
-      p_card: paymentMethod === "card" ? grand : 0,
+      p_card: paymentMethod === "card" || paymentMethod === "cliq" ? grand : 0, // كليك بيتحسب مع الشبكة (مش كاش)، وبيتعلّم بالملاحظات
       p_delivery: paymentMethod === "delivery" ? grand : 0,
       p_notes: notes,
       p_items: rpcItems,
