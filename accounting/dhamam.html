@@ -180,11 +180,23 @@
       </section>
     </div>
 
-    <section class="group dh-sec" id="sec-get" hidden>
-      <div class="dh-card-head"><h2 id="h-emp"></h2><span class="dh-total" id="t-emp"></span></div>
-      <p class="hint">طلبات الموظفين «على حساب موظف» والسلف. بتنخصم من الراتب لحالها لما تدفع الراتب، أو سجّل «استلمت» إذا سدّدها قبل.</p>
-      <ul class="dh-list" id="l-emp"></ul>
-    </section>
+    <div class="dh-sec" id="sec-get" hidden>
+      <section class="group">
+        <div class="dh-card-head"><h2 id="h-emp"></h2><span class="dh-total" id="t-emp"></span></div>
+        <p class="hint">طلبات الموظفين «حساب موظف» والسلف. بتنخصم من الراتب لحالها لما تدفع الراتب، أو سجّل «استلمت» إذا سدّدها قبل.</p>
+        <ul class="dh-list" id="l-emp"></ul>
+      </section>
+      <section class="group">
+        <div class="dh-card-head"><h2 id="h-sc"></h2><span class="dh-total" id="t-sc"></span></div>
+        <p class="hint">موردين دفعنا لهم زيادة، فصار لإلنا رصيد عندهم. «استلمت» بتسجّل إنهم رجّعوا المبلغ (كله أو جزء).</p>
+        <ul class="dh-list" id="l-sc"></ul>
+      </section>
+      <section class="group">
+        <div class="dh-card-head"><h2 id="h-ot"></h2><span class="dh-total" id="t-ot"></span></div>
+        <p class="hint">أي جهة تانية عليها لإلنا مبلغ (زبون، صديق، شريك...).</p>
+        <ul class="dh-list" id="l-ot"></ul>
+      </section>
+    </div>
 
     <section class="group dh-sec" id="sec-log" hidden>
       <h2 id="h-log"></h2>
@@ -230,11 +242,14 @@
     $("ic-net").innerHTML = olvIcon("barChart");
     $("h-sup").innerHTML = olvIcon("truck") + " ديون الموردين";
     $("h-exp").innerHTML = olvIcon("receipt") + " مصاريف ذمة";
-    $("h-emp").innerHTML = olvIcon("people") + " ذمم الموظفين";
+    $("h-emp").innerHTML = olvIcon("people") + " الموظفين";
+    $("h-sc").innerHTML = olvIcon("truck") + " رصيد لنا عند موردين";
+    $("h-ot").innerHTML = olvIcon("person") + " جهات أخرى";
     $("h-log").innerHTML = olvIcon("clock") + " آخر التسديدات";
     $("add-btn").innerHTML = olvIcon("plus") + "<span>ذمة جديدة</span>";
 
-    let sup = [], supAll = [], exps = [], emps = [], log = [];
+    let othPaid = [];
+    let sup = [], supAll = [], exps = [], emps = [], supCr = [], oth = [], othNames = [], log = [];
     let openEmp = null;
     let expFilter = "all";
     let session = null, empList = [], catList = [];
@@ -310,6 +325,13 @@
       }
       exps = (ex.data || []).filter((x) => !viaInv.has(x.id));
 
+      supCr = (b.data || []).filter((x) => Number(x.balance) < -0.004).map((x) => ({ id: x.supplier_id, name: names.get(x.supplier_id) || "مورّد", credit: r2(-Number(x.balance)) })).sort((a, c) => c.credit - a.credit);
+      // جهات أخرى: لو الجدول لسا ما انضاف (schema-receivables.sql) منكمل بدونها
+      const orx = await db().from("other_receivables").select("*").order("receivable_date");
+      const orows = orx.error ? [] : (orx.data || []);
+      oth = orows.filter((x) => !x.paid_at).map((x) => ({ ...x, amount: Number(x.amount) }));
+      othNames = [...new Set(orows.map((x) => x.party_name))];
+      othPaid = orows.filter((x) => x.paid_at && daysAgo(x.paid_at) <= 30).map((x) => ({ at: x.paid_at, who: x.party_name, kind: "in", amount: Number(x.amount), method: x.paid_method, text: x.note || "" }));
       const pn = new Map(((ap.data) || []).map((x) => [x.id, x.full_name]));
       // دفعات مباشرة (paid_at) ما بتنعد ذمة. لو العمود لسا ما انضاف، الكل بينعد
       const open = (ad.data || []).filter((x) => !x.paid_at);
@@ -323,7 +345,7 @@
 
       const staffPaid = (ad.data || []).filter((x) => x.paid_at && daysAgo(x.paid_at) <= 30).map((x) => ({ at: x.paid_at, who: pn.get(x.profile_id) || "موظف", kind: "in", amount: Number(x.amount), method: x.paid_method, text: x.note || "ذمة موظف" }));
       const supPaid = (sp.data || []).map((x) => ({ at: x.created_at, who: names.get(x.supplier_id) || "مورّد", kind: "out", amount: Number(x.amount), method: x.payment_method, text: x.description || "دفعة" }));
-      log = [...staffPaid, ...supPaid].sort((a, c) => new Date(c.at) - new Date(a.at));
+      log = [...staffPaid, ...supPaid, ...othPaid].sort((a, c) => new Date(c.at) - new Date(a.at));
       render();
     }
 
@@ -334,17 +356,20 @@
       const supTotal = r2(sup.reduce((t, x) => t + x.balance, 0));
       const expTotal = r2(exps.reduce((t, x) => t + Number(x.amount), 0));
       const owe = r2(supTotal + expTotal);
-      const get = r2(emps.reduce((t, x) => t + x.total, 0));
+      const empTotal = r2(emps.reduce((t, x) => t + x.total, 0));
+      const scTotal = r2(supCr.reduce((t, x) => t + x.credit, 0));
+      const othTotal = r2(oth.reduce((t, x) => t + x.amount, 0));
+      const get = r2(empTotal + scTotal + othTotal);
       $("k-owe").textContent = money(owe);
       $("n-owe").textContent = `${sup.length} مورّد · ${exps.length} مصروف ذمة`;
       $("k-get").textContent = money(get);
-      $("n-get").textContent = `${emps.length} موظف`;
+      $("n-get").textContent = [emps.length ? `${emps.length} موظف` : "", supCr.length ? `${supCr.length} مورّد` : "", oth.length ? `${oth.length} جهة` : ""].filter(Boolean).join(" · ") || "ما في";
       const net = r2(get - owe);
       $("k-net").textContent = money(Math.abs(net));
       $("n-net").textContent = net > 0.004 ? "النا أكتر من اللي علينا" : net < -0.004 ? "علينا أكتر من اللي النا" : "متعادل";
 
       $("tab-owe").innerHTML = olvIcon("minusCircle") + `<span>علينا</span><span class="n">${sup.length + exps.length}</span>`;
-      $("tab-get").innerHTML = olvIcon("plus") + `<span>النا</span><span class="n">${emps.length}</span>`;
+      $("tab-get").innerHTML = olvIcon("plus") + `<span>النا</span><span class="n">${emps.length + supCr.length + oth.length}</span>`;
       $("tab-log").innerHTML = olvIcon("clock") + `<span>التسديدات</span>`;
 
       $("l-sup").innerHTML = sup.length ? sup.map((x) => `
@@ -356,7 +381,21 @@
 
       $("t-sup").textContent = sup.length ? money(supTotal) : "";
       $("t-exp").textContent = exps.length ? money(expTotal) : "";
-      $("t-emp").textContent = emps.length ? money(get) : "";
+      $("t-emp").textContent = emps.length ? money(empTotal) : "";
+      $("t-sc").textContent = supCr.length ? money(scTotal) : "";
+      $("t-ot").textContent = oth.length ? money(othTotal) : "";
+      $("l-sc").innerHTML = supCr.length ? supCr.map((x) => `
+        <li class="dh-row" data-sc="${olvEsc(x.id)}">
+          <div class="ci">${olvIcon("truck")}</div>
+          <div class="t"><b>${olvEsc(x.name)}</b><small><a href="suppliers.html" style="color:inherit;">حركاته</a></small></div>
+          <div class="m"><b>${money(x.credit)}</b><button type="button" class="btn go dh-act" data-act="recvsup">${olvIcon("check")}<span>استلمت</span></button></div>
+        </li>`).join("") : `<li class="dh-empty">ما في رصيد لنا عند موردين</li>`;
+      $("l-ot").innerHTML = oth.length ? oth.map((x) => `
+        <li class="dh-row" data-ot="${olvEsc(x.id)}">
+          <div class="ci">${olvIcon("person")}</div>
+          <div class="t"><b>${olvEsc(x.party_name)}</b><small>${shortDate(x.receivable_date)} · ${age(x.receivable_date)}${x.note ? " · " + olvEsc(x.note) : ""}</small></div>
+          <div class="m"><b>${money(x.amount)}</b><button type="button" class="btn go dh-act" data-act="recvoth">${olvIcon("check")}<span>استلمت</span></button></div>
+        </li>`).join("") : `<li class="dh-empty">ما في ذمم على جهات أخرى</li>`;
       const lateN = exps.filter((x) => daysAgo(x.expense_date) >= 30).length;
       $("chip-late").textContent = `متأخر (+30 يوم) ${lateN}`;
       document.querySelectorAll("#exp-chips .dh-chip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.f === expFilter)));
@@ -461,6 +500,31 @@
         withBtn(act, () => receive([r], emp.name, Number(r.amount)));
       }
     });
+    $("l-sc").addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-act="recvsup"]'); if (!btn) return;
+      const x = supCr.find((r) => r.id === btn.closest("[data-sc]").dataset.sc);
+      withBtn(btn, async () => {
+        const p = await askPayment({ title: "استلام من " + x.name, sub: `رصيدنا عنده <b>${money(x.credit)}</b>`, max: x.credit, cta: "تسجيل الاستلام" });
+        if (!p) return;
+        // رجّع المورّد المبلغ: بنسجّله دين عليه بنفس القيمة حتى يرجع الرصيد للصفر
+        const { error } = await db().from("supplier_transactions").insert({ supplier_id: x.id, type: "invoice", amount: p.amount, description: `استلمنا منه (${METHOD[p.method]}) — رصيد لنا`, transaction_date: iso(new Date()) });
+        if (error) throw error;
+        olvToast("انسجل الاستلام", { type: "ok" });
+        await load();
+      });
+    });
+    $("l-ot").addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-act="recvoth"]'); if (!btn) return;
+      const x = oth.find((r) => r.id === btn.closest("[data-ot]").dataset.ot);
+      withBtn(btn, async () => {
+        const p = await askPayment({ title: "استلام من " + x.party_name, sub: `المبلغ <b>${money(x.amount)}</b>`, max: x.amount, fixed: true, cta: "تسجيل الاستلام" });
+        if (!p) return;
+        const { error } = await db().from("other_receivables").update({ paid_at: new Date().toISOString(), paid_method: p.method }).eq("id", x.id).is("paid_at", null);
+        if (error) throw error;
+        olvToast("انسجل الاستلام", { type: "ok" });
+        await load();
+      });
+    });
     $("l-emp").addEventListener("keydown", (e) => {
       if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="toggle"]')) { e.preventDefault(); e.target.click(); }
     });
@@ -469,7 +533,7 @@
     // ذمة جديدة يدوية: علينا (لمورّد أو مصروف ذمة) أو النا (على موظف)
     // ---------------------------------------------------------------
     function openAdd() {
-      let side = "owe", kindOwe = "sup";
+      let side = "owe", kindOwe = "sup", kindGet = "emp";
       const back = document.createElement("div");
       back.className = "dh-modal";
       const today = iso(new Date());
@@ -494,9 +558,24 @@
               <select id="ad-cat">${catList.map((x) => `<option value="${olvEsc(x.id)}">${olvEsc(x.name)}</option>`).join("")}</select>
             `}
           ` : `
-            <label class="l" for="ad-who">الموظف</label>
-            <select id="ad-who">${empList.map((x) => `<option value="${olvEsc(x.id)}">${olvEsc(x.full_name)}</option>`).join("")}</select>
-            <div class="sub" style="margin:6px 0 0;">بينسجّل كسلفة وبينخصم من راتبه، أو بتسجّل «استلمت» قبلها.</div>
+            <div class="dh-pay" id="ad-kindg" style="margin-top:8px;">
+              <label class="${kindGet === "emp" ? "on" : ""}" data-v="emp"><input type="radio" name="ad-kindg" value="emp">موظف</label>
+              <label class="${kindGet === "sup" ? "on" : ""}" data-v="sup"><input type="radio" name="ad-kindg" value="sup">مورّد</label>
+              <label class="${kindGet === "oth" ? "on" : ""}" data-v="oth"><input type="radio" name="ad-kindg" value="oth">جهة أخرى</label>
+            </div>
+            ${kindGet === "emp" ? `
+              <label class="l" for="ad-who">الموظف</label>
+              <select id="ad-who">${empList.map((x) => `<option value="${olvEsc(x.id)}">${olvEsc(x.full_name)}</option>`).join("")}</select>
+              <div class="sub" style="margin:6px 0 0;">بينسجّل كسلفة وبينخصم من راتبه، أو بتسجّل «استلمت» قبلها.</div>
+            ` : kindGet === "sup" ? `
+              <label class="l" for="ad-who">المورّد</label>
+              <select id="ad-who">${supAll.map((x) => `<option value="${olvEsc(x.id)}">${olvEsc(x.name)}</option>`).join("")}</select>
+              <div class="sub" style="margin:6px 0 0;">بينسجّل كدفعة زيادة له، فبينقص من دينك عليه، وإذا أكتر من الدين بيصير رصيد لإلنا عنده.</div>
+            ` : `
+              <label class="l" for="ad-party">اسم الجهة</label>
+              <input type="text" id="ad-party" list="ad-parties" maxlength="80" placeholder="مثال: أبو أحمد">
+              <datalist id="ad-parties">${othNames.map((n) => `<option value="${olvEsc(n)}">`).join("")}</datalist>
+            `}
           `}
           <label class="l" for="ad-amt">المبلغ</label>
           <input type="number" id="ad-amt" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0.00">
@@ -508,6 +587,8 @@
           <div class="acts"><button type="button" class="btn go" id="ad-go" style="flex:1;">حفظ</button><button type="button" class="btn" id="ad-no">إلغاء</button></div>
         </div>`;
         back.querySelector("#ad-side").addEventListener("change", (e) => { side = e.target.value; draw(); });
+        const kg = back.querySelector("#ad-kindg");
+        if (kg) kg.addEventListener("change", (e) => { kindGet = e.target.value; draw(); });
         const k = back.querySelector("#ad-kind");
         if (k) k.addEventListener("change", (e) => { kindOwe = e.target.value; draw(); });
         back.querySelector("#ad-no").addEventListener("click", () => back.remove());
@@ -522,11 +603,18 @@
         const who = back.querySelector("#ad-who") ? back.querySelector("#ad-who").value : null;
         if (!(amount > 0)) { err.textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
         if (side === "owe" && kindOwe === "exp" && note.length < 2) { err.textContent = "اكتب بيان المصروف"; return; }
-        if (side !== "owe" || kindOwe === "sup") { if (!who) { err.textContent = side === "get" ? "اختار الموظف" : "اختار المورّد"; return; } }
+        const party = back.querySelector("#ad-party") ? back.querySelector("#ad-party").value.trim() : "";
+        if (side === "get" && kindGet === "oth" && party.length < 2) { err.textContent = "اكتب اسم الجهة"; return; }
+        if ((side === "owe" && kindOwe === "sup") || (side === "get" && kindGet !== "oth")) { if (!who) { err.textContent = side === "get" && kindGet === "emp" ? "اختار الموظف" : "اختار المورّد"; return; } }
         const btn = back.querySelector("#ad-go"); btn.disabled = true;
         try {
           let error;
-          if (side === "get") {
+          if (side === "get" && kindGet === "oth") {
+            ({ error } = await db().from("other_receivables").insert({ party_name: party, amount, receivable_date: date, note: note || null, created_by: session.user.id }));
+            if (error && /other_receivables/.test(error.message || "")) error = new Error("ميزة الجهات الأخرى لسا ما تفعّلت بقاعدة البيانات (schema-receivables.sql)");
+          } else if (side === "get" && kindGet === "sup") {
+            ({ error } = await db().from("supplier_transactions").insert({ supplier_id: who, type: "payment", amount, description: note || "دفعة زيادة — رصيد لنا (من صفحة الذمم)", transaction_date: date }));
+          } else if (side === "get") {
             ({ error } = await db().from("salary_advances").insert({ profile_id: who, amount, advance_date: date, note: note || "ذمة", kind: "advance", created_by: session.user.id }));
           } else if (kindOwe === "sup") {
             ({ error } = await db().from("supplier_transactions").insert({ supplier_id: who, type: "invoice", amount, description: note || "دين سابق (من صفحة الذمم)", transaction_date: date }));
