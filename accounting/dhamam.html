@@ -64,14 +64,26 @@
   .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
   .btn.go:disabled{opacity:.6;}
   .dh-head{margin:4px 0 14px;}
+  .dh-sec > .group + .group{margin-top:14px;}
   .dh-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
   .dh-head .sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
   .stats.dh-stats{grid-template-columns:repeat(3,1fr); margin-bottom:14px;}
   @media (max-width:640px){ .stats.dh-stats{gap:10px;} .dh-stats .stat{padding:13px;} .dh-stats .stat .stat-icon{display:none;} .olv-glass .dh-stats .stat .value{font-size:20px;} }
   .dh-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
-  .dh-stats .value.owe{color:var(--danger-hi);}
-  .dh-stats .value.get{color:var(--olive);}
-  .dh-tabs{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+  /* ألوان معبّرة: علينا وردي/أحمر، النا بنفسجي، الصافي إنديغو */
+  .olv-glass .dh-stats .stat:nth-child(1){--tc:var(--life-3); --tb:var(--life-3b);}
+  .olv-glass .dh-stats .stat:nth-child(2){--tc:var(--life-5); --tb:var(--life-5b);}
+  .olv-glass .dh-stats .stat:nth-child(3){--tc:var(--life-1); --tb:var(--life-1b);}
+  .dh-head{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  .dh-head .btn{min-height:46px; display:inline-flex; align-items:center; gap:7px;}
+  .dh-head .btn .icon{width:17px; height:17px;}
+  .dh-card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
+  .dh-card-head h2{margin:0;}
+  .dh-total{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; color:var(--paper);}
+  .dh-chips{display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 8px;}
+  .dh-chip{min-height:38px; padding:0 14px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:13px; cursor:pointer;}
+  .dh-chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+  .dh-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}  .dh-tabs{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
   .dh-tab{min-height:46px; padding:0 18px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), transform .08s var(--ease);}
   .dh-tab .icon{width:17px; height:17px;}
   .dh-tab .n{font-size:12px; opacity:.8; font-variant-numeric:tabular-nums;}
@@ -90,11 +102,12 @@
   .dh-row .t{min-width:0;}
   .dh-row .t b{display:block; font-size:15px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .dh-row .t small{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
-  .dh-row .m{text-align:left; white-space:nowrap;}
+  .dh-row .m{display:flex; align-items:center; gap:12px; text-align:left; white-space:nowrap;}
   .dh-row .m b{display:block; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums;}
+  @media (max-width:440px){ .dh-row .m{flex-direction:column; align-items:flex-end; gap:6px;} }
   .age{display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700;}
   .age.ok{color:var(--olive);} .age.warn{color:var(--gold-hi);} .age.bad{color:var(--danger-hi);}
-  .dh-act{margin-top:6px; min-height:40px; padding:6px 14px; font-size:13px; display:inline-flex; align-items:center; gap:6px;}
+  .dh-act{min-height:40px; padding:6px 14px; font-size:13px; display:inline-flex; align-items:center; gap:6px;}
   .dh-sub{list-style:none; margin:0 0 6px; padding:0 0 4px; padding-inline-start:52px;}
   .dh-sub li{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 0; font-size:13px; border-bottom:1px dashed var(--hair-soft);}
   .dh-sub li:last-child{border-bottom:0;}
@@ -105,11 +118,13 @@
   @media (max-width:640px){ .dh-sub{padding-inline-start:0;} }
   .dh-empty{padding:26px 8px; text-align:center; color:var(--muted);}
   .dh-pay{display:flex; gap:8px; margin:4px 0 0;}
+  .dh-box select, .dh-box input[type=text], .dh-box input[type=date]{width:100%; min-height:48px; font-size:16px; padding:8px 12px; border-radius:14px; border:1.5px solid var(--hair); background:var(--ink-3); color:var(--paper); font-family:inherit; box-sizing:border-box;}
+  .dh-box .dh-pay{margin-bottom:2px;}
   .dh-pay label{flex:1; border:1px solid var(--hair); border-radius:12px; padding:12px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
   .dh-pay input{display:none;}
   .dh-pay label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:800;}
   .dh-modal{position:fixed; inset:0; background:rgba(20,18,40,.55); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;}
-  .dh-box{width:100%; max-width:380px; background:var(--ink-2); border:1px solid var(--hair); border-radius:20px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .dh-box{width:100%; max-width:400px; max-height:92vh; overflow-y:auto; background:var(--ink-2); border:1px solid var(--hair); border-radius:20px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;}
   .dh-box h3{margin:0 0 4px; font-size:17px;}
   .dh-box .sub{color:var(--muted); font-size:13px; margin-bottom:12px;}
   .dh-box input[type=number]{width:100%; min-height:54px; font-size:26px; font-weight:800; text-align:center; border-radius:14px; border:1.5px solid var(--hair); background:var(--ink-3); color:var(--paper); box-sizing:border-box; font-variant-numeric:tabular-nums;}
@@ -126,8 +141,11 @@
     <div class="err" id="err"></div>
 
     <header class="dh-head">
-      <h1>الذمم</h1>
-      <div class="sub" id="sub">كل اللي علينا واللي النا بمكان واحد</div>
+      <div>
+        <h1>الذمم</h1>
+        <div class="sub" id="sub">كل اللي علينا واللي النا بمكان واحد</div>
+      </div>
+      <button type="button" class="btn go" id="add-btn"></button>
     </header>
 
     <div class="stats dh-stats">
@@ -145,17 +163,25 @@
       <button class="dh-tab" type="button" role="tab" id="tab-log" aria-selected="false" data-tab="log"></button>
     </div>
 
-    <section class="group dh-sec" id="sec-owe">
-      <h2 id="h-sup"></h2>
-      <p class="hint">كل مورّد وكم عليه. التسديد بيتسجّل دفعة للمورّد بالطريقة اللي بتختارها.</p>
-      <ul class="dh-list" id="l-sup"></ul>
-      <h2 id="h-exp" style="margin-top:20px;"></h2>
-      <p class="hint">مصاريف سجلتها «ذمة» (إيجار، كهربا…). التسديد كاش بينحسب من درج اليوم، وبنك أو كليك ما بينزل من الدرج.</p>
-      <ul class="dh-list" id="l-exp"></ul>
-    </section>
+    <div class="dh-sec" id="sec-owe">
+      <section class="group">
+        <div class="dh-card-head"><h2 id="h-sup"></h2><span class="dh-total" id="t-sup"></span></div>
+        <p class="hint">كل مورّد وكم عليه. التسديد بيتسجّل دفعة للمورّد بالطريقة اللي بتختارها.</p>
+        <ul class="dh-list" id="l-sup"></ul>
+      </section>
+      <section class="group">
+        <div class="dh-card-head"><h2 id="h-exp"></h2><span class="dh-total" id="t-exp"></span></div>
+        <p class="hint">مصاريف سجلتها «ذمة» (إيجار، كهربا…). التسديد كاش بينحسب من درج اليوم، وبنك أو كليك ما بينزل من الدرج.</p>
+        <div class="dh-chips" id="exp-chips" role="group" aria-label="فلتر المصاريف">
+          <button type="button" class="dh-chip" data-f="all" aria-pressed="true">الكل</button>
+          <button type="button" class="dh-chip" data-f="late" aria-pressed="false" id="chip-late"></button>
+        </div>
+        <ul class="dh-list" id="l-exp"></ul>
+      </section>
+    </div>
 
     <section class="group dh-sec" id="sec-get" hidden>
-      <h2 id="h-emp"></h2>
+      <div class="dh-card-head"><h2 id="h-emp"></h2><span class="dh-total" id="t-emp"></span></div>
       <p class="hint">طلبات الموظفين «على حساب موظف» والسلف. بتنخصم من الراتب لحالها لما تدفع الراتب، أو سجّل «استلمت» إذا سدّدها قبل.</p>
       <ul class="dh-list" id="l-emp"></ul>
     </section>
@@ -206,9 +232,12 @@
     $("h-exp").innerHTML = olvIcon("receipt") + " مصاريف ذمة";
     $("h-emp").innerHTML = olvIcon("people") + " ذمم الموظفين";
     $("h-log").innerHTML = olvIcon("clock") + " آخر التسديدات";
+    $("add-btn").innerHTML = olvIcon("plus") + "<span>ذمة جديدة</span>";
 
-    let sup = [], exps = [], emps = [], log = [];
+    let sup = [], supAll = [], exps = [], emps = [], log = [];
     let openEmp = null;
+    let expFilter = "all";
+    let session = null, empList = [], catList = [];
     let tab = "owe";
 
     // ---------------------------------------------------------------
@@ -256,16 +285,20 @@
     async function load() {
       errBox.style.display = "none";
       const since = new Date(Date.now() - 30 * 86400000);
-      const [s, b, ex, ad, sp, ap] = await Promise.all([
+      const [s, b, ex, ad, sp, ap, cats] = await Promise.all([
         db().from("suppliers").select("id, name"),
         db().from("supplier_balances").select("supplier_id, balance"),
         db().from("expenses").select("id, amount, description, expense_date, category_id").eq("payment_type", "credit").is("settled_at", null).order("expense_date"),
         db().from("salary_advances").select("*").is("settled_payroll_id", null).order("advance_date"),
         db().from("supplier_transactions").select("id, supplier_id, amount, transaction_date, created_at, description, payment_method").eq("type", "payment").gte("created_at", since.toISOString()).order("created_at", { ascending: false }).limit(60),
         db().from("profiles").select("id, full_name"),
+        db().from("expense_categories").select("id, name").order("name"),
       ]);
+      catList = (cats.data || []).filter((c) => c.name !== "مشتريات ومخزون");
       [s, b, ex, ad, sp].forEach((r) => { if (r.error) throw r.error; });
       const names = new Map((s.data || []).map((x) => [x.id, x.name]));
+      supAll = (s.data || []).slice().sort((a, c) => String(a.name).localeCompare(String(c.name), "ar"));
+      empList = (ap.data || []).filter((x) => x.full_name).sort((a, c) => String(a.full_name).localeCompare(String(c.full_name), "ar"));
       sup = (b.data || []).filter((x) => Number(x.balance) > 0.004).map((x) => ({ id: x.supplier_id, name: names.get(x.supplier_id) || "مورّد", balance: r2(x.balance) })).sort((a, c) => c.balance - a.balance);
 
       // مصاريف ذمة: منستثني اللي نازلة من فواتير مشتريات (دينها محسوب عند المورّد)
@@ -321,12 +354,19 @@
           <div class="m"><b>${money(x.balance)}</b><button type="button" class="btn go dh-act" data-act="paysup">${olvIcon("check")}<span>سدّد</span></button></div>
         </li>`).join("") : `<li class="dh-empty">ما في ديون للموردين</li>`;
 
-      $("l-exp").innerHTML = exps.length ? exps.map((x) => `
+      $("t-sup").textContent = sup.length ? money(supTotal) : "";
+      $("t-exp").textContent = exps.length ? money(expTotal) : "";
+      $("t-emp").textContent = emps.length ? money(get) : "";
+      const lateN = exps.filter((x) => daysAgo(x.expense_date) >= 30).length;
+      $("chip-late").textContent = `متأخر (+30 يوم) ${lateN}`;
+      document.querySelectorAll("#exp-chips .dh-chip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.f === expFilter)));
+      const shownExps = expFilter === "late" ? exps.filter((x) => daysAgo(x.expense_date) >= 30) : exps;
+      $("l-exp").innerHTML = shownExps.length ? shownExps.map((x) => `
         <li class="dh-row" data-exp="${olvEsc(x.id)}">
           <div class="ci">${olvIcon("receipt")}</div>
           <div class="t"><b>${olvEsc(x.description || "مصروف")}</b><small>${shortDate(x.expense_date)} · ${age(x.expense_date)}</small></div>
           <div class="m"><b>${money(x.amount)}</b><button type="button" class="btn go dh-act" data-act="payexp">${olvIcon("check")}<span>سدّد</span></button></div>
-        </li>`).join("") : `<li class="dh-empty">ما في مصاريف ذمة</li>`;
+        </li>`).join("") : `<li class="dh-empty">${expFilter === "late" ? "ما في مصاريف متأخرة" : "ما في مصاريف ذمة"}</li>`;
 
       $("l-emp").innerHTML = emps.length ? emps.map((e) => `
         <li data-emp="${olvEsc(e.id)}">
@@ -352,6 +392,7 @@
       tab = t;
       ["owe", "get", "log"].forEach((k) => { $("sec-" + k).hidden = k !== t; $("tab-" + k).setAttribute("aria-selected", String(k === t)); });
     }
+    $("exp-chips").addEventListener("click", (e) => { const c = e.target.closest("[data-f]"); if (c) { expFilter = c.dataset.f; render(); } });
     document.querySelector(".dh-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) setTab(b.dataset.tab); });
 
     // ---------------------------------------------------------------
@@ -425,8 +466,94 @@
     });
 
     // ---------------------------------------------------------------
+    // ذمة جديدة يدوية: علينا (لمورّد أو مصروف ذمة) أو النا (على موظف)
+    // ---------------------------------------------------------------
+    function openAdd() {
+      let side = "owe", kindOwe = "sup";
+      const back = document.createElement("div");
+      back.className = "dh-modal";
+      const today = iso(new Date());
+      const draw = () => {
+        back.innerHTML = `<div class="dh-box" role="dialog" aria-modal="true">
+          <h3>ذمة جديدة</h3>
+          <div class="dh-pay" id="ad-side">
+            <label class="${side === "owe" ? "on" : ""}" data-v="owe"><input type="radio" name="ad-side" value="owe">علينا</label>
+            <label class="${side === "get" ? "on" : ""}" data-v="get"><input type="radio" name="ad-side" value="get">النا</label>
+          </div>
+          ${side === "owe" ? `
+            <div class="dh-pay" id="ad-kind" style="margin-top:8px;">
+              <label class="${kindOwe === "sup" ? "on" : ""}" data-v="sup"><input type="radio" name="ad-kind" value="sup">لمورّد</label>
+              <label class="${kindOwe === "exp" ? "on" : ""}" data-v="exp"><input type="radio" name="ad-kind" value="exp">مصروف ذمة</label>
+            </div>
+            ${kindOwe === "sup" ? `
+              <label class="l" for="ad-who">المورّد</label>
+              <select id="ad-who">${supAll.map((x) => `<option value="${olvEsc(x.id)}">${olvEsc(x.name)}</option>`).join("")}</select>
+              <div class="sub" style="margin:6px 0 0;">بيزيد دينه عليك (متل «دين سابق»)، بدون ما يدخل المخزون أو المصاريف.</div>
+            ` : `
+              <label class="l" for="ad-cat">التصنيف</label>
+              <select id="ad-cat">${catList.map((x) => `<option value="${olvEsc(x.id)}">${olvEsc(x.name)}</option>`).join("")}</select>
+            `}
+          ` : `
+            <label class="l" for="ad-who">الموظف</label>
+            <select id="ad-who">${empList.map((x) => `<option value="${olvEsc(x.id)}">${olvEsc(x.full_name)}</option>`).join("")}</select>
+            <div class="sub" style="margin:6px 0 0;">بينسجّل كسلفة وبينخصم من راتبه، أو بتسجّل «استلمت» قبلها.</div>
+          `}
+          <label class="l" for="ad-amt">المبلغ</label>
+          <input type="number" id="ad-amt" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0.00">
+          <label class="l" for="ad-note">${side === "owe" && kindOwe === "exp" ? "البيان" : "ملاحظة (اختياري)"}</label>
+          <input type="text" id="ad-note" maxlength="150">
+          <label class="l" for="ad-date">التاريخ</label>
+          <input type="date" id="ad-date" value="${today}" max="${today}">
+          <div class="err" id="ad-err"></div>
+          <div class="acts"><button type="button" class="btn go" id="ad-go" style="flex:1;">حفظ</button><button type="button" class="btn" id="ad-no">إلغاء</button></div>
+        </div>`;
+        back.querySelector("#ad-side").addEventListener("change", (e) => { side = e.target.value; draw(); });
+        const k = back.querySelector("#ad-kind");
+        if (k) k.addEventListener("change", (e) => { kindOwe = e.target.value; draw(); });
+        back.querySelector("#ad-no").addEventListener("click", () => back.remove());
+        back.querySelector("#ad-go").addEventListener("click", save);
+        setTimeout(() => { const a = back.querySelector("#ad-amt"); if (a) a.focus(); }, 30);
+      };
+      async function save() {
+        const err = back.querySelector("#ad-err"); err.textContent = "";
+        const amount = r2(back.querySelector("#ad-amt").value);
+        const note = back.querySelector("#ad-note").value.trim();
+        const date = back.querySelector("#ad-date").value || iso(new Date());
+        const who = back.querySelector("#ad-who") ? back.querySelector("#ad-who").value : null;
+        if (!(amount > 0)) { err.textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
+        if (side === "owe" && kindOwe === "exp" && note.length < 2) { err.textContent = "اكتب بيان المصروف"; return; }
+        if (side !== "owe" || kindOwe === "sup") { if (!who) { err.textContent = side === "get" ? "اختار الموظف" : "اختار المورّد"; return; } }
+        const btn = back.querySelector("#ad-go"); btn.disabled = true;
+        try {
+          let error;
+          if (side === "get") {
+            ({ error } = await db().from("salary_advances").insert({ profile_id: who, amount, advance_date: date, note: note || "ذمة", kind: "advance", created_by: session.user.id }));
+          } else if (kindOwe === "sup") {
+            ({ error } = await db().from("supplier_transactions").insert({ supplier_id: who, type: "invoice", amount, description: note || "دين سابق (من صفحة الذمم)", transaction_date: date }));
+          } else {
+            const cat = back.querySelector("#ad-cat").value;
+            if (!cat) throw new Error("اختار التصنيف");
+            const row = { expense_date: date, category_id: cat, amount, description: note, payment_type: "credit", from_drawer: false, created_by: session.user.id };
+            ({ error } = await db().from("expenses").insert(row));
+            if (error && /from_drawer/.test(error.message || "")) ({ error } = await db().from("expenses").insert({ ...row, from_drawer: undefined }));
+          }
+          if (error) throw error;
+          back.remove();
+          olvToast("انسجلت الذمة", { type: "ok" });
+          setTab(side === "get" ? "get" : "owe");
+          await load();
+        } catch (e) { err.textContent = (e && e.message) || "تعذّر الحفظ"; btn.disabled = false; }
+      }
+      back.addEventListener("click", (e) => { if (e.target === back) back.remove(); });
+      back.addEventListener("keydown", (e) => { if (e.key === "Escape") back.remove(); });
+      document.body.appendChild(back);
+      draw();
+    }
+    $("add-btn").addEventListener("click", openAdd);
+
+    // ---------------------------------------------------------------
     (async () => {
-      const session = await olvRequireAuth();
+      session = await olvRequireAuth();
       if (!session) return;
       if (!window.olvRole || window.olvRole === "staff") { location.replace("expenses.html"); return; }
       try { await load(); } catch (err) { olvShowError(errBox, err); }
