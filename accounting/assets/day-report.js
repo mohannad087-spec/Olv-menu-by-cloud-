@@ -3,14 +3,14 @@
 //                                 الأكثر مبيعًا، وتقفيل الخزينة لو موجود)، بيرسمها
 //                                 على صورة PNG، وبيفتح نافذة فيها معاينة وأزرار
 //                                 «شارك» (واتساب وغيره) و«تنزيل» و«نسخ كنص»
-// الصورة دايمًا بألوان الفاتح (كريمي + ذهبي + زيتوني) مهما كان وضع التطبيق،
+// الصورة دايمًا بألوان الفاتح (لافندر + نيلي) مهما كان وضع التطبيق،
 // عشان تطلع نفس الشي عند كل اللي بيستلموها
 (function () {
   const W = 1080, P = 72;
   const C = {
-    bg: "#f7f1e6", card: "#fffdf8", line: "#e6dac3", text: "#2f2416", muted: "#7c6a50",
-    gold: "#b08a3e", goldDp: "#6b4c14", goldHi: "#e6c983", olive: "#56692e", red: "#a3321f",
-    dark: "#17120d", darkText: "#d9cdb6", delivery: "#c9a993", // ألوان طرق الدفع نفس MASTER.md §8
+    bg: "#fbf9ff", card: "#ffffff", line: "#dcd8f2", text: "#25223a", muted: "#625d78",
+    gold: "#4254e8", goldDp: "#2c36a8", goldHi: "#d6d0ff", olive: "#0f9d83", red: "#d6285f",
+    blue: "#0b86c9", dark: "#17143a", darkText: "#c9c5ea", delivery: "#e0367a", // ألوان طرق الدفع مثل لوحة التحكم (كاش نيلي، شبكة أزرق، توصيل وردي)
   };
   const F = (w, s) => `${w} ${s}px Tajawal, system-ui, sans-serif`;
   const money = (n) => olvFormatMoney(n);
@@ -160,8 +160,8 @@
       text(ctx, "طرق الدفع", R, y, F(700, 34), C.text);
       y += 34;
       const parts = [
-        { l: "كاش", v: d.cash, c: C.olive },
-        { l: "شبكة", v: d.card, c: C.gold },
+        { l: "كاش", v: d.cash, c: C.gold },
+        { l: "شبكة", v: d.card, c: C.blue },
         { l: "توصيل", v: d.delivery, c: C.delivery },
       ].filter((p) => p.v > 0);
       ctx.save(); rr(ctx, P, y, inner, 40, 20); ctx.clip();

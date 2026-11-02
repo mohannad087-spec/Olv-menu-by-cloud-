@@ -537,12 +537,12 @@
       <div style="display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-bottom:16px;">
         <div>
           <label class="hint" for="theme-bg-input" style="display:block; margin-bottom:6px;">لون الخلفية</label>
-          <input type="color" id="theme-bg-input" value="#f7f1e6"
+          <input type="color" id="theme-bg-input" value="#fbf9ff"
             style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
         </div>
         <div>
           <label class="hint" for="theme-accent-input" style="display:block; margin-bottom:6px;">لون العلامة/الأزرار</label>
-          <input type="color" id="theme-accent-input" value="#b08a3e"
+          <input type="color" id="theme-accent-input" value="#4254e8"
             style="width:56px; height:44px; border:1px solid var(--hair); border-radius:8px; background:var(--ink-2); padding:2px; cursor:pointer;">
         </div>
         <button type="button" class="btn gold" id="theme-preview-btn" style="pointer-events:none;">مثال على الزر</button>
@@ -579,8 +579,8 @@
     document.getElementById("import-menu-btn").innerHTML = olvIcon("refresh") + "<span>مزامنة الأصناف من موقع المنيو الحقيقي</span>";
 
     // ---- تخصيص ثيم البرنامج الكامل (خلفية + لون علامة) ----
-    const DEFAULT_BG = "#f7f1e6";
-    const DEFAULT_ACCENT = "#b08a3e";
+    const DEFAULT_BG = "#fbf9ff";
+    const DEFAULT_ACCENT = "#4254e8";
     const bgInput = document.getElementById("theme-bg-input");
     const themeAccentInput = document.getElementById("theme-accent-input");
     const savedTheme = olvGetCustomThemeColors();
