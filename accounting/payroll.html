@@ -387,8 +387,12 @@
     // السلف
     // ---------------------------------------------------------------
     async function loadUnsettledAdvances() {
-      const { data, error } = await window.supabaseClient
-        .from("salary_advances").select("*").is("settled_payroll_id", null).order("advance_date");
+      // الذمم اللي انسدّدت مباشرة (paid_at) ما بتنخصم من الراتب. لو العمود لسا ما انضاف بنكمل بدون الفلتر
+      let { data, error } = await window.supabaseClient
+        .from("salary_advances").select("*").is("settled_payroll_id", null).is("paid_at", null).order("advance_date");
+      if (error && /paid_at/.test(error.message || "")) {
+        ({ data, error } = await window.supabaseClient.from("salary_advances").select("*").is("settled_payroll_id", null).order("advance_date"));
+      }
       if (error) throw error;
       unsettledAdvances = data || [];
       renderAdvances();

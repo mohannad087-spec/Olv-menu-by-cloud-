@@ -291,6 +291,13 @@ const OLV_HUBS = [
     ],
   },
   {
+    navId: "expenses",
+    tabs: [
+      { id: "expenses", href: "expenses.html", label: "المصروفات", icon: "minusCircle" },
+      { id: "dhamam", href: "dhamam.html", label: "الذمم", icon: "wallet" },
+    ],
+  },
+  {
     navId: "item-cards",
     tabs: [
       { id: "item-cards", href: "item-cards.html", label: "البطاقات", icon: "tag" },

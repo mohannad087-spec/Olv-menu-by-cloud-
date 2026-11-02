@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>الذمم — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#fcfaf5">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<style>
+  /* صفحة الذمم (2026-11): ملخص علينا/النا/الصافي ← تبويبين ← آخر التسديدات. القواعد بـ design-system/olv/pages/dhamam.md */
+  .wrap.dh-wrap{max-width:var(--page-max);}
+  .btn.go{background:var(--olive); color:var(--on-olive); border-color:var(--olive); font-weight:700;}
+  .btn.go:disabled{opacity:.6;}
+  .dh-head{margin:4px 0 14px;}
+  .dh-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .dh-head .sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+  .stats.dh-stats{grid-template-columns:repeat(3,1fr); margin-bottom:14px;}
+  @media (max-width:640px){ .stats.dh-stats{gap:10px;} .dh-stats .stat{padding:13px;} .dh-stats .stat .stat-icon{display:none;} .olv-glass .dh-stats .stat .value{font-size:20px;} }
+  .dh-stats .note{display:block; margin-top:5px; font-size:12px; color:var(--muted);}
+  .dh-stats .value.owe{color:var(--danger-hi);}
+  .dh-stats .value.get{color:var(--olive);}
+  .dh-tabs{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+  .dh-tab{min-height:46px; padding:0 18px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), transform .08s var(--ease);}
+  .dh-tab .icon{width:17px; height:17px;}
+  .dh-tab .n{font-size:12px; opacity:.8; font-variant-numeric:tabular-nums;}
+  .dh-tab[aria-selected="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:800;}
+  .dh-tab:active{transform:scale(.97);}
+  .dh-tab:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .dh-sec[hidden]{display:none;}
+  .dh-sec h2{display:flex; align-items:center; gap:8px; margin:0 0 4px; font-size:17px;}
+  .dh-sec h2 .icon{width:18px; height:18px; color:var(--gold-hi);}
+  .dh-sec .hint{color:var(--muted); font-size:12.5px; margin:0 0 10px; line-height:1.6;}
+  .dh-list{list-style:none; margin:0; padding:0;}
+  .dh-row{display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 6px; border-bottom:1px solid var(--hair-soft);}
+  .dh-row:last-child{border-bottom:0;}
+  .dh-row .ci{width:40px; height:40px; border-radius:12px; background:var(--ink-3); display:grid; place-items:center; color:var(--gold-hi);}
+  .dh-row .ci .icon{width:20px; height:20px;}
+  .dh-row .t{min-width:0;}
+  .dh-row .t b{display:block; font-size:15px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .dh-row .t small{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
+  .dh-row .m{text-align:left; white-space:nowrap;}
+  .dh-row .m b{display:block; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .age{display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700;}
+  .age.ok{color:var(--olive);} .age.warn{color:var(--gold-hi);} .age.bad{color:var(--danger-hi);}
+  .dh-act{margin-top:6px; min-height:40px; padding:6px 14px; font-size:13px; display:inline-flex; align-items:center; gap:6px;}
+  .dh-sub{list-style:none; margin:0 0 6px; padding:0 0 4px; padding-inline-start:52px;}
+  .dh-sub li{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 0; font-size:13px; border-bottom:1px dashed var(--hair-soft);}
+  .dh-sub li:last-child{border-bottom:0;}
+  .dh-sub .d{color:var(--muted); font-size:12px; flex:none; width:44px;}
+  .dh-sub .nt{flex:1; min-width:0; overflow-wrap:anywhere;}
+  .dh-sub .a{font-weight:700; font-variant-numeric:tabular-nums; flex:none;}
+  .dh-sub .btn{min-height:36px; padding:4px 10px; font-size:12.5px;}
+  @media (max-width:640px){ .dh-sub{padding-inline-start:0;} }
+  .dh-empty{padding:26px 8px; text-align:center; color:var(--muted);}
+  .dh-pay{display:flex; gap:8px; margin:4px 0 0;}
+  .dh-pay label{flex:1; border:1px solid var(--hair); border-radius:12px; padding:12px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
+  .dh-pay input{display:none;}
+  .dh-pay label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:800;}
+  .dh-modal{position:fixed; inset:0; background:rgba(20,18,40,.55); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;}
+  .dh-box{width:100%; max-width:380px; background:var(--ink-2); border:1px solid var(--hair); border-radius:20px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  .dh-box h3{margin:0 0 4px; font-size:17px;}
+  .dh-box .sub{color:var(--muted); font-size:13px; margin-bottom:12px;}
+  .dh-box input[type=number]{width:100%; min-height:54px; font-size:26px; font-weight:800; text-align:center; border-radius:14px; border:1.5px solid var(--hair); background:var(--ink-3); color:var(--paper); box-sizing:border-box; font-variant-numeric:tabular-nums;}
+  .dh-box label.l{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;}
+  .dh-box .acts{display:flex; gap:8px; margin-top:14px;}
+  .dh-box .acts .btn{min-height:48px;}
+  .dh-box .err{color:var(--danger-hi); font-size:13px; min-height:18px; margin-top:6px;}
+  @media (prefers-reduced-motion: reduce){ .dh-tab{transition:none;} .dh-tab:active{transform:none;} }
+</style>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap dh-wrap">
+    <div class="err" id="err"></div>
+
+    <header class="dh-head">
+      <h1>الذمم</h1>
+      <div class="sub" id="sub">كل اللي علينا واللي النا بمكان واحد</div>
+    </header>
+
+    <div class="stats dh-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-owe"></div>
+        <div class="stat-body"><div class="label">علينا</div><div class="value owe" id="k-owe">—</div><span class="note" id="n-owe">&nbsp;</span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-get"></div>
+        <div class="stat-body"><div class="label">النا</div><div class="value get" id="k-get">—</div><span class="note" id="n-get">&nbsp;</span></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-net"></div>
+        <div class="stat-body"><div class="label">الصافي</div><div class="value" id="k-net">—</div><span class="note" id="n-net">&nbsp;</span></div></div></div>
+    </div>
+
+    <div class="dh-tabs" role="tablist" aria-label="الذمم">
+      <button class="dh-tab" type="button" role="tab" id="tab-owe" aria-selected="true" data-tab="owe"></button>
+      <button class="dh-tab" type="button" role="tab" id="tab-get" aria-selected="false" data-tab="get"></button>
+      <button class="dh-tab" type="button" role="tab" id="tab-log" aria-selected="false" data-tab="log"></button>
+    </div>
+
+    <section class="group dh-sec" id="sec-owe">
+      <h2 id="h-sup"></h2>
+      <p class="hint">كل مورّد وكم عليه. التسديد بيتسجّل دفعة للمورّد بالطريقة اللي بتختارها.</p>
+      <ul class="dh-list" id="l-sup"></ul>
+      <h2 id="h-exp" style="margin-top:20px;"></h2>
+      <p class="hint">مصاريف سجلتها «ذمة» (إيجار، كهربا…). التسديد كاش بينحسب من درج اليوم، وبنك أو كليك ما بينزل من الدرج.</p>
+      <ul class="dh-list" id="l-exp"></ul>
+    </section>
+
+    <section class="group dh-sec" id="sec-get" hidden>
+      <h2 id="h-emp"></h2>
+      <p class="hint">طلبات الموظفين «على حساب موظف» والسلف. بتنخصم من الراتب لحالها لما تدفع الراتب، أو سجّل «استلمت» إذا سدّدها قبل.</p>
+      <ul class="dh-list" id="l-emp"></ul>
+    </section>
+
+    <section class="group dh-sec" id="sec-log" hidden>
+      <h2 id="h-log"></h2>
+      <p class="hint">آخر التسديدات (آخر 30 يوم).</p>
+      <ul class="dh-list" id="l-log"></ul>
+    </section>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("dhamam");
+
+    const $ = (id) => document.getElementById(id);
+    const errBox = $("err");
+    const db = () => window.supabaseClient;
+    const money = (v) => olvFormatMoney(v);
+    const r2 = (v) => Math.round(Number(v) * 100) / 100;
+    const METHOD = { cash: "كاش", bank: "بنك", click: "كليك" };
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const daysAgo = (s) => Math.max(0, Math.floor((Date.now() - new Date(s).getTime()) / 86400000));
+    const shortDate = (s) => { const d = new Date(s); return d.getDate() + "/" + (d.getMonth() + 1); };
+    function age(s) {
+      if (!s) return "";
+      const n = daysAgo(s);
+      const cls = n < 7 ? "ok" : n < 30 ? "warn" : "bad";
+      return `<span class="age ${cls}">${olvIcon("clock")}${n === 0 ? "اليوم" : "من " + n + " يوم"}</span>`;
+    }
+
+    $("ic-owe").innerHTML = olvIcon("minusCircle");
+    $("ic-get").innerHTML = olvIcon("plus");
+    $("ic-net").innerHTML = olvIcon("barChart");
+    $("h-sup").innerHTML = olvIcon("truck") + " ديون الموردين";
+    $("h-exp").innerHTML = olvIcon("receipt") + " مصاريف ذمة";
+    $("h-emp").innerHTML = olvIcon("people") + " ذمم الموظفين";
+    $("h-log").innerHTML = olvIcon("clock") + " آخر التسديدات";
+
+    let sup = [], exps = [], emps = [], log = [];
+    let openEmp = null;
+    let tab = "owe";
+
+    // ---------------------------------------------------------------
+    // نافذة التسديد: المبلغ + طريقة السداد (كاش | بنك | كليك)
+    // ---------------------------------------------------------------
+    function askPayment({ title, sub, max, fixed, cta }) {
+      return new Promise((resolve) => {
+        const back = document.createElement("div");
+        back.className = "dh-modal";
+        back.innerHTML = `<div class="dh-box" role="dialog" aria-modal="true">
+          <h3>${olvEsc(title)}</h3><div class="sub">${sub}</div>
+          <label class="l" for="dp-amt">المبلغ</label>
+          <input type="number" id="dp-amt" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${max.toFixed(2)}"${fixed ? " readonly" : ""}>
+          <label class="l">طريقة السداد</label>
+          <div class="dh-pay" id="dp-m">
+            <label class="on" data-m="cash"><input type="radio" name="dp-m" value="cash" checked>كاش</label>
+            <label data-m="bank"><input type="radio" name="dp-m" value="bank">بنك</label>
+            <label data-m="click"><input type="radio" name="dp-m" value="click">كليك</label>
+          </div>
+          <div class="err" id="dp-err"></div>
+          <div class="acts"><button type="button" class="btn go" id="dp-go" style="flex:1;">${cta || "تسديد"}</button><button type="button" class="btn" id="dp-no">إلغاء</button></div>
+        </div>`;
+        document.body.appendChild(back);
+        const done = (v) => { back.remove(); resolve(v); };
+        back.querySelector("#dp-m").addEventListener("change", (e) => {
+          back.querySelectorAll("#dp-m label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
+        });
+        back.querySelector("#dp-no").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        const go = () => {
+          const amount = r2(back.querySelector("#dp-amt").value);
+          if (!(amount > 0)) { back.querySelector("#dp-err").textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
+          if (amount > max + 0.004) { back.querySelector("#dp-err").textContent = `المبلغ أكبر من المستحق (${money(max)})`; return; }
+          done({ amount, method: back.querySelector("#dp-m input:checked").value });
+        };
+        back.querySelector("#dp-go").addEventListener("click", go);
+        back.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } if (e.key === "Escape") done(null); });
+        setTimeout(() => { const a = back.querySelector("#dp-amt"); if (!fixed) { a.focus(); a.select(); } }, 50);
+      });
+    }
+
+    // ---------------------------------------------------------------
+    // تحميل
+    // ---------------------------------------------------------------
+    async function load() {
+      errBox.style.display = "none";
+      const since = new Date(Date.now() - 30 * 86400000);
+      const [s, b, ex, ad, sp, ap] = await Promise.all([
+        db().from("suppliers").select("id, name"),
+        db().from("supplier_balances").select("supplier_id, balance"),
+        db().from("expenses").select("id, amount, description, expense_date, category_id").eq("payment_type", "credit").is("settled_at", null).order("expense_date"),
+        db().from("salary_advances").select("*").is("settled_payroll_id", null).order("advance_date"),
+        db().from("supplier_transactions").select("id, supplier_id, amount, transaction_date, created_at, description, payment_method").eq("type", "payment").gte("created_at", since.toISOString()).order("created_at", { ascending: false }).limit(60),
+        db().from("profiles").select("id, full_name"),
+      ]);
+      [s, b, ex, ad, sp].forEach((r) => { if (r.error) throw r.error; });
+      const names = new Map((s.data || []).map((x) => [x.id, x.name]));
+      sup = (b.data || []).filter((x) => Number(x.balance) > 0.004).map((x) => ({ id: x.supplier_id, name: names.get(x.supplier_id) || "مورّد", balance: r2(x.balance) })).sort((a, c) => c.balance - a.balance);
+
+      // مصاريف ذمة: منستثني اللي نازلة من فواتير مشتريات (دينها محسوب عند المورّد)
+      const ids = (ex.data || []).map((x) => x.id);
+      const viaInv = new Set();
+      for (let i = 0; i < ids.length; i += 100) {
+        const r = await db().from("purchase_invoices").select("expense_id").in("expense_id", ids.slice(i, i + 100));
+        (r.data || []).forEach((x) => viaInv.add(x.expense_id));
+      }
+      exps = (ex.data || []).filter((x) => !viaInv.has(x.id));
+
+      const pn = new Map(((ap.data) || []).map((x) => [x.id, x.full_name]));
+      // دفعات مباشرة (paid_at) ما بتنعد ذمة. لو العمود لسا ما انضاف، الكل بينعد
+      const open = (ad.data || []).filter((x) => !x.paid_at);
+      const byEmp = new Map();
+      open.forEach((x) => {
+        if (!byEmp.has(x.profile_id)) byEmp.set(x.profile_id, { id: x.profile_id, name: pn.get(x.profile_id) || "موظف", total: 0, oldest: x.advance_date, rows: [] });
+        const e = byEmp.get(x.profile_id);
+        e.total += Number(x.amount); e.rows.push(x);
+      });
+      emps = [...byEmp.values()].map((e) => ({ ...e, total: r2(e.total) })).sort((a, c) => c.total - a.total);
+
+      const staffPaid = (ad.data || []).filter((x) => x.paid_at && daysAgo(x.paid_at) <= 30).map((x) => ({ at: x.paid_at, who: pn.get(x.profile_id) || "موظف", kind: "in", amount: Number(x.amount), method: x.paid_method, text: x.note || "ذمة موظف" }));
+      const supPaid = (sp.data || []).map((x) => ({ at: x.created_at, who: names.get(x.supplier_id) || "مورّد", kind: "out", amount: Number(x.amount), method: x.payment_method, text: x.description || "دفعة" }));
+      log = [...staffPaid, ...supPaid].sort((a, c) => new Date(c.at) - new Date(a.at));
+      render();
+    }
+
+    // ---------------------------------------------------------------
+    // رسم
+    // ---------------------------------------------------------------
+    function render() {
+      const supTotal = r2(sup.reduce((t, x) => t + x.balance, 0));
+      const expTotal = r2(exps.reduce((t, x) => t + Number(x.amount), 0));
+      const owe = r2(supTotal + expTotal);
+      const get = r2(emps.reduce((t, x) => t + x.total, 0));
+      $("k-owe").textContent = money(owe);
+      $("n-owe").textContent = `${sup.length} مورّد · ${exps.length} مصروف ذمة`;
+      $("k-get").textContent = money(get);
+      $("n-get").textContent = `${emps.length} موظف`;
+      const net = r2(get - owe);
+      $("k-net").textContent = money(Math.abs(net));
+      $("n-net").textContent = net > 0.004 ? "النا أكتر من اللي علينا" : net < -0.004 ? "علينا أكتر من اللي النا" : "متعادل";
+
+      $("tab-owe").innerHTML = olvIcon("minusCircle") + `<span>علينا</span><span class="n">${sup.length + exps.length}</span>`;
+      $("tab-get").innerHTML = olvIcon("plus") + `<span>النا</span><span class="n">${emps.length}</span>`;
+      $("tab-log").innerHTML = olvIcon("clock") + `<span>التسديدات</span>`;
+
+      $("l-sup").innerHTML = sup.length ? sup.map((x) => `
+        <li class="dh-row" data-sup="${olvEsc(x.id)}">
+          <div class="ci">${olvIcon("truck")}</div>
+          <div class="t"><b>${olvEsc(x.name)}</b><small><a href="suppliers.html" style="color:inherit;">فواتيره وحركاته</a></small></div>
+          <div class="m"><b>${money(x.balance)}</b><button type="button" class="btn go dh-act" data-act="paysup">${olvIcon("check")}<span>سدّد</span></button></div>
+        </li>`).join("") : `<li class="dh-empty">ما في ديون للموردين</li>`;
+
+      $("l-exp").innerHTML = exps.length ? exps.map((x) => `
+        <li class="dh-row" data-exp="${olvEsc(x.id)}">
+          <div class="ci">${olvIcon("receipt")}</div>
+          <div class="t"><b>${olvEsc(x.description || "مصروف")}</b><small>${shortDate(x.expense_date)} · ${age(x.expense_date)}</small></div>
+          <div class="m"><b>${money(x.amount)}</b><button type="button" class="btn go dh-act" data-act="payexp">${olvIcon("check")}<span>سدّد</span></button></div>
+        </li>`).join("") : `<li class="dh-empty">ما في مصاريف ذمة</li>`;
+
+      $("l-emp").innerHTML = emps.length ? emps.map((e) => `
+        <li data-emp="${olvEsc(e.id)}">
+          <div class="dh-row" style="cursor:pointer;" data-act="toggle" role="button" tabindex="0" aria-expanded="${openEmp === e.id}">
+            <div class="ci">${olvIcon("person")}</div>
+            <div class="t"><b>${olvEsc(e.name)}</b><small>${e.rows.length} ${e.rows.length === 1 ? "حركة" : "حركات"} · ${age(e.oldest)}</small></div>
+            <div class="m"><b>${money(e.total)}</b></div>
+          </div>
+          ${openEmp === e.id ? `<ul class="dh-sub">${e.rows.map((r) => `
+            <li data-adv="${olvEsc(r.id)}"><span class="d">${shortDate(r.advance_date)}</span><span class="nt">${r.kind === "purchase" ? "طلب" : "سلفة"}: ${olvEsc((r.note || "").replace(/^طلب على الحساب:\s*/, "") || "—")}</span><span class="a">${money(r.amount)}</span><button type="button" class="btn small" data-act="payadv">استلمت</button></li>`).join("")}
+            <li style="justify-content:flex-end;"><button type="button" class="btn go dh-act" data-act="payall">${olvIcon("check")}<span>استلمت كل ${money(e.total)}</span></button></li></ul>` : ""}
+        </li>`).join("") : `<li class="dh-empty">ما في ذمم على الموظفين</li>`;
+
+      $("l-log").innerHTML = log.length ? log.map((x) => `
+        <li class="dh-row">
+          <div class="ci">${olvIcon(x.kind === "in" ? "plus" : "minusCircle")}</div>
+          <div class="t"><b>${olvEsc(x.who)}</b><small>${shortDate(x.at)} · ${x.kind === "in" ? "استلمنا" : "دفعنا"} · ${METHOD[x.method] || "كاش"}</small></div>
+          <div class="m"><b>${money(x.amount)}</b></div>
+        </li>`).join("") : `<li class="dh-empty">ما في تسديدات بآخر 30 يوم</li>`;
+    }
+
+    function setTab(t) {
+      tab = t;
+      ["owe", "get", "log"].forEach((k) => { $("sec-" + k).hidden = k !== t; $("tab-" + k).setAttribute("aria-selected", String(k === t)); });
+    }
+    document.querySelector(".dh-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) setTab(b.dataset.tab); });
+
+    // ---------------------------------------------------------------
+    // تسديد
+    // ---------------------------------------------------------------
+    async function withBtn(btn, fn) {
+      btn.disabled = true;
+      try { await fn(); } catch (err) { olvShowError(errBox, err); }
+      btn.disabled = false;
+    }
+
+    $("l-sup").addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-act="paysup"]'); if (!btn) return;
+      const x = sup.find((s) => s.id === btn.closest("[data-sup]").dataset.sup);
+      withBtn(btn, async () => {
+        const p = await askPayment({ title: "تسديد " + x.name, sub: `المستحق عليه <b>${money(x.balance)}</b>`, max: x.balance });
+        if (!p) return;
+        const row = { supplier_id: x.id, type: "payment", amount: p.amount, description: "تسديد من صفحة الذمم", transaction_date: iso(new Date()) };
+        let { error } = await db().from("supplier_transactions").insert({ ...row, payment_method: p.method });
+        if (error && /payment_method/.test(error.message || "")) {
+          ({ error } = await db().from("supplier_transactions").insert({ ...row, description: row.description + " [" + METHOD[p.method] + "]" }));
+        }
+        if (error) throw error;
+        olvToast("انسجلت الدفعة", { type: "ok" });
+        await load();
+      });
+    });
+
+    $("l-exp").addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-act="payexp"]'); if (!btn) return;
+      const x = exps.find((s) => s.id === btn.closest("[data-exp]").dataset.exp);
+      withBtn(btn, async () => {
+        const p = await askPayment({ title: "تسديد مصروف", sub: olvEsc(x.description || "") + ` · <b>${money(x.amount)}</b>`, max: Number(x.amount), fixed: true });
+        if (!p) return;
+        // كاش = بينحسب من درج اليوم (متل صفحة المصروفات). بنك/كليك = مدفوع من برّا الدرج
+        const upd = { payment_type: "cash", settled_at: new Date().toISOString(), from_drawer: p.method === "cash" };
+        const { error } = await db().from("expenses").update(upd).eq("id", x.id).eq("payment_type", "credit");
+        if (error) throw error;
+        olvToast("تم التسديد", { type: "ok" });
+        await load();
+      });
+    });
+
+    async function receive(rows, who, max) {
+      const p = await askPayment({ title: "استلام من " + who, sub: `المبلغ <b>${money(max)}</b>`, max, fixed: true, cta: "تسجيل الاستلام" });
+      if (!p) return;
+      const upd = { paid_at: new Date().toISOString(), paid_method: p.method };
+      const { error } = await db().from("salary_advances").update(upd).in("id", rows.map((r) => r.id)).is("settled_payroll_id", null).is("paid_at", null);
+      if (error) {
+        if (/paid_at|paid_method/.test(error.message || "")) throw new Error("ميزة الاستلام لسا ما تفعّلت بقاعدة البيانات (schema-staff-credit.sql)");
+        throw error;
+      }
+      olvToast("انسجل الاستلام", { type: "ok" });
+      await load();
+    }
+
+    $("l-emp").addEventListener("click", (e) => {
+      const li = e.target.closest("[data-emp]"); if (!li) return;
+      const emp = emps.find((x) => x.id === li.dataset.emp);
+      const act = e.target.closest("[data-act]");
+      if (!act) return;
+      if (act.dataset.act === "toggle") { openEmp = openEmp === emp.id ? null : emp.id; render(); return; }
+      if (act.dataset.act === "payall") { withBtn(act, () => receive(emp.rows, emp.name, emp.total)); return; }
+      if (act.dataset.act === "payadv") {
+        const r = emp.rows.find((x) => x.id === act.closest("[data-adv]").dataset.adv);
+        withBtn(act, () => receive([r], emp.name, Number(r.amount)));
+      }
+    });
+    $("l-emp").addEventListener("keydown", (e) => {
+      if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="toggle"]')) { e.preventDefault(); e.target.click(); }
+    });
+
+    // ---------------------------------------------------------------
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      if (!window.olvRole || window.olvRole === "staff") { location.replace("expenses.html"); return; }
+      try { await load(); } catch (err) { olvShowError(errBox, err); }
+    })();
+    });
+  </script>
+</body>
+</html>
