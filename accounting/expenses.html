@@ -1104,11 +1104,70 @@
     $("dr-date").addEventListener("change", (e) => { if (e.target.value) buildDayReport(e.target.value); });
     document.querySelectorAll("[data-drday]").forEach((b) => b.addEventListener("click", () => { const d = addDays(bizToday(), Number(b.dataset.drday)); $("dr-date").value = d; buildDayReport(d); }));
     $("dr-csv").addEventListener("click", () => drCsv($("dr-date").value));
+    // الطباعة/PDF: ورقة A4 مستقلة بإطار مخفي (مش النافذة نفسها) حتى يطلع التنسيق نضيف
+    function drPrintHtml(date) {
+      const A = drRows.filter((r) => r.drawer), B = drRows.filter((r) => !r.drawer);
+      const sum = (a) => a.reduce((t, r) => t + r.amount, 0);
+      const d = parse(date), title = `${DAY_NAMES[d.getDay()]} ${shortDate(date)}/${date.slice(0, 4)}`;
+      const sec = (label, rows) => `<h2>${label} <span>${rows.length} دفعة</span></h2>` + (rows.length ? `<table><colgroup><col style="width:4%"><col style="width:9%"><col style="width:14%"><col style="width:29%"><col style="width:12%"><col style="width:20%"><col style="width:12%"></colgroup>
+        <thead><tr><th>#</th><th>الوقت</th><th>التصنيف</th><th>السبب / البيان</th><th>سجّله</th><th>الطريقة</th><th class="n">المبلغ</th></tr></thead><tbody>${
+        rows.map((r, i) => `<tr><td>${i + 1}</td><td class="t">${olvEsc(r.t)}</td><td>${olvEsc(r.cat)}</td><td>${olvEsc(r.reason)}</td><td>${olvEsc(r.who)}</td><td>${olvEsc(r.how)}</td><td class="n">${olvFormatMoney(r.amount)}</td></tr>`).join("")
+      }</tbody><tfoot><tr><td colspan="6">مجموع ${label}</td><td class="n">${olvFormatMoney(sum(rows))}</td></tr></tfoot></table>` : `<p class="none">ما في دفعات بهالقسم</p>`);
+      const now = new Date().toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" });
+      return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مصروفات ${olvEsc(date)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+@page{size:A4 portrait; margin:12mm 11mm;}
+*{box-sizing:border-box;}
+html,body{margin:0; padding:0; background:#fff; color:#1f1a14; font-family:'Tajawal','Segoe UI',Tahoma,Arial,sans-serif; font-size:11.5px; line-height:1.5; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+header{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2.5px solid #b8923a; padding-bottom:8px; margin-bottom:12px;}
+header h1{margin:0; font-size:21px; font-weight:800;}
+header .d{font-size:13px; font-weight:700; text-align:left;}
+header small{display:block; color:#6b6254; font-weight:500; font-size:10.5px;}
+.sums{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
+.sums div{border:1px solid #d9cfba; border-radius:8px; padding:8px 10px; background:#faf6ec; color:#6b6254; font-size:11px;}
+.sums b{display:block; margin-top:2px; font-size:17px; color:#1f1a14; font-variant-numeric:tabular-nums;}
+.sums div.g{background:#b8923a; border-color:#b8923a; color:#fff;} .sums div.g b{color:#fff;}
+h2{margin:14px 0 6px; font-size:13.5px; font-weight:800; background:#f1e9d5; border-right:4px solid #b8923a; padding:5px 10px; display:flex; justify-content:space-between; page-break-after:avoid;}
+h2 span{font-weight:500; color:#6b6254; font-size:11px;}
+table{width:100%; border-collapse:collapse; table-layout:fixed;}
+thead{display:table-header-group;} tfoot{display:table-footer-group;}
+th{background:#f7f2e6; font-size:10.5px; color:#4a4237; text-align:right; padding:5px 6px; border-bottom:1.5px solid #b8923a;}
+td{padding:5px 6px; border-bottom:1px solid #e6dec9; vertical-align:top; overflow-wrap:anywhere; word-break:break-word;}
+tr{page-break-inside:avoid;}
+tbody tr:nth-child(even) td{background:#fcfaf4;}
+.n{text-align:left; white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums;}
+.t{direction:ltr; text-align:right; white-space:nowrap; color:#6b6254;}
+tfoot td{font-weight:800; background:#f1e9d5; border-bottom:0; padding:6px;}
+.none{color:#6b6254; padding:6px 10px; margin:0;}
+.grand{margin-top:16px; display:flex; justify-content:space-between; align-items:center; border:2px solid #b8923a; border-radius:10px; padding:10px 14px; font-size:15px; font-weight:800; page-break-inside:avoid;}
+.grand b{font-size:19px; font-variant-numeric:tabular-nums;}
+footer{margin-top:22px; display:flex; justify-content:space-between; color:#6b6254; font-size:10px; page-break-inside:avoid;}
+.sig{margin-top:26px; display:flex; gap:40px; font-size:11px; page-break-inside:avoid;} .sig div{flex:1; border-top:1px solid #999; padding-top:4px; color:#6b6254;}
+</style></head><body>
+<header><div><h1>تقرير المصروفات اليومي</h1><small>OLV Café</small></div><div class="d">${olvEsc(title)}<small>يوم العمل بيسكّر الساعة 3 الفجر</small></div></header>
+<div class="sums"><div>طلع من درج الكاش<b>${olvFormatMoney(sum(A))}</b></div><div>طلع من برّا الدرج<b>${olvFormatMoney(sum(B))}</b></div><div class="g">المجموع الكلي<b>${olvFormatMoney(sum(drRows))}</b></div></div>
+${sec("أولاً: طلع من درج الكاش", A)}
+${sec("ثانياً: طلع من برّا الدرج", B)}
+<div class="grand"><span>مجموع المصروفات الكلي لليوم (${drRows.length} دفعة)</span><b>${olvFormatMoney(sum(drRows))}</b></div>
+<div class="sig"><div>المحاسب</div><div>صاحب المحل</div></div>
+<footer><span>طُبع: ${olvEsc(now)}</span><span>محاسبة OLV</span></footer>
+</body></html>`;
+    }
     $("dr-print").addEventListener("click", () => {
-      document.body.classList.add("day-printing");
-      const done = () => { document.body.classList.remove("day-printing"); window.removeEventListener("afterprint", done); };
-      window.addEventListener("afterprint", done);
-      window.print();
+      const date = $("dr-date").value;
+      if (!drRows.length) { olvToast("ما في مصروفات لهاليوم لنطبعها"); return; }
+      const old = document.getElementById("dr-frame"); if (old) old.remove();
+      const fr = document.createElement("iframe");
+      fr.id = "dr-frame"; fr.setAttribute("aria-hidden", "true");
+      fr.style.cssText = "position:fixed; inset-inline-start:-9999px; top:0; width:210mm; height:297mm; border:0;";
+      fr.srcdoc = drPrintHtml(date);
+      fr.onload = async () => {
+        const w = fr.contentWindow;
+        try { if (w.document.fonts && w.document.fonts.ready) await Promise.race([w.document.fonts.ready, new Promise((r) => setTimeout(r, 2500))]); } catch (_) {}
+        w.focus(); w.print();
+      };
+      document.body.appendChild(fr);
     });
 
     let pickedCat = null;
