@@ -576,7 +576,7 @@
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
             return { profileId, from, weeks, off, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
           })
-          .filter((r) => r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
+          .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         // حضور آخر 31 يوم لملف كل موظف (إذا فشل ما بنوقف الصفحة)
         try { await loadPunchDays(previewRows.map((x) => x.profileId), range.to.slice(0, 8) + "01", range.to); } catch (e) { punchDays = new Map(); }
@@ -634,7 +634,8 @@
     function paymentsHtml(r) {
       const pays = history.filter((p) => p.profile_id === r.profileId).slice(0, 8);
       if (!pays.length) return `<div class="pf-card pad"><div class="pf-empty">ما انسجلت أي دفعة لهالموظف لسا.</div></div>`;
-      return `<div class="pf-card"><ul class="pf-list">${pays.map((p) => {
+      return `<div class="pf-card pad"><div class="st-actions"><button class="btn" type="button" data-stmt="paidprint" data-id="${r.profileId}">كشف الدفعات · طباعة / PDF</button><button class="btn" type="button" data-stmt="paidwa" data-id="${r.profileId}">واتساب</button></div></div>
+      <div class="pf-card"><ul class="pf-list">${pays.map((p) => {
         const left = Number(p.gross_amount) - Number(p.advances_deducted) - Number(p.net_amount);
         return `<li><span>${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة<small>مستحق ${olvFormatMoney(p.gross_amount)}${Number(p.advances_deducted) ? ` − سلف ${olvFormatMoney(p.advances_deducted)}` : ""}${Math.abs(left) >= 0.005 ? ` · ${left > 0 ? "باقي له" : "زيادة عليه"} ${olvFormatMoney(Math.abs(left))}` : ""} · اندفع ${shortDate(p.paid_at)}</small></span><b>${olvFormatMoney(p.net_amount)}</b></li>`;
       }).join("")}</ul></div>`;
@@ -810,7 +811,43 @@ ${dayRows ? `<h2>الدوام يوم بيوم</h2><table>${dayRows}</table>` : "
 ${pays ? `<h2>آخر الدفعات</h2><table><tr><th>تاريخ الدفع</th><th>الفترة</th><th>المبلغ</th></tr>${pays}</table>` : ""}
 </body></html>`;
     }
+    // كشف الدفعات: كل اللي انسجل دفعه للموظف + الباقي له/عليه لحد هلأ
+    function paidRows(profileId) { return history.filter((p) => p.profile_id === profileId).slice().sort((a, b) => String(a.paid_at).localeCompare(String(b.paid_at))); }
+    function paidSummary(profileId) {
+      const pays = paidRows(profileId);
+      const paid = pays.reduce((t, p) => t + Number(p.net_amount), 0);
+      const last = pays[pays.length - 1];
+      const left = last ? Math.round((Number(last.gross_amount) - Number(last.advances_deducted) - Number(last.net_amount)) * 100) / 100 : 0;
+      return { pays, paid, left };
+    }
+    function paidText(profileId) {
+      const { pays, paid, left } = paidSummary(profileId);
+      const L = [`*كشف دفعات ${empName(profileId)}*`, ""];
+      pays.forEach((p) => L.push(`${shortDate(p.paid_at)}: ${olvFormatMoney(p.net_amount)} (عن ${shortDate(p.period_start)} لـ ${shortDate(p.period_end)}، ${fmtHrs(Number(p.hours_worked))} ساعة${Number(p.advances_deducted) ? `، سلف ${olvFormatMoney(p.advances_deducted)}` : ""})`));
+      L.push("", `مجموع المدفوع: ${olvFormatMoney(paid)}`, `*${left > 0.005 ? "باقي له" : left < -0.005 ? "زيادة عليه" : "الحساب مسوّى"}${Math.abs(left) >= 0.005 ? ": " + olvFormatMoney(Math.abs(left)) : ""}*`);
+      return L.join("\n");
+    }
+    function paidHtml(profileId) {
+      const { pays, paid, left } = paidSummary(profileId);
+      const rows = pays.map((p) => { const l = Number(p.gross_amount) - Number(p.advances_deducted) - Number(p.net_amount);
+        return `<tr><td>${shortDate(p.paid_at)}</td><td>${shortDate(p.period_start)} لـ ${shortDate(p.period_end)}</td><td>${fmtHrs(Number(p.hours_worked))}</td><td>${olvFormatMoney(p.gross_amount)}</td><td>${Number(p.advances_deducted) ? olvFormatMoney(p.advances_deducted) : "—"}</td><td>${olvFormatMoney(p.net_amount)}</td><td>${Math.abs(l) >= 0.005 ? (l > 0 ? "له " : "عليه ") + olvFormatMoney(Math.abs(l)) : "مسوّى"}</td></tr>`; }).join("");
+      return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف دفعات ${olvEsc(empName(profileId))}</title>
+<style>body{font-family:Tajawal,Arial,sans-serif;margin:24px auto;max-width:820px;color:#222;padding:0 16px}h1{font-size:22px;margin:0 0 14px}table{width:100%;border-collapse:collapse;margin:8px 0 18px;font-size:14px}td,th{padding:7px 4px;border-bottom:1px solid #ddd;text-align:right}th{color:#777;font-weight:600}.tot{font-size:18px;font-weight:800;border:2px solid #222;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;margin-bottom:8px}.btns{margin-bottom:16px}@media print{.btns{display:none}}</style></head><body>
+<div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
+<h1>كشف دفعات: ${olvEsc(empName(profileId))}</h1>
+<table><tr><th>تاريخ الدفع</th><th>الفترة</th><th>ساعات</th><th>مستحق</th><th>سلف</th><th>اندفع</th><th>بعد الدفعة</th></tr>${rows}</table>
+<div class="tot"><span>مجموع المدفوع</span><span>${olvFormatMoney(paid)}</span></div>
+<div class="tot"><span>${left > 0.005 ? "باقي له" : left < -0.005 ? "زيادة عليه" : "الحساب مسوّى"}</span><span>${Math.abs(left) >= 0.005 ? olvFormatMoney(Math.abs(left)) : "—"}</span></div>
+</body></html>`;
+    }
     async function openStatement(profileId, mode, btn) {
+      if (mode === "paidprint" || mode === "paidwa") {
+        if (mode === "paidprint") { const w = window.open("", "_blank"); if (w) { w.document.open(); w.document.write(paidHtml(profileId)); w.document.close(); } return; }
+        const d = String((profilesById.get(profileId) || {}).phone || "").replace(/\D/g, "").replace(/^00/, "").replace(/^0/, "962");
+        const text = encodeURIComponent(paidText(profileId));
+        window.open(d ? `https://wa.me/${d}?text=${text}` : `https://wa.me/?text=${text}`, "_blank", "noopener");
+        return;
+      }
       const r = previewRows.find((x) => x.profileId === profileId);
       if (!r) return;
       const win = mode === "print" ? window.open("", "_blank") : null;
