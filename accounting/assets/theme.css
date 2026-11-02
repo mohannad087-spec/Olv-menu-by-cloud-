@@ -6,7 +6,7 @@
      --gold = لون التعبئة (أزرار رئيسية، تبويب نشط)، --gold-hi = لون النص المميّز
      (أسعار، روابط) وهو أغمق بالفاتح حتى يحقق تباين 4.5:1 على الكريمي */
   color-scheme:light;
-  --ink:#fcfaf5; --ink-2:#ffffff; --ink-3:#f5f1e8;
+  --ink:#fbf9ff; --ink-2:#ffffff; --ink-3:#f5f1e8;
   --gold:#b08a3e; --gold-hi:#86631c; --gold-dp:#6b4c14; --gold-rgb:176,138,62; --on-gold:#241a0a;
   --olive:#56692e; --olive-hi:#435324;
   --paper:#2f2416; --muted:#6c5a44; --hair:rgba(70,60,40,.16); --hair-soft:rgba(70,60,40,.08);
