@@ -407,6 +407,7 @@
           <div class="field"><label for="f-price">السعر</label><input id="f-price" type="number" inputmode="decimal" step="0.05" min="0" required value="${p ? esc(p.price) : ""}"${disP}></div>
           <div class="field"><label><input type="checkbox" id="f-hallon"${hall0 ? " checked" : ""}${dis}> فرقية صالة (سعر الصالة غير السفري)</label>
             <input id="f-hall" type="number" inputmode="decimal" step="0.05" min="0" value="${hall0 ? esc(hall0) : ""}" placeholder="سعر الصالة" aria-label="سعر الصالة"${hall0 ? "" : " hidden"}${dis}></div>
+          <div class="field" data-opt="mealtoggle"><label><input type="checkbox" id="f-mealon"${p && (num(p.meal_price) || num(p.double_meal_price)) ? " checked" : ""}${disP}> هل الصنف إلو وجبة؟</label><div class="hint">فعّلها وحط سعر الوجبة الكلي؛ بتظهر أزرار «وجبة / وجبة دبل» عند الكاشير.</div></div>
           <div class="field" data-opt="meal"><label for="f-meal">سعر الوجبة (الكلي)</label><input id="f-meal" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.meal_price ? esc(p.meal_price) : ""}" placeholder="بدون"${disP}></div>
           <div class="field" data-opt="meal"><label for="f-dbl">سعر وجبة دبل (الكلي)</label><input id="f-dbl" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.double_meal_price ? esc(p.double_meal_price) : ""}" placeholder="بدون"${disP}></div>
           <div class="field" data-opt="ice"><label>خيار الثلج</label><div class="hint">«مع ثلج / بدون ثلج» ظاهر عند الكاشير لهالصنف. السعر ما بتغير.</div></div>
@@ -435,13 +436,15 @@
       bd.querySelector("#f-close").onclick = askClose;
       const hallOn = bd.querySelector("#f-hallon"), hallIn = bd.querySelector("#f-hall");
       // إظهار/إخفاء خيارات الوجبة والكبير حسب القسم (وبتتحدّث لما يتغيّر القسم)
-      const hasMeal = !!(p && (num(p.meal_price) || num(p.double_meal_price))), hasLarge = !!(p && largePrice(p));
+      const hasLarge = !!(p && largePrice(p));
       const syncOpts = () => {
         const cat = bd.querySelector("#f-cat").value;
-        const show = { meal: !stock && (MEAL_CATS.has(cat) || hasMeal), large: !stock && (LARGE_CATS.has(cat) || hasLarge), ice: ICE_CATS.has(cat) };
+        const mealOn = bd.querySelector("#f-mealon").checked;
+        const show = { mealtoggle: !stock, meal: !stock && mealOn, large: !stock && (LARGE_CATS.has(cat) || hasLarge), ice: ICE_CATS.has(cat) };
         bd.querySelectorAll("[data-opt]").forEach((el) => { el.hidden = !show[el.dataset.opt]; });
       };
       bd.querySelector("#f-cat").addEventListener("change", syncOpts);
+      bd.querySelector("#f-mealon").addEventListener("change", () => { syncOpts(); if (bd.querySelector("#f-mealon").checked) bd.querySelector("#f-meal").focus(); });
       syncOpts();
       hallOn.addEventListener("change", () => { hallIn.hidden = !hallOn.checked; if (hallOn.checked) hallIn.focus(); else hallIn.value = ""; });
       bd.querySelector("#f-img").addEventListener("input", (e) => {
@@ -534,7 +537,8 @@
             name: nm.value.trim(), en: bd.querySelector("#f-en").value.trim(),
             cat: bd.querySelector("#f-cat").value, sub: bd.querySelector("#f-sub").value.trim(),
             price: bd.querySelector("#f-price").value, hall: hallOn.checked ? hallIn.value : "",
-            meal: bd.querySelector("#f-meal").value, dbl: bd.querySelector("#f-dbl").value, large: bd.querySelector("#f-large").value,
+            mealOn: bd.querySelector("#f-mealon").checked,
+            meal: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-meal").value : "", dbl: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-dbl").value : "", large: bd.querySelector("#f-large").value,
             img: bd.querySelector("#f-img").value.trim(), desc: bd.querySelector("#f-desc").value.trim(), descEn: bd.querySelector("#f-descen").value.trim(),
             active: bd.querySelector("#f-active").checked, pop: bd.querySelector("#f-pop").checked,
             cost,
@@ -560,6 +564,7 @@
       if (hall != null && hall < price) throw new Error("سعر الصالة أقل من سعر السفري، تأكد");
       const meal = stock ? null : num(f.meal), dbl = stock ? null : num(f.dbl), large = stock ? null : num(f.large);
       if (!stock) {
+        if (f.mealOn && meal == null) throw new Error("اكتب سعر الوجبة، أو شيل علامة «إلو وجبة»");
         if (meal != null && meal <= price) throw new Error("سعر الوجبة لازم يكون أكبر من سعر الصنف لحاله");
         if (dbl != null && meal != null && dbl <= meal) throw new Error("سعر وجبة الدبل لازم يكون أكبر من سعر الوجبة");
         if (dbl != null && dbl <= price) throw new Error("سعر وجبة الدبل لازم يكون أكبر من سعر الصنف لحاله");
