@@ -239,6 +239,17 @@
   .tag.credit{color:var(--danger, #b3402f);}
   .ex-credit-bar{display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:10px 14px; border-radius:14px; background:rgba(179,64,47,.08); color:var(--paper); font-size:13.5px; font-weight:600;}
   .ex-credit-bar .icon{width:16px; height:16px;}
+  .ex-credit-bar a{margin-inline-start:auto; color:var(--gold-hi); font-weight:800; text-decoration:none; white-space:nowrap;}
+  .ex-credit-bar a:hover{text-decoration:underline;}
+  /* كروت فاضية ما بتاخد مساحة */
+  .ex-grid[hidden], .ex-grid > [hidden]{display:none;}
+  .ex-grid.solo{grid-template-columns:minmax(0,1fr);}
+  #rec-group.compact{padding-block:12px;}
+  #rec-group.compact .rec-head{margin:0;}
+  #rec-group.compact .rec-note, #rec-group.compact .rec-list{display:none;}
+  /* نسبة المصروفات من المبيعات: حيادية، وبتتلوّن بالوردي بس لما تقرب من المبيعات كلها */
+  .olv-glass .ex-stats .stat:nth-child(4){--tc:var(--life-4); --tb:var(--life-4b);}
+  .olv-glass .ex-stats .stat.hot:nth-child(4){--tc:var(--life-3); --tb:var(--life-3b);}
   .ex-credit-bar[hidden]{display:none;}
   .ex-row .am{font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:left;}
   .ex-detail{padding:2px 10px 14px; padding-inline-start:74px;}
@@ -674,17 +685,25 @@
       } else vs.hidden = true;
       if (salesTotal != null && salesTotal > 0) {
         setVal("k-ratio", Math.round((total / salesTotal) * 100) + "%");
+        $("k-ratio").closest(".stat").classList.toggle("hot", total / salesTotal >= 0.9);
         $("k-ratio-note").textContent = `المبيعات ${olvFormatMoney(salesTotal)}`;
       } else {
         setVal("k-ratio", "—");
+        $("k-ratio").closest(".stat").classList.remove("hot");
         $("k-ratio-note").textContent = salesTotal === 0 ? "ما في مبيعات بهالفترة" : " ";
       }
       const cr = rows.filter((x) => x.payment_type === "credit" && !invoiceOf[x.id]);
       const bar = $("credit-bar");
       bar.hidden = !cr.length;
-      if (cr.length) bar.innerHTML = olvIcon("clock") + `<span>ذمة لسا ما انسدّدت: ${olvFormatMoney(cr.reduce((s, x) => s + Number(x.amount), 0))} (${cr.length})</span>`;
+      if (cr.length) bar.innerHTML = olvIcon("clock") + `<span>ذمة لسا ما انسدّدت: ${olvFormatMoney(cr.reduce((s, x) => s + Number(x.amount), 0))} (${cr.length})</span>` + (isAdmin() ? `<a href="dhamam.html">شوف الذمم ←</a>` : "");
       renderChart();
       renderCatBars(total);
+      // الرسم أو الأشرطة الفاضية ما بتاخد مساحة
+      const exg = document.querySelector(".ex-grid");
+      const secs = [...exg.children];
+      secs.forEach((x) => { x.hidden = !!x.querySelector(".ex-empty"); });
+      exg.hidden = secs.every((x) => x.hidden);
+      exg.classList.toggle("solo", secs.some((x) => x.hidden));
       renderList();
     }
 
@@ -1097,6 +1116,7 @@
       $("rec-note").innerHTML = recs.length
         ? `${act.length} ${act.length === 1 ? "مصروف ثابت شغّال" : "مصروفات ثابتة شغّالة"}، تقريبًا <b>${olvFormatMoney(monthly)}</b> بالشهر. بتنزل لحالها بموعدها بالسجل.`
         : "عرّف المصروف مرة وحدة (إيجار، إنترنت، اشتراك...) وبينزل لحاله بموعده بدون ما تكرره.";
+      $("rec-group").classList.toggle("compact", !recs.length);
       if (!recs.length) { list.innerHTML = ""; return; }
       // الشغّال أول، مرتّب حسب الدفعة الجاية
       const sorted = recs.map((r) => ({ r, nd: r.is_active ? nextDue(r) : null }))
