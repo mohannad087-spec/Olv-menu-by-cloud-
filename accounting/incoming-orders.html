@@ -171,7 +171,7 @@
 
     const STATUS_LABELS = {
       new: "جديد", confirmed: "مؤكد", preparing: "قيد التحضير",
-      ready: "جاهز", completed: "مكتمل", cancelled: "ملغى",
+      ready: "جاهز", out: "طلع للتوصيل", completed: "مكتمل", cancelled: "ملغى",
     };
     const MODE_LABELS = { hall: "صالة", takeaway: "سفري", delivery: "توصيل" };
 
@@ -229,6 +229,10 @@
       `;
     }
 
+    // عنوان التوصيل بدون رابط الخريطة (بيجي ملصوق بآخره من موقع المنيو) + الرابط لحاله
+    const mapOf = (a) => { const m = /https:\/\/[^\s]+/.exec(a || ""); return m ? m[0] : ""; };
+    const addrText = (a) => String(a || "").replace(/\s*—?\s*الموقع:\s*https:\/\/[^\s]+/, "").trim();
+
     // وقت وصول الطلب (توقيت عمّان) + كم صار له
     function orderTimeHtml(o) {
       const t = o.createdAt ? new Date(o.createdAt) : null;
@@ -270,7 +274,8 @@
             </div>
             ${o.table ? `<div class="hint">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table)}</div>` : ""}
             ${o.phone ? `<div class="hint" dir="ltr">${olvIcon("phone")} ${olvEsc(o.phone)}</div>` : ""}
-            ${o.address ? `<div class="hint">${olvIcon("mapPin")} ${olvEsc(o.address)}</div>` : ""}
+            ${o.address ? `<div class="hint">${olvIcon("mapPin")} ${olvEsc(addrText(o.address))}${mapOf(o.address) ? ` — <a href="${olvEsc(mapOf(o.address))}" target="_blank" rel="noopener">الموقع عالخريطة</a>` : ""}</div>` : ""}
+            ${o.mode === "delivery" && o.driver ? `<div class="hint">${olvIcon("truck")} السائق: ${olvEsc(o.driver)}</div>` : ""}
             ${o.notes ? `<div class="hint">${olvIcon("note")} ${olvEsc(o.notes)}</div>` : ""}
             <div class="io-items">${(o.items || []).map((it) => renderItemRow(o, it)).join("")}</div>
             ${isNew ? `
@@ -283,6 +288,8 @@
               ${!mapped ? `<div class="hint" style="margin-top:8px;">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
             ` : `<div class="io-waiting">${olvIcon("checkCircle")} انقبل وراح للمطبخ (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>
               <div class="io-actions" style="margin-top:10px;padding-top:10px;">
+                ${o.mode === "delivery" ? `<button class="btn" data-driver-link="${olvEsc(o.id)}" data-num="${olvEsc(o.number)}">${olvIcon("share")} رابط السائق</button>
+                ${o.status !== "out" ? `<button class="btn" data-out="${olvEsc(o.id)}">${olvIcon("truck")} طلع للتوصيل</button>` : ""}` : ""}
                 <button class="btn pay" data-done="${olvEsc(o.id)}">${olvIcon("checkCircle")} تم التسليم</button>
               </div>`}
           </div>`;
@@ -312,6 +319,12 @@
       });
       list.querySelectorAll("button[data-done]").forEach((btn) => {
         btn.addEventListener("click", () => completeOrder(btn.dataset.done, btn));
+      });
+      list.querySelectorAll("button[data-driver-link]").forEach((btn) => {
+        btn.addEventListener("click", () => sendDriverLink(btn.dataset.driverLink, btn.dataset.num, btn));
+      });
+      list.querySelectorAll("button[data-out]").forEach((btn) => {
+        btn.addEventListener("click", () => markOut(btn.dataset.out, btn));
       });
       list.querySelectorAll("button[data-reject]").forEach((btn) => {
         btn.addEventListener("click", () => rejectOrder(btn.dataset.reject));
@@ -382,13 +395,53 @@
       const errBox = document.getElementById("err");
       btn.disabled = true;
       try {
-        // موقع المنيو بيسمح بس preparing => ready => completed، فبنمرّ على «جاهز» أول
+        // موقع المنيو بيسمح بس preparing => ready => (out) => completed، فبنمرّ على «جاهز» أول (إلا لو جاهز أو طالع للتوصيل أصلًا)
         const cur = lastOrders.find((o) => o.id === orderId);
-        if (!cur || cur.status !== "ready") await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "ready" });
+        if (!cur || (cur.status !== "ready" && cur.status !== "out")) await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "ready" });
         await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "completed" });
         await OlvIncomingPoll.pollNow();
       } catch (err) {
         olvShowError(errBox, err);
+        btn.disabled = false;
+      }
+    }
+
+    // «طلع للتوصيل»: الطلب لازم يكون جاهز أول، فبنمرّ على «جاهز» لو لسا قيد التحضير
+    async function markOut(orderId, btn) {
+      const errBox = document.getElementById("err");
+      btn.disabled = true;
+      try {
+        const cur = lastOrders.find((o) => o.id === orderId);
+        if (!cur || cur.status !== "ready") await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "ready" });
+        await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "out" });
+        await OlvIncomingPoll.pollNow();
+      } catch (err) {
+        olvShowError(errBox, err);
+        btn.disabled = false;
+      }
+    }
+
+    // رابط سري للسائق (مش موظف عندنا): بيفتح واتساب للسائق فيه الرابط. لو ما كتبنا رقم بنكتفي بنسخ الرابط
+    async function sendDriverLink(orderId, num, btn) {
+      const errBox = document.getElementById("err");
+      btn.disabled = true;
+      try {
+        const out = await OlvIncomingPoll.callProxy({ action: "driver_link", id: orderId });
+        if (!out || !out.url) throw new Error((out && out.error) || "تعذّر توليد الرابط");
+        const msg = `طلب توصيل #${num} من OLV — كل التفاصيل والخريطة بالرابط:\n${out.url}`;
+        let ph = prompt("رقم واتساب السائق (اتركه فاضي لنسخ الرابط فقط):", localStorage.getItem("olv-driver-phone") || "");
+        if (ph === null) return;
+        ph = ph.replace(/\D/g, "");
+        if (ph) {
+          localStorage.setItem("olv-driver-phone", ph);
+          if (ph.startsWith("0")) ph = "962" + ph.slice(1);
+          window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
+        } else {
+          try { await navigator.clipboard.writeText(msg); alert("اننسخ رابط السائق."); } catch { prompt("انسخ الرابط:", out.url); }
+        }
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
         btn.disabled = false;
       }
     }
