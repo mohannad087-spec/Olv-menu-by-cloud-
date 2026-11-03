@@ -246,10 +246,50 @@
   .pv-more .btn{min-height:44px;}
   @media (max-width:640px){ .pv-detail{padding-inline-start:12px;} .pv-row{grid-template-columns:46px minmax(0,1fr) auto; gap:10px;} }
   @media (prefers-reduced-motion: reduce){ .pv-chip{transition:none;} .pv-chip:active{transform:none;} .pv-detail:not([hidden]){animation:none;} }
+
+  /* ===== طباعة الفاتورة (A4): الشاشة العادية ما بتشوفها ===== */
+  #inv-print{display:none;}
+  @page{size:A4; margin:12mm;}
+  @media print{
+    html, body{background:#fff !important; background-image:none !important;}
+    body::before, body::after, html::before, html::after{display:none !important;}
+    body > *:not(#inv-print){display:none !important;}
+    #inv-print{display:block; color:#111; font-family:'Tajawal',sans-serif; direction:rtl; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    #inv-print, #inv-print *{animation:none !important; transition:none !important; opacity:1 !important;}
+    #inv-print .ip-head{display:flex; justify-content:space-between; align-items:center; gap:16px; padding-bottom:12px; border-bottom:3px solid #4254e8;}
+    #inv-print .ip-brand{display:flex; align-items:center; gap:14px;}
+    #inv-print .ip-logo{width:92px; height:92px; border-radius:14px; background:#000; object-fit:contain; padding:4px; box-sizing:border-box;}
+    #inv-print .ip-shop b{display:block; font-size:22px; font-weight:800; line-height:1.2;}
+    #inv-print .ip-shop span{display:block; font-size:12.5px; color:#555; margin-top:2px;}
+    #inv-print .ip-title{text-align:left;}
+    #inv-print .ip-title h1{margin:0; font-size:22px; font-weight:800; color:#4254e8;}
+    #inv-print .ip-title div{font-size:13px; margin-top:3px;}
+    #inv-print .ip-title .no{font-size:18px; font-weight:800; direction:ltr;}
+    #inv-print .ip-boxes{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;}
+    #inv-print .ip-box{border:1px solid #ccc; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.8;}
+    #inv-print .ip-box h3{margin:0 0 2px; font-size:12px; color:#777; font-weight:700;}
+    #inv-print .ip-box b{font-weight:800;}
+    #inv-print table{width:100%; border-collapse:collapse; font-size:13px;}
+    #inv-print th{background:#eef0ff; border:1px solid #c9ceef; padding:7px 8px; font-weight:800; text-align:right;}
+    #inv-print td{border:1px solid #ddd; padding:6px 8px; text-align:right;}
+    #inv-print td.n, #inv-print th.n{text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums;}
+    #inv-print tr{page-break-inside:avoid;}
+    #inv-print thead{display:table-header-group;}
+    #inv-print .ip-tot{margin-top:12px; margin-inline-start:auto; width:300px; font-size:13.5px; page-break-inside:avoid;}
+    #inv-print .ip-tot div{display:flex; justify-content:space-between; padding:5px 10px; border-bottom:1px solid #eee;}
+    #inv-print .ip-tot .grand{background:#4254e8; color:#fff; font-size:16px; font-weight:800; border-radius:8px; margin:4px 0; border:0;}
+    #inv-print .ip-tot .due{font-weight:800; color:#b3402f;}
+    #inv-print .ip-note{margin-top:14px; border:1px dashed #bbb; border-radius:10px; padding:8px 12px; font-size:13px; page-break-inside:avoid;}
+    #inv-print .ip-sign{display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px; margin-top:44px; font-size:12.5px; color:#555; text-align:center; page-break-inside:avoid;}
+    #inv-print .ip-sign div{border-top:1px solid #888; padding-top:5px;}
+    #inv-print .ip-foot{margin-top:18px; padding-top:8px; border-top:1px solid #ddd; font-size:11px; color:#888; display:flex; justify-content:space-between;}
+    #inv-print .ip-void{position:fixed; top:42%; left:0; right:0; text-align:center; font-size:90px; font-weight:800; color:rgba(179,64,47,.16); transform:rotate(-18deg); pointer-events:none;}
+  }
 </style>
 
 </head>
 <body>
+  <div id="inv-print" aria-hidden="true"></div>
   <div id="olv-nav"></div>
   <div class="wrap pv-wrap">
     <div class="err" id="err"></div>
@@ -2007,12 +2047,85 @@
             ${i.voided && i.replaced_by ? `<div class="pi-warn">انعدّلت، الفاتورة الجديدة مكانها${(invRows.find((x) => x.id === i.replaced_by) || {}).doc_no ? " (" + olvDocNo("purchase", invRows.find((x) => x.id === i.replaced_by).doc_no) + ")" : ""}</div>` : i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
             <div class="pv-acts">
               ${i.showPay ? `<button class="btn go" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
+              <button class="btn" data-print="${i.id}">${olvIcon("printer")} طباعة</button>
               ${i.attachment_path ? i.attachment_path.split("|").map((pth, n, all) => `<button class="btn" data-file="${olvEsc(pth)}">${all.length > 1 ? "صورة " + (n + 1) : "صورة الفاتورة"}</button>`).join("") : ""}
               ${!i.voided && isOwner ? `<button class="btn" data-edit="${i.id}">تعديل</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
             </div>
           </div>
         </li>`;
+    }
+
+
+    // ---------- طباعة الفاتورة (A4) ----------
+    // بتجيب أصناف الفاتورة وبيانات المحل (printer_settings) وتبني ورقة جاهزة للطباعة، وبعدها بتفتح نافذة الطباعة
+    async function printInvoice(id) {
+      const i = invRows.find((x) => x.id === id);
+      if (!i) throw new Error("الفاتورة مش موجودة");
+      const sb = window.supabaseClient;
+      const [lr, sr, pr] = await Promise.all([
+        sb.from("purchases").select("*").eq("invoice_id", id),
+        sb.from("printer_settings").select("restaurant_name, restaurant_address, restaurant_phone").eq("id", 1).maybeSingle(),
+        i.supplier_id ? sb.from("suppliers").select("name, phone").eq("id", i.supplier_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      if (lr.error) throw lr.error;
+      const shop = (sr && sr.data) || {};
+      const sup = (pr && pr.data) || null;
+      const lines = (lr.data || []).slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+      const hasLineTax = lines.some((l) => Number(l.line_tax_rate) > 0);
+      const r2 = (v) => Math.round(Number(v) * 100) / 100;
+      const qty = (v) => String(Math.round(Number(v) * 1000) / 1000);
+      const rows = lines.map((l, n) => {
+        const lp = l.list_price != null ? Number(l.list_price) : Number(l.unit_price);
+        return `<tr><td class="n">${n + 1}</td><td>${olvEsc(l.item_name)}</td><td class="n">${qty(l.quantity)}</td><td class="n">${olvEsc(l.unit || "")}</td><td class="n">${money(lp)}</td>${hasLineTax ? `<td class="n">${Number(l.line_tax_rate) > 0 ? Number(l.line_tax_rate) + "%" : "—"}</td>` : ""}<td class="n">${money(r2(Number(l.quantity) * lp))}</td></tr>`;
+      }).join("");
+      const subtotal = i.subtotal_amount != null ? Number(i.subtotal_amount) : Number(i.total_amount);
+      const disc = Number(i.discount_amount) || 0, tax = Number(i.tax_amount) || 0, total = Number(i.total_amount) || 0, paid = Number(i.paid_amount) || 0;
+      const remaining = i.voided ? 0 : (i.remaining != null ? Number(i.remaining) : Math.max(total - paid, 0));
+      const payLabel = i.payment_type === "cash" ? "كاش" : i.payment_type === "credit" ? "ذمة" : "جزء ذمة";
+      const dt = new Date();
+      const when = dt.toLocaleDateString("en-GB") + " " + dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const dayStr = (s) => { try { return new Date(s + "T00:00:00").toLocaleDateString("en-GB"); } catch (_) { return s; } };
+      const box = document.getElementById("inv-print");
+      box.innerHTML = `
+        ${i.voided ? `<div class="ip-void">ملغاة</div>` : ""}
+        <div class="ip-head">
+          <div class="ip-brand">
+            <img class="ip-logo" src="assets/brand/olv-logo.png" alt="">
+            <div class="ip-shop"><b>${olvEsc(shop.restaurant_name || "OLV")}</b>${shop.restaurant_address ? `<span>${olvEsc(shop.restaurant_address)}</span>` : ""}${shop.restaurant_phone ? `<span dir="ltr" style="text-align:right;">${olvEsc(shop.restaurant_phone)}</span>` : ""}</div>
+          </div>
+          <div class="ip-title">
+            <h1>فاتورة مشتريات</h1>
+            <div class="no">${olvDocNo("purchase", i.doc_no) || "—"}</div>
+            <div>التاريخ: <b>${dayStr(i.invoice_date)}</b></div>
+          </div>
+        </div>
+        <div class="ip-boxes">
+          <div class="ip-box"><h3>المورّد</h3><b>${olvEsc(sup ? sup.name : (i.suppliers ? i.suppliers.name : "كاش من السوق"))}</b>
+            ${sup && sup.phone ? `<br>هاتف: <span dir="ltr">${olvEsc(sup.phone)}</span>` : ""}
+            ${i.invoice_no ? `<br>رقم فاتورة المورّد: <b dir="ltr">${olvEsc(i.invoice_no)}</b>` : ""}</div>
+          <div class="ip-box"><h3>الدفع</h3>طريقة الدفع: <b>${payLabel}</b>
+            <br>المدفوع: <b>${money(paid)}</b>
+            <br>المتبقي على المحل: <b>${money(remaining)}</b></div>
+        </div>
+        <table>
+          <thead><tr><th class="n">#</th><th>الصنف</th><th class="n">الكمية</th><th class="n">الوحدة</th><th class="n">سعر الوحدة</th>${hasLineTax ? `<th class="n">ضريبة</th>` : ""}<th class="n">الإجمالي</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="${hasLineTax ? 7 : 6}" class="n">ما في أصناف</td></tr>`}</tbody>
+        </table>
+        <div class="ip-tot">
+          <div><span>مجموع الأصناف</span><b>${money(subtotal)}</b></div>
+          ${disc > 0 ? `<div><span>الخصم${Number(i.discount_pct) > 0 ? " (" + Number(i.discount_pct) + "%)" : ""}</span><b>− ${money(disc)}</b></div>` : ""}
+          ${tax > 0 ? `<div><span>الضريبة${Number(i.tax_rate) > 0 ? " (" + Number(i.tax_rate) + "%" + (i.tax_inclusive ? " شاملة" : "") + ")" : ""}</span><b>${money(tax)}</b></div>` : ""}
+          <div class="grand"><span>الإجمالي</span><b>${money(total)}</b></div>
+          <div><span>المدفوع</span><b>${money(paid)}</b></div>
+          ${remaining > 0.004 ? `<div class="due"><span>المتبقي</span><b>${money(remaining)}</b></div>` : ""}
+        </div>
+        ${i.notes ? `<div class="ip-note"><b>ملاحظات:</b> ${olvEsc(i.notes)}</div>` : ""}
+        <div class="ip-sign"><div>المستلم</div><div>المحاسب</div><div>المورّد</div></div>
+        <div class="ip-foot"><span>${olvEsc(shop.restaurant_name || "OLV")} — فاتورة مشتريات ${olvDocNo("purchase", i.doc_no)}</span><span>طُبعت ${when}</span></div>`;
+      const img = box.querySelector(".ip-logo");
+      if (img && !img.complete) await new Promise((res) => { img.onload = img.onerror = res; setTimeout(res, 2500); });
+      window.print();
     }
 
     async function loadInvoiceDetail(id) {
@@ -2226,6 +2339,13 @@
         if (error) { payBtn.disabled = false; olvShowError(errBox, error); return; }
         if (window.olvToast) olvToast(amount >= inv.remaining - 0.004 ? "انسدّت الفاتورة" : "انسجلت الدفعة", { type: "ok" });
         await loadHistory();
+        return;
+      }
+      const pr = e.target.closest("[data-print]");
+      if (pr) {
+        pr.disabled = true;
+        try { await printInvoice(pr.dataset.print); } catch (err) { olvShowError(errBox, err); }
+        pr.disabled = false;
         return;
       }
       const ed = e.target.closest("[data-edit]");
