@@ -289,6 +289,7 @@
             ` : `<div class="io-waiting">${olvIcon("checkCircle")} انقبل وراح للمطبخ (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>
               <div class="io-actions" style="margin-top:10px;padding-top:10px;">
                 ${o.mode === "delivery" ? `<button class="btn" data-driver-link="${olvEsc(o.id)}" data-num="${olvEsc(o.number)}">${olvIcon("share")} رابط السائق</button>
+                ${o.phone && (o.status === "ready" || o.status === "out") ? `<button class="btn" data-track="${olvEsc(o.id)}" data-num="${olvEsc(o.number)}" data-phone="${olvEsc(o.phone)}">${olvIcon("share")} تتبع للزبون</button>` : ""}
                 ${o.status !== "out" ? `<button class="btn" data-out="${olvEsc(o.id)}">${olvIcon("truck")} طلع للتوصيل</button>` : ""}` : ""}
                 <button class="btn pay" data-done="${olvEsc(o.id)}">${olvIcon("checkCircle")} تم التسليم</button>
               </div>`}
@@ -322,6 +323,9 @@
       });
       list.querySelectorAll("button[data-driver-link]").forEach((btn) => {
         btn.addEventListener("click", () => sendDriverLink(btn.dataset.driverLink, btn.dataset.num, btn));
+      });
+      list.querySelectorAll("button[data-track]").forEach((btn) => {
+        btn.addEventListener("click", () => sendTrackLink(btn.dataset.track, btn.dataset.num, btn.dataset.phone));
       });
       list.querySelectorAll("button[data-out]").forEach((btn) => {
         btn.addEventListener("click", () => markOut(btn.dataset.out, btn));
@@ -429,11 +433,26 @@
         const out = await OlvIncomingPoll.callProxy({ action: "driver_link", id: orderId });
         if (!out || !out.url) throw new Error((out && out.error) || "تعذّر توليد الرابط");
         const msg = `طلب توصيل #${num} من OLV — كل التفاصيل والخريطة بالرابط:\n${out.url}`;
-        let ph = prompt("رقم واتساب السائق (اتركه فاضي لنسخ الرابط فقط):", localStorage.getItem("olv-driver-phone") || "");
-        if (ph === null) return;
+        // السائقين المحفوظين بإدارة المنيو: سائق الطلب إن كان محدد، وإلا اختيار برقمه من القائمة
+        let drivers = [];
+        try { const d = await OlvIncomingPoll.callProxy({ action: "drivers" }); drivers = (d && d.drivers || []).filter((x) => x.phone); } catch { /* نكمل بالإدخال اليدوي */ }
+        const cur = lastOrders.find((o) => o.id === orderId);
+        let ph = null, saved = false;
+        const own = cur && cur.driver && drivers.find((x) => x.name === cur.driver);
+        if (own) { ph = own.phone; saved = true; }
+        else if (drivers.length) {
+          const pick = prompt("اختر السائق (اكتب رقمه) أو اترك فاضي لكتابة رقم يدوي:\n" + drivers.map((x, i) => `${i + 1}) ${x.name}`).join("\n"), "1");
+          if (pick === null) return;
+          const d = drivers[Number(pick) - 1];
+          if (d) { ph = d.phone; saved = true; }
+        }
+        if (ph === null) {
+          ph = prompt("رقم واتساب السائق (اتركه فاضي لنسخ الرابط فقط):", localStorage.getItem("olv-driver-phone") || "");
+          if (ph === null) return;
+        }
         ph = ph.replace(/\D/g, "");
         if (ph) {
-          localStorage.setItem("olv-driver-phone", ph);
+          if (!saved) localStorage.setItem("olv-driver-phone", ph);
           if (ph.startsWith("0")) ph = "962" + ph.slice(1);
           window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
         } else {
@@ -444,6 +463,15 @@
       } finally {
         btn.disabled = false;
       }
+    }
+
+    // رابط تتبع السائق للزبون على واتساب (صفحة متابعة الطلب بموقع المنيو)
+    function sendTrackLink(orderId, num, phone) {
+      let ph = String(phone || "").replace(/\D/g, "");
+      if (!ph) return;
+      if (ph.startsWith("0")) ph = "962" + ph.slice(1);
+      const msg = `طلبك #${num} من OLV بالطريق إلك 🛵 تابع السائق على الخريطة:\nhttps://olv-menu.pages.dev/order.html?id=${encodeURIComponent(orderId)}`;
+      window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
     }
 
     async function rejectOrder(orderId) {
