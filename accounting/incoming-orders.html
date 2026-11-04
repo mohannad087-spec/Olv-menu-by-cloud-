@@ -432,7 +432,8 @@
       try {
         const out = await OlvIncomingPoll.callProxy({ action: "driver_link", id: orderId });
         if (!out || !out.url) throw new Error((out && out.error) || "تعذّر توليد الرابط");
-        const msg = `طلب توصيل #${num} من OLV — كل التفاصيل والخريطة بالرابط:\n${out.url}`;
+        // الرابط لحاله بدون أي كلام عربي: الكلام الملاصق للرابط كان يمنع فتحه
+        const msg = out.url;
         // السائقين المحفوظين بإدارة المنيو: سائق الطلب إن كان محدد، وإلا اختيار برقمه من القائمة
         let drivers = [];
         try { const d = await OlvIncomingPoll.callProxy({ action: "drivers" }); drivers = (d && d.drivers || []).filter((x) => x.phone); } catch { /* نكمل بالإدخال اليدوي */ }
