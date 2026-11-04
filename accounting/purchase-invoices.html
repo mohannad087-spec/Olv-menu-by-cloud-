@@ -362,6 +362,10 @@
         <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">ذمة</label>
         <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">جزء ذمة</label>
       </div>
+      <label class="pi-drawer" id="pi-drawer-wrap" hidden style="display:flex; align-items:center; gap:10px; margin-top:10px; padding:12px 14px; border:1px solid var(--line,#ddd); border-radius:12px; cursor:pointer;">
+        <input type="checkbox" id="pi-drawer" style="width:20px; height:20px;">
+        <span><b>دفعتها من الدرج</b><br><small style="color:var(--muted);">بتنزل من رصيد الدرج بتقفيل الخزينة، وبتضل محسوبة مشتريات</small></span>
+      </label>
       <div class="field" id="pi-partial-wrap" hidden>
         <label for="pi-partial">المبلغ المدفوع الآن</label>
         <input type="number" id="pi-partial" min="0" step="0.01" dir="ltr">
@@ -1374,8 +1378,13 @@
       document.getElementById("pi-pay").classList.remove("need"); document.getElementById("pi-pay-need").hidden = true;
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      syncDrawerBox();
       updateTotals();
     });
+    function syncDrawerBox() {
+      document.getElementById("pi-drawer-wrap").hidden = payMode !== "cash";
+      if (payMode !== "cash") document.getElementById("pi-drawer").checked = false;
+    }
     document.getElementById("pi-partial").addEventListener("input", updateTotals);
     // الخصم والضريبة: نتذكّر آخر ضريبة استخدمتها (نسبة، شاملة/غير شاملة، قابلة للاسترداد) لأنها ثابتة غالبًا
     const TAX_KEY = "olv_pi_tax_v1";
@@ -1751,6 +1760,7 @@
       if (radio) radio.checked = true;
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      syncDrawerBox();
       const banner = document.createElement("div");
       banner.className = "pi-warn"; banner.id = "pi-draft-banner";
       const mins = Math.max(1, Math.round((Date.now() - d.at) / 60000));
@@ -1768,6 +1778,7 @@
         payMode = "";
         document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
         document.getElementById("pi-partial-wrap").hidden = true;
+        syncDrawerBox();
         renderLines();
       });
       return true;
@@ -1865,7 +1876,8 @@
           if (l.tax !== "" && l.tax != null && Number.isFinite(Number(l.tax))) o.tax_rate = lineRate(l, 0);
           return o;
         });
-        const { error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
+        const fromDrawer = payMode === "cash" && document.getElementById("pi-drawer").checked;
+        const { data: savedId, error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
           ...(editingId ? { p_invoice_id: editingId } : {}),
           p_supplier_id: supplierId,
           p_invoice_no: document.getElementById("pi-no").value.trim() || null,
@@ -1881,6 +1893,14 @@
           p_tax_recoverable: document.getElementById("pi-tax-rec").checked,
         });
         if (error) throw error;
+        if (fromDrawer && savedId) {
+          // الفاتورة انحفظت؛ بنعلّم مصروفها «طلع من الدرج» (فشلها ما بيضيّع الفاتورة)
+          const { data: inv2 } = await window.supabaseClient.from("purchase_invoices").select("expense_id").eq("id", savedId).maybeSingle();
+          if (inv2 && inv2.expense_id) {
+            const { error: dErr } = await window.supabaseClient.from("expenses").update({ from_drawer: true }).eq("id", inv2.expense_id);
+            if (dErr && window.olvToast) olvToast("انحفظت الفاتورة بس ما انعلّمت من الدرج، علّمها من السجل", { type: "warn" });
+          }
+        }
         if (fromOrderId) {
           // الفاتورة انحفظت: بنعلّم الطلبية مستلمة (لو فشلت ما بنوقف شي، الفاتورة أهم)
           const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
@@ -1898,6 +1918,7 @@
         payMode = "";
         document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
         document.getElementById("pi-partial-wrap").hidden = true;
+        syncDrawerBox();
         await Promise.all([loadItems(), loadHistory()]);
         renderLines();
         if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
@@ -1946,6 +1967,12 @@
           const st = await window.supabaseClient.from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", openIds);
           (st.data || []).forEach((r) => { settle[r.invoice_id] = Number(r.remaining); });
         }
+        const drawerOf = {};
+        const expIds = (data || []).filter((i) => i.status === "active" && i.payment_type === "cash" && i.expense_id).map((i) => i.expense_id);
+        if (expIds.length) {
+          const ex = await window.supabaseClient.from("expenses").select("id, from_drawer").in("id", expIds);
+          (ex.data || []).forEach((r) => { drawerOf[r.id] = r.from_drawer === true; });
+        }
         const canPay = ["owner", "manager"].includes(window.olvRole);
         payable = {};
         invRows = (data || []).map((i) => {
@@ -1954,7 +1981,7 @@
           const showPay = canPay && !voided && i.supplier_id && remaining >= 0.005;
           if (showPay) payable[i.id] = { supplierId: i.supplier_id, no: i.invoice_no, remaining };
           const settledLater = i.payment_type !== "cash" && remaining < 0.005;
-          return { ...i, voided, remaining, showPay, settledLater, owing: !voided && i.payment_type !== "cash" && remaining >= 0.005 };
+          return { ...i, fromDrawer: !!(i.expense_id && drawerOf[i.expense_id]), canDrawer: !voided && i.payment_type === "cash" && !!i.expense_id && i.expense_id in drawerOf, voided, remaining, showPay, settledLater, owing: !voided && i.payment_type !== "cash" && remaining >= 0.005 };
         });
         renderHistory();
       } catch (err) { olvShowError(errBox, err); }
@@ -2031,7 +2058,7 @@
     function invHtml(i) {
       const payBadge = i.voided ? `<span class="pi-badge credit">ملغاة</span>`
         : i.settledLater ? `<span class="pi-badge cash">مدفوعة</span>`
-        : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${i.remaining > 0.004 ? ` <span>باقي ${money(i.remaining)}</span>` : ""}`;
+        : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${i.fromDrawer ? ` <span class="pi-badge partial">من الدرج</span>` : ""}${i.remaining > 0.004 ? ` <span>باقي ${money(i.remaining)}</span>` : ""}`;
       const tax = Number(i.tax_amount) > 0 && !i.voided ? `<span>شامل ضريبة ${money(i.tax_amount)}</span>` : "";
       return `
         <li class="pv-inv${i.voided ? " void" : ""}">
@@ -2049,6 +2076,7 @@
               ${i.showPay ? `<button class="btn go" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
               <button class="btn" data-print="${i.id}">${olvIcon("printer")} طباعة</button>
               ${i.attachment_path ? i.attachment_path.split("|").map((pth, n, all) => `<button class="btn" data-file="${olvEsc(pth)}">${all.length > 1 ? "صورة " + (n + 1) : "صورة الفاتورة"}</button>`).join("") : ""}
+              ${i.canDrawer && ["owner", "manager"].includes(window.olvRole) ? `<button class="btn" data-drawer="${i.id}">${i.fromDrawer ? "شيلها من الدرج" : "حوّلها لدفع من الدرج"}</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn" data-edit="${i.id}">تعديل</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
             </div>
@@ -2348,6 +2376,17 @@
         pr.disabled = false;
         return;
       }
+      const dr = e.target.closest("[data-drawer]");
+      if (dr) {
+        const row = invRows.find((x) => x.id === dr.dataset.drawer);
+        if (!row || !row.expense_id) return;
+        dr.disabled = true;
+        const { error } = await window.supabaseClient.from("expenses").update({ from_drawer: !row.fromDrawer }).eq("id", row.expense_id);
+        if (error) { dr.disabled = false; olvShowError(errBox, error); return; }
+        if (window.olvToast) olvToast(row.fromDrawer ? "انشالت من الدرج" : "انحسبت مدفوعة من الدرج", { type: "ok" });
+        await loadHistory();
+        return;
+      }
       const ed = e.target.closest("[data-edit]");
       if (ed) {
         ed.disabled = true;
@@ -2382,6 +2421,7 @@
       payMode = "";
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
       document.getElementById("pi-partial-wrap").hidden = true;
+      syncDrawerBox();
       renderLines();
     }
     async function startEdit(id) {
@@ -2415,6 +2455,8 @@
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
       if (payMode === "partial") document.getElementById("pi-partial").value = String(Number(inv.paid_amount));
+      syncDrawerBox();
+      document.getElementById("pi-drawer").checked = payMode === "cash" && !!(invRows.find((x) => x.id === id) || {}).fromDrawer;
       const banner = document.createElement("div");
       banner.className = "pi-warn"; banner.id = "pi-edit-banner";
       banner.innerHTML = `عم تعدّل ${inv.doc_no ? olvDocNo("purchase", inv.doc_no) : "فاتورة"}${inv.invoice_no ? " (مورّد #" + olvEsc(inv.invoice_no) + ")" : ""}. أول ما تحفظ، بتنلغى القديمة وبتنحفظ هاي مكانها (المخزون وحساب المورّد بيتعدّلوا لحالهم). <button type="button" class="btn" id="pi-edit-cancel" style="margin-inline-start:8px;">إلغاء التعديل</button>`;
