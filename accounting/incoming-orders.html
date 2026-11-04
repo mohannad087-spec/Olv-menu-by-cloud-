@@ -458,7 +458,7 @@
           // المتصفح بيمنع النافذة الجديدة بعد الانتظار (await) فبنفتح واتساب بنفس الصفحة بدالها
           if (!window.open(wu, "_blank")) location.href = wu;
         } else {
-          try { await navigator.clipboard.writeText(msg); alert("اننسخ رابط السائق."); } catch { prompt("انسخ الرابط:", out.url); }
+          try { await navigator.clipboard.writeText(out.url); alert("اننسخ رابط السائق (الرابط لحاله). الصقه بالمتصفح أو ابعته للسائق."); } catch { prompt("انسخ الرابط:", out.url); }
         }
       } catch (err) {
         olvShowError(errBox, err);
