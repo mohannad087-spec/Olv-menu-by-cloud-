@@ -179,6 +179,16 @@ Deno.serve(async (req) => {
       return json({ ok: true, url: `${OLV_SITE}/d.html?o=${encodeURIComponent(id)}&t=${out.token}` });
     }
 
+    // قائمة السائقين بأرقام واتساب (من إعدادات التوصيل بإدارة المنيو)، حتى الكاشير يختار الاسم بدل ما يكتب الرقم
+    if (body.action === "drivers") {
+      const { status, out } = await olvFetchJson(`${OLV_SITE}/api/delivery?full=1`, { headers: { "x-olv-admin-key": adminKey } }, 1);
+      if (status >= 400) return json({ ok: false, error: String(out.error || "تعذّر تحميل السائقين") }, status);
+      // deno-lint-ignore no-explicit-any
+      const cfg: any = out.config || {};
+      const phones = cfg.driverPhones || {};
+      return json({ ok: true, drivers: (cfg.drivers || []).map((n: string) => ({ name: n, phone: phones[n] || "" })) });
+    }
+
     // مزامنة أصناف المخزون (مشروبات وبضاعة جاهزة) مع المنيو العام: كل مادة معلّمة menu_enabled
     // بتظهر بالمنيو، ومتاحة بس لو مخزونها > 0 — لما تخلص بتختفي، ولما ينزل مخزون جديد بترجع.
     // أي حساب فعّال بيقدر يستدعيها (الكاشير مثلًا بعد البيع): ما بتكشف شي ولا بتغيّر غير أصناف المخزون
@@ -400,7 +410,7 @@ Deno.serve(async (req) => {
       return json(out, status);
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو menu_items أو push_cards أو staff_link أو driver_link أو get_controls أو set_controls)" }, 400);
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو menu_items أو push_cards أو staff_link أو driver_link أو drivers أو get_controls أو set_controls)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }
