@@ -710,7 +710,7 @@
       if (!previewRows.some((x) => x.profileId === selectedId)) selectedId = previewRows[0].profileId;
       const cur = previewRows.find((x) => x.profileId === selectedId);
       box.innerHTML = `<div class="pf-layout">
-        <div class="pf-side" role="tablist" aria-label="الموظفين">${previewRows.map(pickHtml).join("")}<div class="pf-sum"><span>مجموع المستحق</span><b>${olvFormatMoney(net)}</b></div></div>
+        <div class="pf-side" role="tablist" aria-label="الموظفين">${previewRows.map(pickHtml).join("")}<div class="pf-sum"><span>مجموع المستحق</span><b>${olvFormatMoney(net)}</b></div><button class="btn go" type="button" id="stmt-all">كشف الكل · PDF</button></div>
         ${fileHtml(cur)}</div>`;
       box.querySelectorAll("button[data-pick]").forEach((btn) => btn.addEventListener("click", () => { selectedId = btn.dataset.pick; renderPreview(); }));
       box.querySelectorAll("button[data-tab]").forEach((btn) => btn.addEventListener("click", () => { fileTab.set(btn.dataset.id, btn.dataset.tab); renderPreview(); }));
@@ -726,6 +726,8 @@
         const v = Number(inp.value);
         if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else setTimeout(renderPreview, 0);
       }));
+      const allBtn = box.querySelector("#stmt-all");
+      if (allBtn) allBtn.addEventListener("click", () => openAllStatements());
       box.querySelectorAll("input[data-wage]").forEach((inp) => inp.addEventListener("change", async () => {
         const v = inp.value === "" ? null : Number(inp.value);
         if (v !== null && (!Number.isFinite(v) || v < 0)) { setTimeout(renderPreview, 0); return; }
@@ -839,6 +841,17 @@ ${pays ? `<h2>آخر الدفعات</h2><table><tr><th>تاريخ الدفع</th
 <div class="tot"><span>مجموع المدفوع</span><span>${olvFormatMoney(paid)}</span></div>
 <div class="tot"><span>${left > 0.005 ? "باقي له" : left < -0.005 ? "زيادة عليه" : "الحساب مسوّى"}</span><span>${Math.abs(left) >= 0.005 ? olvFormatMoney(Math.abs(left)) : "—"}</span></div>
 </body></html>`;
+    }
+    // كشف الكل: صفحة وحدة فيها كشف كل موظف (كل واحد بصفحة) لطباعة أو حفظ PDF بضغطة وحدة
+    function openAllStatements() {
+      const w = window.open("", "_blank");
+      if (!w) return;
+      const bodyOf = (h) => h.slice(h.indexOf("<body>") + 6, h.indexOf("</body>")).replace(/<div class="btns">[\s\S]*?<\/div>/, "");
+      const parts = previewRows.map((r) => bodyOf(statementHtml(r, { from: r.from > range.to ? range.to : r.from, days: [] })));
+      const head = statementHtml(previewRows[0], { from: range.to, days: [] }).split("<body>")[0];
+      w.document.open();
+      w.document.write(`${head}<style>.emp{page-break-after:always;break-after:page}.emp:last-child{page-break-after:auto;break-after:auto}</style><body><div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>${parts.map((x) => `<section class="emp">${x}</section>`).join("")}</body></html>`);
+      w.document.close();
     }
     async function openStatement(profileId, mode, btn) {
       if (mode === "paidprint" || mode === "paidwa") {
