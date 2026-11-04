@@ -850,7 +850,13 @@ ${pays ? `<h2>آخر الدفعات</h2><table><tr><th>تاريخ الدفع</th
       const parts = previewRows.map((r) => bodyOf(statementHtml(r, { from: r.from > range.to ? range.to : r.from, days: [] })));
       const head = statementHtml(previewRows[0], { from: range.to, days: [] }).split("<body>")[0];
       w.document.open();
-      w.document.write(`${head}<style>.emp{page-break-after:always;break-after:page}.emp:last-child{page-break-after:auto;break-after:auto}</style><body><div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>${parts.map((x) => `<section class="emp">${x}</section>`).join("")}</body></html>`);
+      const names = previewRows.map((r) => empName(r.profileId));
+      w.document.write(`${head}<style>.emp{page-break-after:always;break-after:page}.emp:last-child{page-break-after:auto;break-after:auto}body.solo .emp:not(.on){display:none}.one{margin:0 0 10px}@media print{.one{display:none}}</style><body><div class="btns"><button onclick="allPdf()">طباعة / حفظ PDF للكل</button></div>${parts.map((x, i) => `<section class="emp"><div class="btns one"><button onclick="onePdf(${i})">PDF لـ ${olvEsc(names[i])} لحاله</button></div>${x}</section>`).join("")}<script>
+var names=${JSON.stringify(names).replace(/</g, "\\u003c")},secs=document.querySelectorAll(".emp"),t0=document.title;
+function go(t){var o=document.title;document.title=t;window.print();document.title=o}
+function allPdf(){go("كشف رواتب الموظفين")}
+function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});document.body.classList.add("solo");go("كشف حساب "+names[i]);document.body.classList.remove("solo")}
+<\/script></body></html>`);
       w.document.close();
     }
     async function openStatement(profileId, mode, btn) {
