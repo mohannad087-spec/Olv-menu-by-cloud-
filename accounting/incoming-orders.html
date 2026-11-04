@@ -454,7 +454,9 @@
         if (ph) {
           if (!saved) localStorage.setItem("olv-driver-phone", ph);
           if (ph.startsWith("0")) ph = "962" + ph.slice(1);
-          window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
+          const wu = "https://wa.me/" + ph + "?text=" + encodeURIComponent(msg);
+          // المتصفح بيمنع النافذة الجديدة بعد الانتظار (await) فبنفتح واتساب بنفس الصفحة بدالها
+          if (!window.open(wu, "_blank")) location.href = wu;
         } else {
           try { await navigator.clipboard.writeText(msg); alert("اننسخ رابط السائق."); } catch { prompt("انسخ الرابط:", out.url); }
         }
