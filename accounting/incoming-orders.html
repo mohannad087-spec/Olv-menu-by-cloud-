@@ -266,7 +266,7 @@
             <div class="io-head">
               <b>#${olvEsc(o.number)}</b>
               ${orderTimeHtml(o)}
-              <div class="io-total">${olvFormatMoney(o.total)}</div>
+              <div class="io-total">${olvFormatMoney(itemsTotal(o))}${feeOf(o) > 0 ? `<div class="hint" style="font-size:12px;font-weight:600">+ توصيل ${olvFormatMoney(feeOf(o))} = ${olvFormatMoney(o.total)} عالزبون</div>` : ""}</div>
             </div>
             <div class="io-badges">
               <span class="io-mode-badge">${o.mode === "delivery" ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(MODE_LABELS[o.mode] || o.mode)}</span>
@@ -338,6 +338,10 @@
     // نفس المرجع بتستعمله لوحة «جاهز للزبون» لتربط الطلب بالبيع (menu-ready-panel.js)
     const orderRef = (id) => window.olvMenuOrderRef(id);
 
+    // رسوم التوصيل بتنحسب للسائق، فما بتندمج مع سعر الطلبات بالبيع (الإيراد والنقاط)
+    const feeOf = (o) => { const m = /رسوم التوصيل[^:]*:\s*([\d.]+)/.exec(o.text || ""); return m ? Number(m[1]) : 0; };
+    const itemsTotal = (o) => Math.max(Math.round((Number(o.total || 0) - feeOf(o)) * 100) / 100, 0);
+
     async function approveOrder(orderId, method) {
       const errBox = document.getElementById("err");
       const order = lastOrders.find((o) => o.id === orderId);
@@ -352,8 +356,8 @@
         });
         const args = {
           p_entry_date: olvToday(),
-          p_cash: method === "cash" ? order.total : 0,
-          p_card: method === "card" ? order.total : 0,
+          p_cash: method === "cash" ? itemsTotal(order) : 0,
+          p_card: method === "card" ? itemsTotal(order) : 0,
           p_delivery: 0,
           p_notes: order.notes || null,
           p_items: items,
@@ -365,7 +369,7 @@
         if (method === "tab") {
           const { error: tabErr } = await window.supabaseClient.rpc("place_table_order", {
             p_entry_date: olvToday(),
-            p_total: order.total,
+            p_total: itemsTotal(order),
             p_notes: order.notes || null,
             p_items: items,
             p_client_ref: await orderRef(order.id),
