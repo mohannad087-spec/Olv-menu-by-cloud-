@@ -202,6 +202,8 @@
       </p>
       <div class="ai-head">
         <button type="button" class="btn gold" id="ai-go"></button>
+        <button type="button" class="btn" id="ai-all"></button>
+        <button type="button" class="btn gold" id="ai-approve-high"></button>
         <span class="ai-status" id="ai-status" role="status"></span>
       </div>
       <div class="ai-list" id="ai-list"></div>
@@ -471,13 +473,36 @@
 
     function aiPending() {
       const shown = new Set(aiCards.map((c) => c.product.id));
-      return products.filter((p) => p.is_active !== false && !withRecipe.has(p.id) && !shown.has(p.id) && !aiSkipped.has(p.id));
+      return products.filter((p) => p.is_active !== false && !withRecipe.has(p.id) && !shown.has(p.id) && !aiSkipped.has(p.id))
+        .sort((a, b) => (salesQty.get(b.id) || 0) - (salesQty.get(a.id) || 0)); // الأكثر مبيعًا أول
     }
+    // كمية المبيعات لكل صنف (آخر 60 يوم) لترتيب الاقتراحات: الأكثر مبيعًا أول. إذا فشل الجلب بنكمل بدون ترتيب
+    const salesQty = new Map();
+    async function loadSalesQty() {
+      try {
+        const since = new Date(Date.now() - 60 * 864e5).toISOString();
+        const { data } = await window.supabaseClient.from("sale_items").select("product_id, qty").gte("created_at", since).limit(20000);
+        (data || []).forEach((r) => { if (r.product_id) salesQty.set(r.product_id, (salesQty.get(r.product_id) || 0) + Number(r.qty || 0)); });
+      } catch (e) { /* ترتيب اختياري */ }
+    }
+    const approvable = (c) => !c.saved && c.confidence === "high" && c.lines.some((l) => l.on) &&
+      c.lines.filter((l) => l.on).every((l) => Number(l.quantity) > 0 && !l.unsure);
     function renderAiButton() {
       const n = aiPending().length;
       const btn = document.getElementById("ai-go");
       btn.disabled = n === 0;
+      renderBulkButtons();
       btn.innerHTML = olvIcon("star") + `<span>${n === 0 ? "ما في أصناف بدون وصفة" : aiCards.length ? `اقترح للدفعة الجاية (${Math.min(n, AI_BATCH)} من ${n})` : `اقترح وصفات (${Math.min(n, AI_BATCH)} من ${n} صنف)`}</span>`;
+    }
+
+    let aiBusy = false;
+    function renderBulkButtons() {
+      const n = aiPending().length, k = aiCards.filter(approvable).length;
+      const all = document.getElementById("ai-all"), ok = document.getElementById("ai-approve-high");
+      all.disabled = n === 0 || aiBusy;
+      all.innerHTML = olvIcon("star") + `<span>اقترح للكل (${n} صنف)</span>`;
+      ok.disabled = k === 0 || aiBusy;
+      ok.innerHTML = olvIcon("check") + `<span>اعتمد كل الواثق (${k})</span>`;
     }
 
     function renderAiCards() {
@@ -503,6 +528,7 @@
           </div>`}
         </div>`).join("");
       renderAiButton();
+      renderBulkButtons();
     }
 
     document.getElementById("ai-list").addEventListener("input", (e) => {
@@ -538,12 +564,12 @@
       if (document.getElementById("recipe-product").value === c.product.id) loadProductRecipe();
     });
 
-    document.getElementById("ai-go").addEventListener("click", async () => {
+    // يجيب اقتراحات دفعة وحدة. بيرجّع true إذا نجح، false إذا فشل (الرسالة بتنعرض)
+    async function runBatch() {
       const batch = aiPending().slice(0, AI_BATCH);
-      if (!batch.length) return;
-      if (!navigator.onLine) { olvToast("الاقتراح بيحتاج إنترنت", { type: "danger", icon: "warning" }); return; }
-      const btn = document.getElementById("ai-go"), status = document.getElementById("ai-status");
-      btn.disabled = true;
+      if (!batch.length) return false;
+      if (!navigator.onLine) { olvToast("الاقتراح بيحتاج إنترنت", { type: "danger", icon: "warning" }); return false; }
+      const status = document.getElementById("ai-status");
       status.textContent = `عم يفكّر بوصفات ${batch.length} صنف... (10–40 ثانية)`;
       try {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
@@ -564,13 +590,59 @@
         }));
         // الأصناف اللي ما رجعلها اقتراح ما منعيد نبعتها بنفس الجلسة
         batch.forEach((p) => { if (!got.some((r) => r.product_id === p.id)) aiSkipped.add(p.id); });
-        status.textContent = got.length ? `طلع ${got.length} اقتراح. راجعهم تحت.` : "ما طلع اقتراحات لهالدفعة — جرّب الدفعة الجاية.";
+        status.textContent = got.length ? `طلع ${got.length} اقتراح. راجعهم تحت.` : "ما طلع اقتراحات لهالدفعة.";
         renderAiCards();
+        return true;
       } catch (err) {
         status.textContent = "";
         olvToast(err.message || String(err), { type: "danger", icon: "warning", ms: 5000 });
-        renderAiButton();
+        return false;
       }
+    }
+
+    document.getElementById("ai-go").addEventListener("click", async () => {
+      if (aiBusy) return;
+      aiBusy = true; document.getElementById("ai-go").disabled = true; renderBulkButtons();
+      await runBatch();
+      aiBusy = false; renderAiButton(); renderBulkButtons();
+    });
+
+    // اقترح لكل الأصناف: دفعة ورا دفعة (بين كل دفعة وقفة قصيرة عشان حد الطلبات) لحتى تخلص أو يصير خطأ
+    document.getElementById("ai-all").addEventListener("click", async () => {
+      if (aiBusy) return;
+      aiBusy = true; document.getElementById("ai-go").disabled = true; renderBulkButtons();
+      const total = aiPending().length;
+      while (aiPending().length) {
+        const ok = await runBatch();
+        if (!ok) break;
+        document.getElementById("ai-status").textContent = `خلص ${total - aiPending().length} من ${total} صنف...`;
+        await new Promise((r) => setTimeout(r, 12000));
+      }
+      aiBusy = false; renderAiButton(); renderBulkButtons();
+      const k = aiCards.filter(approvable).length;
+      document.getElementById("ai-status").textContent = k ? `جاهز. ${k} وصفة واثقة تقدر تعتمدها دفعة وحدة.` : "";
+    });
+
+    // اعتماد كل الوصفات «الواثقة» (كل كمياتها واضحة) بحفظ واحد؛ الباقي بيضل للمراجعة
+    document.getElementById("ai-approve-high").addEventListener("click", async () => {
+      const cards = aiCards.filter(approvable);
+      if (!cards.length || aiBusy) return;
+      aiBusy = true; renderBulkButtons();
+      const rows = [];
+      cards.forEach((c) => {
+        const m = new Map();
+        c.lines.filter((l) => l.on).forEach((l) => m.set(l.ingredient_id, { product_id: c.product.id, ingredient_id: l.ingredient_id, quantity: Number(l.quantity) }));
+        rows.push(...m.values());
+      });
+      const { error } = await window.supabaseClient.from("product_ingredients").upsert(rows, { onConflict: "product_id,ingredient_id" });
+      aiBusy = false;
+      if (error) { renderBulkButtons(); olvShowError(errBox(), error); return; }
+      cards.forEach((c) => { c.saved = true; });
+      olvToast(`انحفظت ${cards.length} وصفة`, { icon: "checkCircle" });
+      await loadCoverage();
+      populateSelects();
+      renderAiCards();
+      loadProductRecipe();
     });
 
     (async () => {
@@ -589,6 +661,7 @@
         addons = a.data || [];
         ingredients = i.data || [];
         await loadCoverage();
+        loadSalesQty().then(renderAiButton);
         // نبلّش بأول صنف فعّال بدون وصفة، لأنه غالبًا هو الشغل الجاي
         populateSelects();
         const firstMissing = products.find((x) => x.is_active !== false && !withRecipe.has(x.id));
