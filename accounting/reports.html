@@ -61,9 +61,17 @@
 <style>
   #print-area{display:none;}
   @media print {
-    body *{visibility:hidden;}
-    #print-area, #print-area *{visibility:visible;}
-    #print-area{display:block; position:absolute; inset:0 0 auto 0; padding:24px; background:#fff; color:#111;}
+    /* نخفي كل شي غير التقرير بـ display:none (مش visibility) حتى ما تاخد الصفحة مساحة وتطلع صفحات فاضية */
+    body > *:not(.wrap){display:none !important;}
+    .wrap > *:not(#print-area){display:none !important;}
+    html, body{background:#fff !important;}
+    .wrap{padding:0 !important; margin:0 !important; max-width:none !important;}
+    #print-area{display:block; padding:12px; background:#fff; color:#111;}
+    /* أنيميشن دخول الصفوف يبدأ بشفافية 0، والطباعة بتلتقط أول لحظة فتطلع الخلايا فاضية */
+    #print-area, #print-area *{animation:none !important; transition:none !important; opacity:1 !important; transform:none !important; color:#111;}
+    #print-area th{color:#111;}
+    #print-area .range, #print-area #print-cov{color:#555;}
+    #print-area table{min-width:0; page-break-inside:avoid;}
     #print-area h1{font-size:20px; margin-bottom:2px;}
     #print-area .range{color:#555; font-size:13px; margin-bottom:18px;}
     #print-area table{width:100%; border-collapse:collapse; margin-bottom:22px;}
