@@ -60,24 +60,34 @@
 </script>
 <style>
   #print-area{display:none;}
+  /* الطباعة/PDF: بنطبع صفحة التقارير نفسها بنفس الترتيب والرسوم، بألوان فاتحة ثابتة
+     (حتى لو الوضع الداكن أو ثيم مخصّص شغّال) وبدون أنيميشن (الطباعة بتلتقط أول لحظة منه فتطلع العناصر فاضية). */
   @media print {
-    /* نخفي كل شي غير التقرير بـ display:none (مش visibility) حتى ما تاخد الصفحة مساحة وتطلع صفحات فاضية */
-    body > *:not(.wrap){display:none !important;}
-    .wrap > *:not(#print-area){display:none !important;}
-    html, body{background:#fff !important;}
-    .wrap{padding:0 !important; margin:0 !important; max-width:none !important;}
-    #print-area{display:block; padding:12px; background:#fff; color:#111;}
-    /* أنيميشن دخول الصفوف يبدأ بشفافية 0، والطباعة بتلتقط أول لحظة فتطلع الخلايا فاضية */
-    #print-area, #print-area *{animation:none !important; transition:none !important; opacity:1 !important; transform:none !important; color:#111;}
-    #print-area th{color:#111;}
-    #print-area .range, #print-area #print-cov{color:#555;}
-    #print-area table{min-width:0; page-break-inside:avoid;}
-    #print-area h1{font-size:20px; margin-bottom:2px;}
-    #print-area .range{color:#555; font-size:13px; margin-bottom:18px;}
-    #print-area table{width:100%; border-collapse:collapse; margin-bottom:22px;}
-    #print-area th, #print-area td{border:1px solid #ccc; padding:6px 8px; text-align:right; font-size:13px;}
-    #print-area th{background:#f2f2f2;}
-    #print-area .totals td{font-weight:700;}
+    @page{size:A4; margin:10mm;}
+    :root, :root[data-theme="dark"]{
+      color-scheme:light;
+      --ink:#fff !important; --ink-2:#fff !important; --ink-3:#f5f1e8 !important;
+      --gold:#b08a3e !important; --gold-hi:#86631c !important; --gold-dp:#6b4c14 !important; --gold-rgb:176,138,62 !important; --on-gold:#241a0a !important;
+      --olive:#56692e !important; --olive-hi:#435324 !important;
+      --paper:#2f2416 !important; --muted:#6c5a44 !important; --hair:rgba(70,60,40,.2) !important; --hair-soft:rgba(70,60,40,.1) !important;
+      --danger:#b3412a !important; --danger-hi:#9a3420 !important; --ok:#56692e !important;
+      --material:#fff !important; --card-shadow:none !important; --card-shadow-hover:none !important;
+    }
+    *, *::before, *::after{
+      animation:none !important; transition:none !important;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    }
+    html, body{background:#fff !important; padding:0 !important;}
+    #olv-nav, .olv-pagehead, #controls-group, .trend-tip, #olv-toasts, .olv-update-bar, .olv-failed-back, .olv-footer{display:none !important;}
+    .wrap{max-width:none !important; width:100% !important; padding:0 !important; margin:0 !important;}
+    #print-area{display:block; margin-bottom:12px;}
+    #print-area h1{font-size:20px; margin:0 0 2px;}
+    #print-area .range{color:#555; font-size:13px;}
+    .group, .stats{break-inside:avoid; page-break-inside:avoid; margin-bottom:12px !important;}
+    .group{box-shadow:none !important;}
+    .table-wrap{overflow:visible !important;}
+    table{width:100% !important; min-width:0 !important;}
+    tr{break-inside:avoid;}
   }
   .insights{display:flex; flex-direction:column; gap:10px;}
   .insight-row{
@@ -186,24 +196,6 @@
     <div id="print-area">
       <h1>تقرير الأرباح والخسائر — OLV</h1>
       <div class="range" id="print-range"></div>
-      <table>
-        <tbody>
-          <tr><td>إجمالي المبيعات</td><td id="print-sales"></td></tr>
-          <tr><td>إجمالي المصروفات</td><td id="print-expenses"></td></tr>
-          <tr class="totals"><td>صافي نقدي (مبيعات − مصروفات مدفوعة)</td><td id="print-net"></td></tr>
-          <tr><td>تكلفة المواد المباعة (تقديرية)</td><td id="print-cogs"></td></tr>
-          <tr class="totals"><td>ربح تقديري بعد تكلفة المواد</td><td id="print-est"></td></tr>
-          <tr><td colspan="2" id="print-cov" style="font-size:12px;color:#777"></td></tr>
-        </tbody>
-      </table>
-      <table>
-        <thead><tr><th>طريقة الدفع</th><th>المبلغ</th></tr></thead>
-        <tbody id="print-payment-body"></tbody>
-      </table>
-      <table>
-        <thead><tr><th>تصنيف المصروف</th><th>المبلغ</th></tr></thead>
-        <tbody id="print-category-body"></tbody>
-      </table>
     </div>
 
     <header class="olv-pagehead">
@@ -214,7 +206,7 @@
       <div class="olv-pagehead-actions"></div>
     </header>
 
-    <div class="group">
+    <div class="group" id="controls-group">
       <h2>تقرير الأرباح والخسائر</h2>
       <div class="row2">
         <div class="field">
@@ -901,17 +893,12 @@
       if (!lastReport) return;
       const r = lastReport;
       document.getElementById("print-range").textContent = `من ${r.from} إلى ${r.to}`;
-      document.getElementById("print-sales").textContent = olvFormatMoney(r.totalSales);
-      document.getElementById("print-expenses").textContent = olvFormatMoney(r.totalExpenses);
-      document.getElementById("print-net").textContent = olvFormatMoney(r.net);
-      document.getElementById("print-cogs").textContent = olvFormatMoney(r.cogs);
-      document.getElementById("print-est").textContent = olvFormatMoney(r.est);
-      document.getElementById("print-cov").textContent = r.covNote;
-      document.getElementById("print-payment-body").innerHTML = r.payment
-        .map((i) => `<tr><td>${olvEsc(i.label)}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("");
-      document.getElementById("print-category-body").innerHTML = r.categories.length
-        ? r.categories.map((i) => `<tr><td>${olvEsc(i.label)}</td><td>${olvFormatMoney(i.value)}</td></tr>`).join("")
-        : `<tr><td colspan="2">لا يوجد مصروفات في هذه الفترة</td></tr>`;
+      // الطباعة دايماً بالثيم الفاتح (حتى لو الوضع الداكن شغّال)، وبنرجّع الثيم بعدها
+      const root = document.documentElement;
+      const prevTheme = root.getAttribute("data-theme");
+      root.setAttribute("data-theme", "light");
+      const restore = () => { if (prevTheme) root.setAttribute("data-theme", prevTheme); window.removeEventListener("afterprint", restore); };
+      window.addEventListener("afterprint", restore);
       window.print();
     }
 
