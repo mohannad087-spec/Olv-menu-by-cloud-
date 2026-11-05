@@ -51,8 +51,28 @@ function olvHoursBetween(a, b) {
   return (new Date(b) - new Date(a)) / 3600000;
 }
 
+// الشفت الصباحي (أول بصمة قبل 12 الظهر بتوقيت عمّان) بينحسب لحد 4 العصر بالكتير، حتى لو بصم الخروج بعدها.
+// شفت المسا (بيبدأ 4 العصر لحد 12-1 بالليل) ما بينقص منه شي.
+const OLV_MORNING_START_HOUR = 12;
+const OLV_MORNING_CUTOFF_HOUR = 16;
+const OLV_AMMAN_TIME_FMT = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", hourCycle: "h23", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+// وقت الخروج الفعلي (ms) المحسوب للوردية بعد تطبيق حد الصباحي
+function olvEffectiveOutMs(s) {
+  if (!s.clockOut) return null;
+  const inMs = new Date(s.clockIn.punched_at).getTime();
+  const outMs = new Date(s.clockOut.punched_at).getTime();
+  const parts = Object.fromEntries(OLV_AMMAN_TIME_FMT.formatToParts(new Date(inMs)).map((x) => [x.type, x.value]));
+  const h = +parts.hour;
+  if (h >= OLV_MORNING_START_HOUR) return outMs;
+  const secOfDay = h * 3600 + +parts.minute * 60 + +parts.second;
+  const capMs = inMs + (OLV_MORNING_CUTOFF_HOUR * 3600 - secOfDay) * 1000;
+  return Math.min(outMs, capMs);
+}
+
 // ساعات وردية: null = ناقص خروج، 0 = يوم مهمل (أقل من 30 دقيقة)
 function olvShiftHours(s) {
   if (s.ignored) return 0;
-  return olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
+  if (!s.clockOut) return null;
+  return (olvEffectiveOutMs(s) - new Date(s.clockIn.punched_at).getTime()) / 3600000;
 }

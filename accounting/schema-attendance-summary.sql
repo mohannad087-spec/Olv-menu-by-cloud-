@@ -1,5 +1,6 @@
 -- مطبّق مسبقًا على قاعدة البيانات (مشروع Supabase) — هذا الملف للتوثيق وإعادة البناء فقط.
 -- حضور الموظفين: يوم الدوام = أول وآخر بصمة باليوم (يوم العمل بيبدأ 04:00 بتوقيت عمّان)،
+-- الشفت الصباحي (أول بصمة قبل 12 الظهر) ما ينحسب بعد 4 العصر (نفس الحد بـ shift-utils.js)
 -- اليوم اللي فرق بصماته أقل من p_min_minutes (افتراضي 30) بينتجاهل، واليوم ببصمة وحدة = missing_exit.
 -- SECURITY INVOKER: RLS على employee_punches/profiles بتنطبق على المستدعي. التنفيذ لـ authenticated فقط.
 
@@ -28,8 +29,12 @@ as $function$
     from punches group by profile_id, work_date
   )
   select p.id, p.full_name, p.device_user_id, d.work_date, d.first_punch, d.last_punch, d.punch_count,
+         -- الشفت الصباحي (أول بصمة قبل 12 الظهر) بينحسب لحد 4 العصر بالكتير؛ شفت المسا بدون حد
          case when d.punch_count > 1 and d.last_punch - d.first_punch >= make_interval(mins => p_min_minutes)
-              then round(extract(epoch from d.last_punch - d.first_punch) / 3600.0, 2) else 0 end,
+              then round(extract(epoch from
+                     (case when (d.first_punch at time zone 'Asia/Amman')::time < time '12:00'
+                           then least(d.last_punch, (date_trunc('day', d.first_punch at time zone 'Asia/Amman') + interval '16 hours') at time zone 'Asia/Amman')
+                           else d.last_punch end) - d.first_punch) / 3600.0, 2) else 0 end,
          case when d.punch_count = 1 then 'missing_exit'
               when d.last_punch - d.first_punch < make_interval(mins => p_min_minutes) then 'ignored'
               else 'ok' end
