@@ -213,6 +213,12 @@
   .rs-sum th:first-child, .rs-sum td:first-child{text-align:start; font-weight:700;}
   .rs-sum td.bad{color:var(--danger-hi); font-weight:700;}
   .rs-scroll{overflow-x:auto;}
+  .st-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .st-head label{display:inline-flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer;}
+  .st-emp{margin:0 0 14px;}
+  .st-emp h3{font-size:14.5px; font-weight:800; margin:0 0 6px;}
+  .rs-sum tfoot td{font-weight:800; border-top:2px solid var(--hair-soft);}
+  .rs-sum td.ot{color:var(--accent-hi, var(--text)); font-weight:700;}
   @media (prefers-reduced-motion: reduce){
     .at-chip{transition:none;} .at-chip:active{transform:none;}
     .hr-bars .tr i, .pulse{animation:none;}
@@ -303,6 +309,12 @@
       <section class="group"><h2 id="now-title"></h2><div id="now-box"><div class="at-empty">جاري التحميل...</div></div></section>
       <section class="group"><h2 id="hrs-title"></h2><div id="hrs-box"><div class="at-empty">جاري التحميل...</div></div></section>
     </div>
+
+    <section class="group" id="st-group">
+      <div class="st-head"><h2>كشف الدوام</h2>
+        <label><input type="checkbox" id="ot-toggle"> تفعيل حساب الإضافي (بعد 10 ساعات، بنفس أجر الساعة)</label></div>
+      <div id="st-box"><div class="at-empty">جاري التحميل...</div></div>
+    </section>
 
     </div>
 
@@ -581,6 +593,7 @@
       $("at-sub").textContent = range.from === range.to ? `${DAY_NAMES[parse(range.from).getDay()]} ${shortDate(range.from)}` : `من ${shortDate(range.from)} لـ ${shortDate(range.to)}`;
       renderNow(open);
       renderHours();
+      renderStatement(shifts);
       renderLog(shifts);
     }
 
@@ -735,6 +748,38 @@
         <li><span class="row"><span class="nm">${olvEsc(r.full_name)}</span><span class="sh">${r.days_worked} يوم${r.missing_exit_days ? ` · ${r.missing_exit_days} ناقص خروج` : ""}</span><span class="amt">${fmtHrs(Number(r.total_hours))} س</span></span>
           <span class="tr"><i style="width:${Math.max(3, Number(r.total_hours) / max * 100)}%"></i></span></li>`).join("")}</ol>`;
     }
+
+    // كشف الدوام: جدول لكل موظف (تاريخ، دخول، خروج، ساعات، إضافي) ومجموع. الإضافي = ساعات الوردية فوق 10، بنفس أجر الساعة
+    // (الأجر ما بيتغير: الساعات كلها محسوبة أصلًا بصفحة الرواتب، هاد عرض بس). الخيار محفوظ بالمتصفح.
+    const OT_AFTER_H = 10;
+    function otOn() { try { return localStorage.getItem("olv_att_ot") === "1"; } catch (e) { return false; } }
+    function renderStatement(shifts) {
+      const box = $("st-box");
+      const emp = $("f-employee").value;
+      const list = shifts.filter((s) => !emp || s.profile_id === emp);
+      if (!list.length) { box.innerHTML = `<div class="at-empty">ما في دوام بهالفترة.</div>`; return; }
+      const ot = otOn();
+      const by = new Map();
+      list.forEach((s) => { if (!by.has(s.profile_id)) by.set(s.profile_id, []); by.get(s.profile_id).push(s); });
+      const names = [...by.keys()].sort((a, b) => nameOf(a).localeCompare(nameOf(b), "ar"));
+      box.innerHTML = names.map((id) => {
+        const rows = by.get(id).sort((a, b) => a.clockIn.punched_at.localeCompare(b.clockIn.punched_at));
+        let tot = 0, totOt = 0;
+        const trs = rows.map((s) => {
+          const h = hoursOf(s);
+          const o = h != null ? Math.max(0, h - OT_AFTER_H) : 0;
+          if (h != null) { tot += h; totOt += o; }
+          return `<tr><td>${dayLabel(s.work_date)}</td><td>${fmtTime(s.clockIn.punched_at)}</td><td>${s.clockOut ? fmtTime(s.clockOut.punched_at) : "مفتوحة"}</td><td>${h != null ? fmtHrs(h) : "—"}</td>${ot ? `<td class="${o ? "ot" : ""}">${o ? fmtHrs(o) : "—"}</td>` : ""}</tr>`;
+        }).join("");
+        return `<div class="st-emp"><h3>${olvEsc(nameOf(id))}</h3><div class="rs-scroll"><table class="rs-sum"><thead><tr><th>اليوم</th><th>دخول</th><th>خروج</th><th>الساعات</th>${ot ? "<th>إضافي (س)</th>" : ""}</tr></thead><tbody>${trs}</tbody>
+          <tfoot><tr><td>المجموع</td><td></td><td></td><td>${fmtHrs(tot)}</td>${ot ? `<td>${fmtHrs(totOt)}</td>` : ""}</tr></tfoot></table></div></div>`;
+      }).join("");
+    }
+    $("ot-toggle").checked = otOn();
+    $("ot-toggle").addEventListener("change", (e) => {
+      try { localStorage.setItem("olv_att_ot", e.target.checked ? "1" : "0"); } catch (err) { /* ما في تخزين */ }
+      renderStatement(shiftsList());
+    });
 
     function rowHtml(s) {
       const h = hoursOf(s);
