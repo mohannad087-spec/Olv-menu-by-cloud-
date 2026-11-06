@@ -56,6 +56,9 @@ function olvEffectiveOutMs(s) {
   return s.clockOut ? new Date(s.clockOut.punched_at).getTime() : null;
 }
 
+// الإضافي: ساعات الوردية فوق 9 (صباحي أو مسائي)، بنفس أجر الساعة. عرض بس، الأجر ما بيتغير لأن الساعات كلها محسوبة أصلاً
+const OLV_OVERTIME_AFTER_H = 9;
+
 // ساعات وردية: null = ناقص خروج، 0 = يوم مهمل (أقل من 30 دقيقة)
 function olvShiftHours(s) {
   if (s.ignored) return 0;

@@ -286,7 +286,7 @@
       <button class="btn go" type="button" id="custom-apply">عرض</button>
     </div>
 
-    <div class="st-head"><label><input type="checkbox" id="ot-toggle"> تفعيل حساب الإضافي (بعد 10 ساعات، بنفس أجر الساعة)</label></div>
+    <div class="st-head"><label><input type="checkbox" id="ot-toggle"> عرض الإضافي (بعد 9 ساعات بالشفت، بنفس أجر الساعة)</label></div>
 
     <div class="at-tabs" role="tablist" aria-label="أقسام الحضور">
       <button class="at-tab" type="button" role="tab" id="tab-overview" aria-selected="true" aria-controls="pane-overview" data-tab="overview"></button>
@@ -750,10 +750,10 @@
           <span class="tr"><i style="width:${Math.max(3, Number(r.total_hours) / max * 100)}%"></i></span></li>`).join("")}</ol>`;
     }
 
-    // كشف الدوام: جدول لكل موظف (تاريخ، دخول، خروج، ساعات، إضافي) ومجموع. الإضافي = ساعات الوردية فوق 10، بنفس أجر الساعة
+    // كشف الدوام: جدول لكل موظف (تاريخ، دخول، خروج، ساعات، إضافي) ومجموع. الإضافي = ساعات الوردية فوق 9، بنفس أجر الساعة
     // (الأجر ما بيتغير: الساعات كلها محسوبة أصلًا بصفحة الرواتب، هاد عرض بس). الخيار محفوظ بالمتصفح.
-    const OT_AFTER_H = 10;
-    function otOn() { try { return localStorage.getItem("olv_att_ot") === "1"; } catch (e) { return false; } }
+    const OT_AFTER_H = OLV_OVERTIME_AFTER_H;
+    function otOn() { try { return localStorage.getItem("olv_att_ot") !== "0"; } catch (e) { return true; } }
     function renderStatement(shifts) {
       const box = $("st-box");
       const emp = $("f-employee").value;
