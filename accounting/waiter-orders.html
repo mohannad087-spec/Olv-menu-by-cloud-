@@ -17,6 +17,17 @@
   .wt-top .who{color:var(--muted); font-size:14px;}
   .wt-top .btn{min-height:48px;}
   .wt-top [hidden]{display:none;}
+  .wt-nudges{position:fixed; inset-inline:12px; bottom:12px; z-index:40; display:flex; flex-direction:column; gap:10px; max-height:75vh; overflow:auto; pointer-events:none;}
+  .wt-nudge{pointer-events:auto; max-width:560px; width:100%; margin-inline:auto; background:var(--ink-3); border:2px solid var(--gold); border-radius:18px; padding:14px; box-shadow:0 12px 40px rgba(0,0,0,.35); animation:wtUp .26s ease-out;}
+  .wt-nudge h3{margin:0 0 10px; font-size:20px; font-weight:800; display:flex; align-items:center; gap:8px;}
+  .wt-nudge h3 .icon{color:var(--gold);}
+  .wt-nudge .chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;}
+  .wt-nudge .chips button{min-height:48px; padding:8px 14px; border-radius:14px; border:1px solid var(--hair-soft); background:transparent; color:inherit; font:inherit; font-weight:700; cursor:pointer;}
+  .wt-nudge .chips button[aria-pressed="true"]{background:var(--gold); color:#111; border-color:var(--gold);}
+  .wt-nudge input{width:100%; min-height:48px; border-radius:14px; border:1px solid var(--hair-soft); background:transparent; color:inherit; font:inherit; padding:0 12px; margin-bottom:10px; box-sizing:border-box;}
+  .wt-nudge .send{width:100%; min-height:52px;}
+  @keyframes wtUp{from{transform:translateY(24px); opacity:0}to{transform:none; opacity:1}}
+  @media (prefers-reduced-motion:reduce){ .wt-nudge{animation:none;} }
   .wt-err{margin:12px 18px 0; padding:12px 14px; border-radius:14px; background:var(--ink-3); color:var(--danger-hi); font-weight:700; display:none;}
   .wt-wrap{max-width:var(--page-max,1320px); margin:0 auto;}
   .wt-legend{display:flex; gap:16px; flex-wrap:wrap; padding:14px 18px 0; color:var(--muted); font-size:13.5px;}
@@ -147,6 +158,7 @@
     <button class="btn" id="logout"></button>
   </header>
   <div class="wt-err" id="err" role="alert"></div>
+  <div class="wt-nudges" id="nudges" aria-live="assertive"></div>
   <main class="wt-wrap" id="view"><div class="wt-empty">جاري التحميل...</div></main>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -548,6 +560,69 @@
     });
     // الخروج مو سهل: ضغط مطوّل ثانيتين (حتى ما يطلع الويتر بالغلط)
     olvHoldConfirm($("logout"), async () => { await sb().auth.signOut(); window.location.href = "login.html"; }, { ms: 2000, hint: "اضغط مطوّلاً ثانيتين للخروج" });
+
+
+    // ---------- تنبيه الكاشير: «طاولة X تأخروا» والويتر بيرد بسبب ----------
+    const REASONS = ["الزبون لسا عم يطلب شي زيادة", "المطبخ تأخر", "البار تأخر", "الأرجيلة تأخرت", "عم نجهّز طلبهم هلق", "بروح عندهم هلق"];
+    let nudges = [], nudgeSig = "", nudgeBusy = false;
+    const nudgeDraft = {};          // id -> { reason, text } (بيضل لو انعاد الرسم)
+    const nudgeSeen = new Set();
+    function beep() {
+      try {
+        const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+        const c = new A(); [660, 880].forEach((f, i) => {
+          const o = c.createOscillator(), g = c.createGain(); o.frequency.value = f; o.connect(g); g.connect(c.destination);
+          g.gain.setValueAtTime(0.25, c.currentTime + i * 0.22); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.22 + 0.2);
+          o.start(c.currentTime + i * 0.22); o.stop(c.currentTime + i * 0.22 + 0.2);
+        }); setTimeout(() => c.close(), 900);
+      } catch (_) {}
+    }
+    function paintNudges() {
+      const box = $("nudges");
+      box.innerHTML = nudges.map((n) => {
+        const d = nudgeDraft[n.id] || {};
+        return `<section class="wt-nudge" data-n="${esc(n.id)}"><h3>${olvIcon("bell")} الكاشير بنبّه: طاولة ${esc(n.table_number)} تأخروا</h3>
+          <div class="chips">${REASONS.map((r) => `<button type="button" data-r="${esc(r)}" aria-pressed="${d.reason === r}">${esc(r)}</button>`).join("")}</div>
+          <input type="text" maxlength="200" placeholder="أو اكتب السبب" aria-label="سبب التأخير" value="${esc(d.text || "")}">
+          <button type="button" class="btn gold send">${olvIcon("check")} ابعت الرد للكاشير</button></section>`;
+      }).join("");
+    }
+    async function loadNudges() {
+      const { data: d, error } = await sb().rpc("waiter_nudges");
+      if (error || !Array.isArray(d)) return;      // قبل تشغيل schema-table-nudge.sql ما بنزعج الويتر
+      const fresh = d.filter((n) => !nudgeSeen.has(n.id));
+      fresh.forEach((n) => nudgeSeen.add(n.id));
+      if (fresh.length) { beep(); if (navigator.vibrate) navigator.vibrate([200, 100, 200]); }
+      const sig = d.map((n) => n.id).join(",");
+      nudges = d;
+      if (sig !== nudgeSig) { nudgeSig = sig; paintNudges(); }
+    }
+    $("nudges").addEventListener("click", async (e) => {
+      const card = e.target.closest(".wt-nudge"); if (!card) return;
+      const id = card.dataset.n; const dr = (nudgeDraft[id] = nudgeDraft[id] || {});
+      const chip = e.target.closest("[data-r]");
+      if (chip) {
+        dr.reason = dr.reason === chip.dataset.r ? "" : chip.dataset.r;
+        card.querySelectorAll("[data-r]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.r === dr.reason)));
+        return;
+      }
+      if (!e.target.closest(".send") || nudgeBusy) return;
+      dr.text = card.querySelector("input").value;
+      if (!dr.reason && !dr.text.trim()) { olvToast("اختار سبب أو اكتب جواب", { icon: "x" }); return; }
+      nudgeBusy = true;
+      const { error } = await sb().rpc("waiter_reply_nudge", { p_id: id, p_code: dr.reason || null, p_text: dr.text.trim() || null });
+      nudgeBusy = false;
+      if (error) { olvToast(error.message || "ما انبعت الرد، جرّب كمان مرة", { icon: "x" }); return; }
+      olvToast("انبعت الرد للكاشير", { type: "gold", icon: "check" });
+      delete nudgeDraft[id]; await loadNudges();
+    });
+    $("nudges").addEventListener("input", (e) => {
+      const card = e.target.closest(".wt-nudge"); if (!card) return;
+      (nudgeDraft[card.dataset.n] = nudgeDraft[card.dataset.n] || {}).text = e.target.value;
+    });
+    loadNudges();
+    setInterval(() => { if (!document.hidden) loadNudges(); }, 5000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) loadNudges(); });
 
     const cm = cachedMenu();
     if (cm) menu = cm;
