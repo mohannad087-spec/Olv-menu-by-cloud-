@@ -811,13 +811,14 @@
         const sh = d.shift;
         const out = sh.clockOut ? hm(sh.clockOut.punched_at) : "—";
         const note = d.h === null ? "ناقص بصمة خروج" : sh.ignored ? "مهمل (أقل من 30 دقيقة)" : "";
-        return { day: d.day, name: dayName(d.day), in: hm(sh.clockIn.punched_at), out, h: d.h, note };
+        return { day: d.day, name: dayName(d.day), in: hm(sh.clockIn.punched_at), out, h: d.h, ot: d.h > OLV_OVERTIME_AFTER_H ? d.h - OLV_OVERTIME_AFTER_H : 0, note };
       });
     }
     function datesTotals(r, rows) {
       const hours = rows.reduce((t, x) => t + (x.h || 0), 0);
+      const ot = rows.reduce((t, x) => t + x.ot, 0);
       const wage = r.hourlyWage;
-      return { hours, wage, amount: wage == null ? null : hours * wage, open: rows.filter((x) => x.h === null).length };
+      return { hours, ot, wage, amount: wage == null ? null : hours * wage, open: rows.filter((x) => x.h === null).length };
     }
     function datesHtml(r) {
       const st = datesState.get(r.profileId);
@@ -827,8 +828,8 @@
       if (!st) return `<div class="pf-card pad">${form}<div class="pf-empty">اختار الفترة واضغط «اعرض» لتشوف دوام ${olvEsc(empName(r.profileId))} يوم بيوم.</div></div>`;
       if (st.error) return `<div class="pf-card pad">${form}<div class="pf-empty">${olvEsc(st.error)}</div></div>`;
       const rows = datesRows(st.days), t = datesTotals(r, rows);
-      const body = rows.length ? `<ul class="pf-list">${rows.map((x) => `<li><span>${x.name} ${shortDate(x.day)}<small>${x.in} ← ${x.out}${x.note ? " · " + x.note : ""}</small></span><b>${x.h === null ? "؟" : fmtHrs(x.h)}</b></li>`).join("")}</ul>` : `<div class="pf-empty">ما في دوام بهالفترة.</div>`;
-      const sum = `<div class="pf-card pad"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
+      const body = rows.length ? `<ul class="pf-list">${rows.map((x) => `<li><span>${x.name} ${shortDate(x.day)}<small>${x.in} ← ${x.out}${x.ot ? ` · إضافي ${fmtHrs(x.ot)}` : ""}${x.note ? " · " + x.note : ""}</small></span><b>${x.h === null ? "؟" : fmtHrs(x.h)}</b></li>`).join("")}</ul>` : `<div class="pf-empty">ما في دوام بهالفترة.</div>`;
+      const sum = `<div class="pf-card pad"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
         ${t.open ? `<div class="pay-warn">${olvIcon("warning")}<span>${t.open} يوم ببصمة وحدة ما انحسب.</span></div>` : ""}
         <div class="st-actions"><button class="btn" type="button" data-dprint="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-dwa="${r.profileId}">واتساب</button></div></div>`;
       return `<div class="pf-card pad">${form}</div><div class="pf-card">${body}</div>${sum}`;
@@ -846,19 +847,19 @@
     function datesText(r, st) {
       const rows = datesRows(st.days), t = datesTotals(r, rows);
       const L = [`*كشف دوام ${empName(r.profileId)}*`, `الفترة: ${st.from} لـ ${st.to}`, ""];
-      rows.forEach((x) => L.push(`${x.name} ${shortDate(x.day)}: ${x.in} ← ${x.out} = ${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h) + " ساعة"}${x.note && x.h !== null ? " (" + x.note + ")" : ""}`));
-      L.push("", `*المجموع: ${fmtHrs(t.hours)} ساعة${t.amount == null ? "" : ` = ${olvFormatMoney(t.amount)}`}*`);
+      rows.forEach((x) => L.push(`${x.name} ${shortDate(x.day)}: ${x.in} ← ${x.out} = ${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h) + " ساعة"}${x.ot ? ` (إضافي ${fmtHrs(x.ot)})` : ""}${x.note && x.h !== null ? " (" + x.note + ")" : ""}`));
+      L.push("", `*المجموع: ${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.amount == null ? "" : ` = ${olvFormatMoney(t.amount)}`}*`);
       return L.join("\n");
     }
     function datesHtmlPage(r, st) {
       const rows = datesRows(st.days), t = datesTotals(r, rows);
-      const trs = rows.map((x) => `<tr><td>${x.name} ${shortDate(x.day)}</td><td>${x.in}</td><td>${x.out}</td><td>${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h)}</td><td>${olvEsc(x.note)}</td></tr>`).join("");
+      const trs = rows.map((x) => `<tr><td>${x.name} ${shortDate(x.day)}</td><td>${x.in}</td><td>${x.out}</td><td>${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h)}</td><td>${x.ot ? fmtHrs(x.ot) : "—"}</td><td>${olvEsc(x.note)}</td></tr>`).join("");
       return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف دوام ${olvEsc(empName(r.profileId))}</title>
 <style>body{font-family:Tajawal,Arial,sans-serif;margin:24px auto;max-width:720px;color:#222;padding:0 16px}h1{font-size:22px;margin:0 0 4px}.sub{color:#777;margin-bottom:18px}table{width:100%;border-collapse:collapse;margin:8px 0 18px}td,th{padding:7px 4px;border-bottom:1px solid #ddd;text-align:right}th{color:#777;font-weight:600}.tot{font-size:20px;font-weight:800;border:2px solid #222;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between}.btns{margin-bottom:16px}@media print{.btns{display:none}}</style></head><body>
 <div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
 <h1>كشف دوام: ${olvEsc(empName(r.profileId))}</h1><div class="sub">الفترة ${st.from} لـ ${st.to}</div>
-<table><tr><th>اليوم</th><th>دخول</th><th>خروج</th><th>ساعات</th><th>ملاحظة</th></tr>${trs}</table>
-<div class="tot"><span>${fmtHrs(t.hours)} ساعة${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}</span><span>${t.amount == null ? "" : olvFormatMoney(t.amount)}</span></div>
+<table><tr><th>اليوم</th><th>دخول</th><th>خروج</th><th>ساعات</th><th>إضافي</th><th>ملاحظة</th></tr>${trs}</table>
+<div class="tot"><span>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}</span><span>${t.amount == null ? "" : olvFormatMoney(t.amount)}</span></div>
 </body></html>`;
     }
 
