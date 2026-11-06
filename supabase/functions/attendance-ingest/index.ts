@@ -37,14 +37,15 @@ Deno.serve(async (req) => {
     .from("attendance_bridge_tokens").select("id, revoked").eq("token_sha256", await sha256(token)).maybeSingle();
   if (!tok || tok.revoked) return json({ ok: false, error: "رمز غير صالح" }, 401);
 
-  let body: { events?: { employeeNo?: unknown; time?: unknown }[]; users?: { employeeNo?: unknown; name?: unknown }[] };
+  let body: { events?: { employeeNo?: unknown; time?: unknown }[]; active?: unknown[]; users?: { employeeNo?: unknown; name?: unknown }[] };
   try { body = await req.json(); } catch { return json({ ok: false, error: "JSON غير صالح" }, 400); }
   const events = Array.isArray(body.events) ? body.events.slice(0, 1000) : [];
 
   // ربط بالاسم: موظف بالتطبيق بدون device_user_id واسمه مطابق لاسم شخص على الجهاز (مطابقة وحيدة فقط)
   const linked: string[] = [];
   const created: string[] = [];
-  const activeNos = new Set(events.map((e) => String(e.employeeNo ?? "").trim()).filter(Boolean));
+  // body.active: أرقام بصمت مؤخرًا ولسا بدون ملف (الجسر بيرسلها مع قائمة الأشخاص)
+  const activeNos = new Set([...events.map((e) => e.employeeNo), ...(Array.isArray(body.active) ? body.active.slice(0, 200) : [])].map((x) => String(x ?? "").trim()).filter(Boolean));
   const users = Array.isArray(body.users) ? body.users.slice(0, 500) : [];
   if (users.length) {
     const norm = (s: unknown) => String(s ?? "").normalize("NFKC").replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim().toLowerCase();
