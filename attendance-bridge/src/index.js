@@ -68,6 +68,7 @@ async function syncUsers() {
     const users = await listDeviceUsers({ host: DEVICE_IP, port: DEVICE_PORT, username: DEVICE_USER, password: DEVICE_PASSWORD });
     const out = await ingest([], users);
     if (out.linked && out.linked.length) log(`تم ربط موظفين بالاسم مع رقمهم على الجهاز: ${out.linked.join("، ")}`);
+    if (out.created && out.created.length) log(`تم فتح ملف موظف تلقائيًا لأشخاص جدد على الجهاز: ${out.created.join("، ")}`);
   } catch (err) {
     log("تنبيه: ما قدرت أقرأ أسماء الموظفين من الجهاز:", err.message);
   }

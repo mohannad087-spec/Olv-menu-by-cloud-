@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
 
   // ربط بالاسم: موظف بالتطبيق بدون device_user_id واسمه مطابق لاسم شخص على الجهاز (مطابقة وحيدة فقط)
   const linked: string[] = [];
+  const created: string[] = [];
   const users = Array.isArray(body.users) ? body.users.slice(0, 500) : [];
   if (users.length) {
     const norm = (s: unknown) => String(s ?? "").normalize("NFKC").replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim().toLowerCase();
@@ -52,11 +53,24 @@ Deno.serve(async (req) => {
     for (const u of users) {
       const no = String(u.employeeNo ?? "").trim();
       const n = norm(u.name);
-      if (!no || !n || taken.has(no)) continue;
-      const hits = free.filter((p) => nameMatches(n, norm(p.full_name)));
-      if (hits.length !== 1) continue;
-      const { error } = await admin.from("profiles").update({ device_user_id: no }).eq("id", hits[0].id);
-      if (!error) { taken.add(no); linked.push(`${hits[0].full_name} (${no})`); free.splice(free.indexOf(hits[0]), 1); }
+      if (!/^\d{1,10}$/.test(no) || taken.has(no)) continue;
+      const hits = n ? free.filter((p) => nameMatches(n, norm(p.full_name))) : [];
+      if (hits.length > 1) continue; // أكتر من موظف بنفس الاسم: ما منخمّن
+      if (hits.length === 1) {
+        const { error } = await admin.from("profiles").update({ device_user_id: no }).eq("id", hits[0].id);
+        if (!error) { taken.add(no); linked.push(`${hits[0].full_name} (${no})`); free.splice(free.indexOf(hits[0]), 1); }
+        continue;
+      }
+      // شخص جديد على الجهاز وما إله موظف بالنظام: منفتحله ملف موظف تلقائيًا (كاشير staff بدون أجر، الأجر بتضبطه من صفحة الموظفين).
+      // الحساب بدون كلمة سر معروفة (بريد وهمي + كلمة سر عشوائية)، هدفه الحضور والرواتب بس.
+      const fullName = String(u.name ?? "").trim() || `موظف جهاز ${no}`;
+      const pw = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: made, error: mkErr } = await admin.auth.admin.createUser({
+        email: `device${no}@olvcafe.com`, password: pw, email_confirm: true, user_metadata: { full_name: fullName },
+      });
+      if (mkErr || !made?.user) continue;
+      const { error: upErr } = await admin.from("profiles").update({ full_name: fullName, role: "staff", is_active: true, device_user_id: no }).eq("id", made.user.id);
+      if (!upErr) { taken.add(no); created.push(`${fullName} (${no})`); }
     }
   }
 
@@ -88,5 +102,5 @@ Deno.serve(async (req) => {
     if (error) return json({ ok: false, error: error.message }, 500);
   }
   await admin.from("attendance_bridge_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tok.id);
-  return json({ ok: true, received: events.length, saved: rows.length, unmapped: [...unmapped], linked });
+  return json({ ok: true, received: events.length, saved: rows.length, unmapped: [...unmapped], linked, created });
 });
