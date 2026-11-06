@@ -44,6 +44,7 @@ Deno.serve(async (req) => {
   // ربط بالاسم: موظف بالتطبيق بدون device_user_id واسمه مطابق لاسم شخص على الجهاز (مطابقة وحيدة فقط)
   const linked: string[] = [];
   const created: string[] = [];
+  const activeNos = new Set(events.map((e) => String(e.employeeNo ?? "").trim()).filter(Boolean));
   const users = Array.isArray(body.users) ? body.users.slice(0, 500) : [];
   if (users.length) {
     const norm = (s: unknown) => String(s ?? "").normalize("NFKC").replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim().toLowerCase();
@@ -61,6 +62,8 @@ Deno.serve(async (req) => {
         if (!error) { taken.add(no); linked.push(`${hits[0].full_name} (${no})`); free.splice(free.indexOf(hits[0]), 1); }
         continue;
       }
+      // بس لو بصم مؤخرًا (بالفترة اللي الجسر بيسحبها): هيك منتجنب نفتح ملفات لأشخاص قدام ومحذوفين من المحل.
+      if (!activeNos.has(no)) continue;
       // شخص جديد على الجهاز وما إله موظف بالنظام: منفتحله ملف موظف تلقائيًا (كاشير staff بدون أجر، الأجر بتضبطه من صفحة الموظفين).
       // الحساب بدون كلمة سر معروفة (بريد وهمي + كلمة سر عشوائية)، هدفه الحضور والرواتب بس.
       const fullName = String(u.name ?? "").trim() || `موظف جهاز ${no}`;
