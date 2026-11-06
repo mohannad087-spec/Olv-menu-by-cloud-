@@ -523,7 +523,11 @@
       if (!canManage) return;
       errBox.style.display = "none";
       range = rangeFor(period);
-      $("py-sub").textContent = `لحد ${shortDate(range.to)} (من آخر دفعة لكل موظف)`;
+      // آخر يوم دوام «مكتمل»: يوم الدوام بيبدأ 4 الفجر، فاليوم الحالي (وبعد نص الليل كمان) لسا شغّال ومش كامل.
+      // لو أنهينا الفترة بيه، الساعات اللي بتنبصم بعد الدفع بتضيع لأن الدفعة الجاية بتبدأ من اليوم اللي بعده
+      const lastDoneDay = addDays(olvWorkDay(new Date().toISOString()), -1);
+      if (range.to > lastDoneDay) range.to = lastDoneDay;
+      $("py-sub").textContent = `لحد ${shortDate(range.to)} (آخر يوم دوام مكتمل، من آخر دفعة لكل موظف)`;
       const employeeId = $("f-employee").value;
       try {
         await Promise.all([loadLedger(), loadAdjustments()]);
@@ -549,7 +553,6 @@
         const { data: dayRows, error: dayErr } = await window.supabaseClient.rpc("attendance_daily", { p_from: noPayStart, p_to: range.to });
         if (dayErr) throw dayErr;
         (dayRows || []).forEach((d) => { if (!attended.has(d.profile_id)) attended.set(d.profile_id, new Set()); attended.get(d.profile_id).add(fmtDate(d.work_date)); });
-        const yesterday = addDays(todayIso(), -1);
         previewRows = [...profileIds]
           .map((profileId) => {
             const from = startOf(profileId);
@@ -561,7 +564,7 @@
             const days = attended.get(profileId) || new Set();
             const firstWork = days.size ? [...days].sort()[0] : null;
             const spanFrom = firstWork && firstWork > from ? firstWork : from;
-            const spanTo = range.to < yesterday ? range.to : yesterday;
+            const spanTo = range.to;
             let weeks = 0, lastFri = null;
             if (firstWork && spanFrom <= spanTo) {
               for (let d = spanFrom; d <= spanTo; d = addDays(d, 1)) if (parse(d).getDay() === 5) { weeks++; lastFri = d; }
@@ -891,6 +894,8 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
       if (!row) return;
       const pay = row.payAmount != null ? row.payAmount : row.net;
       if (!Number.isFinite(pay) || pay < 0) { olvToast("المبلغ غير صحيح", { type: "error" }); return; }
+      // يوم ببصمة وحدة ما بينحسب، والدفعة بتسكّر الفترة، فساعاته بتضيع نهائياً. لازم يتصحح من صفحة الحضور أول
+      if (row.openCount > 0) { olvToast(`في ${row.openCount} يوم ببصمة وحدة عند ${empName(profileId)}. صحّحه من صفحة الحضور قبل الدفع، وإلا بتضيع ساعاته.`, { type: "error" }); return; }
       const diff = Math.round((row.net - pay) * 100) / 100;
       // الإجمالي المسجّل = مستحق هالفترة + المرحّل، فالباقي بعد الدفع = الإجمالي − السلف − المدفوع بيترحّل للدفعة الجاية
       const totalOwed = row.earned + row.carry;
