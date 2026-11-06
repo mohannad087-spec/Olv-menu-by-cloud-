@@ -108,7 +108,8 @@
   .em-card{border-radius:18px; background:var(--ink-3); padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0;}
   .em-card.off{opacity:.65;}
   .em-top{display:flex; align-items:center; gap:12px;}
-  .av{width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:17px; background:var(--ink-2); color:var(--muted); flex:none;}
+  .av{width:52px; height:52px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:18px; background:var(--ink-2); color:var(--muted); flex:none; overflow:hidden;}
+  .av img{width:100%; height:100%; object-fit:cover; display:block;}
   .av.owner{background:var(--olive); color:var(--on-olive);}
   .av.manager{background:var(--gold); color:var(--on-gold);}
   .em-top .t{flex:1; min-width:0;}
@@ -130,6 +131,7 @@
 </head>
 <body>
   <div id="olv-nav"></div>
+  <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp" hidden>
   <div class="wrap em-wrap">
     <div class="err" id="err"></div>
     <div id="no-access" class="group" hidden>
@@ -231,6 +233,10 @@
     const $ = (id) => document.getElementById(id);
     const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "موظف", waiter: "ويتر (تابلت الطاولات)" };
     let employees = [];
+    // صور الموظفين: بكت خاص (employee-photos)، بتنعرض برابط موقّع مؤقت (ساعة) مش رابط عام
+    const PHOTO_BUCKET = "employee-photos";
+    const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+    const photoUrls = new Map(); // photo_path -> signedUrl
     let myRole = null;
     let myId = null;
 
@@ -321,7 +327,69 @@
       box.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openEdit(b.dataset.edit)));
       box.querySelectorAll("[data-toggle]").forEach((b) => b.addEventListener("click", () => toggleActive(b.dataset.toggle, b.dataset.active === "true")));
       box.querySelectorAll("[data-reset]").forEach((b) => b.addEventListener("click", () => resetPassword(b.dataset.reset)));
+      box.querySelectorAll("[data-photo]").forEach((b) => b.addEventListener("click", () => { photoTarget = b.dataset.photo; $("photo-input").value = ""; $("photo-input").click(); }));
+      // صورة ما انحمّلت (رابط انتهى/انحذفت): نرجع للحرف الأول بدل أيقونة مكسورة
+      box.querySelectorAll(".av img").forEach((img) => img.addEventListener("error", () => {
+        const ini = img.parentElement.dataset.ini;
+        img.replaceWith(document.createTextNode(ini || ""));
+      }, { once: true }));
     }
+
+    // روابط موقّعة دفعة وحدة لكل الصور (ساعة)، وبنجددها قبل ما تنتهي
+    async function signPhotos() {
+      const paths = [...new Set(employees.map((e) => e.photo_path).filter(Boolean))];
+      if (!paths.length) return false;
+      const { data, error } = await window.supabaseClient.storage.from(PHOTO_BUCKET).createSignedUrls(paths, 3600);
+      if (error || !data) return false;
+      data.forEach((r) => { if (r.signedUrl && !r.error) photoUrls.set(r.path, r.signedUrl); });
+      return true;
+    }
+    setInterval(async () => { if (await signPhotos()) renderEmployees(); }, 50 * 60000);
+
+    // تغيير الصورة: بنقصّها مربّع 512×512 ونضغطها JPEG (صور الموبايل بتكون عدة ميغا والحد 1MB) وبنرفعها على <id>.jpg
+    let photoTarget = null;
+    function squareJpeg(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const side = Math.min(img.naturalWidth, img.naturalHeight);
+          const c = document.createElement("canvas");
+          c.width = c.height = Math.min(512, side);
+          c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, c.width, c.height);
+          c.toBlob((b) => (b ? resolve(b) : reject(new Error("تعذّر تجهيز الصورة"))), "image/jpeg", 0.85);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("تعذّر قراءة الصورة")); };
+        img.src = url;
+      });
+    }
+    $("photo-input").addEventListener("change", async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      const id = photoTarget;
+      photoTarget = null;
+      if (!file || !id) return;
+      if (!PHOTO_TYPES.includes(file.type)) { olvShowError($("err"), new Error("الصورة لازم تكون JPEG أو PNG أو WebP")); return; }
+      try {
+        const blob = await squareJpeg(file);
+        if (blob.size > 1048576) throw new Error("الصورة أكبر من 1MB حتى بعد الضغط، جرّب صورة ثانية");
+        const path = id + ".jpg";
+        const { error: upErr } = await window.supabaseClient.storage.from(PHOTO_BUCKET).upload(path, blob, { upsert: true, contentType: "image/jpeg", cacheControl: "3600" });
+        if (upErr) throw upErr;
+        const emp = employees.find((e) => e.id === id);
+        if (!emp || emp.photo_path !== path) {
+          const { error } = await window.supabaseClient.from("profiles").update({ photo_path: path }).eq("id", id);
+          if (error) throw error;
+          if (emp) emp.photo_path = path;
+        }
+        photoUrls.delete(path);
+        await signPhotos();
+        renderEmployees();
+        olvToast("انحفظت الصورة", { type: "ok", icon: "check" });
+      } catch (err) {
+        olvShowError($("err"), err);
+      }
+    });
 
     function cardHtml(e) {
       const ini = (e.full_name || "").trim().charAt(0);
@@ -329,7 +397,7 @@
       return `
         <li class="em-card${e.is_active ? "" : " off"}">
           <div class="em-top">
-            <span class="av ${e.is_active ? e.role : ""}" aria-hidden="true">${ini ? olvEsc(ini) : olvIcon("person")}</span>
+            <span class="av ${e.is_active ? e.role : ""}" aria-hidden="true" data-ini="${olvEsc(ini)}">${photoUrls.get(e.photo_path) ? `<img src="${olvEsc(photoUrls.get(e.photo_path))}" alt="" loading="lazy" decoding="async">` : (ini ? olvEsc(ini) : olvIcon("person"))}</span>
             <span class="t"><b>${olvEsc(e.full_name) || "بدون اسم"}</b>
               <small><span class="role-badge ${e.role}">${e.job_title ? olvEsc(e.job_title) : (ROLE_LABELS[e.role] || olvEsc(e.role))}</span>${e.is_active ? "" : '<span class="role-badge off">موقوف</span>'}${e.id === myId ? '<span class="role-badge">إنت</span>' : ""}</small></span>
           </div>
@@ -341,6 +409,7 @@
           <div class="em-card-acts">
             <button type="button" class="btn small" data-edit="${e.id}">${olvIcon("note")}<span>تعديل</span></button>
             ${tel ? `<a class="btn small" href="tel:${olvEsc(tel)}" aria-label="اتصال">${olvIcon("phone")}</a>` : ""}
+            <button type="button" class="btn small" data-photo="${e.id}" aria-label="تغيير صورة ${olvEsc(e.full_name || "الموظف")}">${olvIcon("camera")}<span>صورة</span></button>
             <button type="button" class="btn small" data-reset="${e.id}">كلمة سر جديدة</button>
             ${e.id !== myId ? `<button type="button" class="btn small ${e.is_active ? "danger" : ""}" data-toggle="${e.id}" data-active="${e.is_active}">${e.is_active ? "إيقاف" : "تفعيل"}</button>` : ""}
           </div>
@@ -353,6 +422,8 @@
         if (error) throw error;
         employees = data || [];
         renderEmployees();
+        // الصور بتنضاف بعد أول رسم حتى ما تتأخر القائمة
+        signPhotos().then((ok) => { if (ok) renderEmployees(); }).catch(() => {});
       } catch (err) {
         olvShowError($("err"), err);
       }
