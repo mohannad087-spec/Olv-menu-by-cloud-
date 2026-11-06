@@ -589,6 +589,22 @@
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         // حضور آخر 31 يوم لملف كل موظف (إذا فشل ما بنوقف الصفحة)
         try { await loadPunchDays(previewRows.map((x) => x.profileId), range.to.slice(0, 8) + "01", range.to); } catch (e) { punchDays = new Map(); }
+        // الإضافي (ساعات الشفت فوق 9) ضمن فترة كل موظف: عرض بس، الأجر ما بيتغير لأن الساعات محسوبة كلها
+        previewRows.forEach((r) => { r.ot = 0; });
+        try {
+          const minFrom = previewRows.reduce((m, r) => (r.from < m ? r.from : m), range.to);
+          if (previewRows.length && minFrom <= range.to) {
+            const b = olvWorkRangeBounds(minFrom, range.to);
+            const { data: pts, error: otErr } = await window.supabaseClient.from("employee_punches").select("id, profile_id, punched_at")
+              .in("profile_id", previewRows.map((x) => x.profileId)).neq("source", "excluded").gte("punched_at", b.gte).lt("punched_at", b.lt).order("punched_at");
+            if (otErr) throw otErr;
+            const startOfRow = new Map(previewRows.map((r) => [r.profileId, r.from]));
+            olvComputeShifts(pts || []).forEach((sh) => {
+              const h = olvShiftHours(sh);
+              if (h && sh.work_date >= startOfRow.get(sh.profile_id) && h > OLV_OVERTIME_AFTER_H) previewRows.find((r) => r.profileId === sh.profile_id).ot += h - OLV_OVERTIME_AFTER_H;
+            });
+          }
+        } catch (e) { /* الإضافي عرض بس، لو فشل ما بنوقف الصفحة */ }
         renderPreview();
       } catch (err) {
         olvShowError(errBox, err);
@@ -689,7 +705,7 @@
           <div class="pf-main">${main}</div>
           <div class="pf-pay">
             <h4>كشف الحساب · ${period}</h4>
-            <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
+            <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
             <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع (يوم عطلة مدفوع) × ${FIXED_BONUS}${r.off ? ` − ${r.off} يوم إجازة زيادة × ${FIXED_BONUS}` : ""}</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
             ${Math.abs(r.adjTotal) >= 0.005 ? `<div class="ln${r.adjTotal < 0 ? " minus" : ""}"><span>إضافات وخصومات<small>${adjFor(r.profileId).length} بند</small></span><b>${r.adjTotal > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.adjTotal))}</b></div>` : ""}
             ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><span>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></span><b>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</b></div>` : ""}
@@ -875,7 +891,7 @@
     function statementText(r, st) {
       const noWage = r.hourlyWage == null;
       const L = [`*كشف حساب ${empName(r.profileId)}*`, `الفترة: ${shortDate(st.from)} لـ ${shortDate(range.to)}`, ""];
-      L.push(`الساعات: ${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)} = ${olvFormatMoney(r.hours * r.hourlyWage)}`}`);
+      L.push(`الساعات: ${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)} = ${olvFormatMoney(r.hours * r.hourlyWage)}`}`);
       if (r.bonus) L.push(`مكافأة أسبوعية: + ${olvFormatMoney(r.bonus)}`);
       adjFor(r.profileId).forEach((a) => L.push(`${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")}: ${Number(a.amount) > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(a.amount))}`));
       if (Math.abs(r.carry) >= 0.005) L.push(`${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}: ${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}`);
@@ -886,7 +902,7 @@
     function statementHtml(r, st) {
       const noWage = r.hourlyWage == null;
       const rows = [];
-      rows.push([`ساعات الدوام (${fmtHrs(r.hours)} ساعة${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`})`, noWage ? 0 : r.hours * r.hourlyWage]);
+      rows.push([`ساعات الدوام (${fmtHrs(r.hours)} ساعة${r.ot ? `، منها ${fmtHrs(r.ot)} إضافي` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`})`, noWage ? 0 : r.hours * r.hourlyWage]);
       if (r.bonus) rows.push([`مكافأة (${r.weeks} أسبوع${r.off ? ` − ${r.off} يوم إجازة زيادة` : ""})`, r.bonus]);
       adjFor(r.profileId).forEach((a) => rows.push([`${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")} (${shortDate(fmtDate(a.adj_date))})`, Number(a.amount)]));
       if (Math.abs(r.carry) >= 0.005) rows.push([r.carry > 0 ? "مرحّل له من دفعة سابقة" : "مرحّل عليه من دفعة سابقة", r.carry]);
