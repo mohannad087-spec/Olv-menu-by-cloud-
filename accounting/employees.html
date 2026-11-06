@@ -109,6 +109,8 @@
   .em-card.off{opacity:.65;}
   .em-top{display:flex; align-items:center; gap:12px;}
   .av{width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:17px; background:var(--ink-2); color:var(--muted); flex:none;}
+  .av-wrap{position:relative; flex:none;}
+  .av-num{position:absolute; inset-inline-end:-4px; bottom:-4px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:800; display:grid; place-items:center; font-variant-numeric:tabular-nums; border:2px solid var(--ink-3);}
   .av.has-photo{background:var(--ink-2) center/cover no-repeat; color:transparent; border:2px solid var(--ink-2);}
   .av.owner{background:var(--olive); color:var(--on-olive);}
   .av.manager{background:var(--gold); color:var(--on-gold);}
@@ -343,7 +345,7 @@
       return `
         <li class="em-card${e.is_active ? "" : " off"}">
           <div class="em-top">
-            <span class="av ${e.is_active ? e.role : ""}${photoUrls[e.photo_path] ? " has-photo" : ""}"${photoUrls[e.photo_path] ? ` style="background-image:url('${olvEsc(photoUrls[e.photo_path])}')" role="img" aria-label="${olvEsc(e.full_name)}"` : ' aria-hidden="true"'}>${ini ? olvEsc(ini) : olvIcon("person")}</span>
+            <span class="av-wrap"><span class="av ${e.is_active ? e.role : ""}${photoUrls[e.photo_path] ? " has-photo" : ""}"${photoUrls[e.photo_path] ? ` style="background-image:url('${olvEsc(photoUrls[e.photo_path])}')" role="img" aria-label="${olvEsc(e.full_name)}"` : ' aria-hidden="true"'}>${ini ? olvEsc(ini) : olvIcon("person")}</span>${e.device_user_id ? `<span class="av-num" title="رقم البصمة">${olvEsc(e.device_user_id)}</span>` : ""}</span>
             <span class="t"><b>${olvEsc(e.full_name) || "بدون اسم"}</b>
               <small><span class="role-badge ${e.role}">${e.job_title ? olvEsc(e.job_title) : (ROLE_LABELS[e.role] || olvEsc(e.role))}</span>${e.is_active ? "" : '<span class="role-badge off">موقوف</span>'}${e.id === myId ? '<span class="role-badge">إنت</span>' : ""}</small></span>
           </div>
