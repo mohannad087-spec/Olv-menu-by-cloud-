@@ -810,8 +810,7 @@
       return days.map((d) => {
         const sh = d.shift;
         const out = sh.clockOut ? hm(sh.clockOut.punched_at) : "—";
-        const capped = d.h !== null && d.h > 0 && sh.clockOut && olvEffectiveOutMs(sh) < new Date(sh.clockOut.punched_at).getTime();
-        const note = d.h === null ? "ناقص بصمة خروج" : sh.ignored ? "مهمل (أقل من 30 دقيقة)" : capped ? "محسوب لحد 4 العصر" : "";
+        const note = d.h === null ? "ناقص بصمة خروج" : sh.ignored ? "مهمل (أقل من 30 دقيقة)" : "";
         return { day: d.day, name: dayName(d.day), in: hm(sh.clockIn.punched_at), out, h: d.h, note };
       });
     }
