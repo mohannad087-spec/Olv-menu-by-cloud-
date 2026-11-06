@@ -164,6 +164,11 @@
   .sh-foot .btn{flex:1 1 140px; min-height:50px; display:inline-flex; align-items:center; justify-content:center; gap:7px; font-size:15px;}
   .sh-foot .btn.go{background:var(--olive); border-color:var(--olive); color:var(--on-olive); font-weight:700;}
   .tc-open{font-size:11px; font-weight:700; color:var(--gold-hi);}
+  .tc-nudge{display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--gold-hi); line-height:1.3;}
+  .tc-nudge.answered{color:var(--olive-hi, var(--olive));}
+  .tc-nudge .icon{width:14px; height:14px; flex:none;}
+  .sh-nudge{background:color-mix(in srgb, var(--gold) 12%, var(--ink-2)); border:1px solid color-mix(in srgb, var(--gold) 40%, transparent); border-radius:14px; padding:10px 12px; font-size:14px; display:flex; flex-direction:column; gap:8px;}
+  .sh-nudge.answered{background:color-mix(in srgb, var(--olive) 12%, var(--ink-2)); border-color:color-mix(in srgb, var(--olive) 40%, transparent);}
   .pay-f{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .pay-f .field{margin:0;}
   .pay-f .full{grid-column:1/-1;}
@@ -547,6 +552,37 @@
       return list;
     }
 
+    // ---------- تنبيه الويتر ----------
+    let nudges = [];
+    const nudgeOf = (t) => nudges.filter((n) => key(n.table_number) === t.key).pop() || null;
+    const nudgeReply = (n) => [n.reply_code, n.reply_text].filter(Boolean).join(" — ");
+    function nudgeTag(t) {
+      const n = nudgeOf(t);
+      if (!n) return "";
+      return n.status === "answered"
+        ? `<span class="tc-nudge answered">${olvIcon("check")}الويتر ردّ: ${olvEsc(nudgeReply(n))}</span>`
+        : `<span class="tc-nudge">${olvIcon("bell")}نبّهت الويتر من ${dur(mins(n.created_at))}</span>`;
+    }
+    function nudgeBox(t) {
+      const n = nudgeOf(t);
+      if (!n) return "";
+      return n.status === "answered"
+        ? `<div class="sh-nudge answered"><div>${olvIcon("check")} <b>${olvEsc(n.waiter || "الويتر")}</b> ردّ: ${olvEsc(nudgeReply(n))}</div><button type="button" class="btn small" data-act="nudgedone">${olvIcon("check")}<span>تمام، شفت الرد</span></button></div>`
+        : `<div class="sh-nudge"><div>${olvIcon("bell")} نبّهت الويتر من ${dur(mins(n.created_at))}، لسا ما ردّ.</div><button type="button" class="btn small" data-act="nudgedone">${olvIcon("x")}<span>شيل التنبيه</span></button></div>`;
+    }
+    async function loadNudges() {
+      const { data, error } = await db.rpc("table_nudges_active");
+      if (error || !Array.isArray(data)) return;   // قبل تشغيل schema-table-nudge.sql الميزة بتختفي لحالها
+      const sig = JSON.stringify(data);
+      if (sig === loadNudges.sig) return;
+      const oldAns = new Set(nudges.filter((n) => n.status === "answered").map((n) => n.id));
+      loadNudges.sig = sig; nudges = data;
+      data.filter((n) => n.status === "answered" && !oldAns.has(n.id) && loadNudges.ready)
+        .forEach((n) => olvToast(`طاولة ${n.table_number}: ${nudgeReply(n)}`, { type: "gold", icon: "bell" }));
+      loadNudges.ready = true;
+      render();
+    }
+
     function card(t) {
       const tag = t.registered ? "" : `<span class="tc-tag">مش بالقائمة</span>`;
       const numCls = t.label.length > 4 ? "tc-num small" : "tc-num";
@@ -583,7 +619,7 @@
         ${tag}
         <span class="tc-top">${num}<span class="tc-time">${olvIcon("clock")}${dur(t.minutes)}</span></span>
         <span class="tc-name" title="${olvEsc(t.names)}">${olvEsc(t.names)}</span>
-        ${resNote}
+        ${resNote}${nudgeTag(t)}
         <span class="tc-foot"><span class="tc-total">${olvFormatMoney(t.total)}</span>${t.tabs.length ? `<span class="tc-open">حساب مفتوح</span>` : ""}${k}</span>
       </button>`;
     }
@@ -681,7 +717,7 @@
           agg.set(n, (agg.get(n) || 0) + Number(it.qty || 0));
         }));
         sub = `قاعدين من ${dur(t.minutes)} (من ${clock(t.since)})${t.names ? " · " + olvEsc(t.names) : ""}`;
-        body = `${t.res ? resBox(t.res, resLate(t.res)) : ""}
+        body = `${t.res ? resBox(t.res, resLate(t.res)) : ""}${nudgeBox(t)}
           <div class="sh-sum">
             <div><div class="l">المجموع</div><div class="v gold">${olvFormatMoney(t.total)}</div></div>
             <div><div class="l">طلبات</div><div class="v">${t.orders.length}</div></div>
@@ -699,6 +735,7 @@
         acts = t.tabs.length
           ? newOrder("زيد طلب") + `<button type="button" class="btn" data-act="prebill">${olvIcon("receipt")}<span>فاتورة مبدئية</span></button><button type="button" class="btn" data-act="split">${olvIcon("receipt")}<span>قسّم الحساب</span></button><button type="button" class="btn" data-act="move">${olvIcon("people")}<span>انقل / ادمج</span></button><button type="button" class="btn go" data-act="pay">${olvIcon("banknote")}<span>حاسب الطاولة · ${olvFormatMoney(t.tabTotal)}</span></button>`
           : newOrder("زيد طلب") + `<button type="button" class="btn go" data-act="free">${olvIcon("check")}<span>حرّر الطاولة</span></button>`;
+        if (!nudgeOf(t)) acts += `<button type="button" class="btn" data-act="nudge">${olvIcon("bell")}<span>نبّه الويتر (تأخروا)</span></button>`;
       } else if (t.state === "seated") {
         sub = `وصلوا من ${dur(mins(t.seated.updated_at))}، لسا ما طلبوا`;
         body = resBox(t.seated, false);
@@ -1112,6 +1149,18 @@
       if (act === "voidback") { voidKey = null; voidItemId = null; editMode = false; renderSheet(t.key); return; }
       if (act === "billback") { billKey = null; renderSheet(t.key); return; }
       if (act === "billbrowser") { printPreBill(t); return; }
+      if (act === "nudge") {
+        b.disabled = true;
+        const { error } = await db.rpc("nudge_table", { p_table: t.label });
+        if (error) { b.disabled = false; olvToast(/function/i.test(error.message || "") ? "الميزة لسا ما اشتغلت، لازم تشغّل schema-table-nudge.sql" : (error.message || "ما انبعت التنبيه"), { icon: "x" }); return; }
+        olvToast("نبّهت الويتر على طاولة " + t.label, { type: "gold", icon: "bell" });
+        await loadNudges(); return;
+      }
+      if (act === "nudgedone") {
+        const n = nudgeOf(t); b.disabled = true;
+        if (n) { await db.rpc("dismiss_table_nudge", { p_id: n.id }); loadNudges.sig = ""; await loadNudges(); }
+        return;
+      }
       if (act === "free") { b.disabled = true; await freeTable(t); }
       else if (act === "clean") { b.disabled = true; await cleanTable(t); }
       else if (act === "register") { b.disabled = true; await addTables([t.label]); }
@@ -1480,6 +1529,7 @@
         errBox.style.display = "none";
         render();
         renderLive();
+        loadNudges();
       } catch (err) {
         olvShowError(errBox, err);
       } finally {
@@ -1522,6 +1572,7 @@
       // احتياط لو البث انقطع، والوقت عالبطاقات بيمشي كل 30 ثانية
       setInterval(() => { if (!live || Date.now() - lastPollAt > 60000) load(); else render(); }, 30000);
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+      setInterval(() => { if (!document.hidden) loadNudges(); }, 8000);
     })();
     });
   </script>
