@@ -109,6 +109,7 @@
   .em-card.off{opacity:.65;}
   .em-top{display:flex; align-items:center; gap:12px;}
   .av{width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:17px; background:var(--ink-2); color:var(--muted); flex:none;}
+  .av.has-photo{background:var(--ink-2) center/cover no-repeat; color:transparent; border:2px solid var(--ink-2);}
   .av.owner{background:var(--olive); color:var(--on-olive);}
   .av.manager{background:var(--gold); color:var(--on-gold);}
   .em-top .t{flex:1; min-width:0;}
@@ -323,13 +324,26 @@
       box.querySelectorAll("[data-reset]").forEach((b) => b.addEventListener("click", () => resetPassword(b.dataset.reset)));
     }
 
+    // صور الموظفين بباكت خاص: روابط موقّعة مؤقتة (ساعة) فقط، ما في رابط عام
+    let photoUrls = {};
+    async function loadPhotoUrls() {
+      const paths = [...new Set(employees.map((e) => e.photo_path).filter(Boolean))];
+      photoUrls = {};
+      if (!paths.length) return;
+      try {
+        const { data, error } = await window.supabaseClient.storage.from("employee-photos").createSignedUrls(paths, 3600);
+        if (error) throw error;
+        (data || []).forEach((r) => { if (r.signedUrl && r.path) photoUrls[r.path] = r.signedUrl; });
+      } catch (err) { console.warn("تعذّر تحميل صور الموظفين", err); }
+    }
+
     function cardHtml(e) {
       const ini = (e.full_name || "").trim().charAt(0);
       const tel = String(e.phone || "").replace(/[^\d+]/g, "");
       return `
         <li class="em-card${e.is_active ? "" : " off"}">
           <div class="em-top">
-            <span class="av ${e.is_active ? e.role : ""}" aria-hidden="true">${ini ? olvEsc(ini) : olvIcon("person")}</span>
+            <span class="av ${e.is_active ? e.role : ""}${photoUrls[e.photo_path] ? " has-photo" : ""}"${photoUrls[e.photo_path] ? ` style="background-image:url('${olvEsc(photoUrls[e.photo_path])}')" role="img" aria-label="${olvEsc(e.full_name)}"` : ' aria-hidden="true"'}>${ini ? olvEsc(ini) : olvIcon("person")}</span>
             <span class="t"><b>${olvEsc(e.full_name) || "بدون اسم"}</b>
               <small><span class="role-badge ${e.role}">${e.job_title ? olvEsc(e.job_title) : (ROLE_LABELS[e.role] || olvEsc(e.role))}</span>${e.is_active ? "" : '<span class="role-badge off">موقوف</span>'}${e.id === myId ? '<span class="role-badge">إنت</span>' : ""}</small></span>
           </div>
@@ -352,6 +366,7 @@
         const { data, error } = await window.supabaseClient.from("profiles").select("*").order("full_name");
         if (error) throw error;
         employees = data || [];
+        await loadPhotoUrls();
         renderEmployees();
       } catch (err) {
         olvShowError($("err"), err);
