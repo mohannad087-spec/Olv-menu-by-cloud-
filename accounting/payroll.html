@@ -816,7 +816,7 @@
     // كشف الحساب: نص جاهز (واتساب) + صفحة للطباعة/PDF فيها الساعات يوم بيوم وكل البنود
 
     // كشف بتواريخ: أي فترة من/إلى لموظف (للرد لو سأل عن أيام قديمة). ساعات كل يوم من البصمات، والمبلغ = ساعات × سعر ساعته.
-    // ما بيشمل المكافآت والسلف والمرحّل، هدول بالكشف الأساسي وبكشف الدفعات
+    // المبلغ = ساعات × سعر + المكافأة الأسبوعية؛ السلف والمرحّل بالكشف الأساسي، والدفعات تحت
     const datesState = new Map(); // profileId -> { from, to, days, error }
     const AMMAN_HM = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
     const hm = (iso) => AMMAN_HM.format(new Date(iso));
@@ -830,12 +830,25 @@
         return { day: d.day, name: dayName(d.day), in: hm(sh.clockIn.punched_at), out, h: d.h, ot: d.h > OLV_OVERTIME_AFTER_H ? d.h - OLV_OVERTIME_AFTER_H : 0, note };
       });
     }
-    function datesTotals(r, rows) {
+    function datesTotals(r, rows, st) {
       const hours = rows.reduce((t, x) => t + (x.h || 0), 0);
       const ot = rows.reduce((t, x) => t + x.ot, 0);
       const wage = r.hourlyWage;
-      return { hours, ot, wage, amount: wage == null ? null : hours * wage, open: rows.filter((x) => x.h === null).length };
+      // المكافأة الأسبوعية بنفس قاعدة الكشف الأساسي: 10 عن كل جمعة بالفترة، ناقص 10 عن كل يوم غياب زيادة (يوم واحد بالأسبوع عطلة مدفوعة)
+      const worked = new Set(rows.map((x) => x.day)), firstWork = rows.length ? rows[0].day : null;
+      const lastDone = addDays(olvWorkDay(new Date().toISOString()), -1), end = st.to > lastDone ? lastDone : st.to;
+      let weeks = 0, off = 0;
+      if (firstWork) for (let f = firstWork > st.from ? firstWork : st.from; f <= end; f = addDays(f, 1)) {
+        if (parse(f).getDay() !== 5) continue;
+        weeks++;
+        let ws = addDays(f, -6); if (ws < firstWork) ws = firstWork; if (ws < st.from) ws = st.from;
+        let absent = 0; for (let d = ws; d <= f; d = addDays(d, 1)) if (!worked.has(d)) absent++;
+        off += Math.max(0, absent - 1);
+      }
+      const bonus = hours > 0 ? Math.max(0, FIXED_BONUS * weeks - FIXED_BONUS * off) : 0;
+      return { hours, ot, wage, weeks, off, bonus, amount: wage == null ? null : hours * wage + bonus, open: rows.filter((x) => x.h === null).length };
     }
+    const datesBonusNote = (t) => t.bonus || t.weeks ? ` + مكافأة أسبوعية ${olvFormatMoney(t.bonus)} (${t.weeks} أسبوع${t.off ? ` − ${t.off} يوم إجازة زيادة` : ""})` : "";
     function datesHtml(r) {
       const st = datesState.get(r.profileId);
       const from = st ? st.from : addDays(range.to, -29), to = st ? st.to : range.to;
@@ -843,9 +856,9 @@
         <input type="date" name="from" value="${from}" required aria-label="من"><input type="date" name="to" value="${to}" required aria-label="إلى"><button class="btn go" type="submit">اعرض</button></form>`;
       if (!st) return `<div class="pf-card pad">${form}<div class="pf-empty">اختار الفترة واضغط «اعرض» لتشوف دوام ${olvEsc(empName(r.profileId))} يوم بيوم.</div></div>`;
       if (st.error) return `<div class="pf-card pad">${form}<div class="pf-empty">${olvEsc(st.error)}</div></div>`;
-      const rows = datesRows(st.days), t = datesTotals(r, rows);
+      const rows = datesRows(st.days), t = datesTotals(r, rows, st);
       const body = rows.length ? `<ul class="pf-list">${rows.map((x) => `<li><span>${x.name} ${shortDate(x.day)}<small>${x.in} ← ${x.out}${x.ot ? ` · إضافي ${fmtHrs(x.ot)}` : ""}${x.note ? " · " + x.note : ""}</small></span><b>${x.h === null ? "؟" : fmtHrs(x.h)}</b></li>`).join("")}</ul>` : `<div class="pf-empty">ما في دوام بهالفترة.</div>`;
-      const sum = `<div class="pf-card pad"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
+      const sum = `<div class="pf-card pad"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}${datesBonusNote(t)}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
         ${t.open ? `<div class="pay-warn">${olvIcon("warning")}<span>${t.open} يوم ببصمة وحدة ما انحسب.</span></div>` : ""}
         <div class="st-actions"><button class="btn" type="button" data-dprint="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-dwa="${r.profileId}">واتساب</button></div></div>`;
       return `<div class="pf-card pad">${form}</div><div class="pf-card">${body}</div>${sum}<div class="pf-card pad"><b>الدفعات والسلف بهالفترة</b></div><div class="pf-card">${datesPayHtml(st)}</div>`;
@@ -873,10 +886,10 @@
       return `<ul class="pf-list">${pays.map((p) => `<li><span>دفعة ${shortDate(p.paid_at)}<small>عن ${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة${Number(p.advances_deducted) ? ` · سلف مخصومة ${olvFormatMoney(p.advances_deducted)}` : ""}</small></span><b>${olvFormatMoney(p.net_amount)}</b></li>`).join("")}${advs.map((a) => `<li><span>سلفة ${shortDate(fmtDate(a.advance_date))}<small>${olvEsc(a.note) || ""}</small></span><b class="neg">${olvFormatMoney(a.amount)}</b></li>`).join("")}</ul>`;
     }
     function datesText(r, st) {
-      const rows = datesRows(st.days), t = datesTotals(r, rows);
+      const rows = datesRows(st.days), t = datesTotals(r, rows, st);
       const L = [`*كشف دوام ${empName(r.profileId)}*`, `الفترة: ${st.from} لـ ${st.to}`, ""];
       rows.forEach((x) => L.push(`${x.name} ${shortDate(x.day)}: ${x.in} ← ${x.out} = ${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h) + " ساعة"}${x.ot ? ` (إضافي ${fmtHrs(x.ot)})` : ""}${x.note && x.h !== null ? " (" + x.note + ")" : ""}`));
-      L.push("", `*المجموع: ${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.amount == null ? "" : ` = ${olvFormatMoney(t.amount)}`}*`);
+      L.push("", `*المجموع: ${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${datesBonusNote(t)}${t.amount == null ? "" : ` = ${olvFormatMoney(t.amount)}`}*`);
       const pays = st.pays || [], advs = st.advances || [];
       if (pays.length || advs.length) {
         L.push("", "*الدفعات والسلف:*");
@@ -886,14 +899,14 @@
       return L.join("\n");
     }
     function datesHtmlPage(r, st) {
-      const rows = datesRows(st.days), t = datesTotals(r, rows);
+      const rows = datesRows(st.days), t = datesTotals(r, rows, st);
       const trs = rows.map((x) => `<tr><td>${x.name} ${shortDate(x.day)}</td><td>${x.in}</td><td>${x.out}</td><td>${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h)}</td><td>${x.ot ? fmtHrs(x.ot) : "—"}</td><td>${olvEsc(x.note)}</td></tr>`).join("");
       return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف دوام ${olvEsc(empName(r.profileId))}</title>
 <style>body{font-family:Tajawal,Arial,sans-serif;margin:24px auto;max-width:720px;color:#222;padding:0 16px}h1{font-size:22px;margin:0 0 4px}.sub{color:#777;margin-bottom:18px}table{width:100%;border-collapse:collapse;margin:8px 0 18px}td,th{padding:7px 4px;border-bottom:1px solid #ddd;text-align:right}th{color:#777;font-weight:600}.tot{font-size:20px;font-weight:800;border:2px solid #222;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between}.btns{margin-bottom:16px}@media print{.btns{display:none}}</style></head><body>
 <div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
 <h1>كشف دوام: ${olvEsc(empName(r.profileId))}</h1><div class="sub">الفترة ${st.from} لـ ${st.to}</div>
 <table><tr><th>اليوم</th><th>دخول</th><th>خروج</th><th>ساعات</th><th>إضافي</th><th>ملاحظة</th></tr>${trs}</table>
-<div class="tot"><span>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}</span><span>${t.amount == null ? "" : olvFormatMoney(t.amount)}</span></div>
+<div class="tot"><span>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}${datesBonusNote(t)}</span><span>${t.amount == null ? "" : olvFormatMoney(t.amount)}</span></div>
 <h2 style="font-size:15px;margin:18px 0 0">الدفعات والسلف بهالفترة</h2>
 <table><tr><th>التاريخ</th><th>البند</th><th>المبلغ</th></tr>${(st.pays || []).map((p) => `<tr><td>${shortDate(p.paid_at)}</td><td>دفعة عن ${shortDate(p.period_start)} لـ ${shortDate(p.period_end)}</td><td>${olvFormatMoney(p.net_amount)}</td></tr>`).join("")}${(st.advances || []).map((a) => `<tr><td>${shortDate(fmtDate(a.advance_date))}</td><td>سلفة ${olvEsc(a.note || "")}</td><td>${olvFormatMoney(a.amount)}</td></tr>`).join("") || ((st.pays || []).length ? "" : `<tr><td colspan="3">ما انسجلت دفعات ولا سلف بهالفترة</td></tr>`)}</table>
 </body></html>`;
