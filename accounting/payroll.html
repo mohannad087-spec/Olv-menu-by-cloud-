@@ -567,10 +567,16 @@
       punchDays = new Map(); ignoredDays = new Map();
       if (!ids.length || from > to) return;
       const b = olvWorkRangeBounds(from, to);
-      const { data, error } = await window.supabaseClient
-        .from("employee_punches").select("id, profile_id, punched_at").in("profile_id", ids).neq("source", "excluded").gte("punched_at", b.gte).lt("punched_at", b.lt).order("punched_at");
-      if (error) throw error;
-      olvComputeShifts(data || []).forEach((sh) => {
+      // الخادم بيرجّع 1000 صف كحد أقصى بالطلب الواحد، فنجيب البصمات على دفعات حتى ما تنقطع آخر الأيام
+      const all = [];
+      for (let from0 = 0; ; from0 += 1000) {
+        const { data, error } = await window.supabaseClient
+          .from("employee_punches").select("id, profile_id, punched_at").in("profile_id", ids).neq("source", "excluded").gte("punched_at", b.gte).lt("punched_at", b.lt).order("punched_at").order("id").range(from0, from0 + 999);
+        if (error) throw error;
+        all.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      olvComputeShifts(all).forEach((sh) => {
         if (!punchDays.has(sh.profile_id)) punchDays.set(sh.profile_id, new Map());
         punchDays.get(sh.profile_id).set(sh.work_date, olvShiftHours(sh));
         if (sh.ignored) { if (!ignoredDays.has(sh.profile_id)) ignoredDays.set(sh.profile_id, new Set()); ignoredDays.get(sh.profile_id).add(sh.work_date); }
