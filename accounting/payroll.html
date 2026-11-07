@@ -190,6 +190,25 @@
   .pf-card .ln{display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:54px; font-size:14.5px; font-weight:700; color:var(--paper);}
   .pf-card .ln small{display:block; color:var(--paper); opacity:.72; font-weight:500; font-size:12px; line-height:1.5; margin-top:2px;}
   .pf-card .ln b{font-weight:800; font-size:22px; color:var(--olive); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  /* كشف التواريخ بألوان مميزة: ساعات بنفسجي، إضافي وردي، الجمعة أزرق، ناقص/مهمل أحمر، دفعات أزرق، سلف أحمر */
+  .pf-list.dt li{padding:6px 10px; margin:4px 0; border-radius:12px; border:0; background:rgba(66,84,232,.07); box-shadow:inset 3px 0 0 #4254e8;}
+  .pf-list.dt li.fri{background:rgba(11,134,201,.12); box-shadow:inset 3px 0 0 #0b86c9;}
+  .pf-list.dt li.ign{background:rgba(224,141,0,.14); box-shadow:inset 3px 0 0 #e08d00;}
+  .pf-list.dt li.bad{background:rgba(214,40,70,.12); box-shadow:inset 3px 0 0 #d62846;}
+  .pf-list.dt li > span{color:var(--paper); font-weight:800;}
+  .pf-list.dt li small{color:var(--paper); opacity:.8; font-weight:600;}
+  .pf-list.dt li b{min-width:58px; text-align:center; padding:6px 10px; border-radius:10px; background:#4254e8; color:#fff; font-size:15.5px;}
+  .pf-list.dt li.fri b{background:#0b86c9;}
+  .pf-list.dt li.ign b{background:#e08d00;}
+  .pf-list.dt li.bad b{background:#d62846;}
+  .pf-list.dt li b.ot{background:#c026d3;}
+  .pf-list.dt.pays li{background:rgba(11,134,201,.10); box-shadow:inset 3px 0 0 #0b86c9;}
+  .pf-list.dt.pays li b{background:#0b86c9;}
+  .pf-list.dt.pays li b.neg{background:#d62846; color:#fff;}
+  .pf-card.dt-sum{background:linear-gradient(135deg,#4254e8,#7c3aed); border:0; color:#fff;}
+  .pf-card.dt-sum .ln, .pf-card.dt-sum .ln small, .pf-card.dt-sum .ln b{color:#fff; opacity:1;}
+  .pf-card.dt-sum .ln small{opacity:.88;}
+  .pf-card.dt-sum .ln b{font-size:26px;}
   .adj-form{display:grid; grid-template-columns:1fr 110px; gap:8px; margin-bottom:10px;}
   .adj-form select,.adj-form input{min-height:44px; border:1px solid var(--hair); border-radius:12px; padding:0 12px; font:inherit; background:var(--ink-2); color:inherit; min-width:0;}
   .adj-form input[name=note]{grid-column:1 / -1;}
@@ -901,8 +920,8 @@
       if (!st) return `<div class="pf-card pad">${form}<div class="pf-empty">اختار الفترة واضغط «اعرض» لتشوف دوام ${olvEsc(empName(r.profileId))} يوم بيوم.</div></div>`;
       if (st.error) return `<div class="pf-card pad">${form}<div class="pf-empty">${olvEsc(st.error)}</div></div>`;
       const rows = datesRows(st.days, capOf(r.profileId)), t = datesTotals(r, rows, st);
-      const body = rows.length ? `<ul class="pf-list">${rows.map((x) => `<li><span>${x.name} ${shortDate(x.day)}<small>${x.in} ← ${x.out}${x.ot ? ` · إضافي ${fmtHrs(x.ot)}` : ""}${x.cut ? ` · ${fmtHrs(x.cut)} فوق الحد ما انحسبت` : ""}${x.note ? " · " + x.note : ""}</small></span><b>${x.h === null ? "؟" : fmtHrs(x.hp)}</b></li>`).join("")}</ul>` : `<div class="pf-empty">ما في دوام بهالفترة.</div>`;
-      const sum = `<div class="pf-card pad"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.cut > 0.005 ? ` (${fmtHrs(t.cut)} ساعة فوق الحد ما انحسبت)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}${datesBonusNote(t)}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
+      const body = rows.length ? `<ul class="pf-list dt">${rows.map((x) => `<li class="${x.h === null ? "bad" : x.note ? "ign" : parse(x.day).getDay() === 5 ? "fri" : ""}"><span>${x.name} ${shortDate(x.day)}<small>${x.in} ← ${x.out}${x.ot ? ` · إضافي ${fmtHrs(x.ot)}` : ""}${x.cut ? ` · ${fmtHrs(x.cut)} فوق الحد ما انحسبت` : ""}${x.note ? " · " + x.note : ""}</small></span><b class="${x.ot ? "ot" : ""}">${x.h === null ? "؟" : fmtHrs(x.hp)}</b></li>`).join("")}</ul>` : `<div class="pf-empty">ما في دوام بهالفترة.</div>`;
+      const sum = `<div class="pf-card pad dt-sum"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.cut > 0.005 ? ` (${fmtHrs(t.cut)} ساعة فوق الحد ما انحسبت)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}${datesBonusNote(t)}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
         ${t.open ? `<div class="pay-warn">${olvIcon("warning")}<span>${t.open} يوم ببصمة وحدة ما انحسب.</span></div>` : ""}
         <div class="st-actions"><button class="btn" type="button" data-dprint="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-dwa="${r.profileId}">واتساب</button></div></div>`;
       return `<div class="pf-card pad">${form}</div><div class="pf-card">${body}</div>${sum}<div class="pf-card pad"><b>الدفعات والسلف بهالفترة</b></div><div class="pf-card">${datesPayHtml(st)}</div>`;
@@ -927,7 +946,7 @@
     function datesPayHtml(st) {
       const pays = st.pays || [], advs = st.advances || [];
       if (!pays.length && !advs.length) return `<div class="pf-empty">ما انسجلت دفعات ولا سلف بهالفترة.</div>`;
-      return `<ul class="pf-list">${pays.map((p) => `<li><span>دفعة ${shortDate(p.paid_at)}<small>عن ${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة${Number(p.advances_deducted) ? ` · سلف مخصومة ${olvFormatMoney(p.advances_deducted)}` : ""}</small></span><b>${olvFormatMoney(p.net_amount)}</b></li>`).join("")}${advs.map((a) => `<li><span>سلفة ${shortDate(fmtDate(a.advance_date))}<small>${olvEsc(a.note) || ""}</small></span><b class="neg">${olvFormatMoney(a.amount)}</b></li>`).join("")}</ul>`;
+      return `<ul class="pf-list dt pays">${pays.map((p) => `<li><span>دفعة ${shortDate(p.paid_at)}<small>عن ${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة${Number(p.advances_deducted) ? ` · سلف مخصومة ${olvFormatMoney(p.advances_deducted)}` : ""}</small></span><b>${olvFormatMoney(p.net_amount)}</b></li>`).join("")}${advs.map((a) => `<li><span>سلفة ${shortDate(fmtDate(a.advance_date))}<small>${olvEsc(a.note) || ""}</small></span><b class="neg">${olvFormatMoney(a.amount)}</b></li>`).join("")}</ul>`;
     }
     function datesText(r, st) {
       const rows = datesRows(st.days, capOf(r.profileId)), t = datesTotals(r, rows, st);
