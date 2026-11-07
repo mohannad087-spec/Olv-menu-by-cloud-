@@ -674,6 +674,18 @@
         <span class="w"><b>${olvEsc(empName(r.profileId))}</b><small>${olvEsc(prof.job_title || ROLE_LABELS[prof.role] || "")}</small></span>
         <span class="a">${olvFormatMoney(r.net)}<span class="pc-chip ${st[1]}">${st[0]}</span></span></button>`;
     }
+    // فحص قبل الدفع: تنبيهات بتظهر على بطاقة الموظف وبتنعاد بنافذة التأكيد، عشان ما يضيع حق حدا بغلطة بصمة
+    function prepayWarnings(r) {
+      const w = [], m = punchDays.get(r.profileId) || new Map();
+      const longs = [...m].filter(([d, h]) => h != null && h > 14 && d >= r.from && d <= range.to).sort().map(([d, h]) => `${shortDate(d)} (${fmtHrs(h)} ساعة)`);
+      if (longs.length) w.push(`دوام أطول من 14 ساعة: ${longs.join("، ")}. تأكد إنه ما نسي يبصم خروج أو بصم بالغلط.`);
+      if (r.off > 0) w.push(`${r.off} يوم إجازة زيادة، بينخصم ${olvFormatMoney(r.off * FIXED_BONUS)} من المكافأة.`);
+      if (r.hourlyWage != null && r.hours <= 0) w.push("ما في ساعات دوام بهالفترة.");
+      if (r.carry < -0.005) w.push(`عليه مرحّل ${olvFormatMoney(-r.carry)} من دفعة سابقة (انخصم من هالدفعة).`);
+      if (r.carry > 0.005) w.push(`له مرحّل ${olvFormatMoney(r.carry)} من دفعة سابقة (انضاف لهالدفعة).`);
+      if (r.payAmount != null && Math.abs(r.payAmount - r.net) >= 0.005) w.push(`المبلغ اللي بدفعه ${olvFormatMoney(r.payAmount)} غير الصافي ${olvFormatMoney(r.net)}، والفرق بينتقل للدفعة الجاية.`);
+      return w;
+    }
     function fileHtml(r) {
       const noWage = r.hourlyWage == null;
       const prof = profilesById.get(r.profileId) || {};
@@ -713,6 +725,7 @@
             <div class="ln total${r.net < 0 ? " neg" : ""}"><span>الصافي</span><b>${olvFormatMoney(r.net)}</b></div>
             ${noWage ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
             ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
+            ${(() => { const pw = prepayWarnings(r); return pw.length ? `<div class="pay-warn">${olvIcon("warning")}<span><b>تأكد قبل الدفع:</b><br>${pw.map((x) => "• " + olvEsc(x)).join("<br>")}</span></div>` : ""; })()}
             <div><label for="amt-${r.profileId}">المبلغ اللي بدفعه</label><input class="amt" id="amt-${r.profileId}" type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${payVal}"></div>
             <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
             <div class="st-actions"><button class="btn" type="button" data-stmt="print" data-id="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-stmt="wa" data-id="${r.profileId}">واتساب</button></div>
@@ -1043,7 +1056,8 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
         `${row.carry ? `، ${row.carry > 0 ? "مرحّل له" : "مرحّل عليه"} ${olvFormatMoney(Math.abs(row.carry))}` : ""}` +
         `${row.advancesTotal ? `، مطروح سلف ${olvFormatMoney(row.advancesTotal)}` : ""} = الصافي ${olvFormatMoney(row.net)})\n` +
         `${diff > 0.005 ? `رح يضل باقي له ${olvFormatMoney(diff)} للدفعة الجاية.` : diff < -0.005 ? `المدفوع أكتر من الصافي بـ${olvFormatMoney(-diff)}، رح ينخصم من دفعته الجاية.` : "تسوية كاملة."}`;
-      if (!confirm(msg)) return;
+      const pw = prepayWarnings(row);
+      if (!confirm(msg + (pw.length ? "\n\nتنبيهات:\n" + pw.map((x) => "• " + x).join("\n") : ""))) return;
       if (btn) btn.disabled = true;
       try {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
