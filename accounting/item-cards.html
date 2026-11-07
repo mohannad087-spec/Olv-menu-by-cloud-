@@ -356,6 +356,10 @@
       $("list").querySelectorAll(".ic-card").forEach((b) => b.addEventListener("click", () => openDialog(b.dataset.id)));
     }
 
+    // نكهات الصنف: مخزنة بعمود products.flavors مفصولة بـ |
+    function flavList(p) { return p && p.flavors ? String(p.flavors).split("|").map((x) => x.trim()).filter(Boolean) : []; }
+    function parseFlavors(t) { return [...new Set(String(t || "").split(/[,،|\n]/).map((x) => x.replace(/['"`<>\\]/g, "").trim()).filter(Boolean))]; }
+
     function cardHtml(p) {
       const d = diffs(p);
       const meal = num(p.meal_price), dbl = num(p.double_meal_price), lg = largePrice(p), hall = num(p.hall_price);
@@ -410,6 +414,7 @@
           <div class="field" data-opt="mealtoggle"><label><input type="checkbox" id="f-mealon"${p && (num(p.meal_price) || num(p.double_meal_price)) ? " checked" : ""}${disP}> هل الصنف إلو وجبة؟</label><div class="hint">فعّلها وحط سعر الوجبة الكلي؛ بتظهر أزرار «وجبة / وجبة دبل» عند الكاشير.</div></div>
           <div class="field" data-opt="meal"><label for="f-meal">سعر الوجبة (الكلي)</label><input id="f-meal" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.meal_price ? esc(p.meal_price) : ""}" placeholder="بدون"${disP}></div>
           <div class="field" data-opt="meal"><label for="f-dbl">سعر وجبة دبل (الكلي)</label><input id="f-dbl" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.double_meal_price ? esc(p.double_meal_price) : ""}" placeholder="بدون"${disP}></div>
+          <div class="field full"><label for="f-flav">النكهات (اختياري، 2 إلى 8)</label><input id="f-flav" maxlength="200" value="${esc(flavList(p).join("، "))}" placeholder="مثلًا: عادي، حار، باربكيو"${dis}${stock ? " disabled" : ""}><div class="hint">افصل بين النكهات بفاصلة. الزبون على المنيو والكاشير لازم يختار وحدة منها، وبتنطبع على تذكرة المطبخ.</div></div>
           <div class="field" data-opt="ice"><label>خيار الثلج</label><div class="hint">«مع ثلج / بدون ثلج» ظاهر عند الكاشير لهالصنف. السعر ما بتغير.</div></div>
           <div class="field" data-opt="large"><label for="f-large">سعر الكبير (الكلي)</label><input id="f-large" type="number" inputmode="decimal" step="0.05" min="0" value="${p && largePrice(p) ? esc(largePrice(p)) : ""}" placeholder="بدون"${disP}></div>
           <div class="field"><label for="f-img">رابط الصورة</label><input id="f-img" type="url" dir="ltr" value="${esc(p ? p.image_url : "")}" placeholder="https://..."${dis}>
@@ -539,6 +544,7 @@
             price: bd.querySelector("#f-price").value, hall: hallOn.checked ? hallIn.value : "",
             mealOn: bd.querySelector("#f-mealon").checked,
             meal: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-meal").value : "", dbl: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-dbl").value : "", large: bd.querySelector("#f-large").value,
+            flav: bd.querySelector("#f-flav").value,
             img: bd.querySelector("#f-img").value.trim(), desc: bd.querySelector("#f-desc").value.trim(), descEn: bd.querySelector("#f-descen").value.trim(),
             active: bd.querySelector("#f-active").checked, pop: bd.querySelector("#f-pop").checked,
             cost,
@@ -579,16 +585,22 @@
         image_url: f.img || null, is_active: f.active, popular: f.pop,
       };
       row.hall_price = hall;
+      if (!stock) {
+        const fl = parseFlavors(f.flav);
+        if (fl.length === 1) throw new Error("اكتب نكهتين على الأقل، أو فضّي الخانة");
+        if (fl.length > 8) throw new Error("الحد الأعلى 8 نكهات");
+        if (fl.join("|") !== flavList(p).join("|")) row.flavors = fl.length ? fl.join("|") : null;
+      }
       if (!stock) row.price = price;
       let id = p && p.id;
       if (p) {
         const { error } = await db.from("products").update(row).eq("id", id);
-        if (error) throw error;
+        if (error) throw new Error(/flavors/.test(error.message || "") ? "لازم تشغّل ملف accounting/schema-item-flavors.sql بـ Supabase مرة وحدة قبل ما تنحفظ النكهات" : error.message);
       } else {
         row.external_id = "card-" + Date.now().toString(36);
         row.sort_order = products.length + 1;
         const { data, error } = await db.from("products").insert(row).select("id, external_id").single();
-        if (error) throw error;
+        if (error) throw new Error(/flavors/.test(error.message || "") ? "لازم تشغّل ملف accounting/schema-item-flavors.sql بـ Supabase مرة وحدة قبل ما تنحفظ النكهات" : error.message);
         id = data.id; p = { id, external_id: data.external_id };
       }
       if (!stock) {
