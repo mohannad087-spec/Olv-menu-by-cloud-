@@ -1073,17 +1073,41 @@
       if (Math.abs(r.carry) >= 0.005) rows.push([r.carry > 0 ? "مرحّل له من دفعة سابقة" : "مرحّل عليه من دفعة سابقة", r.carry]);
       unsettledAdvances.filter((a) => a.profile_id === r.profileId).forEach((a) => rows.push([`سلفة (${shortDate(fmtDate(a.advance_date))})${a.note ? " - " + a.note : ""}`, -Number(a.amount)]));
       const money = (v) => `${v < 0 ? "−" : ""}${olvFormatMoney(Math.abs(v))}`;
-      const dayRows = st.days.map((d) => `<tr><td>${shortDate(d.day)}</td><td>${d.h === null ? "ناقص بصمة خروج" : fmtHrs(r.cap && d.h > r.cap ? r.cap : d.h) + " ساعة"}</td></tr>`).join("");
+      const dayRows = st.days.map((d) => `<tr><td>${dayName(d.day)}</td><td>${shortDate(d.day)}</td><td>${d.h === null ? '<span class="warn">ناقص بصمة خروج</span>' : fmtHrs(r.cap && d.h > r.cap ? r.cap : d.h) + " ساعة"}</td></tr>`).join("");
+      const workedDays = st.days.filter((d) => d.h).length;
       const pays = history.filter((p) => p.profile_id === r.profileId).slice(0, 5)
         .map((p) => `<tr><td>${shortDate(p.paid_at)}</td><td>${shortDate(p.period_start)} لـ ${shortDate(p.period_end)}</td><td>${olvFormatMoney(p.net_amount)}</td></tr>`).join("");
+      const issued = `${shortDate(range.to)}/${range.to.slice(0, 4)}`;
       return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف حساب ${olvEsc(empName(r.profileId))}</title>
-<style>body{font-family:Tajawal,Arial,sans-serif;margin:24px auto;max-width:720px;color:#222;padding:0 16px}h1{font-size:22px;margin:0 0 4px}.sub{color:#777;margin-bottom:18px}table{width:100%;border-collapse:collapse;margin:8px 0 18px}td,th{padding:7px 4px;border-bottom:1px solid #ddd;text-align:right}td:last-child,th:last-child{text-align:left;font-variant-numeric:tabular-nums}h2{font-size:15px;margin:18px 0 0}.tot{font-size:20px;font-weight:800;border:2px solid #222;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between}.btns{margin-bottom:16px}@media print{.btns{display:none}}</style></head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap">
+<style>
+*{box-sizing:border-box}
+body{font-family:Tajawal,Arial,sans-serif;margin:0 auto;max-width:760px;color:#1f1d2b;padding:24px 20px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #4254e8;padding-bottom:14px;margin-bottom:18px}
+.brand{font-size:26px;font-weight:800;letter-spacing:0;color:#4254e8}.brand small{display:block;font-size:12px;font-weight:500;color:#777}
+.who{text-align:left}.who b{display:block;font-size:22px;font-weight:800;color:#1f1d2b}.who span{font-size:13px;color:#666}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.stat{background:#f3f4ff;border-radius:12px;padding:12px 14px}.stat small{display:block;color:#666;font-size:12px}.stat b{font-size:20px;font-weight:800;color:#4254e8;font-variant-numeric:tabular-nums}
+h2{font-size:15px;font-weight:800;margin:20px 0 6px;color:#4254e8}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:8px 6px;border-bottom:1px solid #e6e6ef;text-align:right}th{color:#777;font-weight:600;font-size:12.5px}
+td:last-child,th:last-child{text-align:left;font-variant-numeric:tabular-nums;font-weight:700}
+.acc td:last-child.neg{color:#d62846}.acc td:last-child.pos{color:#1f1d2b}
+.tot{margin-top:12px;background:linear-gradient(135deg,#4254e8,#7c3aed);color:#fff;border-radius:14px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;font-weight:800}
+.tot span:first-child{font-size:16px}.tot span:last-child{font-size:30px;font-variant-numeric:tabular-nums}
+.days td:nth-child(2){color:#777;font-weight:500}.warn{color:#d62846}
+.foot{margin-top:22px;color:#999;font-size:11.5px;text-align:center}
+.btns{margin-bottom:16px}.btns button{font-family:inherit;font-size:14px;padding:8px 16px;border-radius:10px;border:1px solid #ccc;background:#fff;cursor:pointer}
+@media print{.btns{display:none}body{padding:0}}
+</style></head><body>
 <div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
-<h1>كشف حساب: ${olvEsc(empName(r.profileId))}</h1><div class="sub">الفترة ${shortDate(st.from)} لـ ${shortDate(range.to)}</div>
-<h2>الحساب</h2><table>${rows.map(([t, v]) => `<tr><td>${olvEsc(t)}</td><td>${money(v)}</td></tr>`).join("")}</table>
+<div class="top"><div class="brand">OLV<small>كشف حساب موظف</small></div><div class="who"><b>${olvEsc(empName(r.profileId))}</b><span>الفترة ${shortDate(st.from)} لـ ${shortDate(range.to)}</span></div></div>
+<div class="stats"><div class="stat"><small>ساعات الدوام</small><b>${fmtHrs(r.hours)}</b></div><div class="stat"><small>أيام الدوام</small><b>${workedDays || "—"}</b></div><div class="stat"><small>سعر الساعة</small><b>${noWage ? "—" : olvFormatMoney(r.hourlyWage)}</b></div></div>
+<h2>الحساب</h2><table class="acc">${rows.map(([t, v]) => `<tr><td>${olvEsc(t)}</td><td class="${v < 0 ? "neg" : "pos"}">${money(v)}</td></tr>`).join("")}</table>
 <div class="tot"><span>${r.net >= 0 ? "الصافي له" : "الصافي عليه"}</span><span>${olvFormatMoney(Math.abs(r.net))}</span></div>
-${dayRows ? `<h2>الدوام يوم بيوم</h2><table>${dayRows}</table>` : ""}
+${dayRows ? `<h2>الدوام يوم بيوم</h2><table class="days"><tr><th>اليوم</th><th>التاريخ</th><th>الساعات</th></tr>${dayRows}</table>` : ""}
 ${pays ? `<h2>آخر الدفعات</h2><table><tr><th>تاريخ الدفع</th><th>الفترة</th><th>المبلغ</th></tr>${pays}</table>` : ""}
+<div class="foot">صدر بتاريخ ${issued} · OLV</div>
 </body></html>`;
     }
     // كشف الدفعات: كل اللي انسجل دفعه للموظف + الباقي له/عليه لحد هلأ
