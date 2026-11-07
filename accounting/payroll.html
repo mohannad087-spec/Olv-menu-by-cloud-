@@ -667,24 +667,33 @@
       const ign = ignoredDays.get(r.profileId) || new Set();
       let total = 0, worked = 0, fresh = 0;
       const cells = [];
+      // كل دفعة إلها لون: الأيام اللي انحسبت فيها بتتلون فيه، واللي ما اندفعت بتضل بلونها العادي
+      const PAY_COLORS = ["#4254e8", "#0b86c9", "#c026d3", "#e08d00", "#db2777", "#7c3aed"];
+      const myPays = history.filter((p) => p.profile_id === r.profileId).slice().sort((x, y) => (x.period_start < y.period_start ? -1 : 1));
+      const payOf = (day) => { const i = myPays.findIndex((p) => p.period_start <= day && day <= p.period_end); return i < 0 ? null : { p: myPays[i], c: PAY_COLORS[i % PAY_COLORS.length] }; };
       for (let i = 0; i < lead; i++) cells.push('<div class="cal-empty"></div>');
       for (let d = 1; d <= dim; d++) {
         const day = first.slice(0, 8) + String(d).padStart(2, "0");
         const h = map.get(day);
         const isFut = day > to;
         const cov = day < r.from;
+        const pd = isFut ? null : payOf(day);
         let cls = "off", label = "";
         if (isFut) cls = "fut";
         else if (h === null) { cls = "open"; label = "؟"; }
         else if (ign.has(day)) { cls = "ign"; label = "!"; }
         else if (h > 0) { cls = h > 9 ? "l3" : h >= 6 ? "l2" : "l1"; label = fmtHrs(h); total += h; worked++; if (!cov) fresh += h; }
         const tip = isFut ? "" : `${shortDate(day)}: ${ign.has(day) ? "بصمات متقاربة بدون خروج (مهمل، ما انحسب)" : h === undefined || h === 0 ? "ما داوم" : h === null ? "ناقص بصمة خروج" : fmtHrs(h) + " ساعة"}${cov && h ? " (انحسب بدفعة سابقة)" : ""}`;
-        cells.push(`<div class="cal-cell ${cls}${cov && !isFut ? " cov" : ""}" title="${tip}"><span>${d}</span><b>${label}</b></div>`);
+        const paidTip = pd ? ` · اندفع ${shortDate(pd.p.paid_at)} (دفعة ${shortDate(pd.p.period_start)} لـ ${shortDate(pd.p.period_end)})` : "";
+        const sty = pd ? ` style="background:${pd.c}2e; box-shadow:inset 0 -4px 0 ${pd.c}; color:var(--paper)"` : "";
+        cells.push(`<div class="cal-cell ${cls}${cov && !isFut && !pd ? " cov" : ""}${pd ? " paid" : ""}" title="${tip}${paidTip}"${sty}><span>${d}</span><b>${label}</b></div>`);
       }
       return `<h4>${MONTHS[Number(to.slice(5, 7)) - 1]} · ${fmtHrs(total)} ساعة · ${worked} يوم دوام${fresh !== total ? ` · غير محسوب بعد ${fmtHrs(fresh)} ساعة` : ""}</h4>
         <div class="cal-dow" aria-hidden="true"><span>سبت</span><span>أحد</span><span>اثنين</span><span>ثلاثاء</span><span>أربعاء</span><span>خميس</span><span>جمعة</span></div>
         <div class="cal-grid" role="img" aria-label="ساعات الدوام اليومية بالشهر">${cells.join("")}</div>
-        <div class="cal-legend"><span><i style="background:rgba(91,71,230,.22)"></i>أقل من 6 ساعات</span><span><i style="background:rgba(91,71,230,.45)"></i>6 – 9</span><span><i style="background:var(--olive)"></i>أكثر من 9</span><span><i style="border:1px dashed var(--hair)"></i>ما داوم</span><span><i style="background:var(--gold)"></i>ناقص بصمة خروج</span><span><i style="border:2px solid var(--gold)"></i>! بصمات متقاربة بدون خروج</span><span>باهت = انحسب بدفعة سابقة</span></div>`;
+        <div class="cal-legend"><span><i style="background:rgba(91,71,230,.22)"></i>أقل من 6 ساعات</span><span><i style="background:rgba(91,71,230,.45)"></i>6 – 9</span><span><i style="background:var(--olive)"></i>أكثر من 9</span><span><i style="border:1px dashed var(--hair)"></i>ما داوم</span><span><i style="background:var(--gold)"></i>ناقص بصمة خروج</span><span><i style="border:2px solid var(--gold)"></i>! بصمات متقاربة بدون خروج</span></div>
+        ${myPays.length ? `<ul class="pf-list dt pays cal-pays">${myPays.map((p, i) => `<li style="box-shadow:inset 3px 0 0 ${PAY_COLORS[i % PAY_COLORS.length]}"><span>اندفع ${shortDate(p.paid_at)}<small>عن ${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة</small></span><b style="background:${PAY_COLORS[i % PAY_COLORS.length]}">${olvFormatMoney(p.net_amount)}</b></li>`).join("")}</ul>` : ""}
+        <div class="cal-legend"><span>الأيام الملونة من تحت = اندفعت بدفعة (اللون = الدفعة)، والباقي لسا ما اندفع</span></div>`;
     }
     function advancesHtml(r) {
       const advs = unsettledAdvances.filter((a) => a.profile_id === r.profileId);
