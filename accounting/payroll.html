@@ -912,7 +912,7 @@
     function datesText(r, st) {
       const rows = datesRows(st.days, capOf(r.profileId)), t = datesTotals(r, rows, st);
       const L = [`*كشف دوام ${empName(r.profileId)}*`, `الفترة: ${st.from} لـ ${st.to}`, ""];
-      rows.forEach((x) => L.push(`${x.name} ${shortDate(x.day)}: ${x.in} ← ${x.out} = ${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.hp) + " ساعة"}${x.cut ? ` (${fmtHrs(x.cut)} فوق الحد ما انحسبت)` : ""}${x.ot ? ` (إضافي ${fmtHrs(x.ot)})` : ""}${x.note && x.h !== null ? " (" + x.note + ")" : ""}`));
+      rows.forEach((x) => L.push(`${x.name} ${shortDate(x.day)}: ${x.in} ← ${x.out} = ${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.hp) + " ساعة"}${x.ot ? ` (إضافي ${fmtHrs(x.ot)})` : ""}${x.note && x.h !== null ? " (" + x.note + ")" : ""}`));
       L.push("", `*المجموع: ${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${datesBonusNote(t)}${t.amount == null ? "" : ` = ${olvFormatMoney(t.amount)}`}*`);
       const pays = st.pays || [], advs = st.advances || [];
       if (pays.length || advs.length) {
@@ -924,7 +924,7 @@
     }
     function datesHtmlPage(r, st) {
       const rows = datesRows(st.days, capOf(r.profileId)), t = datesTotals(r, rows, st);
-      const trs = rows.map((x) => `<tr><td>${x.name} ${shortDate(x.day)}</td><td>${x.in}</td><td>${x.out}</td><td>${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.hp)}</td><td>${x.ot ? fmtHrs(x.ot) : "—"}</td><td>${olvEsc(x.note)}${x.cut ? ` ${fmtHrs(x.cut)} فوق الحد ما انحسبت` : ""}</td></tr>`).join("");
+      const trs = rows.map((x) => `<tr><td>${x.name} ${shortDate(x.day)}</td><td>${x.in}</td><td>${x.out}</td><td>${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.hp)}</td><td>${x.ot ? fmtHrs(x.ot) : "—"}</td><td>${olvEsc(x.note)}</td></tr>`).join("");
       return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف دوام ${olvEsc(empName(r.profileId))}</title>
 <style>body{font-family:Tajawal,Arial,sans-serif;margin:24px auto;max-width:720px;color:#222;padding:0 16px}h1{font-size:22px;margin:0 0 4px}.sub{color:#777;margin-bottom:18px}table{width:100%;border-collapse:collapse;margin:8px 0 18px}td,th{padding:7px 4px;border-bottom:1px solid #ddd;text-align:right}th{color:#777;font-weight:600}.tot{font-size:20px;font-weight:800;border:2px solid #222;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between}.btns{margin-bottom:16px}@media print{.btns{display:none}}</style></head><body>
 <div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
@@ -948,7 +948,7 @@
     function statementText(r, st) {
       const noWage = r.hourlyWage == null;
       const L = [`*كشف حساب ${empName(r.profileId)}*`, `الفترة: ${shortDate(st.from)} لـ ${shortDate(range.to)}`, ""];
-      L.push(`الساعات: ${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${r.capCut > 0.005 ? ` (${fmtHrs(r.capCut)} ساعة فوق حد ${r.cap} باليوم ما انحسبت)` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)} = ${olvFormatMoney(r.hours * r.hourlyWage)}`}`);
+      L.push(`الساعات: ${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)} = ${olvFormatMoney(r.hours * r.hourlyWage)}`}`);
       if (r.bonus) L.push(`مكافأة أسبوعية: + ${olvFormatMoney(r.bonus)}`);
       adjFor(r.profileId).forEach((a) => L.push(`${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")}: ${Number(a.amount) > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(a.amount))}`));
       if (Math.abs(r.carry) >= 0.005) L.push(`${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}: ${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}`);
@@ -959,13 +959,13 @@
     function statementHtml(r, st) {
       const noWage = r.hourlyWage == null;
       const rows = [];
-      rows.push([`ساعات الدوام (${fmtHrs(r.hours)} ساعة${r.ot ? `، منها ${fmtHrs(r.ot)} إضافي` : ""}${r.capCut > 0.005 ? `، ${fmtHrs(r.capCut)} ساعة فوق حد ${r.cap} باليوم ما انحسبت` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`})`, noWage ? 0 : r.hours * r.hourlyWage]);
+      rows.push([`ساعات الدوام (${fmtHrs(r.hours)} ساعة${r.ot ? `، منها ${fmtHrs(r.ot)} إضافي` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`})`, noWage ? 0 : r.hours * r.hourlyWage]);
       if (r.bonus) rows.push([`مكافأة (${r.weeks} أسبوع)`, r.bonus]);
       adjFor(r.profileId).forEach((a) => rows.push([`${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")} (${shortDate(fmtDate(a.adj_date))})`, Number(a.amount)]));
       if (Math.abs(r.carry) >= 0.005) rows.push([r.carry > 0 ? "مرحّل له من دفعة سابقة" : "مرحّل عليه من دفعة سابقة", r.carry]);
       unsettledAdvances.filter((a) => a.profile_id === r.profileId).forEach((a) => rows.push([`سلفة (${shortDate(fmtDate(a.advance_date))})${a.note ? " - " + a.note : ""}`, -Number(a.amount)]));
       const money = (v) => `${v < 0 ? "−" : ""}${olvFormatMoney(Math.abs(v))}`;
-      const dayRows = st.days.map((d) => `<tr><td>${shortDate(d.day)}</td><td>${d.h === null ? "ناقص بصمة خروج" : r.cap && d.h > r.cap ? `${fmtHrs(r.cap)} ساعة (من ${fmtHrs(d.h)}، الباقي فوق الحد ما انحسب)` : fmtHrs(d.h) + " ساعة"}</td></tr>`).join("");
+      const dayRows = st.days.map((d) => `<tr><td>${shortDate(d.day)}</td><td>${d.h === null ? "ناقص بصمة خروج" : fmtHrs(r.cap && d.h > r.cap ? r.cap : d.h) + " ساعة"}</td></tr>`).join("");
       const pays = history.filter((p) => p.profile_id === r.profileId).slice(0, 5)
         .map((p) => `<tr><td>${shortDate(p.paid_at)}</td><td>${shortDate(p.period_start)} لـ ${shortDate(p.period_end)}</td><td>${olvFormatMoney(p.net_amount)}</td></tr>`).join("");
       return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف حساب ${olvEsc(empName(r.profileId))}</title>
