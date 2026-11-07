@@ -1065,6 +1065,15 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
         const lastEnd = ledger.has(profileId) ? ledger.get(profileId).lastEnd : null;
         const pEnd = row.from > range.to && lastEnd ? lastEnd : range.to;
         const pStart = row.from > pEnd ? pEnd : row.from;
+        const payNote = [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null;
+        // تسجيل الدفعة وتسكير الإضافات والسلف بعملية وحدة بالقاعدة (record_payroll_payment): إما كلها أو ولا شي، ومع فحص إنه ما انسجلت دفعة من جهاز ثاني
+        const rpc = await window.supabaseClient.rpc("record_payroll_payment", {
+          p_id: paymentId, p_profile: profileId, p_start: pStart, p_end: pEnd, p_hours: row.hours, p_wage: row.hourlyWage || 0,
+          p_gross: totalOwed, p_advances: row.advancesTotal, p_net: pay, p_note: payNote,
+          p_adj_ids: row.adjIds, p_advance_ids: row.advanceIds, p_expected_last_end: lastEnd,
+        });
+        if (rpc.error && (rpc.error.code === "PGRST202" || /Could not find the function/i.test(rpc.error.message || ""))) {
+          // الدالة لسا ما انطبقت بالقاعدة (schema-payroll-hardening.sql): الطريقة القديمة
         const { error: insertErr } = await window.supabaseClient.from("payroll_payments").insert({
           id: paymentId,
           profile_id: profileId,
@@ -1075,7 +1084,7 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
           gross_amount: totalOwed,
           advances_deducted: row.advancesTotal,
           net_amount: pay,
-          note: [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null,
+          note: payNote,
           paid_by: session ? session.user.id : null,
         });
         if (insertErr) throw insertErr;
@@ -1088,6 +1097,9 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
           const { error: settleErr } = await window.supabaseClient.from("salary_advances")
             .update({ settled_payroll_id: paymentId }).in("id", row.advanceIds).is("settled_payroll_id", null);
           if (settleErr) throw settleErr;
+        }
+        } else if (rpc.error) {
+          throw rpc.error;
         }
         await Promise.all([loadUnsettledAdvances(), loadHistory()]);
         await runCompute();
