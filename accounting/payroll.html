@@ -212,6 +212,7 @@
   /* تبسيط البطاقة: الحساب والدفع فوق، والباقي بزر «تفاصيل» */
   .pf-cols{grid-template-columns:1fr;}
   .pf-pay{border-inline-start:0; max-width:560px; margin-inline:auto; width:100%;}
+  .pf-cal{border-radius:0; border:0; border-top:1px solid var(--hair-soft); padding:16px 18px;}
   .pf-set,.pf-more{background:var(--ink-2); border-top:1px solid var(--hair-soft);}
   .pf-set > summary,.pf-more > summary{cursor:pointer; padding:14px 18px; font-weight:800; font-size:13.5px; color:var(--paper); min-height:44px; display:flex; align-items:center;}
   .pf-setbody{display:flex; flex-wrap:wrap; gap:10px 18px; padding:0 18px 16px; color:var(--paper); font-size:13px;}
@@ -743,10 +744,10 @@
       const payVal = (r.payAmount != null ? r.payAmount : r.net).toFixed(2);
       const advCount = unsettledAdvances.filter((a) => a.profile_id === r.profileId).length;
       const payCount = history.filter((p) => p.profile_id === r.profileId).length;
-      const tab = fileTab.get(r.profileId) || "att";
+      const tab = ["adj", "adv", "pay", "dates"].includes(fileTab.get(r.profileId)) ? fileTab.get(r.profileId) : "adj";
       const adjCount = adjFor(r.profileId).length;
-      const tabs = [["att", "الحضور", ""], ["adj", "إضافات وخصومات", adjCount ? `<em>${adjCount}</em>` : ""], ["adv", "السلف", advCount ? `<em>${advCount}</em>` : ""], ["pay", "الدفعات", payCount ? `<em>${payCount}</em>` : ""], ["dates", "كشف بتواريخ", ""]];
-      const main = tab === "adj" ? adjustHtml(r) : tab === "adv" ? advancesHtml(r) : tab === "pay" ? paymentsHtml(r) : tab === "dates" ? datesHtml(r) : calendarHtml(r);
+      const tabs = [["adj", "إضافات وخصومات", adjCount ? `<em>${adjCount}</em>` : ""], ["adv", "السلف", advCount ? `<em>${advCount}</em>` : ""], ["pay", "الدفعات", payCount ? `<em>${payCount}</em>` : ""], ["dates", "كشف بتواريخ", ""]];
+      const main = tab === "adj" ? adjustHtml(r) : tab === "adv" ? advancesHtml(r) : tab === "pay" ? paymentsHtml(r) : datesHtml(r);
       return `
       <section class="pf" aria-label="ملف ${olvEsc(empName(r.profileId))}">
         <header class="pf-hero">
@@ -783,7 +784,8 @@
             <div class="st-actions"><button class="btn" type="button" data-stmt="print" data-id="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-stmt="wa" data-id="${r.profileId}">واتساب</button></div>
           </div>
         </div>
-        <details class="pf-more"${moreOpen.has(r.profileId) ? " open" : ""} data-more="${r.profileId}"><summary>تفاصيل: الحضور، الإضافات، السلف، الدفعات، كشف التواريخ</summary>
+        <div class="pf-cal pf-card pad">${calendarHtml(r)}</div>
+        <details class="pf-more"${moreOpen.has(r.profileId) ? " open" : ""} data-more="${r.profileId}"><summary>تفاصيل: الإضافات، السلف، الدفعات، كشف التواريخ</summary>
         <div class="pf-tabs" role="tablist" aria-label="ملف ${olvEsc(empName(r.profileId))}">${tabs.map(([k, label, em]) => `<button class="pf-tab" type="button" role="tab" aria-selected="${tab === k}" data-tab="${k}" data-id="${r.profileId}">${label}${em}</button>`).join("")}</div>
           <div class="pf-main">${main}</div>
         </details>
