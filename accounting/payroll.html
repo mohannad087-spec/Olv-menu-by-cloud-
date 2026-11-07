@@ -213,6 +213,18 @@
   .pf-cols{grid-template-columns:1fr;}
   .pf-pay{border-inline-start:0; max-width:560px; margin-inline:auto; width:100%;}
   .pf-cal{border-radius:0; border:0; border-top:1px solid var(--hair-soft); padding:16px 18px;}
+  .pf-weeks{border-radius:0; border:0; border-top:1px solid var(--hair-soft); padding:16px 18px;}
+  .wk{margin-top:14px;} .wk:first-of-type{margin-top:10px;}
+  .wk-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; font-weight:800; color:var(--paper); font-size:13.5px; margin-bottom:6px;}
+  .wk-head strong{font-size:18px; color:var(--gold);} .wk-head strong small{font-size:12px; font-weight:600; color:var(--paper); opacity:.75;}
+  .wk-grid{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px;}
+  .wk-day{border-radius:10px; padding:6px 2px; text-align:center; background:var(--ink-3); border:1px dashed var(--hair); display:flex; flex-direction:column; gap:2px; min-width:0;}
+  .wk-day small{font-size:11px; color:var(--paper); opacity:.8;} .wk-day em{font-style:normal; font-size:10.5px; color:var(--paper); opacity:.6;}
+  .wk-day b{font-size:15px; font-weight:800; color:var(--paper); font-variant-numeric:tabular-nums;}
+  .wk-day.on{background:#4254e8; border:0;} .wk-day.on small,.wk-day.on b,.wk-day.on em{color:#fff; opacity:1;}
+  .wk-day.today{background:#0b86c9; border:0;} .wk-day.today small,.wk-day.today b,.wk-day.today em{color:#fff; opacity:1;}
+  .wk-day.bad{background:#d62846; border:0;} .wk-day.bad small,.wk-day.bad b,.wk-day.bad em{color:#fff; opacity:1;}
+  .wk-day.fut{opacity:.35;}
   .pf-set,.pf-more{background:var(--ink-2); border-top:1px solid var(--hair-soft);}
   .pf-set > summary,.pf-more > summary{cursor:pointer; padding:14px 18px; font-weight:800; font-size:13.5px; color:var(--paper); min-height:44px; display:flex; align-items:center;}
   .pf-setbody{display:flex; flex-wrap:wrap; gap:10px 18px; padding:0 18px 16px; color:var(--paper); font-size:13px;}
@@ -632,7 +644,7 @@
           .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         // حضور آخر 31 يوم لملف كل موظف (إذا فشل ما بنوقف الصفحة)
-        try { await loadPunchDays(previewRows.map((x) => x.profileId), range.to.slice(0, 8) + "01", range.to); } catch (e) { punchDays = new Map(); }
+        try { await loadPunchDays(previewRows.map((x) => x.profileId), addDays(range.to, -48), range.to); } catch (e) { punchDays = new Map(); }
         // الإضافي (ساعات الشفت فوق 9) ضمن فترة كل موظف: عرض بس، الأجر ما بيتغير لأن الساعات محسوبة كلها
         previewRows.forEach((r) => { r.ot = 0; });
         try {
@@ -658,6 +670,31 @@
 
     // ملف الموظف: الهوية + الصافي بالرأس، وتحتها كشف الحساب والدفع، وتبويبات الحضور والسلف والدفعات
     // تقويم الحضور لشهر آخر يوم بالفترة: سبت..جمعة، لون الخلية حسب الساعات
+    // ساعات كل أسبوع (سبت→جمعة) لحالها: مستقلة تماماً عن الدفعات، ما بتنشطب ولا بتتغير لما ندفع
+    const DOW_SHORT = ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
+    function weeklyHoursHtml(r) {
+      const map = punchDays.get(r.profileId) || new Map();
+      const today = olvWorkDay(new Date().toISOString());
+      const weekStart = (d) => addDays(d, -((parse(d).getDay() + 1) % 7));
+      const weeks = [];
+      for (let i = 0, ws = weekStart(today); i < 5; i++, ws = addDays(ws, -7)) weeks.push(ws);
+      const blocks = weeks.map((ws, wi) => {
+        let total = 0, worked = 0, open = 0;
+        const chips = [];
+        for (let k = 0; k < 7; k++) {
+          const day = addDays(ws, k), h = map.get(day), isFut = day > today, isToday = day === today;
+          let label = "—", cls = "";
+          if (isFut) { label = ""; cls = " fut"; }
+          else if (h === null) { label = "؟"; cls = " bad"; open++; }
+          else if (h > 0) { label = fmtHrs(h); cls = isToday ? " today" : " on"; if (!isToday) { total += h; worked++; } }
+          chips.push(`<div class="wk-day${cls}"><small>${DOW_SHORT[parse(day).getDay()]}</small><b>${label}</b><em>${shortDate(day)}</em></div>`);
+        }
+        const todayH = map.get(today);
+        const note = todayH > 0 ? ` · واليوم ${fmtHrs(todayH)} (لسا ما اكتمل)` : "";
+        return `<div class="wk"><div class="wk-head"><span>${wi === 0 ? "هالأسبوع" : "أسبوع"} · ${shortDate(ws)} لـ ${shortDate(addDays(ws, 6))}</span><strong>${fmtHrs(total)} ساعة<small> · ${worked} يوم${open ? ` · ${open} ناقص بصمة` : ""}${note}</small></strong></div><div class="wk-grid">${chips.join("")}</div></div>`;
+      });
+      return `<div class="pf-card pad pf-weeks"><h4>ساعات الأسبوع · من السبت للجمعة</h4>${blocks.join("")}</div>`;
+    }
     function calendarHtml(r) {
       const to = range.to;
       const first = to.slice(0, 8) + "01";
@@ -793,6 +830,7 @@
             <div class="st-actions"><button class="btn" type="button" data-stmt="print" data-id="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-stmt="wa" data-id="${r.profileId}">واتساب</button></div>
           </div>
         </div>
+        ${weeklyHoursHtml(r)}
         <div class="pf-cal pf-card pad">${calendarHtml(r)}</div>
         <details class="pf-more"${moreOpen.has(r.profileId) ? " open" : ""} data-more="${r.profileId}"><summary>تفاصيل: الإضافات، السلف، الدفعات، كشف التواريخ</summary>
         <div class="pf-tabs" role="tablist" aria-label="ملف ${olvEsc(empName(r.profileId))}">${tabs.map(([k, label, em]) => `<button class="pf-tab" type="button" role="tab" aria-selected="${tab === k}" data-tab="${k}" data-id="${r.profileId}">${label}${em}</button>`).join("")}</div>
