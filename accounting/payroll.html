@@ -335,6 +335,8 @@
     let myRole = null;
     let canManage = false;
     let profilesById = new Map();
+    let capSupported = false; // هل عمود max_daily_hours موجود بالقاعدة
+    const capOf = (id) => { const p = profilesById.get(id); return p && p.max_daily_hours != null ? Number(p.max_daily_hours) : null; };
     let employees = [];
     let unsettledAdvances = [];
     let unsettledAdj = []; // إضافات/خصومات يدوية غير محسوبة بعد (جدول payroll_adjustments)
@@ -371,8 +373,12 @@
     $("hist-title").innerHTML = olvIcon("receipt") + " سجل الرواتب المدفوعة";
 
     async function loadProfiles() {
-      const { data, error } = await window.supabaseClient
-        .from("profiles").select("id, full_name, role, job_title, phone, device_user_id, hourly_wage").order("full_name");
+      // max_daily_hours (حد أقصى لساعات اليوم المحسوبة) عمود جديد: لو لسا ما انطبق schema-payroll-daily-cap.sql بنكمل بدونه
+      let { data, error } = await window.supabaseClient
+        .from("profiles").select("id, full_name, role, job_title, phone, device_user_id, hourly_wage, max_daily_hours").order("full_name");
+      capSupported = !error;
+      if (error) ({ data, error } = await window.supabaseClient
+        .from("profiles").select("id, full_name, role, job_title, phone, device_user_id, hourly_wage").order("full_name"));
       if (error) throw error;
       employees = data || [];
       profilesById = new Map(employees.map((p) => [p.id, p]));
@@ -556,7 +562,12 @@
         previewRows = [...profileIds]
           .map((profileId) => {
             const from = startOf(profileId);
-            const h = (hoursByStart.get(from) || new Map()).get(profileId) || { hours: 0, openCount: 0 };
+            const h0 = (hoursByStart.get(from) || new Map()).get(profileId) || { hours: 0, openCount: 0 };
+            // حد أقصى لساعات اليوم (اختياري لكل موظف): الساعات فوق الحد بتضل ظاهرة بس ما بتنحسب مصاري
+            const cap = capOf(profileId);
+            let capCut = 0;
+            if (cap) (dayRows || []).forEach((d) => { if (d.profile_id === profileId && d.status === "ok" && fmtDate(d.work_date) >= from && Number(d.hours) > cap) capCut += Number(d.hours) - cap; });
+            const h = { ...h0, hours: Math.max(0, h0.hours - capCut) };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
             // المكافأة الأسبوعية = يوم العطلة المدفوع: 10 دنانير عن كل أسبوع خلص (جمعة) بالفترة. يوم الغياب ما بينخصم منه شي
@@ -576,7 +587,7 @@
             const carry = ledger.has(profileId) ? ledger.get(profileId).carry : 0;
             const advancesTotal = advancesTotalFor(profileId);
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
-            return { profileId, from, weeks, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
+            return { profileId, from, weeks, cap, capCut, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
           })
           .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
@@ -594,7 +605,8 @@
             const startOfRow = new Map(previewRows.map((r) => [r.profileId, r.from]));
             olvComputeShifts(pts || []).forEach((sh) => {
               const h = olvShiftHours(sh);
-              if (h && sh.work_date >= startOfRow.get(sh.profile_id) && h > OLV_OVERTIME_AFTER_H) previewRows.find((r) => r.profileId === sh.profile_id).ot += h - OLV_OVERTIME_AFTER_H;
+              const row = previewRows.find((r) => r.profileId === sh.profile_id);
+              if (h && row && !row.cap && sh.work_date >= startOfRow.get(sh.profile_id) && h > OLV_OVERTIME_AFTER_H) row.ot += h - OLV_OVERTIME_AFTER_H;
             });
           }
         } catch (e) { /* الإضافي عرض بس، لو فشل ما بنوقف الصفحة */ }
@@ -672,6 +684,7 @@
       const w = [], m = punchDays.get(r.profileId) || new Map();
       const longs = [...m].filter(([d, h]) => h != null && h > 14 && d >= r.from && d <= range.to).sort().map(([d, h]) => `${shortDate(d)} (${fmtHrs(h)} ساعة)`);
       if (longs.length) w.push(`دوام أطول من 14 ساعة: ${longs.join("، ")}. تأكد إنه ما نسي يبصم خروج أو بصم بالغلط.`);
+      if (r.capCut > 0.005) w.push(`حد أقصى ${r.cap} ساعة باليوم: ${fmtHrs(r.capCut)} ساعة فوق الحد ما انحسبت.`);
       if (r.hourlyWage != null && r.hours <= 0) w.push("ما في ساعات دوام بهالفترة.");
       if (r.carry < -0.005) w.push(`عليه مرحّل ${olvFormatMoney(-r.carry)} من دفعة سابقة (انخصم من هالدفعة).`);
       if (r.carry > 0.005) w.push(`له مرحّل ${olvFormatMoney(r.carry)} من دفعة سابقة (انضاف لهالدفعة).`);
@@ -700,6 +713,7 @@
               ${prof.phone ? `<span dir="ltr">${olvEsc(prof.phone)}</span>` : ""}
               ${prof.device_user_id ? `<span>بصمة ${olvEsc(prof.device_user_id)}</span>` : ""}
               <label class="wg">سعر الساعة <input type="number" inputmode="decimal" min="0" step="0.05" data-wage="${r.profileId}" value="${noWage ? "" : r.hourlyWage}" placeholder="حدّده" aria-label="سعر الساعة"> دينار</label>
+              ${capSupported ? `<label class="wg">أقصى ساعات باليوم <input type="number" inputmode="decimal" min="1" max="24" step="0.5" data-cap="${r.profileId}" value="${r.cap || ""}" placeholder="بدون حد" aria-label="أقصى ساعات باليوم"></label>` : ""}
             </div>
           </div>
           <div class="pf-net${r.net < 0 ? " neg" : ""}"><small>الصافي المستحق</small><b>${olvFormatMoney(r.net)}</b></div>
@@ -709,7 +723,7 @@
           <div class="pf-main">${main}</div>
           <div class="pf-pay">
             <h4>كشف الحساب · ${period}</h4>
-            <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
+            <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${r.capCut > 0.005 ? ` · ${fmtHrs(r.capCut)} ساعة فوق الحد (${r.cap}) ما انحسبت` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
             <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع (يوم عطلة مدفوع) × ${FIXED_BONUS}</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
             ${Math.abs(r.adjTotal) >= 0.005 ? `<div class="ln${r.adjTotal < 0 ? " minus" : ""}"><span>إضافات وخصومات<small>${adjFor(r.profileId).length} بند</small></span><b>${r.adjTotal > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.adjTotal))}</b></div>` : ""}
             ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><span>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></span><b>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</b></div>` : ""}
@@ -766,6 +780,17 @@
           if (error) throw error;
           const prof = profilesById.get(inp.dataset.wage); if (prof) prof.hourly_wage = v;
           olvToast("انحفظ سعر الساعة", { type: "ok", icon: "check" });
+          await runCompute();
+        } catch (err) { olvShowError(errBox, err); setTimeout(renderPreview, 0); }
+      }));
+      box.querySelectorAll("input[data-cap]").forEach((inp) => inp.addEventListener("change", async () => {
+        const v = inp.value === "" ? null : Number(inp.value);
+        if (v !== null && (!Number.isFinite(v) || v <= 0 || v > 24)) { setTimeout(renderPreview, 0); return; }
+        try {
+          const { error } = await window.supabaseClient.from("profiles").update({ max_daily_hours: v }).eq("id", inp.dataset.cap);
+          if (error) throw error;
+          const prof = profilesById.get(inp.dataset.cap); if (prof) prof.max_daily_hours = v;
+          olvToast(v === null ? "انشال الحد الأقصى، كل الساعات بتنحسب" : `انحفظ: بتنحسب لحد ${v} ساعة باليوم`, { type: "ok", icon: "check" });
           await runCompute();
         } catch (err) { olvShowError(errBox, err); setTimeout(renderPreview, 0); }
       }));
@@ -827,16 +852,16 @@
     const hm = (iso) => AMMAN_HM.format(new Date(iso));
     const WEEKDAY = new Intl.DateTimeFormat("ar", { weekday: "long" });
     const dayName = (d) => WEEKDAY.format(new Date(d + "T12:00:00"));
-    function datesRows(days) {
+    function datesRows(days, cap) {
       return days.map((d) => {
         const sh = d.shift;
         const out = sh.clockOut ? hm(sh.clockOut.punched_at) : "—";
         const note = d.h === null ? "ناقص بصمة خروج" : sh.ignored ? "مهمل (أقل من 30 دقيقة)" : "";
-        return { day: d.day, name: dayName(d.day), in: hm(sh.clockIn.punched_at), out, h: d.h, ot: d.h > OLV_OVERTIME_AFTER_H ? d.h - OLV_OVERTIME_AFTER_H : 0, note };
+        return { day: d.day, name: dayName(d.day), in: hm(sh.clockIn.punched_at), out, h: d.h, hp: cap && d.h > cap ? cap : d.h, cut: cap && d.h > cap ? d.h - cap : 0, ot: cap ? 0 : d.h > OLV_OVERTIME_AFTER_H ? d.h - OLV_OVERTIME_AFTER_H : 0, note };
       });
     }
     function datesTotals(r, rows, st) {
-      const hours = rows.reduce((t, x) => t + (x.h || 0), 0);
+      const hours = rows.reduce((t, x) => t + (x.hp || 0), 0), cut = rows.reduce((t, x) => t + x.cut, 0);
       const ot = rows.reduce((t, x) => t + x.ot, 0);
       const wage = r.hourlyWage;
       // المكافأة الأسبوعية بنفس قاعدة الكشف الأساسي: 10 عن كل جمعة بالفترة، بدون خصم للغياب
@@ -845,7 +870,7 @@
       let weeks = 0;
       if (firstWork) for (let f = firstWork > st.from ? firstWork : st.from; f <= end; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
       const bonus = hours > 0 ? FIXED_BONUS * weeks : 0;
-      return { hours, ot, wage, weeks, bonus, amount: wage == null ? null : hours * wage + bonus, open: rows.filter((x) => x.h === null).length };
+      return { hours, cut, ot, wage, weeks, bonus, amount: wage == null ? null : hours * wage + bonus, open: rows.filter((x) => x.h === null).length };
     }
     const datesBonusNote = (t) => t.bonus || t.weeks ? ` + مكافأة أسبوعية ${olvFormatMoney(t.bonus)} (${t.weeks} أسبوع)` : "";
     function datesHtml(r) {
@@ -855,9 +880,9 @@
         <input type="date" name="from" value="${from}" required aria-label="من"><input type="date" name="to" value="${to}" required aria-label="إلى"><button class="btn go" type="submit">اعرض</button></form>`;
       if (!st) return `<div class="pf-card pad">${form}<div class="pf-empty">اختار الفترة واضغط «اعرض» لتشوف دوام ${olvEsc(empName(r.profileId))} يوم بيوم.</div></div>`;
       if (st.error) return `<div class="pf-card pad">${form}<div class="pf-empty">${olvEsc(st.error)}</div></div>`;
-      const rows = datesRows(st.days), t = datesTotals(r, rows, st);
-      const body = rows.length ? `<ul class="pf-list">${rows.map((x) => `<li><span>${x.name} ${shortDate(x.day)}<small>${x.in} ← ${x.out}${x.ot ? ` · إضافي ${fmtHrs(x.ot)}` : ""}${x.note ? " · " + x.note : ""}</small></span><b>${x.h === null ? "؟" : fmtHrs(x.h)}</b></li>`).join("")}</ul>` : `<div class="pf-empty">ما في دوام بهالفترة.</div>`;
-      const sum = `<div class="pf-card pad"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}${datesBonusNote(t)}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
+      const rows = datesRows(st.days, capOf(r.profileId)), t = datesTotals(r, rows, st);
+      const body = rows.length ? `<ul class="pf-list">${rows.map((x) => `<li><span>${x.name} ${shortDate(x.day)}<small>${x.in} ← ${x.out}${x.ot ? ` · إضافي ${fmtHrs(x.ot)}` : ""}${x.cut ? ` · ${fmtHrs(x.cut)} فوق الحد ما انحسبت` : ""}${x.note ? " · " + x.note : ""}</small></span><b>${x.h === null ? "؟" : fmtHrs(x.hp)}</b></li>`).join("")}</ul>` : `<div class="pf-empty">ما في دوام بهالفترة.</div>`;
+      const sum = `<div class="pf-card pad"><div class="ln total"><span>المجموع · ${rows.filter((x) => x.h).length} يوم دوام<small>${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${t.cut > 0.005 ? ` (${fmtHrs(t.cut)} ساعة فوق الحد ما انحسبت)` : ""}${t.wage == null ? "" : ` × ${olvFormatMoney(t.wage)}`}${datesBonusNote(t)}</small></span><b>${t.amount == null ? "—" : olvFormatMoney(t.amount)}</b></div>
         ${t.open ? `<div class="pay-warn">${olvIcon("warning")}<span>${t.open} يوم ببصمة وحدة ما انحسب.</span></div>` : ""}
         <div class="st-actions"><button class="btn" type="button" data-dprint="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-dwa="${r.profileId}">واتساب</button></div></div>`;
       return `<div class="pf-card pad">${form}</div><div class="pf-card">${body}</div>${sum}<div class="pf-card pad"><b>الدفعات والسلف بهالفترة</b></div><div class="pf-card">${datesPayHtml(st)}</div>`;
@@ -885,9 +910,9 @@
       return `<ul class="pf-list">${pays.map((p) => `<li><span>دفعة ${shortDate(p.paid_at)}<small>عن ${shortDate(p.period_start)} لـ ${shortDate(p.period_end)} · ${fmtHrs(Number(p.hours_worked))} ساعة${Number(p.advances_deducted) ? ` · سلف مخصومة ${olvFormatMoney(p.advances_deducted)}` : ""}</small></span><b>${olvFormatMoney(p.net_amount)}</b></li>`).join("")}${advs.map((a) => `<li><span>سلفة ${shortDate(fmtDate(a.advance_date))}<small>${olvEsc(a.note) || ""}</small></span><b class="neg">${olvFormatMoney(a.amount)}</b></li>`).join("")}</ul>`;
     }
     function datesText(r, st) {
-      const rows = datesRows(st.days), t = datesTotals(r, rows, st);
+      const rows = datesRows(st.days, capOf(r.profileId)), t = datesTotals(r, rows, st);
       const L = [`*كشف دوام ${empName(r.profileId)}*`, `الفترة: ${st.from} لـ ${st.to}`, ""];
-      rows.forEach((x) => L.push(`${x.name} ${shortDate(x.day)}: ${x.in} ← ${x.out} = ${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h) + " ساعة"}${x.ot ? ` (إضافي ${fmtHrs(x.ot)})` : ""}${x.note && x.h !== null ? " (" + x.note + ")" : ""}`));
+      rows.forEach((x) => L.push(`${x.name} ${shortDate(x.day)}: ${x.in} ← ${x.out} = ${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.hp) + " ساعة"}${x.ot ? ` (إضافي ${fmtHrs(x.ot)})` : ""}${x.note && x.h !== null ? " (" + x.note + ")" : ""}`));
       L.push("", `*المجموع: ${fmtHrs(t.hours)} ساعة${t.ot ? ` (منها ${fmtHrs(t.ot)} إضافي)` : ""}${datesBonusNote(t)}${t.amount == null ? "" : ` = ${olvFormatMoney(t.amount)}`}*`);
       const pays = st.pays || [], advs = st.advances || [];
       if (pays.length || advs.length) {
@@ -898,8 +923,8 @@
       return L.join("\n");
     }
     function datesHtmlPage(r, st) {
-      const rows = datesRows(st.days), t = datesTotals(r, rows, st);
-      const trs = rows.map((x) => `<tr><td>${x.name} ${shortDate(x.day)}</td><td>${x.in}</td><td>${x.out}</td><td>${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.h)}</td><td>${x.ot ? fmtHrs(x.ot) : "—"}</td><td>${olvEsc(x.note)}</td></tr>`).join("");
+      const rows = datesRows(st.days, capOf(r.profileId)), t = datesTotals(r, rows, st);
+      const trs = rows.map((x) => `<tr><td>${x.name} ${shortDate(x.day)}</td><td>${x.in}</td><td>${x.out}</td><td>${x.h === null ? "ناقص بصمة خروج" : fmtHrs(x.hp)}</td><td>${x.ot ? fmtHrs(x.ot) : "—"}</td><td>${olvEsc(x.note)}</td></tr>`).join("");
       return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف دوام ${olvEsc(empName(r.profileId))}</title>
 <style>body{font-family:Tajawal,Arial,sans-serif;margin:24px auto;max-width:720px;color:#222;padding:0 16px}h1{font-size:22px;margin:0 0 4px}.sub{color:#777;margin-bottom:18px}table{width:100%;border-collapse:collapse;margin:8px 0 18px}td,th{padding:7px 4px;border-bottom:1px solid #ddd;text-align:right}th{color:#777;font-weight:600}.tot{font-size:20px;font-weight:800;border:2px solid #222;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between}.btns{margin-bottom:16px}@media print{.btns{display:none}}</style></head><body>
 <div class="btns"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
@@ -940,7 +965,7 @@
       if (Math.abs(r.carry) >= 0.005) rows.push([r.carry > 0 ? "مرحّل له من دفعة سابقة" : "مرحّل عليه من دفعة سابقة", r.carry]);
       unsettledAdvances.filter((a) => a.profile_id === r.profileId).forEach((a) => rows.push([`سلفة (${shortDate(fmtDate(a.advance_date))})${a.note ? " - " + a.note : ""}`, -Number(a.amount)]));
       const money = (v) => `${v < 0 ? "−" : ""}${olvFormatMoney(Math.abs(v))}`;
-      const dayRows = st.days.map((d) => `<tr><td>${shortDate(d.day)}</td><td>${d.h === null ? "ناقص بصمة خروج" : fmtHrs(d.h) + " ساعة"}</td></tr>`).join("");
+      const dayRows = st.days.map((d) => `<tr><td>${shortDate(d.day)}</td><td>${d.h === null ? "ناقص بصمة خروج" : fmtHrs(r.cap && d.h > r.cap ? r.cap : d.h) + " ساعة"}</td></tr>`).join("");
       const pays = history.filter((p) => p.profile_id === r.profileId).slice(0, 5)
         .map((p) => `<tr><td>${shortDate(p.paid_at)}</td><td>${shortDate(p.period_start)} لـ ${shortDate(p.period_end)}</td><td>${olvFormatMoney(p.net_amount)}</td></tr>`).join("");
       return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف حساب ${olvEsc(empName(r.profileId))}</title>
