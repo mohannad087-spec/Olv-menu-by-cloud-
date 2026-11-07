@@ -559,31 +559,24 @@
             const h = (hoursByStart.get(from) || new Map()).get(profileId) || { hours: 0, openCount: 0 };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
-            // المكافأة أسبوعية = يوم العطلة المدفوع: لكل موظف يوم عطلة واحد بالأسبوع (10 دنانير) بنهاية كل أسبوع خلص (الجمعة).
-            // أي يوم إجازة زيادة (يوم بلا بصمة غير يوم العطلة) بينخصم منه 10. الأسبوع سبت..جمعة، وبنعدّ أيام الأسبوع كلها
-            // حتى لو بعضها انحسب بدفعة سابقة، والأسبوع الأول بيبدأ من أول يوم دوام للموظف
+            // المكافأة الأسبوعية = يوم العطلة المدفوع: 10 دنانير عن كل أسبوع خلص (جمعة) بالفترة. يوم الغياب ما بينخصم منه شي
+            // (قرار المالك 2026-11-07): الساعات أصلاً بتنحسب بالبصمة، فاليوم اللي ما داوم فيه ما إله ساعات ولا مصاري.
+            // الأسبوع الأول بيبدأ من أول يوم دوام للموظف
             const days = attended.get(profileId) || new Set();
             const firstWork = days.size ? [...days].sort()[0] : null;
             const spanFrom = firstWork && firstWork > from ? firstWork : from;
             const spanTo = range.to;
-            let weeks = 0, off = 0;
+            let weeks = 0;
             if (firstWork && spanFrom <= spanTo) {
-              for (let f = spanFrom; f <= spanTo; f = addDays(f, 1)) {
-                if (parse(f).getDay() !== 5) continue;
-                weeks++;
-                const ws = addDays(f, -6) > firstWork ? addDays(f, -6) : firstWork;
-                let absent = 0;
-                for (let d = ws; d <= f; d = addDays(d, 1)) if (!days.has(d)) absent++;
-                off += Math.max(0, absent - 1); // يوم واحد بالأسبوع عطلة مدفوعة، الباقي إجازة بتنخصم
-              }
+              for (let f = spanFrom; f <= spanTo; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
             }
-            const bonus = h.hours > 0 ? Math.max(0, FIXED_BONUS * weeks - FIXED_BONUS * off) : 0;
+            const bonus = h.hours > 0 ? FIXED_BONUS * weeks : 0;
             const adjTotal = adjTotalFor(profileId);
             const earned = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus + adjTotal;
             const carry = ledger.has(profileId) ? ledger.get(profileId).carry : 0;
             const advancesTotal = advancesTotalFor(profileId);
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
-            return { profileId, from, weeks, off, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
+            return { profileId, from, weeks, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
           })
           .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
@@ -679,7 +672,6 @@
       const w = [], m = punchDays.get(r.profileId) || new Map();
       const longs = [...m].filter(([d, h]) => h != null && h > 14 && d >= r.from && d <= range.to).sort().map(([d, h]) => `${shortDate(d)} (${fmtHrs(h)} ساعة)`);
       if (longs.length) w.push(`دوام أطول من 14 ساعة: ${longs.join("، ")}. تأكد إنه ما نسي يبصم خروج أو بصم بالغلط.`);
-      if (r.off > 0) w.push(`${r.off} يوم إجازة زيادة، بينخصم ${olvFormatMoney(r.off * FIXED_BONUS)} من المكافأة.`);
       if (r.hourlyWage != null && r.hours <= 0) w.push("ما في ساعات دوام بهالفترة.");
       if (r.carry < -0.005) w.push(`عليه مرحّل ${olvFormatMoney(-r.carry)} من دفعة سابقة (انخصم من هالدفعة).`);
       if (r.carry > 0.005) w.push(`له مرحّل ${olvFormatMoney(r.carry)} من دفعة سابقة (انضاف لهالدفعة).`);
@@ -718,7 +710,7 @@
           <div class="pf-pay">
             <h4>كشف الحساب · ${period}</h4>
             <div class="ln"><span>الساعات<small>${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(noWage ? 0 : r.hours * r.hourlyWage)}</b></div>
-            <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع (يوم عطلة مدفوع) × ${FIXED_BONUS}${r.off ? ` − ${r.off} يوم إجازة زيادة × ${FIXED_BONUS}` : ""}</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
+            <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع (يوم عطلة مدفوع) × ${FIXED_BONUS}</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
             ${Math.abs(r.adjTotal) >= 0.005 ? `<div class="ln${r.adjTotal < 0 ? " minus" : ""}"><span>إضافات وخصومات<small>${adjFor(r.profileId).length} بند</small></span><b>${r.adjTotal > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.adjTotal))}</b></div>` : ""}
             ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><span>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></span><b>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</b></div>` : ""}
             ${r.advancesTotal ? `<div class="ln minus"><span>سلف مخصومة</span><b>− ${olvFormatMoney(r.advancesTotal)}</b></div>` : ""}
@@ -847,21 +839,15 @@
       const hours = rows.reduce((t, x) => t + (x.h || 0), 0);
       const ot = rows.reduce((t, x) => t + x.ot, 0);
       const wage = r.hourlyWage;
-      // المكافأة الأسبوعية بنفس قاعدة الكشف الأساسي: 10 عن كل جمعة بالفترة، ناقص 10 عن كل يوم غياب زيادة (يوم واحد بالأسبوع عطلة مدفوعة)
-      const worked = new Set(rows.map((x) => x.day)), firstWork = rows.length ? rows[0].day : null;
+      // المكافأة الأسبوعية بنفس قاعدة الكشف الأساسي: 10 عن كل جمعة بالفترة، بدون خصم للغياب
+      const firstWork = rows.length ? rows[0].day : null;
       const lastDone = addDays(olvWorkDay(new Date().toISOString()), -1), end = st.to > lastDone ? lastDone : st.to;
-      let weeks = 0, off = 0;
-      if (firstWork) for (let f = firstWork > st.from ? firstWork : st.from; f <= end; f = addDays(f, 1)) {
-        if (parse(f).getDay() !== 5) continue;
-        weeks++;
-        let ws = addDays(f, -6); if (ws < firstWork) ws = firstWork; if (ws < st.from) ws = st.from;
-        let absent = 0; for (let d = ws; d <= f; d = addDays(d, 1)) if (!worked.has(d)) absent++;
-        off += Math.max(0, absent - 1);
-      }
-      const bonus = hours > 0 ? Math.max(0, FIXED_BONUS * weeks - FIXED_BONUS * off) : 0;
-      return { hours, ot, wage, weeks, off, bonus, amount: wage == null ? null : hours * wage + bonus, open: rows.filter((x) => x.h === null).length };
+      let weeks = 0;
+      if (firstWork) for (let f = firstWork > st.from ? firstWork : st.from; f <= end; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
+      const bonus = hours > 0 ? FIXED_BONUS * weeks : 0;
+      return { hours, ot, wage, weeks, bonus, amount: wage == null ? null : hours * wage + bonus, open: rows.filter((x) => x.h === null).length };
     }
-    const datesBonusNote = (t) => t.bonus || t.weeks ? ` + مكافأة أسبوعية ${olvFormatMoney(t.bonus)} (${t.weeks} أسبوع${t.off ? ` − ${t.off} يوم إجازة زيادة` : ""})` : "";
+    const datesBonusNote = (t) => t.bonus || t.weeks ? ` + مكافأة أسبوعية ${olvFormatMoney(t.bonus)} (${t.weeks} أسبوع)` : "";
     function datesHtml(r) {
       const st = datesState.get(r.profileId);
       const from = st ? st.from : addDays(range.to, -29), to = st ? st.to : range.to;
@@ -949,7 +935,7 @@
       const noWage = r.hourlyWage == null;
       const rows = [];
       rows.push([`ساعات الدوام (${fmtHrs(r.hours)} ساعة${r.ot ? `، منها ${fmtHrs(r.ot)} إضافي` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`})`, noWage ? 0 : r.hours * r.hourlyWage]);
-      if (r.bonus) rows.push([`مكافأة (${r.weeks} أسبوع${r.off ? ` − ${r.off} يوم إجازة زيادة` : ""})`, r.bonus]);
+      if (r.bonus) rows.push([`مكافأة (${r.weeks} أسبوع)`, r.bonus]);
       adjFor(r.profileId).forEach((a) => rows.push([`${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")} (${shortDate(fmtDate(a.adj_date))})`, Number(a.amount)]));
       if (Math.abs(r.carry) >= 0.005) rows.push([r.carry > 0 ? "مرحّل له من دفعة سابقة" : "مرحّل عليه من دفعة سابقة", r.carry]);
       unsettledAdvances.filter((a) => a.profile_id === r.profileId).forEach((a) => rows.push([`سلفة (${shortDate(fmtDate(a.advance_date))})${a.note ? " - " + a.note : ""}`, -Number(a.amount)]));
