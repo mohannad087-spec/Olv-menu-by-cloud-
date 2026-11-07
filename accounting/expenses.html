@@ -1341,12 +1341,25 @@ ${sec("ثانياً: طلع من برّا الدرج", B)}
       const nd = r.is_active ? nextDue(r) : null;
       const back = document.createElement("div");
       back.style.cssText = "position:fixed;inset:0;background:rgba(20,18,40,.55);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;";
-      back.innerHTML = `<div role="dialog" aria-modal="true" style="width:100%;max-width:440px;max-height:90vh;overflow-y:auto;background:var(--ink-2);border:1px solid var(--hair);border-radius:20px;padding:20px;color:var(--paper);font-family:'Tajawal',sans-serif;">
+      const draw = () => { back.innerHTML = `<div role="dialog" aria-modal="true" style="width:100%;max-width:440px;max-height:90vh;overflow-y:auto;background:var(--ink-2);border:1px solid var(--hair);border-radius:20px;padding:20px;color:var(--paper);font-family:'Tajawal',sans-serif;">
         <h3 style="margin:0 0 4px;font-size:17px;">كشف: ${olvEsc(r.name)}</h3>
         <div style="color:var(--muted);font-size:13px;margin-bottom:12px;">اندفع <b>${olvFormatMoney(sum(paid))}</b> بـ ${paid.length} ${paid.length === 1 ? "دفعة" : "دفعات"}${owed.length ? ` · ذمة لسا ما انسدّدت <b>${olvFormatMoney(sum(owed))}</b>` : ""}${nd ? ` · الجاية ${shortDate(nd)}` : ""}</div>
-        <ul style="list-style:none;margin:0;padding:0;">${rows.length ? rows.map((x) => `<li style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--hair-soft);font-size:14px;"><span>${olvEsc(x.expense_date)}</span><span style="color:var(--muted);font-size:12.5px;">${x.payment_type === "credit" && !x.settled_at ? "ذمة (ما انسدّدت)" : "مدفوع"}</span><b style="font-variant-numeric:tabular-nums;">${olvFormatMoney(x.amount)}</b></li>`).join("") : '<li style="padding:20px 0;text-align:center;color:var(--muted);">لسا ما نزلت أي دفعة منه</li>'}</ul>
+        <div style="color:var(--muted);font-size:12px;margin-bottom:6px;">اضغط «خارجي» أو «من الدرج» جنب كل دفعة لتحدد من وين اندفعت.</div><ul style="list-style:none;margin:0;padding:0;">${rows.length ? rows.map((x) => `<li style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--hair-soft);font-size:14px;"><span>${olvEsc(x.expense_date)}</span><span style="color:var(--muted);font-size:12.5px;">${x.payment_type === "credit" && !x.settled_at ? "ذمة (ما انسدّدت)" : `<button type="button" class="btn small" data-drawer="${olvEsc(x.id)}">${x.from_drawer ? "من الدرج" : "خارجي"}</button>`}</span><b style="font-variant-numeric:tabular-nums;">${olvFormatMoney(x.amount)}</b></li>`).join("") : '<li style="padding:20px 0;text-align:center;color:var(--muted);">لسا ما نزلت أي دفعة منه</li>'}</ul>
         <button type="button" class="btn" style="width:100%;margin-top:14px;min-height:46px;">إغلاق</button></div>`;
-      back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("button")) back.remove(); });
+      }; // نهاية draw
+      back.addEventListener("click", async (e) => {
+        const d = e.target.closest("[data-drawer]");
+        if (d) {
+          const x = rows.find((q) => q.id === d.dataset.drawer);
+          d.disabled = true;
+          const { error } = await window.supabaseClient.from("expenses").update({ from_drawer: !x.from_drawer }).eq("id", x.id);
+          if (error) { d.disabled = false; olvShowError(errBox, error); return; }
+          x.from_drawer = !x.from_drawer; draw(); load();
+          return;
+        }
+        if (e.target === back || e.target.closest("button")) back.remove();
+      });
+      draw();
       document.body.appendChild(back);
     }
     async function loadRecs() {
@@ -1414,7 +1427,7 @@ ${sec("ثانياً: طلع من برّا الدرج", B)}
       if (b.dataset.recStmt) {
         const r = recs.find((x) => x.id === b.dataset.recStmt); if (!r) return;
         b.disabled = true;
-        const { data, error } = await db.from("expenses").select("id, expense_date, amount, payment_type, settled_at").eq("recurring_id", r.id).order("expense_date", { ascending: false });
+        const { data, error } = await db.from("expenses").select("id, expense_date, amount, payment_type, settled_at, from_drawer").eq("recurring_id", r.id).order("expense_date", { ascending: false });
         b.disabled = false;
         if (error) { olvShowError(errBox, error); return; }
         showRecStatement(r, data || []);

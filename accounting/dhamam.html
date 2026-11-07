@@ -264,7 +264,7 @@
     // ---------------------------------------------------------------
     // نافذة التسديد: المبلغ + طريقة السداد (كاش | بنك | كليك)
     // ---------------------------------------------------------------
-    function askPayment({ title, sub, max, fixed, cta }) {
+    function askPayment({ title, sub, max, fixed, cta, askSource }) {
       return new Promise((resolve) => {
         const back = document.createElement("div");
         back.className = "dh-modal";
@@ -278,6 +278,11 @@
             <label data-m="bank"><input type="radio" name="dp-m" value="bank">بنك</label>
             <label data-m="click"><input type="radio" name="dp-m" value="click">كليك</label>
           </div>
+          ${askSource ? `<div id="dp-src-wrap"><label class="l">من وين اندفعت؟</label>
+          <div class="dh-pay" id="dp-s">
+            <label data-s="drawer"><input type="radio" name="dp-s" value="drawer">من الدرج</label>
+            <label data-s="outside"><input type="radio" name="dp-s" value="outside">خارجي</label>
+          </div></div>` : ""}
           <div class="err" id="dp-err"></div>
           <div class="acts"><button type="button" class="btn go" id="dp-go" style="flex:1;">${cta || "تسديد"}</button><button type="button" class="btn" id="dp-no">إلغاء</button></div>
         </div>`;
@@ -285,14 +290,24 @@
         const done = (v) => { back.remove(); resolve(v); };
         back.querySelector("#dp-m").addEventListener("change", (e) => {
           back.querySelectorAll("#dp-m label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
+          const w = back.querySelector("#dp-src-wrap"); if (w) w.hidden = e.target.value !== "cash";
         });
+        const sg = back.querySelector("#dp-s");
+        if (sg) sg.addEventListener("change", (e) => back.querySelectorAll("#dp-s label").forEach((l) => l.classList.toggle("on", l.dataset.s === e.target.value)));
         back.querySelector("#dp-no").addEventListener("click", () => done(null));
         back.addEventListener("click", (e) => { if (e.target === back) done(null); });
         const go = () => {
           const amount = r2(back.querySelector("#dp-amt").value);
           if (!(amount > 0)) { back.querySelector("#dp-err").textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
           if (amount > max + 0.004) { back.querySelector("#dp-err").textContent = `المبلغ أكبر من المستحق (${money(max)})`; return; }
-          done({ amount, method: back.querySelector("#dp-m input:checked").value });
+          const method = back.querySelector("#dp-m input:checked").value;
+          let source = "outside";
+          if (askSource && method === "cash") {
+            const c = back.querySelector("#dp-s input:checked");
+            if (!c) { back.querySelector("#dp-err").textContent = "اختار: من الدرج ولا خارجي"; return; }
+            source = c.value;
+          }
+          done({ amount, method, source });
         };
         back.querySelector("#dp-go").addEventListener("click", go);
         back.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } if (e.key === "Escape") done(null); });
@@ -489,10 +504,22 @@
     });
 
     async function payPerson(p) {
-      const pay = await askPayment({ title: "تسديد " + p.name, sub: `الباقي عليك <b>${money(p.balance)}</b>`, max: p.balance });
+      const pay = await askPayment({ title: "تسديد " + p.name, sub: `الباقي عليك <b>${money(p.balance)}</b>`, max: p.balance, askSource: true });
       if (!pay) return false;
-      const { error } = await db().from("person_debts").insert({ person_name: p.name, kind: "payment", amount: pay.amount, method: pay.method, entry_date: iso(new Date()), created_by: session.user.id });
+      const { error } = await db().from("person_debts").insert({ person_name: p.name, kind: "payment", amount: pay.amount, method: pay.method, entry_date: iso(new Date()), note: pay.source === "drawer" ? "من الدرج" : null, created_by: session.user.id });
       if (error) throw error;
+      if (pay.source === "drawer") {
+        // مصروفات الدرج = مصاري طلعت من الدرج: بنسجّلها مصروف كاش من الدرج حتى تنحسب بتقفيل الخزينة
+        let cat = (await db().from("expense_categories").select("id").eq("name", "سداد ديون").limit(1)).data;
+        let catId = cat && cat[0] ? cat[0].id : null;
+        if (!catId) {
+          const c = await db().from("expense_categories").insert({ name: "سداد ديون" }).select("id").single();
+          if (c.error) throw new Error("انسجلت الدفعة بس تعذّر تنزيلها من الدرج: " + c.error.message);
+          catId = c.data.id;
+        }
+        const ex = await db().from("expenses").insert({ expense_date: iso(new Date()), category_id: catId, amount: pay.amount, description: "سداد ذمة: " + p.name, payment_type: "cash", from_drawer: true, created_by: session.user.id });
+        if (ex.error) throw new Error("انسجلت الدفعة بس تعذّر تنزيلها من الدرج: " + ex.error.message);
+      }
       olvToast("انسجلت الدفعة", { type: "ok" });
       await load();
       return true;
