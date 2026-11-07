@@ -169,6 +169,8 @@
   .cal-cell.off{background:transparent; border:1px dashed var(--hair);}
   .cal-cell.fut{background:transparent; opacity:.4;}
   .cal-cell.cov{opacity:.5;}
+  .cal-cell.ign{background:transparent; border:2px solid var(--gold); color:var(--gold);}
+  .cal-cell.ign b{color:var(--gold);}
   .cal-cell.open{background:repeating-linear-gradient(135deg,rgba(66,84,232,.38) 0 4px,rgba(66,84,232,.16) 4px 8px);}
   .cal-empty{visibility:hidden;}
   .cal-legend{display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:12px; font-size:12px; color:var(--muted);}
@@ -341,6 +343,7 @@
     let unsettledAdvances = [];
     let unsettledAdj = []; // إضافات/خصومات يدوية غير محسوبة بعد (جدول payroll_adjustments)
     let adjMissing = false; // الجدول مش منشأ بعد (ما انطبّق schema-payroll-adjustments.sql)
+    let ignoredDays = new Map(); // profileId -> Set(يوم دوام ببصمات متقاربة أقل من 30 دقيقة: مهمل بدون خروج واضح)
     let punchDays = new Map(); // profileId -> Map(يوم الدوام -> ساعات | null إذا ناقص خروج)
     const fileTab = new Map(); // التبويب المفتوح بملف كل موظف
     let selectedId = null; // الموظف المفتوح ملفه
@@ -513,7 +516,7 @@
 
     // حضور الموظفين اليومي (للملف): بصمات الفترة → ساعات كل يوم دوام
     async function loadPunchDays(ids, from, to) {
-      punchDays = new Map();
+      punchDays = new Map(); ignoredDays = new Map();
       if (!ids.length || from > to) return;
       const b = olvWorkRangeBounds(from, to);
       const { data, error } = await window.supabaseClient
@@ -522,6 +525,7 @@
       olvComputeShifts(data || []).forEach((sh) => {
         if (!punchDays.has(sh.profile_id)) punchDays.set(sh.profile_id, new Map());
         punchDays.get(sh.profile_id).set(sh.work_date, olvShiftHours(sh));
+        if (sh.ignored) { if (!ignoredDays.has(sh.profile_id)) ignoredDays.set(sh.profile_id, new Set()); ignoredDays.get(sh.profile_id).add(sh.work_date); }
       });
     }
 
@@ -624,6 +628,7 @@
       const dim = new Date(Number(to.slice(0, 4)), Number(to.slice(5, 7)), 0).getDate();
       const lead = (parse(first).getDay() + 1) % 7; // الأسبوع بيبدأ سبت
       const map = punchDays.get(r.profileId) || new Map();
+      const ign = ignoredDays.get(r.profileId) || new Set();
       let total = 0, worked = 0, fresh = 0;
       const cells = [];
       for (let i = 0; i < lead; i++) cells.push('<div class="cal-empty"></div>');
@@ -635,14 +640,15 @@
         let cls = "off", label = "";
         if (isFut) cls = "fut";
         else if (h === null) { cls = "open"; label = "؟"; }
+        else if (ign.has(day)) { cls = "ign"; label = "!"; }
         else if (h > 0) { cls = h > 9 ? "l3" : h >= 6 ? "l2" : "l1"; label = fmtHrs(h); total += h; worked++; if (!cov) fresh += h; }
-        const tip = isFut ? "" : `${shortDate(day)}: ${h === undefined || h === 0 ? "ما داوم" : h === null ? "ناقص بصمة خروج" : fmtHrs(h) + " ساعة"}${cov && h ? " (انحسب بدفعة سابقة)" : ""}`;
+        const tip = isFut ? "" : `${shortDate(day)}: ${ign.has(day) ? "بصمات متقاربة بدون خروج (مهمل، ما انحسب)" : h === undefined || h === 0 ? "ما داوم" : h === null ? "ناقص بصمة خروج" : fmtHrs(h) + " ساعة"}${cov && h ? " (انحسب بدفعة سابقة)" : ""}`;
         cells.push(`<div class="cal-cell ${cls}${cov && !isFut ? " cov" : ""}" title="${tip}"><span>${d}</span><b>${label}</b></div>`);
       }
       return `<h4>${MONTHS[Number(to.slice(5, 7)) - 1]} · ${fmtHrs(total)} ساعة · ${worked} يوم دوام${fresh !== total ? ` · غير محسوب بعد ${fmtHrs(fresh)} ساعة` : ""}</h4>
         <div class="cal-dow" aria-hidden="true"><span>سبت</span><span>أحد</span><span>اثنين</span><span>ثلاثاء</span><span>أربعاء</span><span>خميس</span><span>جمعة</span></div>
         <div class="cal-grid" role="img" aria-label="ساعات الدوام اليومية بالشهر">${cells.join("")}</div>
-        <div class="cal-legend"><span><i style="background:rgba(91,71,230,.22)"></i>أقل من 6 ساعات</span><span><i style="background:rgba(91,71,230,.45)"></i>6 – 9</span><span><i style="background:var(--olive)"></i>أكثر من 9</span><span><i style="border:1px dashed var(--hair)"></i>ما داوم</span><span><i style="background:var(--gold)"></i>ناقص بصمة خروج</span><span>باهت = انحسب بدفعة سابقة</span></div>`;
+        <div class="cal-legend"><span><i style="background:rgba(91,71,230,.22)"></i>أقل من 6 ساعات</span><span><i style="background:rgba(91,71,230,.45)"></i>6 – 9</span><span><i style="background:var(--olive)"></i>أكثر من 9</span><span><i style="border:1px dashed var(--hair)"></i>ما داوم</span><span><i style="background:var(--gold)"></i>ناقص بصمة خروج</span><span><i style="border:2px solid var(--gold)"></i>! بصمات متقاربة بدون خروج</span><span>باهت = انحسب بدفعة سابقة</span></div>`;
     }
     function advancesHtml(r) {
       const advs = unsettledAdvances.filter((a) => a.profile_id === r.profileId);
@@ -680,10 +686,14 @@
         <span class="a">${olvFormatMoney(r.net)}<span class="pc-chip ${st[1]}">${st[0]}</span></span></button>`;
     }
     // فحص قبل الدفع: تنبيهات بتظهر على بطاقة الموظف وبتنعاد بنافذة التأكيد، عشان ما يضيع حق حدا بغلطة بصمة
+    // أيام بصمات متقاربة (أقل من 30 دقيقة): النظام بيهملها وما بيحسب ساعاتها، فلازم المالك يتأكد إنه ما نسي يبصم خروج
+    function ignoredList(r) { return [...(ignoredDays.get(r.profileId) || [])].filter((d) => d >= r.from && d <= range.to).sort(); }
     function prepayWarnings(r) {
       const w = [], m = punchDays.get(r.profileId) || new Map();
       const longs = [...m].filter(([d, h]) => h != null && h > 14 && d >= r.from && d <= range.to).sort().map(([d, h]) => `${shortDate(d)} (${fmtHrs(h)} ساعة)`);
       if (longs.length) w.push(`دوام أطول من 14 ساعة: ${longs.join("، ")}. تأكد إنه ما نسي يبصم خروج أو بصم بالغلط.`);
+      const ig = ignoredList(r);
+      if (ig.length) w.push(`بصمات متقاربة بدون خروج يوم ${ig.map(shortDate).join("، ")}: النظام أهملها وما حسب ساعاتها. إذا داوم فعلاً، صحّحها من الحضور قبل الدفع.`);
       if (r.capCut > 0.005) w.push(`حد أقصى ${r.cap} ساعة باليوم: ${fmtHrs(r.capCut)} ساعة فوق الحد ما انحسبت.`);
       if (r.hourlyWage != null && r.hours <= 0) w.push("ما في ساعات دوام بهالفترة.");
       if (r.carry < -0.005) w.push(`عليه مرحّل ${olvFormatMoney(-r.carry)} من دفعة سابقة (انخصم من هالدفعة).`);
