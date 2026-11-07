@@ -183,6 +183,13 @@
   .pf-list li small{display:block; color:var(--muted); font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
   .pf-list li b{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
   .pf-list li b.neg{color:var(--danger-hi);}
+  /* كشف التواريخ: كان باهت (الصف الأخير بدون تنسيق والتفاصيل رمادية فاتحة) */
+  .pf-list li > span{font-weight:700; color:var(--paper);}
+  .pf-list li small{color:var(--paper); opacity:.72;}
+  .pf-list li b{color:var(--gold); font-size:16px;}
+  .pf-card .ln{display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:54px; font-size:14.5px; font-weight:700; color:var(--paper);}
+  .pf-card .ln small{display:block; color:var(--paper); opacity:.72; font-weight:500; font-size:12px; line-height:1.5; margin-top:2px;}
+  .pf-card .ln b{font-weight:800; font-size:22px; color:var(--olive); font-variant-numeric:tabular-nums; white-space:nowrap;}
   .adj-form{display:grid; grid-template-columns:1fr 110px; gap:8px; margin-bottom:10px;}
   .adj-form select,.adj-form input{min-height:44px; border:1px solid var(--hair); border-radius:12px; padding:0 12px; font:inherit; background:var(--ink-2); color:inherit; min-width:0;}
   .adj-form input[name=note]{grid-column:1 / -1;}
