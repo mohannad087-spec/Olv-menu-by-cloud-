@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
     if (body.action === "push_cards") {
       if (profile.role === "staff") return json({ ok: false, error: "هذه العملية للمالك والمدير فقط" }, 403);
       const { data: rows, error: pe } = await admin.from("products")
-        .select("external_id, name, name_en, description, description_en, menu_cat, subcat_ar, subcat_en, price, hall_price, meal_price, large_addon_id, is_active, popular, image_url")
+        .select("external_id, name, name_en, description, description_en, menu_cat, subcat_ar, subcat_en, price, hall_price, meal_price, large_addon_id, flavors, is_active, popular, image_url")
         .not("external_id", "is", null);
       if (pe) return json({ ok: false, error: pe.message }, 500);
       const largeIds = (rows || []).map((r) => r.large_addon_id).filter(Boolean);
@@ -375,6 +375,7 @@ Deno.serve(async (req) => {
           hallPrice: Number(r.hall_price) > 0 ? Number(r.hall_price) : null,
           mealPrice: Number(r.meal_price) > 0 ? Number(r.meal_price) : null,
           largePrice: r.large_addon_id && largeBy[r.large_addon_id] != null ? Math.round((Number(r.price) + largeBy[r.large_addon_id]) * 100) / 100 : null,
+          flavors: r.flavors ? String(r.flavors).split("|").map((x: string) => x.trim()).filter(Boolean) : [],
           available: r.is_active !== false,
           popular: !!r.popular,
           image: r.image_url || undefined,

@@ -1160,6 +1160,8 @@
         return { label, value: label };
       }).sort((a, b) => a.label.localeCompare(b.label, "ar"));
     }
+    // نكهات الأكل (بطاقة المادة → products.flavors مفصولة بـ |): اختيار واحد إجباري
+    const prodFlavors = (p) => (p && p.flavors ? String(p.flavors).split("|").map((x) => x.trim()).filter(Boolean) : []);
     const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
     // الإضافات لازم تنطبق على المنطق: الجبنة مثلًا بس للأكل المالح (مش للمشروبات ولا الحلويات)
     const SAVORY_CAT = /برغر|ساندويش|سناك|بيتزا|معجنات|باستا|عروض/;
@@ -1552,7 +1554,7 @@
       if (!product) return;
       // لو في إضافات بالنظام: نضيف الصنف كسطر جديد ونفتح نافذة اختيار الإضافات فورًا
       // («إلغاء» بتخليه بدون إضافات، «حذف» بتشيله)
-      if (addons.some((a) => !a.is_meal && !a.is_size && addonFits(a, product.category)) || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length))) {
+      if (addons.some((a) => !a.is_meal && !a.is_size && addonFits(a, product.category)) || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length)) || prodFlavors(product).length) {
         OlvCart.add(product, [], 1, "");
         olvHaptic();
         renderCart();
@@ -1590,7 +1592,8 @@
       const hookah = isHookah(itemCat(item));
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
-      const flavorList = hookah ? flavorsFor(item) : [];
+      const flavorList = hookah ? flavorsFor(item) : prodFlavors(products.find((x) => x.id === item.productId)).map((f) => ({ label: f, value: f }));
+      const flavorRequired = !hookah && flavorList.length > 0;
       const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size && addonFits(a, itemCat(item)));
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
@@ -1599,7 +1602,7 @@
           <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(OlvCart.unitPrice(item))}</div>
-          ${hookah && flavorList.length ? `
+          ${flavorList.length ? `
             <div class="flavor-grid" role="radiogroup" aria-label="النكهة">
               ${flavorList.map((f) => `<button type="button" class="flavor-chip${f.value === flavor ? " on" : ""}" data-flavor="${olvEsc(f.value)}">${olvEsc(f.label)}</button>`).join("")}
             </div>` : ""}
@@ -1642,13 +1645,14 @@
         });
         sheet.querySelector("#qty-minus").addEventListener("click", () => { qty = Math.max(1, qty - 1); note = sheet.querySelector("#item-note").value; render(); });
         sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; note = sheet.querySelector("#item-note").value; render(); });
-        sheet.querySelector("#sheet-cancel").addEventListener("click", close);
+        sheet.querySelector("#sheet-cancel").addEventListener("click", dismiss);
         sheet.querySelector("#sheet-delete").addEventListener("click", () => {
           OlvCart.removeAt(idx);
           renderCart();
           close();
         });
         sheet.querySelector("#sheet-save").addEventListener("click", () => {
+          if (flavorRequired && !flavor) { olvToast("اختار النكهة أول", { type: "gold", icon: "warning" }); return; }
           const chosenAddons = addons.filter((a) => selectedAddons.has(a.id));
           const typed = sheet.querySelector("#item-note").value.trim();
           const finalNote = [flavor ? flavorPrefix + flavor : "", typed].filter(Boolean).join(" - ");
@@ -1670,10 +1674,15 @@
         sheet.addEventListener("animationend", remove, { once: true });
         setTimeout(remove, 400);
       }
-      function onEsc(e) { if (e.key === "Escape") close(); }
+      // صنف بنكهة إجبارية: لو انسكرت النافذة بدون اختيار نكهة بينشال السطر
+      function dismiss() {
+        if (flavorRequired && !(OlvCart.all()[idx] && (OlvCart.all()[idx].note || "").startsWith(flavorPrefix))) { OlvCart.removeAt(idx); renderCart(); }
+        close();
+      }
+      function onEsc(e) { if (e.key === "Escape") dismiss(); }
       document.addEventListener("keydown", onEsc);
-      backdrop.addEventListener("click", close);
-      olvAttachSwipeDismiss(sheet, backdrop, close);
+      backdrop.addEventListener("click", dismiss);
+      olvAttachSwipeDismiss(sheet, backdrop, dismiss);
       render();
       document.body.appendChild(backdrop);
       document.body.appendChild(sheet);
