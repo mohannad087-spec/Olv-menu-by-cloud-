@@ -337,6 +337,7 @@
     let myRole = null;
     let canManage = false;
     let profilesById = new Map();
+    const paySrcById = new Map(); // profileId -> drawer | cash | bank (من وين بدفع الراتب)
     let capSupported = false; // هل عمود max_daily_hours موجود بالقاعدة
     const capOf = (id) => { const p = profilesById.get(id); return p && p.max_daily_hours != null ? Number(p.max_daily_hours) : null; };
     let employees = [];
@@ -742,6 +743,7 @@
             ${noWage ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
             ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
             ${(() => { const pw = prepayWarnings(r); return pw.length ? `<div class="pay-warn">${olvIcon("warning")}<span><b>تأكد قبل الدفع:</b><br>${pw.map((x) => "• " + olvEsc(x)).join("<br>")}</span></div>` : ""; })()}
+            <div><label for="src-${r.profileId}">من وين الدفع؟</label><select id="src-${r.profileId}" data-paysrc="${r.profileId}" aria-label="من وين الدفع"><option value="">اختار...</option><option value="drawer"${paySrcById.get(r.profileId) === "drawer" ? " selected" : ""}>من الدرج</option><option value="cash"${paySrcById.get(r.profileId) === "cash" ? " selected" : ""}>نقد من خارج الدرج</option><option value="bank"${paySrcById.get(r.profileId) === "bank" ? " selected" : ""}>بنك / كليك</option></select></div>
             <div><label for="amt-${r.profileId}">المبلغ اللي بدفعه</label><input class="amt" id="amt-${r.profileId}" type="number" inputmode="decimal" min="0" step="0.01" data-amount="${r.profileId}" value="${payVal}"></div>
             <button class="btn go" type="button" data-pay="${r.profileId}">تأكيد الدفع</button>
             <div class="st-actions"><button class="btn" type="button" data-stmt="print" data-id="${r.profileId}">طباعة / PDF</button><button class="btn" type="button" data-stmt="wa" data-id="${r.profileId}">واتساب</button></div>
@@ -793,6 +795,7 @@
           await runCompute();
         } catch (err) { olvShowError(errBox, err); setTimeout(renderPreview, 0); }
       }));
+      box.querySelectorAll("select[data-paysrc]").forEach((sel) => sel.addEventListener("change", () => paySrcById.set(sel.dataset.paysrc, sel.value)));
       box.querySelectorAll("input[data-cap]").forEach((inp) => inp.addEventListener("change", async () => {
         const v = inp.value === "" ? null : Number(inp.value);
         if (v !== null && (!Number.isFinite(v) || v <= 0 || v > 24)) { setTimeout(renderPreview, 0); return; }
@@ -1068,10 +1071,13 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
       if (!Number.isFinite(pay) || pay < 0) { olvToast("المبلغ غير صحيح", { type: "error" }); return; }
       // يوم ببصمة وحدة ما بينحسب، والدفعة بتسكّر الفترة، فساعاته بتضيع نهائياً. لازم يتصحح من صفحة الحضور أول
       if (row.openCount > 0) { olvToast(`في ${row.openCount} يوم ببصمة وحدة عند ${empName(profileId)}. صحّحه من صفحة الحضور قبل الدفع، وإلا بتضيع ساعاته.`, { type: "error" }); return; }
+      const paySrc = paySrcById.get(profileId) || "";
+      if (pay > 0 && !paySrc) { olvToast("اختار من وين بدفع الراتب (الدرج، نقد خارجي، أو بنك/كليك) قبل التأكيد", { type: "error" }); return; }
+      const srcLabel = { drawer: "من الدرج", cash: "نقد من خارج الدرج", bank: "بنك / كليك" }[paySrc] || "";
       const diff = Math.round((row.net - pay) * 100) / 100;
       // الإجمالي المسجّل = مستحق هالفترة + المرحّل، فالباقي بعد الدفع = الإجمالي − السلف − المدفوع بيترحّل للدفعة الجاية
       const totalOwed = row.earned + row.carry;
-      const msg = `تأكيد دفع ${olvFormatMoney(pay)} لـ${empName(profileId)}؟\n` +
+      const msg = `تأكيد دفع ${olvFormatMoney(pay)} لـ${empName(profileId)}${srcLabel ? ` (${srcLabel}، وبينسجل مصروف رواتب)` : ""}؟\n` +
         `(مستحق هالفترة ${olvFormatMoney(row.earned)}` +
         `${Math.abs(row.adjTotal) >= 0.005 ? `، إضافات/خصومات ${row.adjTotal > 0 ? "+" : "−"}${olvFormatMoney(Math.abs(row.adjTotal))}` : ""}` +
         `${row.carry ? `، ${row.carry > 0 ? "مرحّل له" : "مرحّل عليه"} ${olvFormatMoney(Math.abs(row.carry))}` : ""}` +
@@ -1088,11 +1094,18 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
         const pStart = row.from > pEnd ? pEnd : row.from;
         const payNote = [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null;
         // تسجيل الدفعة وتسكير الإضافات والسلف بعملية وحدة بالقاعدة (record_payroll_payment): إما كلها أو ولا شي، ومع فحص إنه ما انسجلت دفعة من جهاز ثاني
-        const rpc = await window.supabaseClient.rpc("record_payroll_payment", {
+        const rpcArgs = {
           p_id: paymentId, p_profile: profileId, p_start: pStart, p_end: pEnd, p_hours: row.hours, p_wage: row.hourlyWage || 0,
           p_gross: totalOwed, p_advances: row.advancesTotal, p_net: pay, p_note: payNote,
           p_adj_ids: row.adjIds, p_advance_ids: row.advanceIds, p_expected_last_end: lastEnd,
-        });
+        };
+        const noFn = (e) => e && (e.code === "PGRST202" || /Could not find the function/i.test(e.message || ""));
+        // الأحدث: بتسجل الدفعة + مصروف الرواتب (من الدرج/خارجي/بنك) بعملية وحدة
+        let rpc = pay > 0 ? await window.supabaseClient.rpc("record_payroll_payment", { ...rpcArgs, p_pay_source: paySrc }) : { error: { code: "PGRST202" } };
+        if (noFn(rpc.error)) {
+          if (pay > 0) olvToast("انسجلت الدفعة بس مصروف الرواتب ما نزل تلقائياً (لسا ما انطبق ملف schema-payroll-expense.sql). سجّله من صفحة المصروفات.", { type: "error" });
+          rpc = await window.supabaseClient.rpc("record_payroll_payment", rpcArgs);
+        }
         if (rpc.error && (rpc.error.code === "PGRST202" || /Could not find the function/i.test(rpc.error.message || ""))) {
           // الدالة لسا ما انطبقت بالقاعدة (schema-payroll-hardening.sql): الطريقة القديمة
         const { error: insertErr } = await window.supabaseClient.from("payroll_payments").insert({
