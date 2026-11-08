@@ -225,6 +225,10 @@
   .wk-day.today{background:#0b86c9; border:0;} .wk-day.today small,.wk-day.today b,.wk-day.today em{color:#fff; opacity:1;}
   .wk-day.bad{background:#d62846; border:0;} .wk-day.bad small,.wk-day.bad b,.wk-day.bad em{color:#fff; opacity:1;}
   .wk-day.fut{opacity:.35;}
+  .wk-day.paid,.wk-day.part{position:relative;}
+  .wk-day.paid::after,.wk-day.part::after{content:""; position:absolute; inset-inline:4%; top:50%; height:3px; margin-top:-1px; background:#ff1f3d; box-shadow:0 0 0 1.5px #fff; border-radius:2px; transform:rotate(-7deg);}
+  .wk-day.part::after{inset-inline:4% 48%; opacity:.9;}
+  .wk-legend{font-size:11.5px; color:var(--paper); opacity:.75; margin:2px 0 0;}
   .pf-set,.pf-more{background:var(--ink-2); border-top:1px solid var(--hair-soft);}
   .pf-set > summary,.pf-more > summary{cursor:pointer; padding:14px 18px; font-weight:800; font-size:13.5px; color:var(--paper); min-height:44px; display:flex; align-items:center;}
   .pf-setbody{display:flex; flex-wrap:wrap; gap:10px 18px; padding:0 18px 16px; color:var(--paper); font-size:13px;}
@@ -684,6 +688,13 @@
       const weekStart = (d) => addDays(d, -((parse(d).getDay() + 1) % 7));
       const weeks = [];
       for (let i = 0, ws = weekStart(today); i < 5; i++, ws = addDays(ws, -7)) weeks.push(ws);
+      // الأيام المدفوعة: الساعات الباقية (غير المدفوعة) بتنحسب من آخر يوم لورا، وكل يوم قبلها مدفوع
+      const paidDay = new Map();
+      if (r.hourlyWage > 0) {
+        let left = Math.max(0, hoursBalance(r).left), acc = 0;
+        const ds = [...map.keys()].filter((d) => d < today && map.get(d) > 0).sort().reverse();
+        for (const d of ds) { const h = map.get(d); if (acc >= left - 0.005) paidDay.set(d, "paid"); else { acc += h; if (acc > left + 0.005) paidDay.set(d, "part"); } }
+      }
       const blocks = weeks.map((ws, wi) => {
         let total = 0, worked = 0, open = 0;
         const chips = [];
@@ -692,14 +703,14 @@
           let label = "—", cls = "";
           if (isFut) { label = ""; cls = " fut"; }
           else if (h === null) { label = "؟"; cls = " bad"; open++; }
-          else if (h > 0) { label = fmtHrs(h); cls = isToday ? " today" : " on"; if (!isToday) { total += h; worked++; } }
+          else if (h > 0) { label = fmtHrs(h); cls = isToday ? " today" : " on"; if (!isToday) { total += h; worked++; } if (paidDay.has(day)) cls += " " + paidDay.get(day); }
           chips.push(`<div class="wk-day${cls}"><small>${DOW_SHORT[parse(day).getDay()]}</small><b>${label}</b><em>${shortDate(day)}</em></div>`);
         }
         const todayH = map.get(today);
         const note = todayH > 0 ? ` · واليوم ${fmtHrs(todayH)} (لسا ما اكتمل)` : "";
         return `<div class="wk"><div class="wk-head"><span>${wi === 0 ? "هالأسبوع" : "أسبوع"} · ${shortDate(ws)} لـ ${shortDate(addDays(ws, 6))}</span><strong>${fmtHrs(total)} ساعة<small> · ${worked} يوم${open ? ` · ${open} ناقص بصمة` : ""}${note}</small></strong></div><div class="wk-grid">${chips.join("")}</div></div>`;
       });
-      return `<div class="pf-card pad pf-weeks"><h4>ساعات الأسبوع · من السبت للجمعة</h4>${blocks.join("")}</div>`;
+      return `<div class="pf-card pad pf-weeks"><h4>ساعات الأسبوع · من السبت للجمعة</h4><p class="wk-legend">الخط الأحمر على اليوم = اندفعت ساعاته (نص خط = اندفع جزء منها)</p>${blocks.join("")}</div>`;
     }
     function calendarHtml(r) {
       const to = range.to;
