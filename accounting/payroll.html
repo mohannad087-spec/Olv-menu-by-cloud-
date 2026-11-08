@@ -225,6 +225,10 @@
   .wk-day.today{background:#0b86c9; border:0;} .wk-day.today small,.wk-day.today b,.wk-day.today em{color:#fff; opacity:1;}
   .wk-day.bad{background:#d62846; border:0;} .wk-day.bad small,.wk-day.bad b,.wk-day.bad em{color:#fff; opacity:1;}
   .wk-day.fut{opacity:.35;}
+  .wk-day.paid,.wk-day.part{position:relative;}
+  .wk-day.paid::after,.wk-day.part::after{content:""; position:absolute; inset-inline:4%; top:50%; height:2.5px; margin-top:2px; background:#ff1f3d; box-shadow:0 0 0 1px #fff; border-radius:2px; transform:rotate(-4deg);}
+  .wk-day.part::after{inset-inline:4% 48%; opacity:.9;}
+  .wk-legend{font-size:11.5px; color:var(--paper); opacity:.75; margin:2px 0 0;}
   .pf-set,.pf-more{background:var(--ink-2); border-top:1px solid var(--hair-soft);}
   .pf-set > summary,.pf-more > summary{cursor:pointer; padding:14px 18px; font-weight:800; font-size:13.5px; color:var(--paper); min-height:44px; display:flex; align-items:center;}
   .pf-setbody{display:flex; flex-wrap:wrap; gap:10px 18px; padding:0 18px 16px; color:var(--paper); font-size:13px;}
@@ -684,6 +688,13 @@
       const weekStart = (d) => addDays(d, -((parse(d).getDay() + 1) % 7));
       const weeks = [];
       for (let i = 0, ws = weekStart(today); i < 5; i++, ws = addDays(ws, -7)) weeks.push(ws);
+      // الأيام المدفوعة: الساعات الباقية (غير المدفوعة) بتنحسب من آخر يوم لورا، وكل يوم قبلها مدفوع
+      const paidDay = new Map();
+      if (r.hourlyWage > 0) {
+        let left = Math.max(0, hoursBalance(r).left), acc = 0;
+        const ds = [...map.keys()].filter((d) => d < today && map.get(d) > 0).sort().reverse();
+        for (const d of ds) { const h = map.get(d); if (acc >= left - 0.005) paidDay.set(d, "paid"); else { acc += h; if (acc > left + 0.005) paidDay.set(d, "part"); } }
+      }
       const blocks = weeks.map((ws, wi) => {
         let total = 0, worked = 0, open = 0;
         const chips = [];
@@ -692,14 +703,14 @@
           let label = "—", cls = "";
           if (isFut) { label = ""; cls = " fut"; }
           else if (h === null) { label = "؟"; cls = " bad"; open++; }
-          else if (h > 0) { label = fmtHrs(h); cls = isToday ? " today" : " on"; if (!isToday) { total += h; worked++; } }
+          else if (h > 0) { label = fmtHrs(h); cls = isToday ? " today" : " on"; if (!isToday) { total += h; worked++; } if (paidDay.has(day)) cls += " " + paidDay.get(day); }
           chips.push(`<div class="wk-day${cls}"><small>${DOW_SHORT[parse(day).getDay()]}</small><b>${label}</b><em>${shortDate(day)}</em></div>`);
         }
         const todayH = map.get(today);
         const note = todayH > 0 ? ` · واليوم ${fmtHrs(todayH)} (لسا ما اكتمل)` : "";
         return `<div class="wk"><div class="wk-head"><span>${wi === 0 ? "هالأسبوع" : "أسبوع"} · ${shortDate(ws)} لـ ${shortDate(addDays(ws, 6))}</span><strong>${fmtHrs(total)} ساعة<small> · ${worked} يوم${open ? ` · ${open} ناقص بصمة` : ""}${note}</small></strong></div><div class="wk-grid">${chips.join("")}</div></div>`;
       });
-      return `<div class="pf-card pad pf-weeks"><h4>ساعات الأسبوع · من السبت للجمعة</h4>${blocks.join("")}</div>`;
+      return `<div class="pf-card pad pf-weeks"><h4>ساعات الأسبوع · من السبت للجمعة</h4><p class="wk-legend">الخط الأحمر على اليوم = اندفعت ساعاته (نص خط = اندفع جزء منها)</p>${blocks.join("")}</div>`;
     }
     function calendarHtml(r) {
       const to = range.to;
@@ -789,6 +800,19 @@
       if (r.payAmount != null && Math.abs(r.payAmount - r.net) >= 0.005) w.push(`المبلغ اللي بدفعه ${olvFormatMoney(r.payAmount)} غير الصافي ${olvFormatMoney(r.net)}، والفرق بينتقل للدفعة الجاية.`);
       return w;
     }
+    // رصيد الساعات: الدفعات والسلف بتسدد الساعات أول شي، وأي زيادة عنها بتعتبر مكافأة مدفوعة
+    function hoursBalance(r) {
+      const hp = history.filter((p) => p.profile_id === r.profileId);
+      const w = r.hourlyWage;
+      const earnedH = hp.reduce((x, p) => x + Number(p.hours_worked || 0), 0) + r.hours + r.adjTotal / w;
+      const paidMoney = hp.reduce((x, p) => x + Number(p.net_amount || 0) + Number(p.advances_deducted || 0), 0) + r.advancesTotal;
+      const left = earnedH - paidMoney / w;
+      const pastBonus = hp.reduce((x, p) => { const m = /مكافأة\s*([\d.]+)/.exec(p.note || ""); return x + (m ? Number(m[1]) : 0); }, 0);
+      const bonusEarned = pastBonus + r.bonus;
+      const bonusPaid = Math.min(bonusEarned, Math.max(0, -left * w));
+      return { left, bonusEarned, bonusOwed: bonusEarned - bonusPaid };
+    }
+
     function fileHtml(r) {
       const noWage = r.hourlyWage == null;
       const prof = profilesById.get(r.profileId) || {};
@@ -825,8 +849,9 @@
             <div class="ln"><span>مكافأة أسبوعية<small>${r.weeks} أسبوع (يوم عطلة مدفوع) × ${FIXED_BONUS}</small></span><b><input class="bi" type="number" inputmode="decimal" min="0" step="0.5" aria-label="المكافأة" data-bonus="${r.profileId}" value="${r.bonus}"></b></div>
             ${Math.abs(r.adjTotal) >= 0.005 ? `<div class="ln${r.adjTotal < 0 ? " minus" : ""}"><span>إضافات وخصومات<small>${adjFor(r.profileId).length} بند</small></span><b>${r.adjTotal > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.adjTotal))}</b></div>` : ""}
             ${Math.abs(r.carry) >= 0.005 ? `<div class="ln"><span>${r.carry > 0 ? "مرحّل له" : "مرحّل عليه"}<small>${ledger.has(r.profileId) ? `من فترة ${shortDate(ledger.get(r.profileId).lastStart)} لـ ${shortDate(ledger.get(r.profileId).lastEnd)} (${fmtHrs(ledger.get(r.profileId).lastHours)} ساعة)` : ""}</small></span><b>${r.carry > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(r.carry))}</b></div>` : ""}
+            ${r.hourlyWage > 0 ? (() => { const hb = hoursBalance(r); return `<div class="ln"><span>المكافأة المستحقة<small>${hb.bonusEarned ? `من أصل ${olvFormatMoney(hb.bonusEarned)} مكافآت أسابيع` : "بند لحاله"}</small></span><b>${olvFormatMoney(hb.bonusOwed)}</b></div>`; })() : ""}
             ${r.advancesTotal ? `<div class="ln minus"><span>سلف مخصومة</span><b>− ${olvFormatMoney(r.advancesTotal)}</b></div>` : ""}
-            <div class="ln total${r.net < 0 ? " neg" : ""}"><span>الصافي</span><b>${olvFormatMoney(r.net)}</b></div>
+            <div class="ln total${r.net < 0 ? " neg" : ""}"><span>الصافي${noWage || !(r.hourlyWage > 0) ? "" : `<small>${r.hourlyWage > 0 ? (() => { const hb = hoursBalance(r); return `ساعات ${hb.left < 0 ? "زيادة عليه" : "باقية له"}: ${fmtHrs(Math.abs(hb.left))} ساعة (الدفعات والسلف بتنخصم من الساعات، والمكافأة بند لحاله)`; })() : ""}</small>`}</span><b>${olvFormatMoney(r.net)}</b></div>
             ${noWage ? `<div class="pay-nowage">ما إله أجر بالساعة. حدّده من صفحة الموظفين.</div>` : ""}
             ${r.openCount ? `<div class="pay-warn">${olvIcon("warning")}<span>${r.openCount} يوم ببصمة وحدة (نسي يبصم دخول أو خروج) مش محسوب. صحّحها من <a href="attendance.html">الحضور</a> قبل الدفع.</span></div>` : ""}
             ${(() => { const pw = prepayWarnings(r); return pw.length ? `<div class="pay-warn">${olvIcon("warning")}<span><b>تأكد قبل الدفع:</b><br>${pw.map((x) => "• " + olvEsc(x)).join("<br>")}</span></div>` : ""; })()}
