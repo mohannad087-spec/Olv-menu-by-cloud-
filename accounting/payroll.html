@@ -100,6 +100,26 @@
   /* ملف الموظف (الخيار B): قائمة الموظفين على الجنب، وبالنص ملف المختار: لوحة داكنة فيها الصافي، تبويبات، تقويم الحضور، وعمود كشف الحساب والدفع */
   .pf-layout{display:grid; grid-template-columns:300px minmax(0,1fr); gap:16px; align-items:start;}
   @media (max-width:900px){ .pf-layout{grid-template-columns:1fr;} }
+  /* الصفحة بشاشتين: قائمة الموظفين، وبعد ما تختار موظف بيفتح ملفه لحاله */
+  .in-file .py-gen{display:none !important;}
+  .pf-list-view{display:block;}
+  .pf-list-view .pf-side{display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:10px; background:transparent; padding:0; overflow:visible; flex-direction:row;}
+  .pf-list-view .pf-pick{background:var(--ink-3); border-radius:18px; min-width:0; box-shadow:0 0 0 1px var(--hair-soft);}
+  .pf-list-view .pf-pick:hover{background:var(--ink-2);}
+  .pf-list-view .pf-tot{grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 4px; font-weight:800;}
+  .pf-list-view .pf-tot b{font-size:20px; color:var(--olive); font-variant-numeric:tabular-nums;}
+  .pf-back{margin-bottom:12px;}
+  .av.has-photo{background-color:var(--ink-2); background-size:cover; background-position:center; background-repeat:no-repeat; color:transparent;}
+  .pf-pick.em-card{display:flex; flex-direction:column; align-items:stretch; gap:10px; padding:14px; min-height:0; text-align:right;}
+  .pf-pick .em-top{display:flex; align-items:center; gap:12px;}
+  .pf-pick .em-top .t{flex:1; min-width:0;}
+  .pf-pick .em-top .t b{display:block; font-size:15.5px; font-weight:800;}
+  .pf-pick .em-top .pc-chip{font-size:11px; padding:2px 8px; font-weight:700;}
+  .pf-pick .em-facts{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;}
+  .pf-pick .em-facts > span{background:var(--ink-2); border-radius:12px; padding:8px 10px; min-width:0;}
+  .pf-pick .em-facts small{display:block; font-size:11px; color:var(--muted);}
+  .pf-pick .em-facts b{display:block; font-size:15px; font-variant-numeric:tabular-nums;}
+  .pf-pick .av{width:46px; height:46px;}
   .pf-side{background:var(--ink-3); border-radius:20px; padding:8px; display:flex; flex-direction:column; gap:2px;}
   @media (max-width:900px){ .pf-side{flex-direction:row; overflow-x:auto; padding:8px; gap:8px;} .pf-pick{min-width:230px;} .pf-sum{display:none;} }
   .pf-pick{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:15px; border:0; background:transparent; color:inherit; font:inherit; text-align:right; cursor:pointer; min-height:64px; width:100%; transition:background .15s var(--ease);}
@@ -312,7 +332,7 @@
           <button class="btn go" type="button" id="custom-apply">احسب</button>
         </div>
 
-        <div class="stats py-stats">
+        <div class="stats py-stats py-gen">
           <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-due"></div>
             <div class="stat-body"><div class="label">مستحق للدفع</div><div class="value" id="k-due">—</div><span class="note" id="k-due-note">&nbsp;</span></div></div></div>
           <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-hrs"></div>
@@ -324,12 +344,12 @@
         </div>
 
         <section class="group">
-          <h2 class="py-h" id="due-title"></h2>
-          <p class="py-note">اختار الموظف من القائمة وافتح ملفه. الصافي = ساعات × الأجر + المكافأة الأسبوعية + المرحّل (له أو عليه) − السلف. أي مبلغ بتدفعه بينخصم مباشرة، والباقي بيترحّل للدفعة الجاية.</p>
+          <h2 class="py-h py-gen" id="due-title"></h2>
+          <p class="py-note py-gen">اختار الموظف من القائمة وافتح ملفه. الصافي = ساعات × الأجر + المكافأة الأسبوعية + المرحّل (له أو عليه) − السلف. أي مبلغ بتدفعه بينخصم مباشرة، والباقي بيترحّل للدفعة الجاية.</p>
           <div id="due-box"><div class="py-empty">جاري الحساب...</div></div>
         </section>
 
-        <section class="group">
+        <section class="group py-gen">
           <div class="adv-head">
             <h2 class="py-h" id="adv-title"></h2>
             <button class="btn go" type="button" id="adv-toggle" aria-expanded="false" aria-controls="adv-form-wrap"></button>
@@ -354,7 +374,7 @@
         </section>
       </div>
 
-      <section class="group">
+      <section class="group py-gen">
         <h2 class="py-h" id="hist-title"></h2>
         <div id="hist-box"><div class="py-empty">جاري التحميل...</div></div>
         <div class="py-more" id="hist-more" hidden><button class="btn" type="button" id="hist-more-btn">عرض أقدم</button></div>
@@ -430,17 +450,36 @@
     async function loadProfiles() {
       // max_daily_hours (حد أقصى لساعات اليوم المحسوبة) عمود جديد: لو لسا ما انطبق schema-payroll-daily-cap.sql بنكمل بدونه
       let { data, error } = await window.supabaseClient
-        .from("profiles").select("id, full_name, role, job_title, phone, device_user_id, hourly_wage, max_daily_hours").order("full_name");
+        .from("profiles").select("id, full_name, role, job_title, phone, device_user_id, hourly_wage, max_daily_hours, photo_path").order("full_name");
       capSupported = !error;
       if (error) ({ data, error } = await window.supabaseClient
-        .from("profiles").select("id, full_name, role, job_title, phone, device_user_id, hourly_wage").order("full_name"));
+        .from("profiles").select("id, full_name, role, job_title, phone, device_user_id, hourly_wage, photo_path").order("full_name"));
       if (error) throw error;
       employees = data || [];
       profilesById = new Map(employees.map((p) => [p.id, p]));
       const optionsHtml = employees.map((p) => `<option value="${p.id}">${olvEsc(p.full_name)}</option>`).join("");
       $("a-employee").innerHTML = optionsHtml;
       $("f-employee").innerHTML = `<option value="">كل الموظفين</option>` + optionsHtml;
+      loadPhotoUrls();
     }
+    // صور الموظفين بباكت خاص: روابط موقّعة مؤقتة (ساعة)، وإذا فشلت بنعرض الحرف الأول
+    let photoUrls = {};
+    async function loadPhotoUrls() {
+      const paths = [...new Set(employees.map((e) => e.photo_path).filter(Boolean))];
+      if (!paths.length) return;
+      try {
+        const { data, error } = await window.supabaseClient.storage.from("employee-photos").createSignedUrls(paths, 3600);
+        if (error) throw error;
+        photoUrls = {};
+        (data || []).forEach((r) => { if (r.signedUrl && r.path) photoUrls[r.path] = r.signedUrl; });
+        if (typeof renderPreview === "function" && previewRows.length) renderPreview();
+      } catch (err) { console.warn("تعذّر تحميل صور الموظفين", err); }
+    }
+    const avHtml = (id) => {
+      const u = photoUrls[(profilesById.get(id) || {}).photo_path];
+      return u ? `<span class="av has-photo" style="background-image:url('${olvEsc(u)}')" role="img" aria-label="${olvEsc(empName(id))}"></span>`
+        : `<span class="av" aria-hidden="true">${olvEsc(initial(id)) || olvIcon("person")}</span>`;
+    };
     const empName = (id) => { const p = profilesById.get(id); return p ? p.full_name : "—"; };
     const initial = (id) => (empName(id) || "").trim().charAt(0);
 
@@ -779,10 +818,11 @@
     function pickHtml(r) {
       const prof = profilesById.get(r.profileId) || {};
       const st = statusOf(r);
-      return `<button class="pf-pick" type="button" role="tab" aria-selected="${r.profileId === selectedId}" data-pick="${r.profileId}">
-        <span class="av" aria-hidden="true">${olvEsc(initial(r.profileId)) || olvIcon("person")}</span>
-        <span class="w"><b>${olvEsc(empName(r.profileId))}</b><small>${olvEsc(prof.job_title || ROLE_LABELS[prof.role] || "")}</small></span>
-        <span class="a">${olvFormatMoney(r.net)}<span class="pc-chip ${st[1]}">${st[0]}</span></span></button>`;
+      return `<button class="pf-pick em-card" type="button" data-pick="${r.profileId}">
+        <span class="em-top">${avHtml(r.profileId)}
+          <span class="t"><b>${olvEsc(empName(r.profileId))}</b><small>${olvEsc(prof.job_title || ROLE_LABELS[prof.role] || "")}</small></span>
+          <span class="pc-chip ${st[1]}">${st[0]}</span></span>
+        <span class="em-facts"><span><small>الساعات</small><b>${fmtHrs(r.hours)}</b></span><span><small>سعر الساعة</small><b>${r.hourlyWage != null ? olvFormatMoney(r.hourlyWage) : "—"}</b></span><span><small>الصافي</small><b>${olvFormatMoney(r.net)}</b></span></span></button>`;
     }
     // فحص قبل الدفع: تنبيهات بتظهر على بطاقة الموظف وبتنعاد بنافذة التأكيد، عشان ما يضيع حق حدا بغلطة بصمة
     // أيام بصمات متقاربة (أقل من 30 دقيقة): النظام بيهملها وما بيحسب ساعاتها، فلازم المالك يتأكد إنه ما نسي يبصم خروج
@@ -832,7 +872,7 @@
       return `
       <section class="pf" aria-label="ملف ${olvEsc(empName(r.profileId))}">
         <header class="pf-hero">
-          <span class="av" aria-hidden="true">${olvEsc(initial(r.profileId)) || olvIcon("person")}</span>
+          ${avHtml(r.profileId)}
           <div>
             <h3>${olvEsc(empName(r.profileId))}</h3>
             <div class="pf-meta">
@@ -886,13 +926,15 @@
       $("k-hrs-note").className = "note" + (open ? " warn" : "");
       $("k-hrs-note").textContent = open ? `${open} يوم ببصمة وحدة مش محسوب` : "من أول لآخر بصمة باليوم";
       if (!previewRows.length) { box.innerHTML = `<div class="py-empty">ما في ساعات عمل ولا سلف بهالفترة.</div>`; return; }
-      if (!previewRows.some((x) => x.profileId === selectedId)) selectedId = previewRows[0].profileId;
+      if (!previewRows.some((x) => x.profileId === selectedId)) selectedId = null;
       const cur = previewRows.find((x) => x.profileId === selectedId);
-      box.innerHTML = `<div class="pf-layout">
-        <div class="pf-side" role="tablist" aria-label="الموظفين">${previewRows.map(pickHtml).join("")}<div class="pf-sum"><span>مجموع المستحق</span><b>${olvFormatMoney(net)}</b></div><button class="btn go" type="button" id="stmt-all">كشف الكل · PDF</button></div>
-        ${fileHtml(cur)}</div>`;
+      document.querySelector(".py-wrap").classList.toggle("in-file", !!cur);
+      box.innerHTML = cur
+        ? `<button class="btn pf-back" type="button" data-back>‹ كل الموظفين</button>${fileHtml(cur)}`
+        : `<div class="pf-list-view"><div class="pf-side" aria-label="الموظفين">${previewRows.map(pickHtml).join("")}<div class="pf-tot"><span>مجموع المستحق</span><b>${olvFormatMoney(net)}</b></div><button class="btn go" type="button" id="stmt-all">كشف الكل · PDF</button></div></div>`;
+      box.querySelectorAll("button[data-back]").forEach((b) => b.addEventListener("click", () => { selectedId = null; renderPreview(); window.scrollTo({ top: 0 }); }));
       box.querySelectorAll("details[data-more]").forEach((d) => d.addEventListener("toggle", () => { if (d.open) moreOpen.add(d.dataset.more); else moreOpen.delete(d.dataset.more); }));
-      box.querySelectorAll("button[data-pick]").forEach((btn) => btn.addEventListener("click", () => { selectedId = btn.dataset.pick; renderPreview(); }));
+      box.querySelectorAll("button[data-pick]").forEach((btn) => btn.addEventListener("click", () => { selectedId = btn.dataset.pick; renderPreview(); window.scrollTo({ top: 0 }); }));
       box.querySelectorAll("button[data-tab]").forEach((btn) => btn.addEventListener("click", () => { fileTab.set(btn.dataset.id, btn.dataset.tab); renderPreview(); }));
       box.querySelectorAll("input[data-bonus]").forEach((inp) => inp.addEventListener("change", () => {
         const row = previewRows.find((x) => x.profileId === inp.dataset.bonus);
