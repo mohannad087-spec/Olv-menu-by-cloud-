@@ -2159,6 +2159,15 @@
           }
           // خصم فوق حد الكاشير: السيرفر بيرفض، فبنسأل عن رمز المدير وبنعيد نفس البيع (client_ref بيمنع التكرار)
           const itemsNote = cartSnapshot.map((i) => `${i.qty}× ${i.name}`).join("، ");
+          if (method === "staff" && window.olvRole === "staff") {
+            // الكاشير بيبيع على حساب موظف بدون رمز المدير: موافقة تلقائية لبيعة وحدة (الذمة بتنسجّل على الموظف)
+            const { error: apErr } = await window.supabaseClient.rpc("staff_account_approval");
+            if (apErr) {
+              const m = String(apErr.message || "");
+              if (/staff_account_approval/.test(m) && /function|schema cache/i.test(m)) throw new Error("البيع على حساب الموظف بدون رمز لسا ما تفعّل بقاعدة البيانات");
+              throw apErr;
+            }
+          }
           staffSaleId = await olvWithApproval("discount", () => OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
