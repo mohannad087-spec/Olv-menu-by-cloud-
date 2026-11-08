@@ -366,6 +366,9 @@
       });
       people = [...pm.values()].map((p) => ({ ...p, balance: r2(p.balance) })).sort((a, c) => c.balance - a.balance || a.name.localeCompare(c.name, "ar"));
       perPaid = perAll.filter((r) => r.kind === "payment" && daysAgo(r.created_at) <= 30).map((r) => ({ at: r.created_at, who: r.person_name, kind: "out", amount: Number(r.amount), method: r.method, text: r.note || "" }));
+      // مصاريف ذمة انسدّدت (آخر 30 يوم): كانت ما بتطلع بالتسديدات
+      const sx = await db().from("expenses").select("id, amount, description, settled_at, from_drawer, recurring_id").not("settled_at", "is", null).gte("settled_at", since.toISOString());
+      const expPaid = (sx.error ? [] : (sx.data || [])).map((x) => ({ at: x.settled_at, who: x.description || "مصروف ذمة", kind: "out", amount: Number(x.amount), method: "cash", text: "", src: x.from_drawer ? "من الدرج" : "خارجي" }));
       const pn = new Map(((ap.data) || []).map((x) => [x.id, x.full_name]));
       // دفعات مباشرة (paid_at) ما بتنعد ذمة. لو العمود لسا ما انضاف، الكل بينعد
       const open = (ad.data || []).filter((x) => !x.paid_at);
@@ -379,7 +382,7 @@
 
       const staffPaid = (ad.data || []).filter((x) => x.paid_at && daysAgo(x.paid_at) <= 30).map((x) => ({ at: x.paid_at, who: pn.get(x.profile_id) || "موظف", kind: "in", amount: Number(x.amount), method: x.paid_method, text: x.note || "ذمة موظف" }));
       const supPaid = (sp.data || []).map((x) => ({ at: x.created_at, who: names.get(x.supplier_id) || "مورّد", kind: "out", amount: Number(x.amount), method: x.payment_method, text: x.description || "دفعة" }));
-      log = [...staffPaid, ...supPaid, ...othPaid, ...perPaid].sort((a, c) => new Date(c.at) - new Date(a.at));
+      log = [...staffPaid, ...supPaid, ...othPaid, ...perPaid, ...expPaid].sort((a, c) => new Date(c.at) - new Date(a.at));
       render();
     }
 
@@ -465,7 +468,7 @@
       $("l-log").innerHTML = log.length ? log.map((x) => `
         <li class="dh-row">
           <div class="ci">${olvIcon(x.kind === "in" ? "plus" : "minusCircle")}</div>
-          <div class="t"><b>${olvEsc(x.who)}</b><small>${shortDate(x.at)} · ${x.kind === "in" ? "استلمنا" : "دفعنا"} · ${METHOD[x.method] || "كاش"}</small></div>
+          <div class="t"><b>${olvEsc(x.who)}</b><small>${shortDate(x.at)} · ${x.kind === "in" ? "استلمنا" : "دفعنا"} · ${METHOD[x.method] || "كاش"}${x.src ? " · " + x.src : ""}</small></div>
           <div class="m"><b>${money(x.amount)}</b></div>
         </li>`).join("") : `<li class="dh-empty">ما في تسديدات بآخر 30 يوم</li>`;
     }
