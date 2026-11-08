@@ -804,11 +804,16 @@
     function hoursBalance(r) {
       const hp = history.filter((p) => p.profile_id === r.profileId);
       const w = r.hourlyWage;
-      const earnedH = hp.reduce((x, p) => x + Number(p.hours_worked || 0), 0) + r.hours + r.adjTotal / w;
+      // تسويات المكافأة/الإجازة بتروح لبند المكافأة، وباقي التسويات للساعات
+      const isBonusAdj = (a) => /مكافأة|إجازة/.test(a.note || "");
+      const adjs = adjFor(r.profileId);
+      const bonusAdj = adjs.filter(isBonusAdj).reduce((x, a) => x + Number(a.amount || 0), 0);
+      const hoursAdj = adjs.filter((a) => !isBonusAdj(a)).reduce((x, a) => x + Number(a.amount || 0), 0);
+      const earnedH = hp.reduce((x, p) => x + Number(p.hours_worked || 0), 0) + r.hours + hoursAdj / w;
       const paidMoney = hp.reduce((x, p) => x + Number(p.net_amount || 0) + Number(p.advances_deducted || 0), 0) + r.advancesTotal;
       const left = earnedH - paidMoney / w;
       const pastBonus = hp.reduce((x, p) => { const m = /مكافأة\s*([\d.]+)/.exec(p.note || ""); return x + (m ? Number(m[1]) : 0); }, 0);
-      const bonusEarned = pastBonus + r.bonus;
+      const bonusEarned = Math.max(0, pastBonus + r.bonus + bonusAdj);
       const bonusPaid = Math.min(bonusEarned, Math.max(0, -left * w));
       return { left, bonusEarned, bonusOwed: bonusEarned - bonusPaid };
     }
