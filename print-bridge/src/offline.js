@@ -85,7 +85,7 @@ function route(sale, cfg) {
     out.push({ kind: "receipt", printer: p, label: p.name, ip: p.ip, port: p.port || 9100, items: sale.sale_items, layout: p.ticket_layout, drawer: !!p.open_drawer });
   }
   for (const p of stations) {
-    const items = sale.sale_items.filter((it) => (p.categories || []).includes(it.category || "") || (p.catch_unassigned && !claimed.has(it.category || "")));
+    const items = sale.sale_items.filter((it) => !it.no_kitchen && ((p.categories || []).includes(it.category || "") || (p.catch_unassigned && !claimed.has(it.category || ""))));
     if (items.length) out.push({ kind: "station", printer: p, label: p.name, ip: p.ip, port: p.port || 9100, items, layout: p.ticket_layout });
   }
   return out.filter((t) => t.ip);
