@@ -65,6 +65,7 @@
   .pi-lines td{padding:5px 4px; vertical-align:top;}
   .pi-lines input,.pi-lines select{width:100%; box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-2);
     border:1px solid var(--hair); border-radius:8px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  #pi-supplier.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
   .pi-lines input.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
   .pi-line-total{font-weight:700; white-space:nowrap; padding-top:12px; display:block;}
   .pi-warn{font-size:11.5px; color:var(--gold-hi); margin-top:3px; line-height:1.4;}
@@ -1785,8 +1786,10 @@
     }
 
     document.getElementById("pi-save").addEventListener("click", async () => {
-      const errBox = document.getElementById("err");
-      errBox.style.display = "none";
+      const errBox0 = document.getElementById("err");
+      errBox0.style.display = "none";
+      // زر الحفظ تحت بالصفحة وصندوق الخطأ فوق: كان الخطأ يطلع وما يشوفه أحد ("كبسة حفظ وما صار شي"). هلأ بنطلّع رسالة ظاهرة (توست) وبنوصّل للصندوق.
+      const errBox = { style: errBox0.style, set textContent(v) { errBox0.textContent = v; if (window.olvToast) olvToast(v, { type: "danger" }); try { errBox0.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} } };
       if (!navigator.onLine) { olvShowError(errBox, new Error("فواتير المشتريات بتحتاج اتصال بالإنترنت (بترفع الصورة وبتتحقق من التكرار) — حاول لما يرجع النت")); return; }
       // سطر "شبح": فيه كمية أو سعر بس بدون صنف ولا اسم — منشيله تلقائيًا بدل ما يمنع الحفظ
       const ghosts = lines.filter((l) => !itemOf(l) && !String(l.typed || "").trim() && !String(l.unmatchedName || "").trim() && (Number(l.qty) || Number(l.price)));
@@ -1844,7 +1847,12 @@
       const T = computeTotals();
       const total = T.total;
       const paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Number(document.getElementById("pi-partial").value) || 0;
-      if (payMode !== "cash" && !supplierId) { olvShowError(errBox, new Error("الدفع الآجل أو الجزئي لازم يكون معه مورّد")); return; }
+      if (payMode !== "cash" && !supplierId) {
+        const sel = document.getElementById("pi-supplier");
+        olvShowError(errBox, new Error("الدفع آجل/جزئي: اختر المورّد من فوق (أو غيّر الدفع إلى كاش)"));
+        if (sel) { sel.classList.add("bad"); sel.addEventListener("change", () => sel.classList.remove("bad"), { once: true }); }
+        return;
+      }
       if (payMode === "partial" && !(paid > 0 && paid < total)) { olvShowError(errBox, new Error("الدفعة الجزئية لازم تكون أكبر من صفر وأقل من الإجمالي")); return; }
       const paper = document.getElementById("pi-paper-total").value;
       if (paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
