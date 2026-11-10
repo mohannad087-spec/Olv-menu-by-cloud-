@@ -260,6 +260,7 @@
       const cardHtml = (o) => {
         const isNew = o.status === "new";
         const mapped = orderFullyMapped(o);
+        const needsContact = (o.mode === "takeaway" || o.mode === "delivery") && !(String(o.name || "").trim() && String(o.phone || "").replace(/\D/g, "").length >= 7);
         const statusClass = isNew ? "io-status-new" : o.status === "preparing" ? "io-status-preparing" : "io-status-other";
         return `
           <div class="io-card${isNew ? " io-new" : " io-prep"}" data-row-id="${olvEsc(String(o.id))}">
@@ -281,10 +282,11 @@
             ${isNew ? `
               <div class="io-actions">
                 ${o.mode === "hall" && olvNormTable(o.table) ? `<button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="tab" ${mapped ? "" : "disabled"}>${olvIcon("receipt")} على حساب الطاولة ${olvEsc(olvNormTable(o.table))}</button>` : ""}
-                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
-                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
+                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped && !needsContact ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
+                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped && !needsContact ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
                 <button class="btn danger" data-reject="${olvEsc(o.id)}">رفض</button>
               </div>
+              ${needsContact ? `<div class="hint" style="margin-top:8px;color:var(--danger,#c0392b);font-weight:700;">⚠ طلب ${olvEsc(MODE_LABELS[o.mode])} بدون اسم أو رقم هاتف — ما بينقبل. ارفضه أو اطلب من الزبون يعيد الطلب.</div>` : ""}
               ${!mapped ? `<div class="hint" style="margin-top:8px;">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
             ` : `<div class="io-waiting">${olvIcon("checkCircle")} انقبل وراح للمطبخ (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>
               <div class="io-actions" style="margin-top:10px;padding-top:10px;">
@@ -346,6 +348,10 @@
       const errBox = document.getElementById("err");
       const order = lastOrders.find((o) => o.id === orderId);
       if (!order || !orderFullyMapped(order)) return;
+      if ((order.mode === "takeaway" || order.mode === "delivery") && !(String(order.name || "").trim() && String(order.phone || "").replace(/\D/g, "").length >= 7)) {
+        olvShowError(errBox, new Error("طلبات السفري والتوصيل ما بتنقبل بدون اسم ورقم هاتف."));
+        return;
+      }
       const card = document.querySelector(`button[data-approve="${orderId}"]`)?.closest(".io-card");
       card?.querySelectorAll("button").forEach((b) => { b.disabled = true; });
       try {
