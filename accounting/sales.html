@@ -61,6 +61,21 @@
 <style>
   /* صفحة المبيعات (2026-10): فترة ← أرقام ← رسم ← طرق الدفع والأكثر مبيعًا ← قائمة الطلبات.
      القواعد بـ design-system/olv/pages/sales.md */
+
+  /* بحث متقدم بالفواتير السابقة */
+  body.finding .s-stats, body.finding #cmp, body.finding .s-grid, body.finding #period-chips, body.finding #custom-range{display:none !important;}
+  body.finding .s-orders .s-search, body.finding #share-day{display:none !important;}
+  .f-box{margin:0 0 14px; display:flex; flex-direction:column; gap:10px;}
+  .f-box .s-search{max-width:none; min-width:0; width:100%;}
+  .f-panel{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; align-items:end;}
+  .f-panel[hidden]{display:none;}
+  .f-panel .field{margin:0;}
+  .f-panel .wide{grid-column:span 2;}
+  .f-actions{display:flex; gap:8px; grid-column:1/-1; justify-content:flex-start;}
+  .f-bar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 14px; margin-bottom:14px; border-radius:14px; background:var(--ink-3); border:1px solid var(--hair);}
+  .f-bar[hidden]{display:none;}
+  .f-bar b{font-variant-numeric:tabular-nums;}
+  @media (max-width:700px){.f-panel{grid-template-columns:repeat(2,minmax(0,1fr));}}
   .wrap.sales-wrap{max-width:var(--page-max);}
   .s-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
   .s-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
@@ -401,6 +416,12 @@
       </div>
     </div>
 
+    <div class="f-box" id="finder"></div>
+    <div class="f-bar" id="find-bar" hidden>
+      <span id="find-sum"></span>
+      <button class="btn small" type="button" id="find-close">إغلاق البحث والرجوع للمبيعات</button>
+    </div>
+
     <div class="s-chips" id="period-chips" role="group" aria-label="الفترة">
       <button class="s-chip" type="button" data-period="today" aria-pressed="true">اليوم</button>
       <button class="s-chip" type="button" data-period="yesterday" aria-pressed="false">أمس</button>
@@ -611,6 +632,7 @@
     let rows = [];
     let loadSeq = 0;
     async function load() {
+      if (find.active) return runFind();
       const seq = ++loadSeq;
       range = rangeFor(period);
       const prev = prevRange(range, period);
@@ -997,6 +1019,87 @@
       $("list-more-btn").textContent = `عرض المزيد (${sorted.length - shown} باقي)`;
       if (openId) { const r = rows.find((x) => x.id === openId); if (r) wireDetail(r); }
     }
+
+
+    // ---------------------------------------------------------------
+    // بحث الفواتير السابقة: بيعرض بس الفواتير المطابقة (مهما كان يومها)
+    // ---------------------------------------------------------------
+    const find = { active: false, q: "", from: "", to: "", min: "", max: "", pay: "", type: "" };
+    const fbox = $("finder");
+    const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return Number.isFinite(n) ? n : null; };
+    const hasCriteria = () => Object.entries(find).some(([k, v]) => k !== "active" && v !== "");
+    function findMatch(r) {
+      const t = saleTotal(r);
+      if (find.from && r.entry_date < find.from) return false;
+      if (find.to && r.entry_date > find.to) return false;
+      const mn = num(find.min), mx = num(find.max);
+      if (mn !== null && t < mn - 0.004) return false;
+      if (mx !== null && t > mx + 0.004) return false;
+      if (find.pay && !(Number(r[find.pay + "_amount"]) > 0)) return false;
+      if (find.type && r.order_type !== find.type) return false;
+      if (find.q) {
+        const q = find.q.replace(/^#/, "").toLowerCase();
+        const n = num(q);
+        const byNo = /^\d+$/.test(q) && String(r.order_no || "") === q;
+        const dq = q.replace(/^ب-?/, "");
+        const byDoc = r.doc_no && /^\d+$/.test(dq) && Number(dq) === Number(r.doc_no);
+        const byAmt = n !== null && Math.abs(t - n) < 0.005;
+        const byText = [itemsText(r), r.customer_name, r.table_number, r.customer_phone, r.notes].some((v) => v && String(v).toLowerCase().includes(q));
+        if (!(byNo || byDoc || byAmt || byText)) return false;
+      }
+      return true;
+    }
+    let findSeq = 0;
+    async function runFind() {
+      if (!hasCriteria()) return exitFind();
+      const seq = ++findSeq;
+      find.active = true;
+      document.body.classList.add("finding");
+      let qy = window.supabaseClient.from("sales_entries").select("*, sale_items(*)").order("created_at", { ascending: false }).limit(5000);
+      if (find.from) qy = qy.gte("entry_date", find.from);
+      if (find.to) qy = qy.lte("entry_date", find.to);
+      const res = await qy;
+      if (seq !== findSeq) return;
+      if (res.error) return olvShowError(errBox, res.error);
+      rows = (res.data || []).filter(findMatch);
+      range = { from: "", to: "~", label: "نتائج البحث" };
+      filter = "all"; setPressed("filter-chips", "filter", "all");
+      const ok = rows.filter((r) => r.status !== "voided");
+      $("find-bar").hidden = false;
+      $("find-sum").innerHTML = `<b>${rows.length}</b> فاتورة مطابقة · مجموعها <b>${olvFormatMoney(ok.reduce((a, r) => a + saleTotal(r), 0))}</b>`;
+      $("s-sub").textContent = "نتائج البحث بكل الأيام";
+      $("share-day").hidden = true;
+      renderOrders(true);
+    }
+    function exitFind() {
+      findSeq++;
+      Object.keys(find).forEach((k) => { find[k] = k === "active" ? false : ""; });
+      document.body.classList.remove("finding");
+      $("find-bar").hidden = true;
+      fbox.querySelectorAll("input,select").forEach((el) => { el.value = ""; });
+      load();
+    }
+    $("find-close").addEventListener("click", exitFind);
+    const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+      // لوحة فلاتر كاملة (تاريخ، مبلغ، دفع، نوع، نص)
+      fbox.innerHTML = `<button class="btn small" type="button" id="f-toggle" aria-expanded="false" style="align-self:flex-start; min-height:44px; display:inline-flex; gap:7px; align-items:center;">${olvIcon("search")}<span>بحث متقدم بالفواتير</span></button>
+        <div class="f-panel" id="f-panel" hidden>
+          <div class="field"><label>من تاريخ</label><input type="date" id="f-from"></div>
+          <div class="field"><label>إلى تاريخ</label><input type="date" id="f-to"></div>
+          <div class="field"><label>المبلغ من</label><input type="number" id="f-min" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>المبلغ إلى</label><input type="number" id="f-max" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>طريقة الدفع</label><select id="f-pay"><option value="">الكل</option><option value="cash">كاش</option><option value="card">شبكة</option><option value="delivery">توصيل</option></select></div>
+          <div class="field"><label>نوع الطلب</label><select id="f-type"><option value="">الكل</option><option value="صالة">صالة</option><option value="سفري">سفري</option><option value="توصيل">توصيل</option></select></div>
+          <div class="field wide"><label>رقم الفاتورة، صنف، زبون، طاولة</label><input type="search" id="f-q" autocomplete="off"></div>
+          <div class="f-actions"><button class="btn gold" type="button" id="f-go">ابحث</button><button class="btn" type="button" id="f-clear">مسح</button></div>
+        </div>`;
+      $("f-toggle").addEventListener("click", () => { const h = $("f-panel").hidden; $("f-panel").hidden = !h; $("f-toggle").setAttribute("aria-expanded", String(h)); });
+      $("f-go").addEventListener("click", () => {
+        Object.assign(find, { from: $("f-from").value, to: $("f-to").value, min: $("f-min").value, max: $("f-max").value, pay: $("f-pay").value, type: $("f-type").value, q: $("f-q").value.trim() });
+        runFind();
+      });
+      $("f-clear").addEventListener("click", exitFind);
 
     // ---------------------------------------------------------------
     // تفاصيل الطلب: الأصناف + إلغاء صنف، معلومات الدفع، إعادات الطباعة، الأزرار
