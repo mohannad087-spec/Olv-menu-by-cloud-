@@ -310,7 +310,7 @@
   .t.cmp{--tc:#7c4de6; --tb:#efe5f6;}
   .t.cmp .cmp-row{display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; font-size:13px; color:var(--muted);}
   .t.cmp .cmp-row b{color:var(--paper); font-size:15px; font-variant-numeric:tabular-nums;}
-  /* تيلا المقارنة بميزان (2026-11-11): مصروفات اليوم مقابل أمس / الأسبوع الماضي. الميزان ساكن على وضعه، وبيتحرك بس لما الماوس يمرّ عليه أو يتلمس. وردي لما المصروف أعلى، نيلي لما أقل */
+  /* تيلا المقارنة بميزان (2026-11-11): مبيعات اليوم مقابل أمس / نفس اليوم الأسبوع الماضي. الميزان ساكن على وضعه، وبيتحرك بس لما الماوس يمرّ عليه أو يتلمس. نيلي لما المبيعات أعلى، وردي لما أقل */
   .bento .t.cmp{--rc1:#4254e8; --tb:#eceeff; --tc:#7c4de6;}
   .bento .t.cmp.down{--rc1:#e0367a;}
   .t.cmp .chead{display:flex; justify-content:space-between; align-items:center; gap:8px;}
@@ -412,7 +412,7 @@
         </div>
       </section>
       <section class="t cmp cms" id="cmp-tile">
-        <div class="chead"><div class="lbl"><span data-icon="clock"></span>المصروفات مقابل أمس</div><span class="cpct" id="cmp-pct">—</span></div>
+        <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقارنة بأمس</div><span class="cpct" id="cmp-pct">—</span></div>
         <div class="gwrap">
           <svg class="sc" viewBox="0 0 200 104" aria-hidden="true">
             <path d="M100 34v62M70 96h60" class="sk"/><circle cx="100" cy="34" r="4" class="sdot"/>
@@ -423,11 +423,11 @@
           </svg>
         </div>
         <div class="cmp-vals"><span>اليوم <b id="cmp-today">—</b></span><span>أمس <b id="cmp-yest">—</b></span></div>
-        <div class="tag" id="cmp-note">مصروفات أمس (اليوم كامل)</div>
+        <div class="tag" id="cmp-note">مبيعات أمس لحد نفس الساعة</div>
         <span class="hsheen" aria-hidden="true"></span>
       </section>
       <section class="t cmp cms" id="cmpw-tile">
-        <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقابل الأسبوع الماضي</div><span class="cpct" id="cmpw-pct">—</span></div>
+        <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقارنة بنفس اليوم الأسبوع الماضي</div><span class="cpct" id="cmpw-pct">—</span></div>
         <div class="gwrap">
           <svg class="sc" viewBox="0 0 200 104" aria-hidden="true">
             <path d="M100 34v62M70 96h60" class="sk"/><circle cx="100" cy="34" r="4" class="sdot"/>
@@ -438,7 +438,7 @@
           </svg>
         </div>
         <div class="cmp-vals"><span>اليوم <b id="cmpw-today">—</b></span><span>الأسبوع الماضي <b id="cmpw-yest">—</b></span></div>
-        <div class="tag" id="cmpw-note">مصروفات نفس اليوم الأسبوع الماضي (اليوم كامل)</div>
+        <div class="tag" id="cmpw-note">مبيعات نفس اليوم الأسبوع الماضي لحد نفس الساعة</div>
         <span class="hsheen" aria-hidden="true"></span>
       </section>
       <a class="t alert" href="inventory.html" id="low-tile">
@@ -821,7 +821,7 @@
           document.getElementById("first-sale").textContent = "أول فاتورة الساعة " + firstAt.toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" });
         }
         drawSpark(sales);
-        // مقارنة مصروفات اليوم مع أمس ومع نفس اليوم الأسبوع الماضي (اليوم كامل) بميزان:
+        // مقارنة مبيعات اليوم مع أمس ومع نفس اليوم الأسبوع الماضي، كل واحدة لحد نفس الساعة، بميزان:
         // الكفة الأثقل بتنزل. الميزان ساكن، وبيتحرك بس لما الماوس يمرّ عليه أو بتلمسه
         document.querySelectorAll(".t.cmp").forEach((t) => {
           const play = () => { if (reduceMotion) return; t.classList.remove("wig"); void t.offsetWidth; t.classList.add("wig"); };
@@ -842,28 +842,29 @@
         const compareTo = async (pre, days, noneMsg) => {
           try {
             const pDate = new Date(new Date(today + "T00:00:00Z").getTime() - days * 864e5).toISOString().slice(0, 10);
-            const { data: yRows, error: yErr } = await olvExpensesPaid(window.supabaseClient, "amount", pDate, pDate);
+            const cutoff = Date.now() - days * 864e5;
+            const { data: yRows, error: yErr } = await window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", pDate).eq("status", "completed");
             if (yErr) throw yErr;
-            const yTotal = (yRows || []).reduce((a, r) => a + Number(r.amount), 0), tileEl = document.getElementById(pre + "-tile");
-            document.getElementById(pre + "-today").textContent = money(totalExpenses);
+            const yTotal = (yRows || []).filter((r) => new Date(r.created_at).getTime() <= cutoff).reduce((a, r) => a + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
+            document.getElementById(pre + "-today").textContent = money(totalSales);
             document.getElementById(pre + "-yest").textContent = money(yTotal);
-            const pctEl = document.getElementById(pre + "-pct"), M = Math.max(totalExpenses, yTotal);
-            if (yTotal > 0 || totalExpenses > 0) {
-              const d = yTotal > 0 ? Math.round((totalExpenses - yTotal) / yTotal * 100) : null, up = totalExpenses > yTotal;
-              pctEl.textContent = d === null ? "—" : "\u200E" + (d > 0 ? "+" : d < 0 ? "-" : "") + Math.abs(d) + "%";
-              tileEl.classList.toggle("down", up);
-              tileEl.style.setProperty("--a", ((totalExpenses - yTotal) / M * 12) + "deg");
-              const diff = totalExpenses - yTotal;
-              document.getElementById(pre + "-note").textContent = diff === 0 ? "نفس المصروف" : (diff > 0 ? "أكثر بـ " : "أقل بـ ") + money(Math.abs(diff));
+            const pctEl = document.getElementById(pre + "-pct"), tileEl = document.getElementById(pre + "-tile"), M = Math.max(totalSales, yTotal);
+            if (yTotal > 0) {
+              const d = Math.round((totalSales - yTotal) / yTotal * 100), diff = totalSales - yTotal;
+              pctEl.textContent = "\u200E" + (d > 0 ? "+" : d < 0 ? "-" : "") + Math.abs(d) + "%";
+              tileEl.classList.toggle("down", d < 0);
+              tileEl.style.setProperty("--a", (diff / M * 12) + "deg");
+              document.getElementById(pre + "-note").textContent = (diff >= 0 ? "أعلى بـ " : "أقل بـ ") + money(Math.abs(diff)) + " لحد نفس الساعة";
             } else {
               pctEl.textContent = "—";
+              tileEl.style.setProperty("--a", (totalSales > 0 ? 12 : 0) + "deg");
               document.getElementById(pre + "-note").textContent = noneMsg;
             }
           } catch (e) { document.getElementById(pre + "-note").textContent = "تعذّرت المقارنة"; }
         };
         await Promise.all([
-          compareTo("cmp", 1, "ما في مصروفات اليوم ولا أمس"),
-          compareTo("cmpw", 7, "ما في مصروفات اليوم ولا الأسبوع الماضي"),
+          compareTo("cmp", 1, "ما في مبيعات أمس لهالساعة للمقارنة"),
+          compareTo("cmpw", 7, "ما في مبيعات نفس اليوم الأسبوع الماضي لهالساعة للمقارنة"),
         ]);
 
         // طرق الدفع: كاش / شبكة / توصيل كنسبة من مبيعات اليوم
