@@ -310,37 +310,35 @@
   .t.cmp{--tc:#7c4de6; --tb:#efe5f6;}
   .t.cmp .cmp-row{display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; font-size:13px; color:var(--muted);}
   .t.cmp .cmp-row b{color:var(--paper); font-size:15px; font-variant-numeric:tabular-nums;}
-  /* تيل المقارنة بعدّاد سيارة (2026-11-11): أول ما بيفتح الإبرة بتطلع لآخر العدّاد وبترجع لقيمتها (نسبة اليوم من الفترة السابقة)، نيلي لما أعلى ووردي لما أقل */
+  /* تيلا المقارنة بميزان (2026-11-11): مصروفات اليوم مقابل أمس / الأسبوع الماضي. الميزان ساكن على وضعه، وبيتحرك بس لما الماوس يمرّ عليه أو يتلمس. وردي لما المصروف أعلى، نيلي لما أقل */
   .bento .t.cmp{--rc1:#4254e8; --tb:#eceeff; --tc:#7c4de6;}
   .bento .t.cmp.down{--rc1:#e0367a;}
   .t.cmp .chead{display:flex; justify-content:space-between; align-items:center; gap:8px;}
   .t.cmp .cpct{font-size:20px; font-weight:800; color:var(--rc1); direction:ltr; font-variant-numeric:tabular-nums; min-width:4ch; text-align:end;}
-  .t.cmp .gwrap{flex:1; display:flex; justify-content:center; align-items:flex-end; min-height:0; margin-top:2px;}
-  .t.cmp svg.g{width:100%; max-width:190px; overflow:visible;}
-  .t.cmp .arc{fill:none; stroke-width:11; stroke-linecap:round;}
-  .t.cmp .arc.trk{stroke:var(--tb);}
-  .t.cmp .arc.ap{stroke:url(#cmp-g-up); stroke-dasharray:100; stroke-dashoffset:100;}
-  .t.cmp.down .arc.ap{stroke:url(#cmp-g-down);}
-  .t.cmp .tk{stroke:var(--muted); stroke-width:1.4; opacity:.3; transition:opacity .15s, stroke .15s;}
-  .t.cmp .tk.maj{stroke-width:2;}
-  .t.cmp .tk.lit{opacity:1; stroke:var(--rc1);}
-  .t.cmp .tk.ref{stroke:var(--paper);}
-  .t.cmp .needle{transform-origin:60px 66px;}
-  .t.cmp .ndl{stroke:var(--paper); stroke-width:3; stroke-linecap:round;}
-  .t.cmp .hub{fill:var(--paper);}
-  .t.cmp .gglow{opacity:0; transition:opacity .3s;}
-  .t.cmp.sweeping .gglow{opacity:1;}
+  .t.cmp .gwrap{flex:1; display:flex; justify-content:center; align-items:center; min-height:0; margin-top:2px;}
+  .t.cmp svg.sc{width:100%; max-width:200px; overflow:visible; touch-action:manipulation;}
+  .t.cmp .sk{stroke:var(--muted); stroke-width:2.5; fill:none; stroke-linecap:round;}
+  .t.cmp .sk.thin{stroke-width:1.3;}
+  .t.cmp .sdot{fill:var(--muted);}
+  .t.cmp .pl-fill{fill:#c9cdf7;} .t.cmp .pr-fill{fill:var(--rc1);}
+  .t.cmp .beam, .t.cmp .pan{transform-box:view-box; rotate:var(--a,0deg);}
+  .t.cmp .beam{transform-origin:100px 34px;}
+  .t.cmp .pan.l{transform-origin:24px 34px; rotate:calc(var(--a,0deg) * -1);}
+  .t.cmp .pan.r{transform-origin:176px 34px; rotate:calc(var(--a,0deg) * -1);}
+  .t.cmp.wig .beam{animation:olv-sw 1.5s cubic-bezier(.3,1.2,.4,1);}
+  .t.cmp.wig .pan{animation:olv-swp 1.5s cubic-bezier(.3,1.2,.4,1);}
+  @keyframes olv-sw{0%{rotate:0deg;} 30%{rotate:calc(var(--a,0deg) * 1.5);} 55%{rotate:calc(var(--a,0deg) * .7);} 78%{rotate:calc(var(--a,0deg) * 1.12);} 100%{rotate:var(--a,0deg);}}
+  @keyframes olv-swp{0%{rotate:0deg;} 30%{rotate:calc(var(--a,0deg) * -1.5);} 55%{rotate:calc(var(--a,0deg) * -.7);} 78%{rotate:calc(var(--a,0deg) * -1.12);} 100%{rotate:calc(var(--a,0deg) * -1);}}
   .t.cmp .cmp-vals{display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--muted); margin-top:4px;}
   .t.cmp .cmp-vals b{color:var(--paper); font-size:14.5px; font-variant-numeric:tabular-nums;}
   .t.cmp .tag{margin-top:2px; font-size:12px;}
   .t.cmp .hsheen{position:absolute; inset:0; z-index:0; pointer-events:none; opacity:0; transition:opacity .3s; background:radial-gradient(200px circle at var(--mx,50%) var(--my,50%), color-mix(in srgb,var(--rc1) 20%, transparent), transparent 70%);}
-  @keyframes olv-needle-wig{0%,100%{translate:0;} 35%{rotate:4deg;} 65%{rotate:-3deg;}}
   @media (hover:hover) and (pointer:fine){
     .bento .t.cmp:hover{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateY(-6px);}
     .t.cmp.hmove{transition:transform .12s ease-out, box-shadow .3s var(--spring);}
     .t.cmp:hover .hsheen{opacity:1;}
-    .t.cmp:not(.sweeping):hover .needle{animation:olv-needle-wig .8s ease-in-out;}
   }
+  @media (prefers-reduced-motion:reduce){ .t.cmp.wig .beam, .t.cmp.wig .pan{animation:none;} }
 </style>
 </head>
 <body class="olv-glass">
@@ -413,36 +411,34 @@
           <div class="dleg" id="exp-leg"></div>
         </div>
       </section>
-      <section class="t cmp" id="cmp-tile">
-        <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقارنة بأمس</div><span class="cpct" id="cmp-pct">—</span></div>
+      <section class="t cmp cms" id="cmp-tile">
+        <div class="chead"><div class="lbl"><span data-icon="clock"></span>المصروفات مقابل أمس</div><span class="cpct" id="cmp-pct">—</span></div>
         <div class="gwrap">
-          <svg class="g" viewBox="0 6 120 68" aria-hidden="true">
-            <path class="arc trk" d="M10,66 A50,50 0 0 1 110,66" pathLength="100"/>
-            <path class="arc ap" id="cmp-arc" d="M10,66 A50,50 0 0 1 110,66" pathLength="100"/>
-            <g id="cmp-ticks"></g>
-            <circle class="gglow" cx="60" cy="66" r="20" fill="url(#cmp-gl)"/>
-            <g class="needle" id="cmp-needle"><line class="ndl" x1="60" y1="66" x2="60" y2="24"/></g>
-            <circle class="hub" cx="60" cy="66" r="5"/>
+          <svg class="sc" viewBox="0 0 200 104" aria-hidden="true">
+            <path d="M100 34v62M70 96h60" class="sk"/><circle cx="100" cy="34" r="4" class="sdot"/>
+            <g class="beam" id="cmp-beam"><path d="M24 34H176" class="sk"/>
+              <g class="pan l" id="cmp-pl"><path d="M24 34L8 64H40Z" class="sk thin"/><path d="M4 64h40a20 8 0 0 1-40 0z" class="pl-fill"/></g>
+              <g class="pan r" id="cmp-pr"><path d="M176 34L160 64H192Z" class="sk thin"/><path d="M156 64h40a20 8 0 0 1-40 0z" class="pr-fill"/></g>
+            </g>
           </svg>
         </div>
         <div class="cmp-vals"><span>اليوم <b id="cmp-today">—</b></span><span>أمس <b id="cmp-yest">—</b></span></div>
-        <div class="tag" id="cmp-note">مبيعات أمس لحد نفس الساعة</div>
+        <div class="tag" id="cmp-note">مصروفات أمس (اليوم كامل)</div>
         <span class="hsheen" aria-hidden="true"></span>
       </section>
-      <section class="t cmp" id="cmpw-tile">
-        <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقارنة بنفس اليوم الأسبوع الماضي</div><span class="cpct" id="cmpw-pct">—</span></div>
+      <section class="t cmp cms" id="cmpw-tile">
+        <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقابل الأسبوع الماضي</div><span class="cpct" id="cmpw-pct">—</span></div>
         <div class="gwrap">
-          <svg class="g" viewBox="0 6 120 68" aria-hidden="true">
-            <path class="arc trk" d="M10,66 A50,50 0 0 1 110,66" pathLength="100"/>
-            <path class="arc ap" id="cmpw-arc" d="M10,66 A50,50 0 0 1 110,66" pathLength="100"/>
-            <g id="cmpw-ticks"></g>
-            <circle class="gglow" cx="60" cy="66" r="20" fill="url(#cmp-gl)"/>
-            <g class="needle" id="cmpw-needle"><line class="ndl" x1="60" y1="66" x2="60" y2="24"/></g>
-            <circle class="hub" cx="60" cy="66" r="5"/>
+          <svg class="sc" viewBox="0 0 200 104" aria-hidden="true">
+            <path d="M100 34v62M70 96h60" class="sk"/><circle cx="100" cy="34" r="4" class="sdot"/>
+            <g class="beam" id="cmpw-beam"><path d="M24 34H176" class="sk"/>
+              <g class="pan l" id="cmpw-pl"><path d="M24 34L8 64H40Z" class="sk thin"/><path d="M4 64h40a20 8 0 0 1-40 0z" class="pl-fill"/></g>
+              <g class="pan r" id="cmpw-pr"><path d="M176 34L160 64H192Z" class="sk thin"/><path d="M156 64h40a20 8 0 0 1-40 0z" class="pr-fill"/></g>
+            </g>
           </svg>
         </div>
         <div class="cmp-vals"><span>اليوم <b id="cmpw-today">—</b></span><span>الأسبوع الماضي <b id="cmpw-yest">—</b></span></div>
-        <div class="tag" id="cmpw-note">مبيعات نفس اليوم الأسبوع الماضي لحد نفس الساعة</div>
+        <div class="tag" id="cmpw-note">مصروفات نفس اليوم الأسبوع الماضي (اليوم كامل)</div>
         <span class="hsheen" aria-hidden="true"></span>
       </section>
       <a class="t alert" href="inventory.html" id="low-tile">
@@ -825,42 +821,14 @@
           document.getElementById("first-sale").textContent = "أول فاتورة الساعة " + firstAt.toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" });
         }
         drawSpark(sales);
-        // مقارنة مبيعات اليوم مع أمس ومع نفس اليوم الأسبوع الماضي، كل واحدة لحد نفس الساعة
-        // (الفواتير اللي انعملت قبل 24 ساعة / 7 أيام من هسع)
-        // عدّاد السيارة: أول ما يحمّل الإبرة بتطلع من الصفر لآخر العدّاد (150% من الفترة السابقة) وبترجع لقيمتها بنطّة خفيفة،
-        // والعلامات بتضوي وهي بتمرق، والنسبة بتتغير مع الإبرة
-        const GMAX = 1.5, gAng = (r) => -90 + Math.min(GMAX, Math.max(0, r)) / GMAX * 180;
-        const gSgn = (n) => "\u200E" + (n > 0 ? "+" : n < 0 ? "-" : "") + Math.abs(n) + "%";
+        // مقارنة مصروفات اليوم مع أمس ومع نفس اليوم الأسبوع الماضي (اليوم كامل) بميزان:
+        // الكفة الأثقل بتنزل. الميزان ساكن، وبيتحرك بس لما الماوس يمرّ عليه أو بتلمسه
         document.querySelectorAll(".t.cmp").forEach((t) => {
-          const pre = t.id.replace("-tile", ""), g = document.getElementById(pre + "-ticks"), a0 = Math.PI / 180; t._ticks = [];
-          for (let i = 0; i <= 15; i++) {
-            const major = i % 5 === 0, a = gAng(i / 10) * a0, R1 = 58, R0 = R1 - (major ? 9 : 5), l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            l.setAttribute("x1", 60 + Math.sin(a) * R0); l.setAttribute("y1", 66 - Math.cos(a) * R0); l.setAttribute("x2", 60 + Math.sin(a) * R1); l.setAttribute("y2", 66 - Math.cos(a) * R1);
-            l.setAttribute("class", "tk" + (major ? " maj" : "") + (i === 10 ? " ref" : "")); l.dataset.r = i / 10; g.appendChild(l); t._ticks.push(l);
-          }
+          const play = () => { if (reduceMotion) return; t.classList.remove("wig"); void t.offsetWidth; t.classList.add("wig"); };
+          t.addEventListener("pointerenter", play);
+          t.addEventListener("pointerdown", play);
+          t.addEventListener("animationend", (e) => { if (e.target.closest && e.target.closest(".beam, .pan")) t.classList.remove("wig"); });
         });
-        const cmpPlay = (t) => {
-          const c = t._cmp; if (!c) return;
-          const pre = t.id.replace("-tile", ""), needle = document.getElementById(pre + "-needle"), arc = document.getElementById(pre + "-arc"), pctEl = document.getElementById(pre + "-pct");
-          const draw = (r) => {
-            needle.style.transform = "rotate(" + gAng(r) + "deg)";
-            arc.style.strokeDashoffset = 100 - Math.min(100, r / GMAX * 100);
-            pctEl.textContent = gSgn(Math.round((r - 1) * 100));
-            t._ticks.forEach((k) => k.classList.toggle("lit", +k.dataset.r <= r + 0.001));
-          };
-          cancelAnimationFrame(t._raf);
-          if (reduceMotion) { draw(c.ratio); return; }
-          t.classList.add("sweeping");
-          const T1 = 700, T2 = 1000, t0 = performance.now();
-          (function step(now) {
-            const e = now - t0; let r;
-            if (e < T1) r = (e / T1) * (e / T1) * GMAX;
-            else if (e < T1 + T2) { const k = (e - T1) / T2; r = GMAX + (c.ratio - GMAX) * (1 - Math.exp(-6 * k) * Math.cos(10 * k)); }
-            else r = c.ratio;
-            draw(r);
-            if (e < T1 + T2) t._raf = requestAnimationFrame(step); else t.classList.remove("sweeping");
-          })(t0);
-        };
         document.querySelectorAll(".t.cmp").forEach((t) => {
           if (!window.matchMedia("(hover:hover) and (pointer:fine)").matches) return;
           t.addEventListener("mouseleave", () => { t.classList.remove("hmove"); t.style.setProperty("--rx", "0deg"); t.style.setProperty("--ry", "0deg"); });
@@ -874,21 +842,19 @@
         const compareTo = async (pre, days, noneMsg) => {
           try {
             const pDate = new Date(new Date(today + "T00:00:00Z").getTime() - days * 864e5).toISOString().slice(0, 10);
-            const cutoff = Date.now() - days * 864e5;
-            const { data: yRows, error: yErr } = await window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", pDate).eq("status", "completed");
+            const { data: yRows, error: yErr } = await olvExpensesPaid(window.supabaseClient, "amount", pDate, pDate);
             if (yErr) throw yErr;
-            const yTotal = (yRows || []).filter((r) => new Date(r.created_at).getTime() <= cutoff).reduce((a, r) => a + Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount), 0);
-            document.getElementById(pre + "-today").textContent = money(totalSales);
+            const yTotal = (yRows || []).reduce((a, r) => a + Number(r.amount), 0), tileEl = document.getElementById(pre + "-tile");
+            document.getElementById(pre + "-today").textContent = money(totalExpenses);
             document.getElementById(pre + "-yest").textContent = money(yTotal);
-            const pctEl = document.getElementById(pre + "-pct"), tileEl = document.getElementById(pre + "-tile");
-            if (yTotal > 0) {
-              const d = Math.round((totalSales - yTotal) / yTotal * 100);
-              const label = (v) => "\u200E" + (d > 0 ? "+" : d < 0 ? "-" : "") + v + "%";
-              tileEl.classList.toggle("down", d < 0);
-              tileEl._cmp = { ratio: totalSales / yTotal, d, label };
-              cmpPlay(tileEl);
-              const diff = totalSales - yTotal;
-              document.getElementById(pre + "-note").textContent = (diff >= 0 ? "أعلى بـ " : "أقل بـ ") + money(Math.abs(diff)) + " لحد نفس الساعة";
+            const pctEl = document.getElementById(pre + "-pct"), M = Math.max(totalExpenses, yTotal);
+            if (yTotal > 0 || totalExpenses > 0) {
+              const d = yTotal > 0 ? Math.round((totalExpenses - yTotal) / yTotal * 100) : null, up = totalExpenses > yTotal;
+              pctEl.textContent = d === null ? "—" : "\u200E" + (d > 0 ? "+" : d < 0 ? "-" : "") + Math.abs(d) + "%";
+              tileEl.classList.toggle("down", up);
+              tileEl.style.setProperty("--a", ((totalExpenses - yTotal) / M * 12) + "deg");
+              const diff = totalExpenses - yTotal;
+              document.getElementById(pre + "-note").textContent = diff === 0 ? "نفس المصروف" : (diff > 0 ? "أكثر بـ " : "أقل بـ ") + money(Math.abs(diff));
             } else {
               pctEl.textContent = "—";
               document.getElementById(pre + "-note").textContent = noneMsg;
@@ -896,8 +862,8 @@
           } catch (e) { document.getElementById(pre + "-note").textContent = "تعذّرت المقارنة"; }
         };
         await Promise.all([
-          compareTo("cmp", 1, "ما في مبيعات أمس لهالساعة للمقارنة"),
-          compareTo("cmpw", 7, "ما في مبيعات نفس اليوم الأسبوع الماضي لهالساعة للمقارنة"),
+          compareTo("cmp", 1, "ما في مصروفات اليوم ولا أمس"),
+          compareTo("cmpw", 7, "ما في مصروفات اليوم ولا الأسبوع الماضي"),
         ]);
 
         // طرق الدفع: كاش / شبكة / توصيل كنسبة من مبيعات اليوم
