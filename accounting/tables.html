@@ -858,6 +858,10 @@
         });
         const ids = [];
         for (const [sale, items] of bySale) {
+          // الطاولة فيها أكثر من حساب: لو اختار كل أصناف حساب كامل ما في داعي نفصله، بنسدّده كما هو
+          const total = lines.filter((l) => l.sale === sale).reduce((a, l) => a + Number(l.it.qty), 0);
+          const picked = items.reduce((a, x) => a + Number(x.qty), 0);
+          if (picked >= total) { ids.push(sale); continue; }
           const { data, error } = await db.rpc("split_table_tab", { p_sale_id: sale, p_items: items });
           if (error) {
             olvToast(/split_table_tab/.test(error.message || "") && /function|schema cache/i.test(error.message || "")
