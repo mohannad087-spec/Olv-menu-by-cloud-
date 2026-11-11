@@ -316,19 +316,30 @@
   .t.cmp .chead{display:flex; justify-content:space-between; align-items:center; gap:8px;}
   .t.cmp .cpct{font-size:20px; font-weight:800; color:var(--rc1); direction:ltr; font-variant-numeric:tabular-nums; min-width:4ch; text-align:end;}
   .t.cmp .gwrap{flex:1; display:flex; justify-content:center; align-items:center; min-height:0; margin-top:2px;}
-  .t.cmp svg.sc{width:100%; max-width:200px; overflow:visible; touch-action:manipulation;}
-  .t.cmp .sk{stroke:var(--muted); stroke-width:2.5; fill:none; stroke-linecap:round;}
-  .t.cmp .sk.thin{stroke-width:1.3;}
-  .t.cmp .sdot{fill:var(--muted);}
-  .t.cmp .pl-fill{fill:#c9cdf7;} .t.cmp .pr-fill{fill:var(--rc1);}
-  .t.cmp .beam, .t.cmp .pan{transform-box:view-box; rotate:var(--a,0deg);}
-  .t.cmp .beam{transform-origin:100px 34px;}
-  .t.cmp .pan.l{transform-origin:24px 34px; rotate:calc(var(--a,0deg) * -1);}
-  .t.cmp .pan.r{transform-origin:176px 34px; rotate:calc(var(--a,0deg) * -1);}
-  .t.cmp.wig .beam{animation:olv-sw 1.5s cubic-bezier(.3,1.2,.4,1);}
-  .t.cmp.wig .pan{animation:olv-swp 1.5s cubic-bezier(.3,1.2,.4,1);}
-  @keyframes olv-sw{0%{rotate:0deg;} 30%{rotate:calc(var(--a,0deg) * 1.5);} 55%{rotate:calc(var(--a,0deg) * .7);} 78%{rotate:calc(var(--a,0deg) * 1.12);} 100%{rotate:var(--a,0deg);}}
-  @keyframes olv-swp{0%{rotate:0deg;} 30%{rotate:calc(var(--a,0deg) * -1.5);} 55%{rotate:calc(var(--a,0deg) * -.7);} 78%{rotate:calc(var(--a,0deg) * -1.12);} 100%{rotate:calc(var(--a,0deg) * -1);}}
+  .t.cmp svg.sc{width:100%; max-width:220px; overflow:visible;}
+  .t.cmp .cpct{color:#fff; background:linear-gradient(135deg,var(--rc1),#8b5cf6); padding:3px 11px; border-radius:999px; font-size:15px; min-width:0; box-shadow:0 6px 14px -6px var(--rc1);}
+  .cms .mtl, .cms .hook{fill:url(#sc-mtl);} .cms .hl{fill:rgba(255,255,255,.6);}
+  .cms .gshd{fill:#4254e8; opacity:.12;}
+  .cms .bm{fill:url(#sc-bm-up);} .cms.down .bm{fill:url(#sc-bm-dn);}
+  .cms .gem{fill:var(--rc1); stroke:#fff; stroke-width:2; transform-box:fill-box; transform-origin:center;}
+  .cms .chn{stroke:#8e94e2; stroke-width:1.6; stroke-linecap:round; stroke-dasharray:3 2.2; fill:none;}
+  .cms .pan.l .bowl{fill:url(#sc-p-y);} .cms .pan.r .bowl{fill:url(#sc-p-up);} .cms.down .pan.r .bowl{fill:url(#sc-p-dn);}
+  .cms .bowl.rim{stroke:rgba(255,255,255,.55); stroke-width:1;}
+  .cms .shn{stroke:rgba(255,255,255,.55); stroke-width:2; fill:none; stroke-linecap:round;}
+  .cms .pan.l{--k1:#d5d8fa; --k2:#a2a7ea;} .cms .pan.r{--k1:#8f9bf6; --k2:#4254e8;} .cms.down .pan.r{--k1:#f58bb5; --k2:#e0367a;}
+  .cms .coin .cs{fill:var(--k2);} .cms .coin .ct{fill:var(--k1);} .cms .coin .cr{fill:none; stroke:rgba(255,255,255,.6); stroke-width:.8;}
+  .cms .coin{transform-box:fill-box; transform-origin:center;}
+  .cms .beam, .cms .pan{transform-box:view-box; rotate:var(--a,0deg); transition:rotate 1.2s cubic-bezier(.3,1.5,.4,1);}
+  .cms .beam{transform-origin:110px 32px;}
+  .cms .pan{rotate:calc(var(--a,0deg) * -1);} .cms .pan.l{transform-origin:30px 32px;} .cms .pan.r{transform-origin:190px 32px;}
+  .cms.on .beam{animation:olv-sw 2.2s cubic-bezier(.35,0,.3,1);}
+  .cms.on .pan{animation:olv-swp 2.2s cubic-bezier(.35,0,.3,1);}
+  .cms.on .coin{animation:olv-hop .7s cubic-bezier(.3,1.6,.5,1) both; animation-delay:calc(var(--i) * .07s + .3s);}
+  .cms.on .gem{animation:olv-gem 2.2s ease-in-out;}
+  @keyframes olv-sw{0%{rotate:var(--a,0deg);} 18%{rotate:calc(var(--a,0deg) * -.5 - 2deg);} 40%{rotate:calc(var(--a,0deg) * 1.45 + 2deg);} 60%{rotate:calc(var(--a,0deg) * .75 - 1deg);} 80%{rotate:calc(var(--a,0deg) * 1.1);} 100%{rotate:var(--a,0deg);}}
+  @keyframes olv-swp{0%{rotate:calc(var(--a,0deg) * -1);} 18%{rotate:calc(var(--a,0deg) * .5 + 7deg);} 40%{rotate:calc(var(--a,0deg) * -1.45 - 6deg);} 60%{rotate:calc(var(--a,0deg) * -.75 + 3deg);} 80%{rotate:calc(var(--a,0deg) * -1.1 - 1deg);} 100%{rotate:calc(var(--a,0deg) * -1);}}
+  @keyframes olv-hop{0%,100%{translate:0 0;} 40%{translate:0 -7px;}}
+  @keyframes olv-gem{50%{scale:1.3; filter:brightness(1.3);}}
   .t.cmp .cmp-vals{display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--muted); margin-top:4px;}
   .t.cmp .cmp-vals b{color:var(--paper); font-size:14.5px; font-variant-numeric:tabular-nums;}
   .t.cmp .tag{margin-top:2px; font-size:12px;}
@@ -338,11 +349,70 @@
     .t.cmp.hmove{transition:transform .12s ease-out, box-shadow .3s var(--spring);}
     .t.cmp:hover .hsheen{opacity:1;}
   }
-  @media (prefers-reduced-motion:reduce){ .t.cmp.wig .beam, .t.cmp.wig .pan{animation:none;} }
+  /* ---- فخامة التيلات (2026-11-11): لكل تيل لون وحركة خاصة فيه، بتشتغل بس مع الماوس أو اللمس (كلاس on) ---- */
+  .bento .t.k-low{--tc:#8b3fe0; --tg:#e0367a;} .bento .t.k-best{--tc:#e08a00; --tg:#e0367a;} .bento .t.k-ord{--tc:#0b86c9; --tg:#4254e8;}
+  .bento .t.k-avg{--tc:#4254e8; --tg:#0b86c9;} .bento .t.k-pay{--tc:#8b5cf6; --tg:#e0367a;} .bento .t.k-count{--tc:#e0367a; --tg:#e08a00;}
+  .bento .t.netg{--tc:#4254e8; --tg:#8b5cf6;} .bento .t.netg.neg{--tc:#e0367a; --tg:#8b5cf6;} .bento .t.expd{--tg:#8b5cf6;}
+  :root:not([data-theme="dark"]) .bento .t[class*="k-"]{--tb:color-mix(in srgb,var(--tc) 13%,#fff);}
+  .bento .t:not(.hero)::before{content:""; position:absolute; inset:0 0 auto 0; height:3px; z-index:2; background:linear-gradient(90deg,transparent,var(--tc),var(--tg,var(--tc)),transparent); opacity:0; transition:opacity .35s; pointer-events:none;}
+  .bento .t.on::before{opacity:.95;}
+  .bento .t.on{box-shadow:0 10px 18px -8px color-mix(in srgb,var(--tc) 28%,transparent), 0 34px 50px -20px color-mix(in srgb,var(--tc) 55%,transparent)!important;}
+  @media (hover:none){ .bento .t.on{transform:translateY(-5px);} }
+  .bento .t:not(.cta):not(.hero) .mid{background:linear-gradient(120deg,var(--tc),var(--tg,var(--tc))); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; width:fit-content;}
+  .bento .t.alert.ok .mid{background:none; -webkit-text-fill-color:currentColor;}
+  .bento .t .rad, .bento .t .spk, .bento .t .eq, .bento .t .tix{position:absolute; z-index:0; pointer-events:none;}
+  /* مخزون منخفض: رادار */
+  .rad{inset-inline-end:16px; bottom:14px; width:58px; height:58px;}
+  .rad i{position:absolute; inset:0; border-radius:50%; border:2px solid var(--tc); opacity:.16; transform:scale(calc(.38 + var(--i) * .31));}
+  .rad b{position:absolute; inset:calc(50% - 5px); border-radius:50%; background:linear-gradient(135deg,var(--tc),var(--tg)); box-shadow:0 0 0 4px color-mix(in srgb,var(--tc) 18%,transparent);}
+  .k-low.on .rad i{animation:olv-ping 1.6s ease-out infinite; animation-delay:calc(var(--i) * .4s);}
+  .k-low.on .rad b{animation:olv-beat .8s ease-in-out infinite;}
+  .k-low.ok .rad{display:none;}
+  @keyframes olv-ping{0%{transform:scale(.2); opacity:.7;} 100%{transform:scale(1.25); opacity:0;}}
+  @keyframes olv-beat{50%{transform:scale(1.35);}}
+  /* الأكثر مبيعًا: نجوم بتلمع */
+  .spk{inset:0;}
+  .spk i{position:absolute; width:16px; height:16px; background:linear-gradient(135deg,var(--tc),var(--tg)); clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%); opacity:.28; transform:scale(.7);}
+  .spk i:nth-child(1){inset-inline-end:8%; top:22%;} .spk i:nth-child(2){inset-inline-end:20%; top:58%; width:11px; height:11px;} .spk i:nth-child(3){inset-inline-end:33%; top:26%; width:9px; height:9px;}
+  .spk i:nth-child(4){inset-inline-end:5%; top:70%; width:9px; height:9px;} .spk i:nth-child(5){inset-inline-end:46%; top:64%; width:13px; height:13px;}
+  .k-best.on .spk i{animation:olv-twk 1.1s ease-in-out infinite;} .k-best.on .spk i:nth-child(2){animation-delay:.2s;} .k-best.on .spk i:nth-child(3){animation-delay:.45s;} .k-best.on .spk i:nth-child(4){animation-delay:.65s;} .k-best.on .spk i:nth-child(5){animation-delay:.85s;}
+  @keyframes olv-twk{0%,100%{transform:scale(.6) rotate(0deg); opacity:.25;} 50%{transform:scale(1.5) rotate(90deg); opacity:1;}}
+  .k-best .best .ph{background:linear-gradient(135deg,var(--tc),var(--tg)); color:#fff; box-shadow:0 10px 18px -8px var(--tc); transition:transform .5s cubic-bezier(.3,1.6,.5,1);}
+  .k-best.on .best .ph{transform:rotate(-10deg) scale(1.12);}
+  .k-best .best b{transition:transform .4s var(--spring);} .k-best.on .best b{transform:translateX(-4px);}
+  /* قيد التحضير: الطلبات بتتحرك بالتتابع */
+  .k-ord .ord{transition:transform .4s cubic-bezier(.3,1.6,.5,1), box-shadow .3s;}
+  .k-ord.on .ord{transform:translateX(-7px); box-shadow:0 8px 14px -8px color-mix(in srgb,var(--tc) 55%,transparent), inset 0 0 0 1px var(--tc);}
+  .k-ord .ord:nth-child(2){transition-delay:.06s;} .k-ord .ord:nth-child(3){transition-delay:.12s;} .k-ord .ord:nth-child(4){transition-delay:.18s;}
+  .bento .t.k-ord.on .lbl>.icon{animation:olv-flick .45s ease-in-out infinite alternate;}
+  @keyframes olv-flick{from{transform:scale(1) rotate(-4deg);} to{transform:scale(1.14) rotate(5deg); filter:brightness(1.15);}}
+  /* متوسط الفاتورة: أعمدة بترقص */
+  .eq{inset-inline-end:18px; bottom:18px; height:54px; display:flex; align-items:flex-end; gap:4px;}
+  .eq i{width:7px; height:var(--h); border-radius:4px; background:linear-gradient(180deg,var(--tg),var(--tc)); opacity:.3; transform-origin:bottom; transition:opacity .3s;}
+  .k-avg.on .eq i{opacity:1; animation:olv-eq .55s ease-in-out infinite alternate; animation-delay:calc(var(--i) * -.13s);}
+  @keyframes olv-eq{from{transform:scaleY(.35);} to{transform:scaleY(1);}}
+  /* طرق الدفع: لمعة بتمرق على الشريط */
+  .k-pay .split{position:relative; transition:height .35s cubic-bezier(.3,1.6,.5,1);}
+  .k-pay.on .split{height:22px;}
+  .k-pay .split::after{content:""; position:absolute; inset:0; background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.65) 50%,transparent 65%); transform:translateX(130%);}
+  .k-pay.on .split::after{animation:olv-shine 1.3s ease-in-out infinite;}
+  @keyframes olv-shine{to{transform:translateX(-130%);}}
+  /* عدد الفواتير: فواتير بتنفرد مثل ورق اللعب */
+  .tix{inset-inline-end:26px; bottom:16px; width:36px; height:48px;}
+  .tix i{position:absolute; inset:0; border-radius:7px; background:repeating-linear-gradient(180deg,transparent 0 7px,color-mix(in srgb,var(--tc) 30%,transparent) 7px 9px) content-box, #fff; padding:9px 7px 8px; box-shadow:0 4px 10px -4px color-mix(in srgb,var(--tc) 60%,transparent), inset 0 0 0 1.5px color-mix(in srgb,var(--tc) 30%,transparent); transform-origin:50% 110%; transition:transform .5s cubic-bezier(.3,1.6,.5,1); opacity:.75;}
+  .tix i:nth-child(1){transform:rotate(-5deg);} .tix i:nth-child(3){transform:rotate(5deg);}
+  .k-count.on .tix i{opacity:1;} .k-count.on .tix i:nth-child(1){transform:rotate(-24deg) translateY(-4px);} .k-count.on .tix i:nth-child(2){transform:translateY(-10px);} .k-count.on .tix i:nth-child(3){transform:rotate(24deg) translateY(-4px);}
+  /* المصروفات: دونات مجسّمة بتدور */
+  .expd .don svg{filter:drop-shadow(0 6px 8px rgba(60,60,140,.25)); transition:transform .6s cubic-bezier(.3,1.5,.5,1);}
+  .expd .don .seg{stroke-linecap:round;}
+  .expd.on .don svg{transform:rotate(-55deg) scale(1.07);}
+  /* الصافي: الموج بيسرع باللمس كمان */
+  .netg.on .wv{animation-duration:1.5s;} .netg.on .wv.b{animation-duration:2.2s;}
+  @media (prefers-reduced-motion:reduce){ .bento .t *, .bento .t::before{animation:none!important; transition:none!important;} }
 </style>
 </head>
 <body class="olv-glass">
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="cmp-g-up" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4254e8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="cmp-g-down" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#e0367a"/></linearGradient><radialGradient id="cmp-gl"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".5"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient></defs></svg>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="cmp-g-up" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4254e8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="cmp-g-down" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#e0367a"/></linearGradient><radialGradient id="cmp-gl"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".5"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient><linearGradient id="sc-mtl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a7adf2"/><stop offset="1" stop-color="#5b63d6"/></linearGradient><linearGradient id="sc-bm-up" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4254e8"/></linearGradient><linearGradient id="sc-bm-dn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#e0367a"/></linearGradient><linearGradient id="sc-p-up" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4254e8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="sc-p-dn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e0367a"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="sc-p-y" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c3c7f5"/><stop offset="1" stop-color="#8e94e2"/></linearGradient></defs></svg>
   <div id="olv-nav"></div>
   <div class="wrap">
     <div class="err" id="err"></div>
@@ -414,12 +484,15 @@
       <section class="t cmp cms" id="cmp-tile">
         <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقارنة بأمس</div><span class="cpct" id="cmp-pct">—</span></div>
         <div class="gwrap">
-          <svg class="sc" viewBox="0 0 200 104" aria-hidden="true">
-            <path d="M100 34v62M70 96h60" class="sk"/><circle cx="100" cy="34" r="4" class="sdot"/>
-            <g class="beam" id="cmp-beam"><path d="M24 34H176" class="sk"/>
-              <g class="pan l" id="cmp-pl"><path d="M24 34L8 64H40Z" class="sk thin"/><path d="M4 64h40a20 8 0 0 1-40 0z" class="pl-fill"/></g>
-              <g class="pan r" id="cmp-pr"><path d="M176 34L160 64H192Z" class="sk thin"/><path d="M156 64h40a20 8 0 0 1-40 0z" class="pr-fill"/></g>
+          <svg class="sc" viewBox="0 0 220 122" aria-hidden="true">
+            <ellipse class="gshd" cx="110" cy="116" rx="46" ry="5"/>
+            <path class="mtl" d="M82 114Q110 100 138 114Z"/><rect class="mtl" x="74" y="112" width="72" height="6" rx="3"/>
+            <rect class="mtl" x="106.5" y="32" width="7" height="74" rx="3.5"/><rect class="hl" x="108" y="36" width="1.8" height="64" rx=".9"/>
+            <g class="beam"><rect class="bm" x="26" y="28.5" width="168" height="7" rx="3.5"/><rect class="hl" x="30" y="29.6" width="160" height="1.6" rx=".8"/>
+              <g class="pan l"><path class="chn" d="M30 32L11 78M30 32L49 78"/><g id="cmp-cl"></g><path class="bowl" d="M6 78H54Q51 96 30 96Q9 96 6 78Z"/><ellipse class="bowl rim" cx="30" cy="78" rx="24" ry="4.5"/><path class="shn" d="M13 83Q16 91 24 92.5"/><circle class="hook" cx="30" cy="32" r="3.2"/></g>
+              <g class="pan r"><path class="chn" d="M190 32L171 78M190 32L209 78"/><g id="cmp-cr"></g><path class="bowl" d="M166 78H214Q211 96 190 96Q169 96 166 78Z"/><ellipse class="bowl rim" cx="190" cy="78" rx="24" ry="4.5"/><path class="shn" d="M173 83Q176 91 184 92.5"/><circle class="hook" cx="190" cy="32" r="3.2"/></g>
             </g>
+            <circle class="gem" cx="110" cy="32" r="8"/><circle class="hl" cx="107.5" cy="29.5" r="2"/>
           </svg>
         </div>
         <div class="cmp-vals"><span>اليوم <b id="cmp-today">—</b></span><span>أمس <b id="cmp-yest">—</b></span></div>
@@ -429,41 +502,48 @@
       <section class="t cmp cms" id="cmpw-tile">
         <div class="chead"><div class="lbl"><span data-icon="clock"></span>مقارنة بنفس اليوم الأسبوع الماضي</div><span class="cpct" id="cmpw-pct">—</span></div>
         <div class="gwrap">
-          <svg class="sc" viewBox="0 0 200 104" aria-hidden="true">
-            <path d="M100 34v62M70 96h60" class="sk"/><circle cx="100" cy="34" r="4" class="sdot"/>
-            <g class="beam" id="cmpw-beam"><path d="M24 34H176" class="sk"/>
-              <g class="pan l" id="cmpw-pl"><path d="M24 34L8 64H40Z" class="sk thin"/><path d="M4 64h40a20 8 0 0 1-40 0z" class="pl-fill"/></g>
-              <g class="pan r" id="cmpw-pr"><path d="M176 34L160 64H192Z" class="sk thin"/><path d="M156 64h40a20 8 0 0 1-40 0z" class="pr-fill"/></g>
+          <svg class="sc" viewBox="0 0 220 122" aria-hidden="true">
+            <ellipse class="gshd" cx="110" cy="116" rx="46" ry="5"/>
+            <path class="mtl" d="M82 114Q110 100 138 114Z"/><rect class="mtl" x="74" y="112" width="72" height="6" rx="3"/>
+            <rect class="mtl" x="106.5" y="32" width="7" height="74" rx="3.5"/><rect class="hl" x="108" y="36" width="1.8" height="64" rx=".9"/>
+            <g class="beam"><rect class="bm" x="26" y="28.5" width="168" height="7" rx="3.5"/><rect class="hl" x="30" y="29.6" width="160" height="1.6" rx=".8"/>
+              <g class="pan l"><path class="chn" d="M30 32L11 78M30 32L49 78"/><g id="cmpw-cl"></g><path class="bowl" d="M6 78H54Q51 96 30 96Q9 96 6 78Z"/><ellipse class="bowl rim" cx="30" cy="78" rx="24" ry="4.5"/><path class="shn" d="M13 83Q16 91 24 92.5"/><circle class="hook" cx="30" cy="32" r="3.2"/></g>
+              <g class="pan r"><path class="chn" d="M190 32L171 78M190 32L209 78"/><g id="cmpw-cr"></g><path class="bowl" d="M166 78H214Q211 96 190 96Q169 96 166 78Z"/><ellipse class="bowl rim" cx="190" cy="78" rx="24" ry="4.5"/><path class="shn" d="M173 83Q176 91 184 92.5"/><circle class="hook" cx="190" cy="32" r="3.2"/></g>
             </g>
+            <circle class="gem" cx="110" cy="32" r="8"/><circle class="hl" cx="107.5" cy="29.5" r="2"/>
           </svg>
         </div>
         <div class="cmp-vals"><span>اليوم <b id="cmpw-today">—</b></span><span>الأسبوع الماضي <b id="cmpw-yest">—</b></span></div>
         <div class="tag" id="cmpw-note">مبيعات نفس اليوم الأسبوع الماضي لحد نفس الساعة</div>
         <span class="hsheen" aria-hidden="true"></span>
       </section>
-      <a class="t alert" href="inventory.html" id="low-tile">
+      <a class="t alert k-low" href="inventory.html" id="low-tile">
+        <span class="rad" aria-hidden="true"><i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i><b></b></span>
         <div class="lbl"><span data-icon="warning"></span>مخزون منخفض</div>
         <div class="mid" id="low-count">—</div>
         <div class="tag" id="low-names"></div>
       </a>
-      <section class="t s21">
+      <section class="t s21 k-best">
+        <span class="spk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
         <div class="lbl"><span data-icon="star"></span>الأكثر مبيعًا اليوم</div>
         <div class="best" id="best"><div class="tag">—</div></div>
       </section>
-      <a class="t s12" href="kitchen.html">
+      <a class="t s12 k-ord" href="kitchen.html">
         <div class="lbl"><span data-icon="flame"></span>قيد التحضير</div>
         <div class="orders" id="orders"><div class="tag">—</div></div>
       </a>
-      <section class="t">
+      <section class="t k-avg">
+        <span class="eq" aria-hidden="true"><i style="--h:38%;--i:0"></i><i style="--h:64%;--i:1"></i><i style="--h:48%;--i:2"></i><i style="--h:86%;--i:3"></i><i style="--h:58%;--i:4"></i><i style="--h:100%;--i:5"></i></span>
         <div class="lbl"><span data-icon="barChart"></span>متوسط الفاتورة</div>
         <div class="mid" id="stat-avg">—</div>
       </section>
-      <section class="t s21">
+      <section class="t s21 k-pay">
         <div class="lbl"><span data-icon="creditCard"></span>طرق الدفع اليوم</div>
         <div class="split" id="split" aria-hidden="true"></div>
         <div class="legend" id="split-legend"></div>
       </section>
-      <section class="t">
+      <section class="t k-count">
+        <span class="tix" aria-hidden="true"><i></i><i></i><i></i></span>
         <div class="lbl"><span data-icon="receipt"></span>عدد الفواتير</div>
         <div class="mid" id="stat-count">—</div>
         <div class="tag" id="first-sale"></div>
@@ -806,8 +886,8 @@
               const len = c[1] / totalExpenses * 100, off = acc; acc += len;
               const el = document.createElementNS("http://www.w3.org/2000/svg", "circle");
               el.setAttribute("class", "seg"); el.setAttribute("cx", 50); el.setAttribute("cy", 50); el.setAttribute("r", 38); el.setAttribute("pathLength", 100); el.setAttribute("stroke", COL[i]);
-              el.style.strokeDashoffset = -off; el.dataset.i = i; segG.appendChild(el);
-              const L = Math.max(0, len - (cats.length > 1 ? 1.2 : 0));
+              el.style.strokeDashoffset = -(off + (cats.length > 1 ? 3 : 0)); el.dataset.i = i; segG.appendChild(el);
+              const L = Math.max(0.1, len - (cats.length > 1 ? 6 : 0));
               setTimeout(() => { el.style.strokeDasharray = L + " " + (100 - L); }, 200 + i * 250);
               const d = document.createElement("div"); d.dataset.i = i; d.innerHTML = '<i style="background:radial-gradient(circle at 30% 25%,' + COL[i] + 'cc,' + COL[i] + ')"></i>' + esc(c[0]) + "<b>" + money(c[1]) + "</b>"; legG.appendChild(d);
             });
@@ -823,12 +903,15 @@
         drawSpark(sales);
         // مقارنة مبيعات اليوم مع أمس ومع نفس اليوم الأسبوع الماضي، كل واحدة لحد نفس الساعة، بميزان:
         // الكفة الأثقل بتنزل. الميزان ساكن، وبيتحرك بس لما الماوس يمرّ عليه أو بتلمسه
-        document.querySelectorAll(".t.cmp").forEach((t) => {
-          const play = () => { if (reduceMotion) return; t.classList.remove("wig"); void t.offsetWidth; t.classList.add("wig"); };
-          t.addEventListener("pointerenter", play);
-          t.addEventListener("pointerdown", play);
-          t.addEventListener("animationend", (e) => { if (e.target.closest && e.target.closest(".beam, .pan")) t.classList.remove("wig"); });
+        // كل التيلات (غير الرئيسية) بتاخد كلاس on لما الماوس يمرّ عليها أو تنلمس، والحركة الخاصة بكل تيل مربوطة فيه بالـCSS
+        document.querySelectorAll("#bento .t:not(.hero)").forEach((t) => {
+          let to; const on = () => { clearTimeout(to); t.classList.add("on"); }, off = () => t.classList.remove("on");
+          t.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") on(); });
+          t.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") off(); });
+          t.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { off(); void t.offsetWidth; on(); to = setTimeout(off, 2600); } });
         });
+        // عملات الميزان: لحد 5 عملات على كل كفة حسب نسبة المبلغ
+        const scCoins = (id, cx, n) => { let h = ""; for (let i = 0; i < n; i++) { const y = 74 - i * 5; h += '<g class="coin" style="--i:' + i + '"><rect class="cs" x="' + (cx - 11) + '" y="' + (y - 2) + '" width="22" height="4"/><ellipse class="cs" cx="' + cx + '" cy="' + (y + 2) + '" rx="11" ry="3"/><ellipse class="ct" cx="' + cx + '" cy="' + (y - 2) + '" rx="11" ry="3"/><ellipse class="cr" cx="' + cx + '" cy="' + (y - 2) + '" rx="6.5" ry="1.6"/></g>'; } document.getElementById(id).innerHTML = h; };
         document.querySelectorAll(".t.cmp").forEach((t) => {
           if (!window.matchMedia("(hover:hover) and (pointer:fine)").matches) return;
           t.addEventListener("mouseleave", () => { t.classList.remove("hmove"); t.style.setProperty("--rx", "0deg"); t.style.setProperty("--ry", "0deg"); });
@@ -849,6 +932,7 @@
             document.getElementById(pre + "-today").textContent = money(totalSales);
             document.getElementById(pre + "-yest").textContent = money(yTotal);
             const pctEl = document.getElementById(pre + "-pct"), tileEl = document.getElementById(pre + "-tile"), M = Math.max(totalSales, yTotal);
+            scCoins(pre + "-cl", 30, yTotal > 0 ? Math.max(1, Math.round(yTotal / M * 5)) : 0); scCoins(pre + "-cr", 190, totalSales > 0 ? Math.max(1, Math.round(totalSales / M * 5)) : 0);
             if (yTotal > 0) {
               const d = Math.round((totalSales - yTotal) / yTotal * 100), diff = totalSales - yTotal;
               pctEl.textContent = "\u200E" + (d > 0 ? "+" : d < 0 ? "-" : "") + Math.abs(d) + "%";
