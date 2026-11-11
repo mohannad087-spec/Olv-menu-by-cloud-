@@ -535,15 +535,21 @@
           openingHint = `اللي ضل بالدرج بتقفيل ${shortDate(before[0].closing_date)}. غيّره إذا شلت منه شي`;
         }
       }
-      let qs = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", date).eq("status", "completed");
+      // حسابات الطاولات المفتوحة ما بتدخل الخزينة (مدفوعها صفر)؛ لما تنسدّد بتنحسب بوقت التسديد (settled_at) يعني بالوردية اللي انسدّدت فيها
+      let qs = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at, settled_at").eq("entry_date", date).eq("status", "completed").eq("tab_open", false);
       // كاش بس: الذمة ما بتنزل من الدرج، إلا لما تنسدّد (settled_at) فبتنحسب بيوم التسديد
       let qe = sb.from("expenses").select("amount, created_at").eq("expense_date", date).eq("payment_type", "cash").is("settled_at", null);
       const dayStart = new Date(date + "T00:00:00"), dayEnd = new Date(dayStart.getTime() + 864e5);
       let qe2 = sb.from("expenses").select("amount, settled_at").gte("settled_at", dayStart.toISOString()).lt("settled_at", dayEnd.toISOString());
-      if (prev) { qs = qs.gt("created_at", prev.created_at); qe = qe.gt("created_at", prev.created_at); qe2 = qe2.gt("settled_at", prev.created_at); }
+      if (prev) { qs = qs.or(`and(settled_at.is.null,created_at.gt.${prev.created_at}),settled_at.gt.${prev.created_at}`); qe = qe.gt("created_at", prev.created_at); qe2 = qe2.gt("settled_at", prev.created_at); }
       // المصروف بيدخل بحساب الدرج بس لو انحدّد «طلع من الدرج» (عمود from_drawer)
       // ذمة انسدّدت بنك/كليك (from_drawer=false) ما بتنزل من الدرج؛ كاش بتنزل
       let [{ data: sales, error: e1 }, { data: exps, error: e3 }, { data: exps2, error: e4 }] = await Promise.all([qs, qe.eq("from_drawer", true), qe2.eq("from_drawer", true)]);
+      if (e1 && /settled_at/.test(e1.message || "")) { // العمود لسا ما انضاف: السلوك القديم
+        let q0 = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", date).eq("status", "completed").eq("tab_open", false);
+        if (prev) q0 = q0.gt("created_at", prev.created_at);
+        ({ data: sales, error: e1 } = await q0);
+      }
       if (e4) exps2 = (await qe2).data; // العمود لسا ما انضاف: السلوك القديم
       if (e3) exps = (await qe).data; // العمود لسا ما انضاف بالداتابيس: السلوك القديم
       if (seq !== loadSeq) return;
@@ -818,18 +824,6 @@
       const btn = $("save-btn");
       btn.disabled = true;
       try {
-        // حسابات طاولات لسا مفتوحة (ما انسدّدت): مبيعاتها مو داخلة بالكاش، فالتقفيل قبل تسديدها بيطلّع الخزينة غلط
-        const { data: openTabs, error: tabErr } = await window.supabaseClient.from("sales_entries")
-          .select("table_number").eq("status", "completed").eq("tab_open", true);
-        if (!tabErr && openTabs && openTabs.length) {
-          const names = [...new Set(openTabs.map((t) => olvNormTable(t.table_number)))].join("، ");
-          const msg = `في ${openTabs.length} حساب مفتوح (طاولة ${names}) لسا ما انسدّد، ومبيعاته مو محسوبة بالخزينة.`;
-          if (window.olvRole !== "owner" && window.olvRole !== "manager") {
-            olvShowError(errBox, new Error(msg + " سدّده من صفحة الطاولات أو بلّغ المدير قبل التقفيل."));
-            return;
-          }
-          if (!confirm(msg + "\nتقفل الخزينة رغم هيك؟")) return;
-        }
         const payload = {
           closing_date: $("closing_date").value,
           opening_balance: r2($("opening_balance").value),
