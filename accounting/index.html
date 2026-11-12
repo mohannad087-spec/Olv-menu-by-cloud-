@@ -173,46 +173,33 @@
   .pbar i{display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg,var(--tc),var(--tg,var(--tc))); transition:width 1s var(--spring) .3s;}
   .t .tag{margin-top:8px;}
   .vs-chip{background:#e9ecff; color:#3341c4;}
-  /* صافي اليوم: محطة بنزين (2026-11-12). الموظف بيعبّي الجركن حسب نسبة الصافي من المبيعات، والحركة بس مع الماوس أو اللمس (كلاس on) */
-  .bento .t.netg{--wc:#4254e8; --wc2:#8b5cf6; --tc:#4254e8; --tg:#8b5cf6;}
-  .bento .t.netg.neg{--wc:#8b5cf6; --wc2:#e0367a; --tc:#e0367a;}
+  /* صافي اليوم: سبائك بلاتين على تيل داكن فخم (2026-11-12). عدد السبائك حسب نسبة الصافي من المبيعات، والحركة بس مع الماوس أو اللمس (كلاس on) */
+  .bento .t.netg{--ia:#8b9bff; --ib:#c58bff; --gl:rgba(139,155,255,.55); color:#fff; border:none; overflow:hidden;
+    background:radial-gradient(120% 90% at 80% 0%,#3b2f9c 0%,transparent 55%),radial-gradient(90% 90% at 0% 100%,#5a1d78 0%,transparent 55%),linear-gradient(160deg,#171345,#0f0c30)!important;
+    box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 24px 44px -20px rgba(40,30,140,.75),0 0 0 1px rgba(160,150,255,.22)!important;}
+  .bento .t.netg.neg{--ia:#ff8fb8; --ib:#b58bff; --gl:rgba(255,120,170,.5);}
+  .bento .t.netg::after{display:none;}
+  .bento .t.netg.on{box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 34px 56px -22px var(--gl),0 0 0 1px rgba(190,180,255,.4)!important;}
+  .bento .t.netg::before{background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.12) 48%,transparent 60%)!important; height:auto!important; inset:0!important; opacity:1!important; transform:translateX(-120%); z-index:3;}
+  .bento .t.netg.on::before{animation:olv-sheen 1.4s ease-out;}
+  @keyframes olv-sheen{to{transform:translateX(120%);}}
+  .netg .dust{position:absolute; inset:0; z-index:0; pointer-events:none; background-image:radial-gradient(1.2px 1.2px at 12% 22%,#fff8,transparent),radial-gradient(1px 1px at 78% 14%,#fff7,transparent),radial-gradient(1.4px 1.4px at 64% 70%,#fff6,transparent),radial-gradient(1px 1px at 28% 82%,#fff7,transparent),radial-gradient(1px 1px at 90% 56%,#fff6,transparent);}
   .netg .chead, .expd .chead{display:flex; justify-content:space-between; align-items:center; gap:8px;}
-  .netg .nv, .expd .nv{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--tc); line-height:1;}
-  .bento .t.netg.neg .nv{color:#e0367a;} .bento .t.expd .nv{color:#e0367a;}
-  .netg svg.gas{width:100%; max-width:330px; align-self:center; margin-top:4px; overflow:visible; flex:1; min-height:0;}
+  .bento .t.netg .lbl{color:#d9d6ff!important;} .netg .lbl>.icon{background:rgba(255,255,255,.12)!important; color:#fff!important;}
+  .netg .nv, .expd .nv{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1;}
+  .bento .t.netg .nv{background:linear-gradient(120deg,#fff,var(--ia)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; filter:drop-shadow(0 0 10px var(--gl));}
+  .bento .t.expd .nv{color:#e0367a;}
+  .netg svg.ing{width:100%; max-width:250px; height:170px; align-self:center; margin-top:2px; overflow:visible; flex:1; min-height:0;}
+  .netg .gnote{color:#b9b5ec;}
   .gnote{font-size:12px; color:var(--muted); text-align:center; margin-top:2px;}
-  .gas .gsh{fill:#4254e8; opacity:.1;}
-  .gas .glamp{fill:var(--wc);} .gas .gtx{fill:#fff; font-size:9.5px; font-weight:800; font-family:Tajawal,sans-serif; text-anchor:middle;}
-  .gas .gdg{fill:#6df0b0; font-size:15px; font-weight:800; font-family:Tajawal,sans-serif; text-anchor:middle;}
-  .gas .ghose{fill:none; stroke:#3a3f5f; stroke-width:4; stroke-linecap:round;}
-  .gas .gcap{fill:var(--wc2);}
-  .gas .gstream{fill:none; stroke:var(--wc); stroke-width:3.4; stroke-linecap:round; stroke-dasharray:3 6; opacity:0;}
-  .gas .gpc{fill:#fff; font-size:17px; font-weight:800; font-family:Tajawal,sans-serif; text-anchor:middle; paint-order:stroke; stroke:rgba(40,30,90,.35); stroke-width:3px;}
-  .netg.neg .gas .gpc{fill:var(--paper); stroke:none;}
-  .gas .glq{transform:translateY(var(--ty,106px)); transition:transform 1.8s cubic-bezier(.3,1.2,.5,1);}
-  .gas .gw{animation:olv-wave2 5s linear infinite; animation-play-state:paused;}
-  .gas .gw path{fill:var(--wc);}
-  .gas .gbb{fill:rgba(255,255,255,.7); opacity:0;}
-  .gas .garm, .gas .gman, .gas .gcan, .gas .geyes, .gas .glamp{transform-box:fill-box;}
-  .gas .garm{transform-origin:0 50%;} .gas .gman{transform-origin:50% 100%;} .gas .gcan{transform-origin:50% 100%;}
-  .netg.on .gas .gw{animation-play-state:running; animation-duration:1.8s;}
-  .netg.on .gas .gstream{opacity:1; animation:olv-flow .35s linear infinite;}
-  .netg.on .gas .garm{animation:olv-pumparm .45s ease-in-out infinite alternate;}
-  .netg.on .gas .gman{animation:olv-gbob .45s ease-in-out infinite alternate;}
-  .netg.on .gas .gcan{animation:olv-gcan .9s ease-in-out infinite;}
-  .netg.on .gas .gbb{animation:olv-bub 1.4s ease-in infinite;} .netg.on .gas .gbb.b2{animation-delay:.4s;} .netg.on .gas .gbb.b3{animation-delay:.8s;}
-  .netg.on .gas .glamp{animation:olv-lamp .5s steps(2) infinite;}
-  .netg.on .gas .geyes{animation:olv-blink 1.6s infinite; transform-origin:50% 50%;}
-  .netg.on .gas .glq{animation:olv-surge 1.6s ease-in-out;}
-  @keyframes olv-wave2{to{transform:translateX(-124px);}}
-  @keyframes olv-flow{to{stroke-dashoffset:-9;}}
-  @keyframes olv-pumparm{from{rotate:-3deg;} to{rotate:4deg;}}
-  @keyframes olv-gbob{from{translate:0 0;} to{translate:0 -2px;}}
-  @keyframes olv-gcan{0%,100%{rotate:0deg;} 30%{rotate:1.5deg;} 60%{rotate:-1.5deg;}}
-  @keyframes olv-bub{0%{opacity:0; transform:translateY(0);} 20%{opacity:.9;} 100%{opacity:0; transform:translateY(-70px) scale(.5);}}
-  @keyframes olv-lamp{50%{opacity:.55;}}
-  @keyframes olv-blink{0%,92%,100%{scale:1 1;} 96%{scale:1 .1;}}
-  @keyframes olv-surge{30%{transform:translateY(calc(var(--ty,106px) - 6px));} 60%{transform:translateY(calc(var(--ty,106px) + 3px));}}
+  .ing .ing-none{fill:#ff8fb8; font-size:14px; font-weight:800; font-family:Tajawal,sans-serif;}
+  .ing .bar{transform-box:fill-box; transform:translateY(-70px); opacity:0; transition:transform .8s cubic-bezier(.3,1.4,.5,1), opacity .4s; transition-delay:calc(var(--i) * .1s);}
+  .ing.in .bar{transform:none; opacity:1;}
+  .ing .shine{opacity:0; mix-blend-mode:screen;}
+  .netg.on .ing .bar{animation:olv-bs 1.6s ease-in-out infinite; animation-delay:calc(var(--i) * -.2s);}
+  .netg.on .ing .shine{animation:olv-shn 1.5s ease-in-out infinite; animation-delay:calc(var(--i) * .18s);}
+  @keyframes olv-bs{50%{transform:translateY(-3px);}}
+  @keyframes olv-shn{0%{opacity:0; transform:translateX(-20px) skewX(-20deg);} 40%{opacity:.9;} 100%{opacity:0; transform:translateX(40px) skewX(-20deg);}}
   /* مصروفات اليوم: خزان بيسرّب، طبقة لكل نوع بحجم مبلغه */
   .bento .t.expd{--tc:#e0367a; --tg:#8b5cf6;}
   .expd .dbody{flex:1; display:flex; align-items:center; gap:18px; min-height:0; padding-top:4px;}
@@ -234,7 +221,7 @@
   .expd .dleg i{width:11px; height:11px; border-radius:50%; flex:none; box-shadow:inset 0 -2px 3px rgba(0,0,0,.15), inset 0 1px 2px rgba(255,255,255,.45);}
   .expd .dleg b{margin-inline-start:auto; color:var(--paper); font-size:12.5px; font-variant-numeric:tabular-nums;}
   .expd.hi .ly, .expd.hi .dleg div{opacity:.3;} .expd.hi .ly.on, .expd.hi .dleg div.on{opacity:1;} .expd.hi .dleg div.on{transform:translateX(-4px);}
-  @media (prefers-reduced-motion:reduce){ .gas *, .expd *{animation:none!important; transition:none!important;} }
+  @media (prefers-reduced-motion:reduce){ .ing *, .expd *, .netg::before{animation:none!important; transition:none!important;} }
   .ord{background:#fff; box-shadow:0 1px 0 rgba(0,0,0,.04), inset 0 0 0 1px var(--tb);}
   .t.alert .mid, .t:not(.cta):not(.hero) .mid{color:var(--tc)!important;}
 
@@ -486,56 +473,18 @@
         <span class="hsheen" aria-hidden="true"></span>
       </section>
       <section class="t dark netg" id="net-tile">
+        <span class="dust" aria-hidden="true"></span>
         <div class="chead"><div class="lbl"><span data-icon="wallet"></span>صافي اليوم</div><div class="nv" id="stat-net">—</div></div>
-        <svg class="gas" viewBox="0 0 300 156" aria-hidden="true">
+        <svg class="ing" id="net-ing" viewBox="0 0 250 190" aria-hidden="true">
           <defs>
-            <clipPath id="gs-clip"><path d="M190 46H274Q282 46 282 54V138Q282 146 274 146H190Q182 146 182 138V54Q182 46 190 46Z"/></clipPath>
-            <linearGradient id="gs-fuel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--wc)"/><stop offset="1" stop-color="var(--wc2)"/></linearGradient>
-            <linearGradient id="gs-pump" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f1f2ff"/><stop offset=".55" stop-color="#e0e3fb"/><stop offset="1" stop-color="#c8ccf3"/></linearGradient>
-            <linearGradient id="gs-shirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b6cf0"/><stop offset="1" stop-color="#3a46c9"/></linearGradient>
-            <linearGradient id="gs-can" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="rgba(255,255,255,.55)"/><stop offset=".25" stop-color="rgba(255,255,255,.08)"/><stop offset="1" stop-color="rgba(0,0,0,.08)"/></linearGradient>
+            <linearGradient id="ig-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f6ff"/><stop offset=".5" stop-color="#aab3e8"/><stop offset="1" stop-color="#e9ecff"/></linearGradient>
+            <linearGradient id="ig-ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--ia)"/><stop offset="1" stop-color="var(--ib)"/></linearGradient>
+            <radialGradient id="ig-halo"><stop offset="0" stop-color="var(--ia)" stop-opacity=".55"/><stop offset="1" stop-color="var(--ia)" stop-opacity="0"/></radialGradient>
           </defs>
-          <ellipse class="gsh" cx="150" cy="152" rx="138" ry="4"/>
-          <!-- المضخة -->
-          <g class="gpump">
-            <rect x="8" y="30" width="52" height="118" rx="10" fill="url(#gs-pump)" stroke="var(--wc)" stroke-width="2"/>
-            <rect class="glamp" x="8" y="18" width="52" height="16" rx="8"/><text x="34" y="30" class="gtx">OLV</text>
-            <rect x="15" y="42" width="38" height="24" rx="5" fill="#1c1a33"/><text class="gdg" id="gas-dg" x="34" y="59">0.0</text>
-            <rect x="15" y="72" width="38" height="6" rx="3" fill="var(--wc)" opacity=".85"/><rect x="15" y="82" width="38" height="6" rx="3" fill="var(--wc2)" opacity=".6"/>
-            <rect x="22" y="96" width="24" height="30" rx="5" fill="rgba(66,84,232,.1)" stroke="var(--wc)" stroke-width="1.2"/>
-            <rect x="12" y="140" width="44" height="8" rx="4" fill="var(--wc)" opacity=".85"/>
-          </g>
-          <!-- الخرطوم -->
-          <path class="ghose" d="M60 104C86 134 112 130 126 104"/>
-          <!-- الموظف -->
-          <g class="gman">
-            <rect x="82" y="122" width="12" height="26" rx="5" fill="#2e3150"/><rect x="100" y="122" width="12" height="26" rx="5" fill="#2e3150"/>
-            <path d="M78 146h20q4 0 4 5H78z M100 146h20q4 0 4 5h-24z" fill="#1c1a33"/>
-            <path d="M80 82Q98 74 116 82L120 128H76Z" fill="url(#gs-shirt)"/>
-            <path d="M92 80L98 94L104 80Z" fill="#fff" opacity=".9"/><rect x="95" y="94" width="6" height="30" rx="2" fill="var(--wc2)" opacity=".7"/>
-            <path d="M78 96h8l-1 26h-9z" fill="#e0367a" opacity=".85"/>
-            <path class="glarm2" d="M82 90Q70 104 78 116" fill="none" stroke="#f1c7a4" stroke-width="8" stroke-linecap="round"/>
-            <rect x="93" y="70" width="10" height="10" rx="4" fill="#f1c7a4"/>
-            <ellipse cx="98" cy="58" rx="15" ry="16" fill="#f7d3b3"/><ellipse cx="83.5" cy="60" rx="3" ry="4.5" fill="#f1c7a4"/>
-            <path class="gcap" d="M82 54Q98 36 114 54Z"/><rect class="gcap" x="96" y="50" width="26" height="5" rx="2.5"/><circle cx="98" cy="46" r="3" fill="#fff" opacity=".9"/>
-            <g class="geyes"><ellipse cx="105" cy="60" rx="1.8" ry="2.4" fill="#25223a"/><ellipse cx="94" cy="60" rx="1.8" ry="2.4" fill="#25223a"/></g>
-            <path d="M95 68Q100 73 106 67" fill="none" stroke="#a5544a" stroke-width="2" stroke-linecap="round"/><ellipse cx="108" cy="65.5" rx="3" ry="2" fill="#f4a49a" opacity=".6"/>
-            <g class="garm"><path d="M114 88Q134 90 146 78" fill="none" stroke="url(#gs-shirt)" stroke-width="9" stroke-linecap="round"/><circle cx="148" cy="77" r="5.5" fill="#f1c7a4"/>
-              <path d="M146 72H178L190 90" fill="none" stroke="#3a3f5f" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><rect x="142" y="68" width="16" height="9" rx="3" fill="#3a3f5f"/>
-              <path class="gstream" d="M190 92V120"/></g>
-          </g>
-          <!-- الجركن -->
-          <g class="gcan">
-            <rect x="194" y="30" width="14" height="18" rx="3" fill="#8e94e2"/><rect x="190" y="26" width="22" height="7" rx="3.5" fill="#6c73d6"/>
-            <path d="M232 46V30Q232 24 238 24H252Q258 24 258 30V46" fill="none" stroke="#8e94e2" stroke-width="5" stroke-linecap="round"/>
-            <path d="M190 46H274Q282 46 282 54V138Q282 146 274 146H190Q182 146 182 138V54Q182 46 190 46Z" fill="color-mix(in srgb,var(--wc) 8%,transparent)" stroke="color-mix(in srgb,var(--wc) 38%,transparent)" stroke-width="3"/>
-            <g clip-path="url(#gs-clip)"><g class="glq" id="gas-lq"><rect x="170" y="10" width="124" height="160" fill="url(#gs-fuel)"/><g class="gw"><svg x="170" y="3" width="248" height="14" viewBox="0 0 200 16" preserveAspectRatio="none"><path d="M0,6 Q12.5,0 25,6 T50,6 T75,6 T100,6 T125,6 T150,6 T175,6 T200,6 V16 H0Z"/></svg></g>
-              <circle class="gbb" cx="204" cy="140" r="3"/><circle class="gbb b2" cx="236" cy="140" r="2.4"/><circle class="gbb b3" cx="258" cy="140" r="3.4"/></g>
-              <rect x="182" y="46" width="100" height="100" fill="url(#gs-can)"/></g>
-            <path d="M270 62V132" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-linecap="round"/>
-            <g class="gtk"><path d="M182 70h12M182 92h12M182 114h12" stroke="color-mix(in srgb,var(--wc) 50%,transparent)" stroke-width="2"/></g>
-            <text class="gpc" id="gas-pc" x="232" y="100">—</text>
-          </g>
+          <ellipse cx="125" cy="140" rx="96" ry="14" fill="url(#ig-halo)" opacity=".5"/>
+          <rect x="14" y="174" width="222" height="5" rx="2.5" fill="#fff" opacity=".18"/>
+          <g id="net-bars"></g>
+          <text class="ing-none" id="net-none" x="125" y="120" text-anchor="middle"></text>
         </svg>
         <div class="gnote" id="net-note">المبيعات ناقص المصروفات</div>
         <span class="hsheen" aria-hidden="true"></span>
@@ -933,13 +882,15 @@
         countUp(document.getElementById("stat-count"), sales.length, whole);
         { const pct = totalSales > 0 ? Math.round(totalExpenses / totalSales * 100) : 0;
           document.getElementById("exp-note").textContent = totalSales > 0 ? pct + "%" : "";
-          // محطة البنزين: مستوى الجركن = الصافي من المبيعات (وفاضي لما في عجز)
+          // سبائك بلاتين: عدد السبائك حسب الصافي من المبيعات (لحد 6)، وبالعجز ما في سبائك
           const nt = document.getElementById("net-tile"), left = totalSales > 0 ? Math.max(0, Math.round(net / totalSales * 100)) : 0;
           nt.classList.toggle("neg", net < 0);
-          document.getElementById("net-note").textContent = net < 0 ? "المصروفات أكبر من المبيعات" : totalSales > 0 ? "المبيعات " + money(totalSales) + " ، المصروفات " + money(totalExpenses) : "المبيعات ناقص المصروفات";
-          document.getElementById("gas-pc").textContent = net < 0 ? "فاضي" : totalSales > 0 ? left + "%" : "—";
-          document.getElementById("gas-dg").textContent = net < 0 ? "0.0" : (Math.abs(net) >= 1000 ? Math.round(net / 100) / 10 + "k" : (net / 10).toFixed(1));
-          requestAnimationFrame(() => nt.querySelector(".gas").style.setProperty("--ty", (net <= 0 ? 104 : Math.round(106 * (1 - Math.min(1, Math.max(.06, left / 100))))) + "px"));
+          document.getElementById("net-note").textContent = net < 0 ? "المصروفات أكبر من المبيعات" : totalSales > 0 ? left + "% من المبيعات بقي" : "المبيعات ناقص المصروفات";
+          const nb = net > 0 && totalSales > 0 ? Math.max(1, Math.round(left / 100 * 6)) : 0, bg = document.getElementById("net-bars"), ingSvg = document.getElementById("net-ing");
+          document.getElementById("net-none").textContent = net > 0 ? "" : net < 0 ? "ما في سبائك اليوم" : "";
+          let bh = ""; for (let i = 0; i < nb; i++) { const row = Math.floor(i / 2), col = i % 2, w = 84, x = (col ? 128 : 34) + (row % 2 ? (col ? -10 : 10) : 0), y = 146 - row * 30;
+            bh += '<g class="bar" style="--i:' + i + '"><path d="M' + (x + 10) + ' ' + y + 'H' + (x + w - 10) + 'L' + (x + w) + ' ' + (y + 24) + 'H' + x + 'Z" fill="url(#ig-pl)"/><path d="M' + (x + 10) + ' ' + y + 'H' + (x + w - 10) + 'L' + (x + w - 14) + ' ' + (y - 8) + 'H' + (x + 24) + 'Z" fill="#fff" opacity=".9"/><path d="M' + x + ' ' + (y + 24) + 'H' + (x + w) + 'V' + (y + 28) + 'H' + x + 'Z" fill="#7d85dc"/><rect x="' + (x + w * .34) + '" y="' + (y + 7) + '" width="' + (w * .32) + '" height="9" rx="2" fill="url(#ig-ng)" opacity=".85"/><rect class="shine" style="--i:' + i + '" x="' + (x + 6) + '" y="' + (y + 2) + '" width="12" height="22" fill="#fff"/></g>'; }
+          bg.innerHTML = bh; ingSvg.classList.remove("in"); requestAnimationFrame(() => requestAnimationFrame(() => ingSvg.classList.add("in")));
           // خزان المصروفات اللي بيسرّب: طبقة لكل نوع (أكبر 3 + «أخرى»)
           const groups = {}; (todayExpenses || []).forEach((r) => { const n = (r.expense_categories && r.expense_categories.name) || "أخرى"; groups[n] = (groups[n] || 0) + Number(r.amount); });
           let cats = Object.entries(groups).sort((a, b) => b[1] - a[1]);
