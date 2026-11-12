@@ -221,6 +221,15 @@
   .expd .dleg i{width:11px; height:11px; border-radius:50%; flex:none; box-shadow:inset 0 -2px 3px rgba(0,0,0,.15), inset 0 1px 2px rgba(255,255,255,.45);}
   .expd .dleg b{margin-inline-start:auto; color:var(--paper); font-size:12.5px; font-variant-numeric:tabular-nums;}
   .expd.hi .ly, .expd.hi .dleg div{opacity:.3;} .expd.hi .ly.on, .expd.hi .dleg div.on{opacity:1;} .expd.hi .dleg div.on{transform:translateX(-4px);}
+  /* ترتيب وأحجام التايلات (2026-11-12): الترتيب بخاصية order فما بتتبدّل الألوان/الحركات المربوطة بـnth-child. الأحجام بكلاسات w2/h2 */
+  .bento{grid-auto-flow:row dense;}
+  .bento .t.w2{grid-column:span 2;} .bento .t.h2{grid-row:span 2;}
+  .bento .t > .lay-ctl{position:absolute; inset-inline:10px; bottom:10px; z-index:6; display:none; gap:6px; justify-content:center; pointer-events:auto;}
+  .bento.lay-on .t > .lay-ctl{display:flex;}
+  .lay-ctl button{border:none; border-radius:10px; background:rgba(20,20,60,.82); color:#fff; font:700 13px Tajawal,sans-serif; padding:7px 11px; cursor:pointer; min-height:36px; box-shadow:0 4px 12px -4px rgba(0,0,0,.4);}
+  .lay-ctl button:active{transform:scale(.94);}
+  .bento.lay-on .t{padding-bottom:64px!important;} .bento.lay-on .t{outline:2px dashed color-mix(in srgb,var(--tc,#4254e8) 55%,transparent); outline-offset:-4px;}
+  @media (max-width:560px){ .bento .t.w2{grid-column:span 1;} }
   @media (prefers-reduced-motion:reduce){ .ing *, .expd *, .netg::before{animation:none!important; transition:none!important;} }
   .ord{background:#fff; box-shadow:0 1px 0 rgba(0,0,0,.04), inset 0 0 0 1px var(--tb);}
   .t.alert .mid, .t:not(.cta):not(.hero) .mid{color:var(--tc)!important;}
@@ -458,6 +467,8 @@
         <button class="btn small" id="morning-btn" hidden></button>
         <button class="btn small" id="share-day-btn" style="background:#4254e8;color:#fff;border:none"></button>
         <button class="btn small" id="pdf-btn"></button>
+        <button class="btn small" id="lay-btn" type="button">ترتيب التايلات</button>
+        <button class="btn small" id="lay-reset" type="button" hidden>رجّع الترتيب الأصلي</button>
       </div>
     </div>
 
@@ -1021,6 +1032,53 @@
       }
     })();
     });
+
+    // ترتيب وأحجام التايلات: بتنحفظ بحساب المستخدم (جدول user_tile_layout)
+    (async () => {
+      const bento = document.getElementById("bento"), btn = document.getElementById("lay-btn"), rst = document.getElementById("lay-reset");
+      if (!bento || !btn) return;
+      const tiles = [...bento.querySelectorAll(":scope > .t")];
+      tiles.forEach((t, i) => { t.dataset.tid = t.id || ((t.className.match(/\bk-[a-z]+/) || [])[0]) || ("t" + i); });
+      const SZ = [[0, 0], [1, 0], [1, 1], [0, 1]], SZN = ["صغير", "عريض", "كبير", "طويل"]; // [w2, h2]
+      const lay = { order: tiles.map((t) => t.dataset.tid), size: {} };
+      const defSize = (t) => { const w = t.classList.contains("w2") || t.classList.contains("s22") || t.classList.contains("s21") ? 1 : 0, h = t.classList.contains("h2") || t.classList.contains("s22") || t.classList.contains("s12") ? 1 : 0; return SZ.findIndex((x) => x[0] === w && x[1] === h); };
+      tiles.forEach((t) => { lay.size[t.dataset.tid] = defSize(t); });
+      const byId = (id) => tiles.find((t) => t.dataset.tid === id);
+      const paint = () => {
+        lay.order.forEach((id, i) => { const t = byId(id); if (t) t.style.order = i; });
+        tiles.forEach((t) => { const k = lay.size[t.dataset.tid] || 0; t.classList.remove("s22", "s21", "s12"); t.classList.toggle("w2", !!SZ[k][0]); t.classList.toggle("h2", !!SZ[k][1]); const b = t.querySelector(".lay-sz"); if (b) b.textContent = "الحجم: " + SZN[k]; });
+      };
+      const db = window.supabaseClient; let uid = null, tm;
+      try { const { data } = await db.auth.getSession(); uid = data && data.session && data.session.user.id; } catch (_) {}
+      let saved = false;
+      if (uid) {
+        try {
+          const { data } = await db.from("user_tile_layout").select("layout").eq("user_id", uid).maybeSingle();
+          const L = data && data.layout;
+          if (L && Array.isArray(L.order)) {
+            const ids = tiles.map((t) => t.dataset.tid), ord = L.order.filter((x) => ids.includes(x));
+            lay.order = ord.concat(ids.filter((x) => !ord.includes(x)));
+            Object.keys(L.size || {}).forEach((k) => { if (ids.includes(k) && SZ[L.size[k]]) lay.size[k] = L.size[k]; });
+            saved = true;
+          }
+        } catch (_) {}
+      }
+      if (saved) paint();
+      const save = () => { clearTimeout(tm); tm = setTimeout(async () => { if (!uid) return; try { await db.from("user_tile_layout").upsert({ user_id: uid, layout: lay, updated_at: new Date().toISOString() }); } catch (_) {} }, 600); };
+      tiles.forEach((t) => {
+        const c = document.createElement("div"); c.className = "lay-ctl";
+        c.innerHTML = '<button type="button" class="lay-prev" aria-label="قدّم">▶</button><button type="button" class="lay-sz"></button><button type="button" class="lay-next" aria-label="أخّر">◀</button>';
+        t.appendChild(c);
+        const move = (d) => { const i = lay.order.indexOf(t.dataset.tid), j = i + d; if (j < 0 || j >= lay.order.length) return; lay.order.splice(i, 1); lay.order.splice(j, 0, t.dataset.tid); paint(); save(); t.scrollIntoView({ block: "nearest", behavior: "smooth" }); };
+        c.querySelector(".lay-prev").onclick = (e) => { e.preventDefault(); e.stopPropagation(); move(-1); };
+        c.querySelector(".lay-next").onclick = (e) => { e.preventDefault(); e.stopPropagation(); move(1); };
+        c.querySelector(".lay-sz").onclick = (e) => { e.preventDefault(); e.stopPropagation(); lay.size[t.dataset.tid] = ((lay.size[t.dataset.tid] || 0) + 1) % SZ.length; paint(); save(); };
+        t.addEventListener("click", (e) => { if (bento.classList.contains("lay-on")) e.preventDefault(); });
+      });
+      paint();
+      btn.addEventListener("click", () => { const on = bento.classList.toggle("lay-on"); btn.textContent = on ? "تم" : "ترتيب التايلات"; rst.hidden = !on; });
+      rst.addEventListener("click", async () => { if (uid) { try { await db.from("user_tile_layout").delete().eq("user_id", uid); } catch (_) {} } location.reload(); });
+    })();
   </script>
   <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
 </body>
