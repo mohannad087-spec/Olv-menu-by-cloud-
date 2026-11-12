@@ -267,6 +267,8 @@
   .pay-warn .icon{width:16px; height:16px; flex:none; margin-top:2px;}
   .pay-warn a{color:inherit; text-decoration:underline;}
   .pay-daily{font-size:12px; line-height:1.7; color:var(--muted); font-weight:600; border-top:1px dashed var(--hair-soft); padding-top:8px;}
+  .py-health{display:flex; flex-direction:column; gap:8px; margin:0 0 12px;}
+  .py-health .ok{font-size:12.5px; font-weight:700; color:var(--muted);}
   .pay-nowage{font-size:12.5px; color:var(--danger-hi); font-weight:700;}
   /* السلف */
   .adv-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
@@ -347,6 +349,7 @@
         <section class="group">
           <h2 class="py-h py-gen" id="due-title"></h2>
           <p class="py-note py-gen">اختار الموظف من القائمة وافتح ملفه. الصافي = ساعات × الأجر + المكافأة الأسبوعية + المرحّل (له أو عليه) − السلف. أي مبلغ بتدفعه بينخصم مباشرة، والباقي بيترحّل للدفعة الجاية.</p>
+          <div id="py-health" class="py-gen"></div>
           <div id="due-box"><div class="py-empty">جاري الحساب...</div></div>
         </section>
 
@@ -423,6 +426,7 @@
     const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "موظف", waiter: "ويتر" };
     let ledger = new Map(); // آخر دفعة لكل موظف: لحد أي يوم انحسب + الباقي المرحّل (مستحق − مدفوع)
     let previewRows = [];
+    let allDayRows = []; // حضور كل الموظفين يوم بيوم من أول بصمة (للفحص التلقائي)
     let history = [];
     let period = "month";
     let range = null;
@@ -660,7 +664,9 @@
         const attended = new Map();
         const { data: dayRows, error: dayErr } = await window.supabaseClient.rpc("attendance_daily", { p_from: noPayStart, p_to: range.to });
         if (dayErr) throw dayErr;
-        (dayRows || []).forEach((d) => { if (!attended.has(d.profile_id)) attended.set(d.profile_id, new Set()); attended.get(d.profile_id).add(fmtDate(d.work_date)); });
+        // أيام «مهمل» (بصمات متقاربة، مثل يوم تسجيل الإصبع على الجهاز) مش دوام فعلي، فما بتبدأ منها أسابيع المكافأة
+        (dayRows || []).forEach((d) => { if (d.status === "ignored") return; if (!attended.has(d.profile_id)) attended.set(d.profile_id, new Set()); attended.get(d.profile_id).add(fmtDate(d.work_date)); });
+        allDayRows = dayRows || [];
         previewRows = [...profileIds]
           .map((profileId) => {
             const from = startOf(profileId);
@@ -713,6 +719,7 @@
           }
         } catch (e) { /* الإضافي عرض بس، لو فشل ما بنوقف الصفحة */ }
         renderPreview();
+        try { renderHealth(); } catch (e) { /* الفحص عرض بس، لو فشل ما بنوقف الصفحة */ }
       } catch (err) {
         olvShowError(errBox, err);
       }
@@ -830,6 +837,42 @@
     // ملاحظة ثابتة بآخر كل كشف: العمل مياومة (طلب المالك 2026-11-12)
     const DAILY_NOTE = "العمل مياومة: الأجر بينحسب عن ساعات الدوام الفعلية يوم بيوم (ساعات العمل × سعر الساعة) + " + FIXED_BONUS + " دنانير عن كل أسبوع، وما بيعتمد على أي نظام رواتب شهري.";
     const carryLabel = (c) => c > 0 ? "باقي له من الدفعة السابقة" : "مدفوع له زيادة من قبل";
+    // الفحص التلقائي (عرض فقط): بيقارن ساعات كل دفعة مسجّلة مع بصمات نفس الفترة هلأ، وبيطلّع أيام البصمة الوحدة لكل الموظفين.
+    // الدفعات قبل هالتاريخ انراجعت يدوي وفروقها متعوّضة ببنود «تسوية»، فما بنرجع ننبّه عليها
+    const HEALTH_FROM = "2026-11-07";
+    function healthCheck() {
+      const byEmp = new Map();
+      allDayRows.forEach((d) => { if (!byEmp.has(d.profile_id)) byEmp.set(d.profile_id, []); byEmp.get(d.profile_id).push(d); });
+      const diffs = [], open = [];
+      new Set(history.map((p) => p.profile_id)).forEach((id) => {
+        const pays = paidRows(id), days = byEmp.get(id) || [], cap = capOf(id);
+        pays.forEach((p, i) => {
+          if (fmtDate(p.paid_at) < HEALTH_FROM) return;
+          const from = i ? addDays(fmtDate(pays[i - 1].period_end), 1) : fmtDate(p.period_start), to = fmtDate(p.period_end);
+          const actual = days.reduce((t, d) => { const wd = fmtDate(d.work_date), h = Number(d.hours) || 0; return d.status === "ok" && wd >= from && wd <= to ? t + (cap && h > cap ? cap : h) : t; }, 0);
+          const diff = Math.round((actual - Number(p.hours_worked || 0)) * 100) / 100;
+          if (Math.abs(diff) >= 0.05) diffs.push({ id, paid: p.paid_at, from, to, diff, money: diff * Number(p.hourly_wage || 0) });
+        });
+      });
+      byEmp.forEach((days, id) => {
+        const prof = profilesById.get(id);
+        if (!prof || prof.hourly_wage == null) return;
+        const l = ledger.get(id);
+        const miss = days.filter((d) => d.status === "missing_exit" && fmtDate(d.work_date) <= range.to && (!l || fmtDate(d.work_date) > l.lastEnd)).map((d) => fmtDate(d.work_date)).sort();
+        if (miss.length) open.push({ id, miss });
+      });
+      return { diffs, open };
+    }
+    function renderHealth() {
+      const box = $("py-health");
+      if (!box) return;
+      const { diffs, open } = healthCheck();
+      const parts = [];
+      if (diffs.length) parts.push(`<div class="pay-warn">${olvIcon("warning")}<span><b>ساعات تغيّرت بعد الدفع (لازم تسوية):</b><br>${diffs.map((x) => `• ${olvEsc(empName(x.id))}: دفعة ${shortDate(x.paid)} (عن ${shortDate(x.from)} لـ ${shortDate(x.to)}) ${x.diff > 0 ? "ناقصها" : "زايد فيها"} ${fmtHrs(Math.abs(x.diff))} ساعة = ${olvFormatMoney(Math.abs(x.money))} ${x.diff > 0 ? "له" : "عليه"}. ضيفها من «إضافات وخصومات» بملفه.`).join("<br>")}</span></div>`);
+      if (open.length) parts.push(`<div class="pay-warn">${olvIcon("warning")}<span><b>أيام ببصمة وحدة (ساعاتها مش محسوبة لحد ما تتصحح من <a href="attendance.html">الحضور</a>):</b><br>${open.map((x) => `• ${olvEsc(empName(x.id))}: ${x.miss.map(shortDate).join("، ")}`).join("<br>")}</span></div>`);
+      box.className = "py-health py-gen";
+      box.innerHTML = parts.join("") || `<div class="ok">${olvIcon("checkCircle")} الفحص التلقائي: ساعات كل الدفعات مطابقة للبصمة، وما في أيام ناقصة بصمة.</div>`;
+    }
     function ignoredList(r) { return [...(ignoredDays.get(r.profileId) || [])].filter((d) => d >= r.from && d <= range.to).sort(); }
     function prepayWarnings(r) {
       const w = [], m = punchDays.get(r.profileId) || new Map();
@@ -1009,6 +1052,10 @@
       const profileId = form.dataset.adjform;
       const amt = Number(form.amount.value);
       if (!Number.isFinite(amt) || amt <= 0) { olvToast("المبلغ غير صحيح", { type: "error" }); return; }
+      // حماية من التكرار: نفس المبلغ ونفس النوع موجود لهالموظف ولسا ما اندفع
+      const signed = amt * Number(form.kind.value);
+      const dup = adjFor(profileId).find((a) => Math.abs(Number(a.amount) - signed) < 0.005);
+      if (dup && !confirm(`في بند بنفس المبلغ (${olvFormatMoney(amt)}) لـ ${empName(profileId)} بتاريخ ${shortDate(fmtDate(dup.adj_date))} ولسا ما اندفع${dup.note ? `:\n«${dup.note}»` : ""}\n\nمتأكد بدك تضيفه كمان مرة؟`)) return;
       try {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
         const { error } = await window.supabaseClient.from("payroll_adjustments").insert({
@@ -1049,7 +1096,8 @@
       const ot = rows.reduce((t, x) => t + x.ot, 0);
       const wage = r.hourlyWage;
       // المكافأة الأسبوعية بنفس قاعدة الكشف الأساسي: 10 عن كل جمعة بالفترة، بدون خصم للغياب
-      const firstWork = rows.length ? rows[0].day : null;
+      const firstReal = rows.find((x) => x.h === null || x.hp > 0);
+      const firstWork = firstReal ? firstReal.day : null;
       const lastDone = addDays(olvWorkDay(new Date().toISOString()), -1), end = st.to > lastDone ? lastDone : st.to;
       let weeks = 0;
       if (firstWork) for (let f = firstWork > st.from ? firstWork : st.from; f <= end; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
