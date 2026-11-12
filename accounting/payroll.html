@@ -283,9 +283,12 @@
   .adv-emp:first-child{margin-top:4px;}
   .adv-emp b{font-size:15px; font-weight:800;}
   .adv-emp small{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
-  .adv-row{display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:center; gap:12px; min-height:52px; padding:6px 8px; border-top:1px solid var(--hair-soft);}
+  .adv-row{display:grid; grid-template-columns:auto minmax(0,1fr) auto auto auto; align-items:center; gap:12px; min-height:52px; padding:6px 8px; border-top:1px solid var(--hair-soft);}
   .adv-row .d{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--muted); white-space:nowrap;}
   .adv-row .nt{min-width:0; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted);}
+  .adv-row .src{min-height:40px; max-width:128px; font-size:12.5px; border-radius:10px; border:1px solid var(--hair-soft); background:var(--card, transparent); color:inherit; padding:0 6px;}
+  .adv-row .src-na{font-size:12px; color:var(--muted);}
+  @media (max-width:520px){.adv-row{grid-template-columns:auto minmax(0,1fr) auto auto; row-gap:2px} .adv-row .src,.adv-row .src-na{grid-column:2 / 4; grid-row:2; max-width:none}}
   .adv-row .am{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap;}
   .adv-row .del{min-height:44px; min-width:44px; display:inline-grid; place-items:center; border-radius:12px; background:none; border:0; color:var(--danger-hi); cursor:pointer;}
   .adv-row .del:hover{background:rgba(193,88,63,.12);}
@@ -367,6 +370,9 @@
               <div class="row2">
                 <div class="field"><label for="a-date">التاريخ</label><input type="date" id="a-date" required></div>
                 <div class="field"><label for="a-note">ملاحظة (اختياري)</label><input type="text" id="a-note" placeholder="مثال: سلفة طارئة"></div>
+              </div>
+              <div class="row2">
+                <div class="field"><label for="a-source">من وين انعطت السلفة؟</label><select id="a-source" required><option value="">اختار...</option><option value="drawer">من الدرج</option><option value="cash">نقد من خارج الدرج</option><option value="bank">بنك / كليك</option></select></div>
               </div>
               <div class="py-actions">
                 <button type="submit" class="btn go">تسجيل السلفة</button>
@@ -525,17 +531,30 @@
       if (!unsettledAdvances.length) { box.innerHTML = `<div class="py-empty">ما في سلف غير مسوّاة هلأ.</div>`; return; }
       const by = new Map();
       unsettledAdvances.forEach((a) => { if (!by.has(a.profile_id)) by.set(a.profile_id, []); by.get(a.profile_id).push(a); });
-      const groups = [...by.entries()].sort((a, b) => empName(a[0]).localeCompare(empName(b[0]), "ar"));
+      // الأحدث فوق: الموظفين حسب آخر سلفة، والسلف جوّا كل موظف من الأحدث للأقدم
+      const stamp = (a) => String(a.advance_date || "") + String(a.created_at || "");
+      by.forEach((list) => list.sort((x, y) => stamp(y).localeCompare(stamp(x))));
+      const groups = [...by.entries()].sort((a, b) => stamp(b[1][0]).localeCompare(stamp(a[1][0])));
       box.innerHTML = `<div class="adv-list">${groups.map(([pid, list]) => `
         <div class="adv-emp"><b>${olvEsc(empName(pid))}</b><small>${list.length} سلفة · ${olvFormatMoney(list.reduce((s, a) => s + Number(a.amount), 0))}</small></div>
         <ul class="adv-list">${list.map((a) => `
           <li class="adv-row"><span class="d">${shortDate(a.advance_date)}</span><span class="nt">${olvEsc(a.note) || ""}</span>
+            ${a.kind === "advance" ? `<select class="src" data-src="${a.id}" aria-label="مصدر السلفة"><option value=""${a.pay_source ? "" : " selected"}>مصدر غير محدد</option><option value="drawer"${a.pay_source === "drawer" ? " selected" : ""}>من الدرج</option><option value="cash"${a.pay_source === "cash" ? " selected" : ""}>نقد خارجي</option><option value="bank"${a.pay_source === "bank" ? " selected" : ""}>بنك / كليك</option></select>` : `<span class="src-na">ذمة</span>`}
             <span class="am">${olvFormatMoney(a.amount)}</span>
             <button type="button" class="del" data-del="${a.id}" aria-label="حذف السلفة">${olvIcon("trash")}</button></li>`).join("")}</ul>`).join("")}</div>`;
+      box.querySelectorAll("select[data-src]").forEach((sel) => sel.addEventListener("change", async () => {
+        sel.disabled = true;
+        try {
+          const { error } = await window.supabaseClient.rpc("set_salary_advance_source", { p_advance: sel.dataset.src, p_source: sel.value || null });
+          if (error) throw error;
+          olvToast("انعدّل مصدر السلفة", { type: "ok", icon: "check" });
+        } catch (err) { olvShowError(errBox, err); }
+        await loadUnsettledAdvances();
+      }));
       box.querySelectorAll("button[data-del]").forEach((btn) => {
         btn.addEventListener("click", () => olvUndoDelete(btn, {
           msg: "انحذفت السلفة",
-          run: () => window.supabaseClient.from("salary_advances").delete().eq("id", btn.dataset.del),
+          run: () => window.supabaseClient.rpc("delete_salary_advance", { p_advance: btn.dataset.del }),
           after: async () => { await loadUnsettledAdvances(); await runCompute(); },
         }));
       });
@@ -552,13 +571,12 @@
     $("advance-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       try {
-        const { data: { session } } = await window.supabaseClient.auth.getSession();
-        const { error } = await window.supabaseClient.from("salary_advances").insert({
-          profile_id: $("a-employee").value,
-          amount: Number($("a-amount").value || 0),
-          advance_date: $("a-date").value,
-          note: $("a-note").value.trim() || null,
-          created_by: session ? session.user.id : null,
+        const { error } = await window.supabaseClient.rpc("add_salary_advance", {
+          p_profile: $("a-employee").value,
+          p_amount: Number($("a-amount").value || 0),
+          p_date: $("a-date").value,
+          p_note: $("a-note").value.trim() || null,
+          p_source: $("a-source").value,
         });
         if (error) throw error;
         $("advance-form").reset();
