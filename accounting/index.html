@@ -1034,7 +1034,7 @@
     });
 
     // ترتيب وأحجام التايلات: بتنحفظ بحساب المستخدم (جدول user_tile_layout)
-    (async () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       const bento = document.getElementById("bento"), btn = document.getElementById("lay-btn"), rst = document.getElementById("lay-reset");
       if (!bento || !btn) return;
       const tiles = [...bento.querySelectorAll(":scope > .t")];
@@ -1078,7 +1078,7 @@
       paint();
       btn.addEventListener("click", () => { const on = bento.classList.toggle("lay-on"); btn.textContent = on ? "تم" : "ترتيب التايلات"; rst.hidden = !on; });
       rst.addEventListener("click", async () => { if (uid) { try { await db.from("user_tile_layout").delete().eq("user_id", uid); } catch (_) {} } location.reload(); });
-    })();
+    });
   </script>
   <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
 </body>
