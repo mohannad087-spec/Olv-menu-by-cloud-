@@ -756,7 +756,9 @@
       // الأيام المدفوعة: الساعات الباقية (غير المدفوعة) بتنحسب من آخر يوم لورا، وكل يوم قبلها مدفوع
       const paidDay = new Map();
       if (r.hourlyWage > 0) {
-        let left = Math.max(0, hoursBalance(r).left), acc = 0;
+        // الساعات اللي لسا ما اندفعت = الصافي المستحق ناقص المكافأة والإضافات (هدول بنود لحالهم، ما بينحسبوا بدل ساعات).
+        // قبل كان المدفوع كله ينقسم على سعر الساعة، فمصاري المكافأة كانت تبيّن كأنها ساعات مدفوعة وتشطب أيام لسا ما اندفعت
+        let left = Math.max(0, (r.net - r.bonus - Math.max(0, r.adjTotal)) / r.hourlyWage), acc = 0;
         const ds = [...map.keys()].filter((d) => d < today && map.get(d) > 0).sort().reverse();
         for (const d of ds) { const h = map.get(d); if (acc >= left - 0.005) paidDay.set(d, "paid"); else { acc += h; if (acc > left + 0.005) paidDay.set(d, "part"); } }
       }
@@ -775,7 +777,7 @@
         const note = todayH > 0 ? ` · واليوم ${fmtHrs(todayH)} (لسا ما اكتمل)` : "";
         return `<div class="wk"><div class="wk-head"><span>${wi === 0 ? "هالأسبوع" : "أسبوع"} · ${shortDate(ws)} لـ ${shortDate(addDays(ws, 6))}</span><strong>${fmtHrs(total)} ساعة<small> · ${worked} يوم${open ? ` · ${open} ناقص بصمة` : ""}${note}</small></strong></div><div class="wk-grid">${chips.join("")}</div></div>`;
       });
-      return `<div class="pf-card pad pf-weeks"><h4>ساعات الأسبوع · من السبت للجمعة</h4><p class="wk-legend">الخط الأحمر على اليوم = اندفعت ساعاته (نص خط = اندفع جزء منها)</p>${blocks.join("")}</div>`;
+      return `<div class="pf-card pad pf-weeks"><h4>ساعات الأسبوع · من السبت للجمعة</h4><p class="wk-legend">الخط الأحمر على اليوم = اندفعت ساعاته (نص خط = اندفع جزء منها). المكافأة بند لحاله وما بتنحسب بدل ساعات</p>${blocks.join("")}</div>`;
     }
     function calendarHtml(r) {
       const to = range.to;
@@ -905,24 +907,6 @@
       if (r.payAmount != null && Math.abs(r.payAmount - r.net) >= 0.005) w.push(`المبلغ اللي بدفعه ${olvFormatMoney(r.payAmount)} غير الصافي ${olvFormatMoney(r.net)}، والفرق بينتقل للدفعة الجاية.`);
       return w;
     }
-    // رصيد الساعات: الدفعات والسلف بتسدد الساعات أول شي، وأي زيادة عنها بتعتبر مكافأة مدفوعة
-    function hoursBalance(r) {
-      const hp = history.filter((p) => p.profile_id === r.profileId);
-      const w = r.hourlyWage;
-      // تسويات المكافأة/الإجازة بتروح لبند المكافأة، وباقي التسويات للساعات
-      const isBonusAdj = (a) => /مكافأة|إجازة/.test(a.note || "");
-      const adjs = adjFor(r.profileId);
-      const bonusAdj = adjs.filter(isBonusAdj).reduce((x, a) => x + Number(a.amount || 0), 0);
-      const hoursAdj = adjs.filter((a) => !isBonusAdj(a)).reduce((x, a) => x + Number(a.amount || 0), 0);
-      const earnedH = hp.reduce((x, p) => x + Number(p.hours_worked || 0), 0) + r.hours + hoursAdj / w;
-      const paidMoney = hp.reduce((x, p) => x + Number(p.net_amount || 0) + Number(p.advances_deducted || 0), 0) + r.advancesTotal;
-      const left = earnedH - paidMoney / w;
-      const pastBonus = hp.reduce((x, p) => { const m = /مكافأة\s*([\d.]+)/.exec(p.note || ""); return x + (m ? Number(m[1]) : 0); }, 0);
-      const bonusEarned = Math.max(0, pastBonus + r.bonus + bonusAdj);
-      const bonusPaid = Math.min(bonusEarned, Math.max(0, -left * w));
-      return { left, bonusEarned, bonusOwed: bonusEarned - bonusPaid };
-    }
-
     function fileHtml(r) {
       const noWage = r.hourlyWage == null;
       const prof = profilesById.get(r.profileId) || {};
