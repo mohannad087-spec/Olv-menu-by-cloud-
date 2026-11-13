@@ -159,6 +159,23 @@
     });
   }
 
+  // هل هاي عملية settle_table_tab رفضها السيرفر لأنه الحساب منسدّد أصلًا؟ (تكرار لعملية نجحت قبل)
+  // شرط النجاح: ولا واحد من الحسابات لسا مفتوح، وواحد على الأقل منسدّد ومكتمل
+  async function alreadySettledTab(item, reason) {
+    try {
+      if (!/\/rpc\/settle_table_tab/.test(item.url || "") || !/انسدّد|انلغى/.test(String(reason || ""))) return false;
+      const body = JSON.parse(item.body || "{}");
+      const ids = (body.p_sale_ids || []).filter((x) => /^[0-9a-f-]{36}$/i.test(String(x)));
+      if (!ids.length) return false;
+      const base = String(item.url).replace(/\/rpc\/settle_table_tab.*$/, "");
+      const r = await fetch(`${base}/sales_entries?select=id,tab_open,status&id=in.(${ids.join(",")})`, { headers: item.headers });
+      if (!r.ok) return false;
+      const rows = await r.json();
+      if (!Array.isArray(rows) || !rows.length) return false;
+      return rows.every((x) => !x.tab_open) && rows.some((x) => x.status === "completed");
+    } catch (e) { return false; }
+  }
+
   // يعيد إرسال كل الطلبات المخزَّنة بترتيبها الأصلي بالضبط (fetch مباشر،
   // بدون المرور بـofflineAwareFetch، حتى ما نعيد تخزينها من جديد لو
   // فشلت لنفس السبب). نتوقف عند أول عملية ما نجحت (شبكة لسا مقطوعة، أو
@@ -196,6 +213,13 @@
           const text = await res.text().catch(() => "");
           let reason = text;
           try { const j = JSON.parse(text); reason = j.message || j.hint || text; } catch (e) { /* نص عادي */ }
+          // «حاسب الطاولة» انسدّدت قبل (الطلب الأول وصل للسيرفر فعليًا ثم انقطع الرد): هاي إعادة مكررة، مش ضياع.
+          // منتأكد من السيرفر إنه الحساب فعلًا منسدّد، وبهالحالة منعتبر العملية ناجحة وبتنشال من القائمة لحالها
+          if (await alreadySettledTab(item, reason)) {
+            list.shift();
+            saveQueue(list);
+            continue;
+          }
           const failed = loadFailed();
           failed.push(Object.assign({}, item, { failed_at: new Date().toISOString(), status: res.status, reason: String(reason).slice(0, 300) }));
           saveFailed(failed);
