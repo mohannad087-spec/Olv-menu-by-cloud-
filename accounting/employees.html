@@ -128,6 +128,21 @@
   .em-card-acts{display:flex; gap:6px; flex-wrap:wrap;}
   .em-card-acts .btn{min-height:44px; padding:6px 12px; font-size:13px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;}
   .em-empty{padding:26px 8px; text-align:center; color:var(--muted);}
+  /* ملف أوراق الموظف: فورم رفع فوق، وتحته قائمة الأوراق (سطر لكل ورقة) */
+  #docs-group[hidden]{display:none;}
+  .dc-n{display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--ink-2); font-size:11.5px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .dc-n.warn{background:rgba(193,88,63,.18); color:var(--danger-hi);}
+  .dc-file{display:block; width:100%; min-height:48px; padding:10px; border:1px dashed var(--hair); border-radius:12px; background:var(--ink-2); color:var(--paper); font:inherit; font-size:14px;}
+  .dc-list{list-style:none; margin:14px 0 0; padding:0; display:grid; gap:8px;}
+  .dc-item{display:flex; align-items:center; gap:10px; background:var(--ink-3); border-radius:14px; padding:10px 12px; min-width:0;}
+  .dc-item .t{flex:1; min-width:0;}
+  .dc-item .t b{display:block; font-size:14.5px; font-weight:800; overflow-wrap:anywhere;}
+  .dc-item .t small{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
+  .dc-item .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; flex:none;}
+  .dc-exp{display:inline-flex; border-radius:999px; padding:1px 9px; font-size:11.5px; font-weight:700; background:var(--ink-2); color:var(--muted);}
+  .dc-exp.soon{background:rgba(var(--gold-rgb),.18); color:var(--gold-hi);}
+  .dc-exp.over{background:rgba(193,88,63,.18); color:var(--danger-hi);}
+  @media (max-width:520px){ .dc-item{flex-wrap:wrap;} .dc-item .t{flex-basis:100%;} .dc-item .btn{flex:1; justify-content:center;} }
   @media (prefers-reduced-motion: reduce){ .em-chip{transition:none;} .em-chip:active{transform:none;} }
 </style>
 </head>
@@ -196,6 +211,22 @@
             <button type="button" class="btn" id="edit-cancel">إلغاء</button>
           </div>
         </form>
+      </section>
+
+      <section class="group" id="docs-group" hidden>
+        <div class="em-form-head"><h2>أوراق <span id="docs-name-label"></span></h2><button class="btn small" type="button" id="docs-close">إغلاق</button></div>
+        <p class="em-note">هوية، عقد، شهادة صحية... صوّر الورقة بالموبايل أو اختار ملف (صورة أو PDF لحد 8 ميغا). الأوراق بيشوفها صاحب المطعم والمدير بس.</p>
+        <form id="docs-form">
+          <span class="em-label" id="d-type-label">نوع الورقة</span>
+          <div class="em-roles" id="d-types" role="radiogroup" aria-labelledby="d-type-label"></div>
+          <div class="row2">
+            <div class="field"><label for="d-title">ملاحظة (اختياري)</label><input type="text" id="d-title" maxlength="120" placeholder="مثال: وجه الهوية"></div>
+            <div class="field"><label for="d-exp">تاريخ الانتهاء (اختياري)</label><input type="date" id="d-exp"></div>
+          </div>
+          <div class="field"><label for="d-file">الملف</label><input class="dc-file" type="file" id="d-file" accept="image/*,application/pdf" multiple required></div>
+          <div class="em-actions"><button type="submit" class="btn go" id="docs-btn">رفع الورقة</button></div>
+        </form>
+        <ul class="dc-list" id="docs-list" aria-live="polite"></ul>
       </section>
 
       <div class="stats em-stats">
@@ -291,7 +322,7 @@
     function openAdd(open) {
       $("form-group").hidden = !open;
       $("add-toggle").setAttribute("aria-expanded", String(open));
-      if (open) { rolesFor($("f-roles"), "staff"); $("edit-group").hidden = true; $("f-name").focus(); }
+      if (open) { rolesFor($("f-roles"), "staff"); $("edit-group").hidden = true; closeDocs(); $("f-name").focus(); }
     }
     $("add-toggle").addEventListener("click", () => openAdd($("form-group").hidden));
     $("add-close").addEventListener("click", () => openAdd(false));
@@ -323,6 +354,7 @@
       const box = $("employees-box");
       box.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openEdit(b.dataset.edit)));
       box.querySelectorAll("[data-toggle]").forEach((b) => b.addEventListener("click", () => toggleActive(b.dataset.toggle, b.dataset.active === "true")));
+      box.querySelectorAll("[data-docs]").forEach((b) => b.addEventListener("click", () => openDocs(b.dataset.docs)));
       box.querySelectorAll("[data-reset]").forEach((b) => b.addEventListener("click", () => resetPassword(b.dataset.reset)));
     }
 
@@ -337,6 +369,131 @@
         if (error) throw error;
         (data || []).forEach((r) => { if (r.signedUrl && r.path) photoUrls[r.path] = r.signedUrl; });
       } catch (err) { console.warn("تعذّر تحميل صور الموظفين", err); }
+    }
+
+    // ---------------------------------------------------------------
+    // ملف أوراق الموظف: الملفات بباكت خاص employee-docs (روابط موقّعة مؤقتة بس)، وسطر لكل ورقة بجدول
+    // employee_documents. الصلاحيات بالسيرفر (schema-employee-documents.sql): المالك والمدير، والحذف للمالك.
+    // ---------------------------------------------------------------
+    const DOC_TYPES = { id: "هوية", contract: "عقد عمل", health: "شهادة صحية", clearance: "عدم محكومية", permit: "تصريح عمل", photo: "صورة شخصية", other: "غيره" };
+    const DOC_MAX = 8 * 1024 * 1024;
+    let docs = [];
+    let docsFor = null;
+    const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Amman" });
+    // حالة الانتهاء: over = خلصت، soon = بتخلص خلال 30 يوم
+    function expState(d) {
+      if (!d.expires_on) return "";
+      const left = Math.round((new Date(d.expires_on + "T00:00:00") - new Date(today() + "T00:00:00")) / 86400000);
+      return left < 0 ? "over" : left <= 30 ? "soon" : "ok";
+    }
+    async function loadDocs() {
+      try {
+        const { data, error } = await window.supabaseClient.from("employee_documents").select("*").order("created_at", { ascending: false });
+        if (error) throw error;
+        docs = data || [];
+      } catch (err) { docs = []; console.warn("تعذّر تحميل أوراق الموظفين", err); }
+    }
+    function docsBadge(id) {
+      const mine = docs.filter((d) => d.profile_id === id);
+      if (!mine.length) return "";
+      const warn = mine.some((d) => ["over", "soon"].includes(expState(d)));
+      return `<span class="dc-n${warn ? " warn" : ""}"${warn ? ' title="في ورقة منتهية أو قربت تنتهي"' : ""}>${mine.length}</span>`;
+    }
+    function renderDocs() {
+      const mine = docs.filter((d) => d.profile_id === docsFor);
+      $("docs-list").innerHTML = mine.length ? mine.map((d) => {
+        const st = expState(d);
+        const exp = d.expires_on ? `<span class="dc-exp ${st}">${st === "over" ? "منتهية " : st === "soon" ? "قربت تنتهي " : "لحد "}${olvEsc(d.expires_on)}</span>` : "";
+        return `<li class="dc-item">
+          <span class="t"><b>${DOC_TYPES[d.doc_type] || "ورقة"}${d.title ? " · " + olvEsc(d.title) : ""}</b>
+            <small>انرفعت ${olvEsc(String(d.created_at).slice(0, 10))} ${exp}</small></span>
+          <button type="button" class="btn small" data-open-doc="${d.id}">${olvIcon("externalLink")}<span>فتح</span></button>
+          ${myRole === "owner" ? `<button type="button" class="btn small danger" data-del-doc="${d.id}" aria-label="حذف الورقة">${olvIcon("trash")}<span>حذف</span></button>` : ""}
+        </li>`;
+      }).join("") : `<li class="em-empty">ما في أوراق مرفوعة لهالموظف لسا.</li>`;
+      $("docs-list").querySelectorAll("[data-open-doc]").forEach((b) => b.addEventListener("click", () => openDoc(b.dataset.openDoc)));
+      $("docs-list").querySelectorAll("[data-del-doc]").forEach((b) => b.addEventListener("click", () => deleteDoc(b.dataset.delDoc)));
+    }
+    function openDocs(id) {
+      const emp = employees.find((e) => e.id === id);
+      if (!emp) return;
+      docsFor = id;
+      openAdd(false); closeEdit();
+      $("docs-name-label").textContent = emp.full_name || "";
+      $("docs-form").reset();
+      const g = $("d-types");
+      g.dataset.value = "id";
+      g.innerHTML = Object.keys(DOC_TYPES).map((k) => `<button class="em-chip" type="button" role="radio" data-dtype="${k}" aria-checked="${k === "id"}">${DOC_TYPES[k]}</button>`).join("");
+      g.querySelectorAll("[data-dtype]").forEach((b) => b.addEventListener("click", () => {
+        g.dataset.value = b.dataset.dtype;
+        g.querySelectorAll("[data-dtype]").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+      }));
+      renderDocs();
+      $("docs-group").hidden = false;
+      $("docs-group").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    function closeDocs() { $("docs-group").hidden = true; docsFor = null; }
+    $("docs-close").addEventListener("click", closeDocs);
+
+    $("docs-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!docsFor) return;
+      const files = [...$("d-file").files];
+      if (!files.length) return;
+      const btn = $("docs-btn");
+      btn.disabled = true; btn.textContent = "جاري الرفع...";
+      $("err").style.display = "none";
+      let done = 0;
+      try {
+        for (const file of files) {
+          if (file.size > DOC_MAX) throw new Error(`«${file.name}» أكبر من 8 ميغا. صغّر الصورة أو استخدم ملف أصغر`);
+          const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+          const path = `${docsFor}/${crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)}.${ext}`;
+          const up = await window.supabaseClient.storage.from("employee-docs").upload(path, file, { contentType: file.type || undefined });
+          if (up.error) throw new Error("تعذّر رفع الملف: " + up.error.message);
+          const ins = await window.supabaseClient.from("employee_documents").insert({
+            profile_id: docsFor, doc_type: $("d-types").dataset.value || "other", title: $("d-title").value.trim() || null,
+            file_path: path, mime_type: file.type || null, size_bytes: file.size, expires_on: $("d-exp").value || null,
+          });
+          if (ins.error) throw ins.error;
+          done++;
+        }
+        olvToast(done > 1 ? `انرفعت ${done} أوراق` : "انرفعت الورقة", { type: "ok", icon: "check" });
+        $("docs-form").reset();
+      } catch (err) {
+        olvShowError($("err"), err);
+      } finally {
+        btn.disabled = false; btn.textContent = "رفع الورقة";
+        if (done) { await loadDocs(); renderDocs(); renderEmployees(); }
+      }
+    });
+
+    // فتح الورقة برابط موقّع بيخلص بعد دقيقتين. النافذة بتنفتح قبل الطلب حتى ما يمنعها المتصفح.
+    async function openDoc(id) {
+      const d = docs.find((x) => x.id === id);
+      if (!d) return;
+      const win = window.open("", "_blank");
+      try {
+        const { data, error } = await window.supabaseClient.storage.from("employee-docs").createSignedUrl(d.file_path, 120);
+        if (error) throw error;
+        if (win) { win.opener = null; win.location = data.signedUrl; } else window.location.href = data.signedUrl;
+      } catch (err) {
+        if (win) win.close();
+        olvShowError($("err"), new Error("تعذّر فتح الورقة: " + (err.message || err)));
+      }
+    }
+    async function deleteDoc(id) {
+      const d = docs.find((x) => x.id === id);
+      if (!d || !confirm(`حذف «${DOC_TYPES[d.doc_type] || "الورقة"}» نهائياً؟ ما بترجع بعد الحذف.`)) return;
+      try {
+        const { error } = await window.supabaseClient.from("employee_documents").delete().eq("id", id);
+        if (error) throw error;
+        // الملف نفسه بنحذفه بعد السطر؛ لو فشل بيضل ملف يتيم بالباكت الخاص وما بيأثر على شي
+        const rm = await window.supabaseClient.storage.from("employee-docs").remove([d.file_path]);
+        if (rm.error) console.warn("تعذّر حذف ملف الورقة", rm.error);
+        olvToast("انحذفت الورقة", { type: "info", icon: "trash" });
+        await loadDocs(); renderDocs(); renderEmployees();
+      } catch (err) { olvShowError($("err"), err); }
     }
 
     function cardHtml(e) {
@@ -357,6 +514,7 @@
           <div class="em-card-acts">
             <button type="button" class="btn small" data-edit="${e.id}">${olvIcon("note")}<span>تعديل</span></button>
             ${tel ? `<a class="btn small" href="tel:${olvEsc(tel)}" aria-label="اتصال">${olvIcon("phone")}</a>` : ""}
+            <button type="button" class="btn small" data-docs="${e.id}">${olvIcon("clipboard")}<span>الأوراق</span>${docsBadge(e.id)}</button>
             <button type="button" class="btn small" data-reset="${e.id}">كلمة سر جديدة</button>
             ${e.id !== myId ? `<button type="button" class="btn small ${e.is_active ? "danger" : ""}" data-toggle="${e.id}" data-active="${e.is_active}">${e.is_active ? "إيقاف" : "تفعيل"}</button>` : ""}
           </div>
@@ -368,7 +526,7 @@
         const { data, error } = await window.supabaseClient.from("profiles").select("*").order("full_name");
         if (error) throw error;
         employees = data || [];
-        await loadPhotoUrls();
+        await Promise.all([loadPhotoUrls(), loadDocs()]);
         renderEmployees();
       } catch (err) {
         olvShowError($("err"), err);
@@ -413,7 +571,7 @@
       const emp = employees.find((e) => e.id === id);
       if (!emp) return;
       editingId = id;
-      openAdd(false);
+      openAdd(false); closeDocs();
       $("edit-name-label").textContent = emp.full_name || "";
       $("e-name").value = emp.full_name || "";
       $("e-phone").value = emp.phone || "";
