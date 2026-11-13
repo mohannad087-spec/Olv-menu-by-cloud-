@@ -9,6 +9,20 @@ function buildCharcoalCard(sale, index, total) {
   g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
   g.textAlign = "center"; g.fillStyle = "#000"; g.textBaseline = "alphabetic";
   const STUB = 110; // الجزء الجانبي اللي بينقطع عند الاستخدام (يسار الورقة)
+  // علامة مائية: OLV كبيرة مائلة بنقاط متباعدة (الطابعة أبيض/أسود فبنستعمل halftone)
+  {
+    const m = nodeCreateCanvas(W, H), mg = m.getContext("2d");
+    mg.fillStyle = "#000"; mg.textAlign = "center"; mg.textBaseline = "middle";
+    mg.translate(STUB + 6 + (W - STUB - 12) / 2, H / 2 + 6); mg.rotate(-0.22);
+    mg.font = "bold 230px Tajawal-Bold"; mg.fillText("OLV", 0, 0);
+    const d = mg.getImageData(0, 0, W, H).data;
+    g.fillStyle = "#000";
+    for (let y = 8; y < H - 8; y += 6) {
+      for (let x = STUB + 10; x < W - 8; x += 6) {
+        if (d[((y * W) + x) * 4 + 3] > 128) g.fillRect(x, y, 2, 2);
+      }
+    }
+  }
   // إطار
   g.lineWidth = 4; g.strokeRect(6, 6, W - 12, H - 12);
   // خط القص المتقطع
