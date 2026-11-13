@@ -10,6 +10,7 @@ const { buildTicketBuffer, buildDrawerBuffer, kitchenCopies, receiptCopies } = r
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { saveCache, runLocalQueue, wasPrintedLocally } = require("./offline");
 const { buildReceiptTicket } = require("./ticket-receipt");
+const { buildCharcoalBuffer } = require("./charcoal");
 const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
 
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 4000);
@@ -27,7 +28,13 @@ async function loadPrinterSettings() {
   const { data, error } = await supabase
     .from("printer_settings").select("*").eq("id", 1).maybeSingle();
   if (error) throw error;
-  return data || {};
+  const settings = data || {};
+  // إعداد بطاقة الفحم (اختياري، بيرجع للافتراضي لو ما انحفظ)
+  try {
+    const cc = await supabase.from("app_settings").select("value").eq("key", "charcoal_card").maybeSingle();
+    if (cc.data) settings.charcoal_card = cc.data.value;
+  } catch (_) { /* مش حرج */ }
+  return settings;
 }
 
 async function loadSaleWithItems(saleId) {
@@ -199,6 +206,15 @@ async function processJob(job, settings, printers, saleCache) {
       : job.job_type === "receipt" && !job.reprint_no && !job.bill_kind ? receiptCopies() : 1;
     const buffer = buildTicketBuffer(canvas, openDrawer, copies);
     await sendToPrinter(target.ip, target.port || 9100, buffer);
+
+    // بطاقة فحم لكل أرجيلة مع فاتورة البيع الحقيقية (مش تجريبي ولا إعادة طباعة)؛ فشلها ما بيفشّل الفاتورة
+    if (job.job_type === "receipt" && !job.reprint_no && !job.bill_kind && !isTest && printer && printer.kind === "receipt") {
+      try {
+        const sale = saleCache.get(job.sale_id);
+        const cards = sale ? buildCharcoalBuffer(sale, settings) : null;
+        if (cards) { await sendToPrinter(target.ip, target.port || 9100, cards); log(`✓ بطاقات فحم انطبعت على "${label}"`); }
+      } catch (e) { log(`⚠ تعذّرت طباعة بطاقة الفحم على "${label}":`, e.message); }
+    }
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
     log(`✓ تمت الطباعة (${job.job_type}) على "${label}"${job.sale_id ? ` لعملية بيع ${job.sale_id}` : ""}${openDrawer ? " + أمر فتح الدرج" : ""}`);
