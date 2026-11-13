@@ -262,7 +262,7 @@
 
   .pm-tiles{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:20px;}
   @media (max-width:520px){ .pm-tiles{grid-template-columns:repeat(3,1fr);} }
-  /* «على حساب موظف»: ذمة بتنخصم من الراتب، بسعر التكلفة */
+  /* «على حساب موظف»: ذمة بتنخصم من الراتب، بسعر المنيو ناقص 15% */
   .staff-panel{display:flex; flex-direction:column; gap:12px;}
   .staff-panel label{font-size:12.5px; color:var(--muted); display:block; margin-bottom:5px;}
   .staff-panel select, .staff-panel input{width:100%; min-height:50px; font-size:17px; padding:8px 12px; border-radius:14px; border:1.5px solid var(--hair); background:var(--ink-3); color:var(--paper); font-family:inherit; box-sizing:border-box;}
@@ -1983,8 +1983,11 @@
       let method = "cash";
       let receivedCents = 0;
       let isSubmitting = false;
-      // «على حساب موظف»: الموظف + المبلغ المحمّل عليه (تكلفة الطلب، قابل للتعديل)
-      let staffList = null, staffId = "", staffAmount = "", staffCost = null, staffErr = "";
+      // «على حساب موظف»: الموظف + المبلغ المحمّل عليه = سعر المنيو ناقص 15% (قرار المالك 2026-11-13).
+      // قبل كان بسعر التكلفة، بس تكلفة أصناف كتير مش مسجّلة فكانت تنحسب قروش. المبلغ ثابت وما بيتعدّل بالإيد
+      const STAFF_DISCOUNT = 0.15;
+      let staffList = null, staffId = "", staffErr = "";
+      const staffAmount = (Math.round(exact * (1 - STAFF_DISCOUNT) * 100) / 100).toFixed(2);
       async function loadStaffInfo() {
         if (staffList) return;
         try {
@@ -1995,26 +1998,6 @@
           staffList = [];
           staffErr = /staff_names/.test(String(e && e.message)) ? "ميزة الحساب على الموظف لسا ما تفعّلت بقاعدة البيانات" : ((e && e.message) || "تعذّر تحميل الموظفين");
         }
-        // تكلفة الطلب: التكلفة اليدوية للصنف، وإلا من الوصفة (آخر سعر شراء). الأصناف بدون تكلفة معروفة بتنعد غير معروفة
-        const costOf = new Map();
-        try {
-          const ids = cartSnapshot.map((i) => i.productId);
-          const [ri, ing] = await Promise.all([
-            window.supabaseClient.from("product_ingredients").select("product_id, ingredient_id, quantity").in("product_id", ids),
-            window.supabaseClient.from("ingredients").select("id, unit_price"),
-          ]);
-          const price = new Map((ing.data || []).map((x) => [x.id, Number(x.unit_price || 0)]));
-          (ri.data || []).forEach((r) => costOf.set(r.product_id, (costOf.get(r.product_id) || 0) + Number(r.quantity) * (price.get(r.ingredient_id) || 0)));
-        } catch (_) { /* نكمل بالتكلفة اليدوية */ }
-        let known = 0; const unknown = [];
-        cartSnapshot.forEach((i) => {
-          const pr = products.find((x) => x.id === i.productId);
-          const man = pr ? Number(pr.cost_manual) : 0;
-          const c = man > 0 ? man : (costOf.get(i.productId) || 0);
-          if (c > 0) known += c * i.qty; else unknown.push(i.name);
-        });
-        staffCost = { known: Math.round(known * 100) / 100, unknown };
-        if (!staffAmount && known > 0) staffAmount = staffCost.known.toFixed(2);
       }
 
       const backdrop = document.createElement("div");
@@ -2072,10 +2055,10 @@
                 <select id="staff-sel"><option value="">${staffList ? "اختار الموظف…" : "بنحمّل…"}</option>${(staffList || []).map((u) => `<option value="${olvEsc(u.id)}"${u.id === staffId ? " selected" : ""}>${olvEsc(u.full_name)}</option>`).join("")}</select>
               </div>
               <div>
-                <label for="staff-amt">المبلغ عليه (سعر التكلفة)</label>
-                <input id="staff-amt" type="number" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(staffAmount)}" placeholder="0.00">
+                <label for="staff-amt">المبلغ عليه (سعر المنيو ناقص ${Math.round(STAFF_DISCOUNT * 100)}%)</label>
+                <input id="staff-amt" type="number" dir="ltr" value="${olvEsc(staffAmount)}" readonly aria-readonly="true">
               </div>
-              ${staffErr ? `<div class="staff-hint warn">${olvEsc(staffErr)}</div>` : staffCost && staffCost.unknown.length ? `<div class="staff-hint warn">تكلفة <b>${olvEsc(staffCost.unknown.join("، "))}</b> مش مسجّلة. المبلغ فوق بيشمل المعروف بس (${olvFormatMoney(staffCost.known)})، عدّله إذا لازم.</div>` : `<div class="staff-hint">بينسجّل ذمة على الموظف وبينخصم من راتبه، أو بيسدّد قبلها. ما بينزل بالدرج. بالصالة قد يحتاج رمز المدير.</div>`}
+              ${staffErr ? `<div class="staff-hint warn">${olvEsc(staffErr)}</div>` : `<div class="staff-hint">سعر المنيو ${olvFormatMoney(exact)} ناقص ${Math.round(STAFF_DISCOUNT * 100)}% خصم موظفين. بينسجّل ذمة على الموظف وبينخصم من راتبه، أو بيسدّد قبلها. ما بينزل بالدرج. بالصالة قد يحتاج رمز المدير.</div>`}
             </div>
           ` : ""}
           ${method === "cash" ? `
@@ -2113,7 +2096,6 @@
         });
         if (method === "staff") {
           modal.querySelector("#staff-sel").addEventListener("change", (e) => { staffId = e.target.value; modal.querySelector("#checkout-confirm").disabled = !(staffId && Number(staffAmount) > 0); });
-          modal.querySelector("#staff-amt").addEventListener("input", (e) => { staffAmount = e.target.value; modal.querySelector("#checkout-confirm").disabled = !(staffId && Number(staffAmount) > 0); });
         }
         if (method === "cash") {
           modal.querySelectorAll(".quick-amounts button").forEach((btn) => {
@@ -2154,7 +2136,7 @@
           if (method === "staff") {
             if (!navigator.onLine) throw new Error("الحساب على الموظف بيحتاج اتصال بالإنترنت. اختار كاش أو حاول لما يرجع النت");
             const who = (staffList || []).find((u) => u.id === staffId);
-            if (!who || !(Number(staffAmount) > 0)) throw new Error("اختار الموظف واكتب المبلغ");
+            if (!who || !(Number(staffAmount) > 0)) throw new Error("اختار الموظف");
             extraNotes = `على حساب الموظف ${who.full_name} — ${olvFormatMoney(Number(staffAmount))}`;
           }
           // خصم فوق حد الكاشير: السيرفر بيرفض، فبنسأل عن رمز المدير وبنعيد نفس البيع (client_ref بيمنع التكرار)
