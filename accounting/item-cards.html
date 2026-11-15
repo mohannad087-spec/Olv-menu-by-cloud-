@@ -55,6 +55,13 @@
   .ic-fg .full{grid-column:1 / -1;}
   @media (max-width:520px){ .ic-fg{grid-template-columns:minmax(0,1fr);} }
   .ic-fg .field{margin-bottom:12px;}
+  .ic-grid{width:100%; border-collapse:separate; border-spacing:0 6px; font-size:14px;}
+  .ic-grid th{font-weight:600; text-align:start; white-space:nowrap; padding-inline-end:8px;}
+  .ic-grid thead th{color:var(--muted); font-size:12.5px;}
+  .ic-grid td{width:34%; padding:0 3px;}
+  .ic-grid input{width:100%; min-width:0;}
+  .ic-grid [hidden]{display:none !important;}
+  .ic-calc{color:var(--muted); font-variant-numeric:tabular-nums; padding-inline-start:12px !important;}
   .ic-note{padding:10px 12px; border-radius:12px; background:var(--ink-3); font-size:13px; line-height:1.65; margin-bottom:12px;}
   .ic-prev{width:100%; max-height:150px; object-fit:contain; border-radius:12px; background:var(--ink-3); display:block; margin-top:8px;}
   .ic-foot{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-start; margin-top:6px; position:sticky; bottom:0; padding-top:10px; background:linear-gradient(transparent, var(--ink) 30%);}
@@ -414,16 +421,21 @@
           <div class="field"><label for="f-en">الاسم (إنجليزي)</label><input id="f-en" dir="ltr" maxlength="120" value="${esc(p ? p.name_en : "")}"${dis}></div>
           <div class="field"><label for="f-cat">القسم</label><select id="f-cat"${dis}>${menuCats.map((x) => `<option value="${esc(x.id)}"${x.id === c.id ? " selected" : ""}>${esc(x.ar)}</option>`).join("")}</select></div>
           <div class="field"><label for="f-sub">المجموعة داخل القسم (اختياري)</label><input id="f-sub" maxlength="120" value="${esc(p ? p.subcat_ar : "")}" placeholder="مثلًا: كريسبي"${dis}></div>
-          <div class="field"><label for="f-price">السعر</label><input id="f-price" type="number" inputmode="decimal" step="0.05" min="0" required value="${p ? esc(p.price) : ""}"${disP}></div>
-          <div class="field"><label><input type="checkbox" id="f-hallon"${hall0 ? " checked" : ""}${dis}> فرقية صالة (سعر الصالة غير السفري)</label>
-            <input id="f-hall" type="number" inputmode="decimal" step="0.05" min="0" value="${hall0 ? esc(hall0) : ""}" placeholder="سعر الصالة" aria-label="سعر الصالة"${hall0 ? "" : " hidden"}${dis}></div>
           <div class="field" data-opt="mealtoggle"><label><input type="checkbox" id="f-mealon"${p && (num(p.meal_price) || num(p.double_meal_price)) ? " checked" : ""}${disP}> هل الصنف إلو وجبة؟</label><div class="hint">فعّلها وحط سعر الوجبة الكلي؛ بتظهر أزرار «وجبة / وجبة دبل» عند الكاشير.</div></div>
-          <div class="field" data-opt="meal"><label for="f-meal">سعر الوجبة (الكلي)</label><input id="f-meal" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.meal_price ? esc(p.meal_price) : ""}" placeholder="بدون"${disP}></div>
-          <div class="field" data-opt="meal"><label for="f-dbl">سعر وجبة دبل (الكلي)</label><input id="f-dbl" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.double_meal_price ? esc(p.double_meal_price) : ""}" placeholder="بدون"${disP}></div>
+          <div class="field full ic-gridwrap"><label>الأسعار (السعر الكلي لكل حجم)</label>
+            <table class="ic-grid" aria-label="جدول الأسعار">
+              <thead><tr><th></th><th>سفري</th><th>صالة</th></tr></thead>
+              <tbody>
+                <tr><th>صغير (الأساسي)</th><td><input id="f-price" type="number" inputmode="decimal" step="0.05" min="0" required value="${p ? esc(p.price) : ""}" placeholder="السعر"${disP}></td><td><input id="f-hall" type="number" inputmode="decimal" step="0.05" min="0" value="${hall0 ? esc(hall0) : ""}" placeholder="نفس السفري" aria-label="سعر الصالة"${dis}></td></tr>
+                <tr data-opt="large"><th>وسط</th><td><input id="f-medium" type="number" inputmode="decimal" step="0.05" min="0" value="${p && mediumPrice(p) ? esc(mediumPrice(p)) : ""}" placeholder="بدون"${disP}></td><td class="ic-calc" data-calc="f-medium"></td></tr>
+                <tr data-opt="large"><th>كبير</th><td><input id="f-large" type="number" inputmode="decimal" step="0.05" min="0" value="${p && largePrice(p) ? esc(largePrice(p)) : ""}" placeholder="بدون"${disP}></td><td class="ic-calc" data-calc="f-large"></td></tr>
+                <tr data-opt="meal"><th>وجبة</th><td><input id="f-meal" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.meal_price ? esc(p.meal_price) : ""}" placeholder="بدون"${disP}></td><td class="ic-calc" data-calc="f-meal"></td></tr>
+                <tr data-opt="meal"><th>وجبة دبل</th><td><input id="f-dbl" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.double_meal_price ? esc(p.double_meal_price) : ""}" placeholder="بدون"${disP}></td><td class="ic-calc" data-calc="f-dbl"></td></tr>
+              </tbody>
+            </table>
+            <div class="hint">سعر الصالة بتكتبه بس للصغير (فاضي = نفس السفري). أسعار الصالة للأحجام والوجبات بتنحسب لحالها: سعر صالة الصغير + فرق الحجم، وهيك بيحاسبها الكاشير بالضبط.</div></div>
           <div class="field full"><label for="f-flav">النكهات (اختياري، 2 إلى 8)</label><input id="f-flav" maxlength="200" value="${esc(flavList(p).join("، "))}" placeholder="مثلًا: عادي، حار، باربكيو"${dis}${stock ? " disabled" : ""}><div class="hint">افصل بين النكهات بفاصلة. الزبون على المنيو والكاشير لازم يختار وحدة منها، وبتنطبع على تذكرة المطبخ.</div></div>
           <div class="field" data-opt="ice"><label>خيار الثلج</label><div class="hint">«مع ثلج / بدون ثلج» ظاهر عند الكاشير لهالصنف. السعر ما بتغير.</div></div>
-          <div class="field" data-opt="large"><label for="f-medium">سعر الوسط (الكلي)</label><input id="f-medium" type="number" inputmode="decimal" step="0.05" min="0" value="${p && mediumPrice(p) ? esc(mediumPrice(p)) : ""}" placeholder="بدون"${disP}><div class="hint">الأحجام: صغير = سعر الصنف، ثم وسط، ثم كبير. الوسط والكبير اختياريين.</div></div>
-          <div class="field" data-opt="large"><label for="f-large">سعر الكبير (الكلي)</label><input id="f-large" type="number" inputmode="decimal" step="0.05" min="0" value="${p && largePrice(p) ? esc(largePrice(p)) : ""}" placeholder="بدون"${disP}></div>
           <div class="field"><label for="f-img">رابط الصورة</label><input id="f-img" type="url" dir="ltr" value="${esc(p ? p.image_url : "")}" placeholder="https://..."${dis}>
             <img class="ic-prev" id="f-prev" alt="" ${p && p.image_url ? `src="${esc(p.image_url)}"` : "hidden"}></div>
           <div class="field full"><label for="f-desc">الوصف (عربي)</label><textarea id="f-desc" rows="2" maxlength="400"${dis}>${esc(p ? p.description : "")}</textarea></div>
@@ -446,7 +458,7 @@
       const onKey = (e) => { if (e.key === "Escape") askClose(); };
       document.addEventListener("keydown", onKey);
       bd.querySelector("#f-close").onclick = askClose;
-      const hallOn = bd.querySelector("#f-hallon"), hallIn = bd.querySelector("#f-hall");
+      const hallIn = bd.querySelector("#f-hall");
       // إظهار/إخفاء خيارات الوجبة والكبير حسب القسم (وبتتحدّث لما يتغيّر القسم)
       const hasLarge = !!(p && (largePrice(p) || mediumPrice(p)));
       const syncOpts = () => {
@@ -458,7 +470,17 @@
       bd.querySelector("#f-cat").addEventListener("change", syncOpts);
       bd.querySelector("#f-mealon").addEventListener("change", () => { syncOpts(); if (bd.querySelector("#f-mealon").checked) bd.querySelector("#f-meal").focus(); });
       syncOpts();
-      hallOn.addEventListener("change", () => { hallIn.hidden = !hallOn.checked; if (hallOn.checked) hallIn.focus(); else hallIn.value = ""; });
+      // أسعار الصالة المحسوبة (قراءة فقط): صالة الصغير (أو السفري) + فرق كل حجم
+      const calcHall = () => {
+        const base = Number(bd.querySelector("#f-price").value) || 0;
+        const hall = hallIn.value !== "" ? Number(hallIn.value) : base;
+        bd.querySelectorAll("[data-calc]").forEach((td) => {
+          const v = Number(bd.querySelector("#" + td.dataset.calc).value);
+          td.textContent = v > base && base > 0 ? money(r2(hall + v - base)) : "—";
+        });
+      };
+      bd.querySelectorAll("#f-price, #f-hall, #f-medium, #f-large, #f-meal, #f-dbl").forEach((el) => el.addEventListener("input", calcHall));
+      calcHall();
       bd.querySelector("#f-img").addEventListener("input", (e) => {
         const pv = bd.querySelector("#f-prev"); const v = e.target.value.trim();
         if (/^https?:\/\//i.test(v)) { pv.src = v; pv.hidden = false; } else pv.hidden = true;
@@ -548,7 +570,7 @@
           await saveCard(p, {
             name: nm.value.trim(), en: bd.querySelector("#f-en").value.trim(),
             cat: bd.querySelector("#f-cat").value, sub: bd.querySelector("#f-sub").value.trim(),
-            price: bd.querySelector("#f-price").value, hall: hallOn.checked ? hallIn.value : "",
+            price: bd.querySelector("#f-price").value, hall: hallIn.value,
             mealOn: bd.querySelector("#f-mealon").checked,
             meal: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-meal").value : "", dbl: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-dbl").value : "", medium: bd.querySelector("#f-medium").value, large: bd.querySelector("#f-large").value,
             flav: bd.querySelector("#f-flav").value,
