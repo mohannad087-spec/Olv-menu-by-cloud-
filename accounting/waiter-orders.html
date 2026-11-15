@@ -442,12 +442,13 @@
       });
     }
 
-    // خيارات الصنف: إضافات عادية + (كبير / وجبة / وجبة دبل) إذا الصنف إله إضافة مربوطة
+    // خيارات الصنف: إضافات عادية + (وسط / كبير / وجبة / وجبة دبل) إذا الصنف إله إضافة مربوطة. الوسط والكبير بيستبعدوا بعض، والوجبة والدبل بيستبعدوا بعض
+    // (group = مجموعة الاستبعاد)
     function optionsFor(p) {
       const byId = (id) => menu.addons.find((a) => a.id === id);
       const extras = menu.addons.filter((a) => !a.is_meal && !a.is_size && addonFits(a, p.category));
-      const kinds = [["large_addon_id", "كبير"], ["meal_addon_id", "وجبة"], ["double_addon_id", "وجبة دبل"]]
-        .map(([f, label]) => (p[f] && byId(p[f]) ? { addon: byId(p[f]), label, exclusive: f !== "large_addon_id" } : null)).filter(Boolean);
+      const kinds = [["medium_addon_id", "وسط", "size"], ["large_addon_id", "كبير", "size"], ["meal_addon_id", "وجبة", "meal"], ["double_addon_id", "وجبة دبل", "meal"]]
+        .map(([f, label, group]) => (p[f] && byId(p[f]) ? { addon: byId(p[f]), label, group } : null)).filter(Boolean);
       return { extras, kinds };
     }
 
@@ -479,7 +480,7 @@
           const o = all[+b.dataset.o];
           if (chosen.has(o.a.id)) chosen.delete(o.a.id);
           else {
-            if (o.kind && o.kind.exclusive) kinds.filter((k) => k.exclusive).forEach((k) => chosen.delete(k.addon.id));
+            if (o.kind) kinds.filter((k) => k.group === o.kind.group).forEach((k) => chosen.delete(k.addon.id));
             chosen.set(o.a.id, o.a);
           }
           render();
