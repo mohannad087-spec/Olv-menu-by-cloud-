@@ -294,7 +294,7 @@
     // ---------- التحميل ----------
     async function load() {
       const [p, a, m, pi, ing] = await Promise.all([
-        db.from("products").select("id, external_id, name, name_en, description, description_en, category, menu_cat, price, hall_price, meal_price, double_meal_price, large_addon_id, image_url, is_active, popular, sort_order").order("sort_order"),
+        db.from("products").select("id, external_id, name, name_en, description, description_en, category, menu_cat, price, hall_price, meal_price, double_meal_price, large_addon_id, medium_addon_id, image_url, is_active, popular, sort_order").order("sort_order"),
         db.from("addons").select("id, price, is_active, is_size"),
         db.from("app_settings").select("value").eq("key", "item_cards_mode").maybeSingle(),
         db.from("product_ingredients").select("product_id"),
@@ -314,6 +314,7 @@
       } catch (_) { menuOk = false; }
     }
     const largePrice = (p) => { const a = p.large_addon_id && addonById.get(p.large_addon_id); return a && a.is_active !== false ? r2(Number(p.price) + Number(a.price)) : null; };
+    const mediumPrice = (p) => { const a = p.medium_addon_id && addonById.get(p.medium_addon_id); return a && a.is_active !== false ? r2(Number(p.price) + Number(a.price)) : null; };
     const catName = (id) => (menuCats.find((c) => c.id === id) || {}).ar || id || "—";
     const active = () => products.filter((p) => p.is_active !== false);
     const editable = () => mode === "cards";
@@ -355,6 +356,7 @@
           if (r2(m.hallPrice || 0) !== r2(hall)) d.push(`الصالة بالمنيو ${m.hallPrice ? money(m.hallPrice) : "بدون"}`);
           if (!stock && r2(m.meal || 0) !== r2(meal)) d.push(`الوجبة بالمنيو ${m.meal ? money(m.meal) : "بدون"}`);
           if (!stock && r2(m.large || 0) !== r2(largePrice(p) || 0)) d.push(`الكبير بالمنيو ${m.large ? money(m.large) : "بدون"}`);
+          if (!stock && r2(m.medium || 0) !== r2(mediumPrice(p) || 0)) d.push(`الوسط بالمنيو ${m.medium ? money(m.medium) : "بدون"}`);
           if (d.length) out.push({ p, sev: "medium", text: `مش مطابق للمنيو: ${d.join("، ")}`, fix: stock ? null : { kind: "push", label: "انشر البطاقة" }, note: stock ? "صنف مخزون: بيتصلّح من «المنيو من المخزون»" : "" });
         } else if (menuOk && !stock) {
           out.push({ p, sev: "medium", text: "مش ظاهر بالمنيو", fix: { kind: "push", label: "انشره" } });

@@ -1176,18 +1176,25 @@
     };
     const mealOk = (item) => !isHookah(itemCat(item)) && OlvMeal.eligible(products.find((x) => x.id === item.productId));
     const mealKindOf = (item) => (["double", "meal"].find((k) => { const a = mealAddonFor(item, k); return a && item.addons.some((x) => x.id === a.id); })) || "";
-    // الحجم الكبير: إضافة «كبير» خاصة بالصنف (بتتولّد من المنيو، سعرها = فرق السعر)؛ الصغير = بدونها
-    const sizeAddonFor = (item) => {
+    // الأحجام: إضافة «وسط» وإضافة «كبير» خاصة بالصنف (بتتولّد من المنيو/البطاقة، سعرها = فرق السعر عن الصغير)؛ الصغير = بدونهم.
+    // الوسط والكبير بيستبعدوا بعض (حجم واحد فقط بالسطر)
+    const SIZE_FIELDS = { medium: "medium_addon_id", large: "large_addon_id" };
+    const sizeAddonFor = (item, kind = "large") => {
       const p = products.find((x) => x.id === item.productId);
-      return p && p.large_addon_id ? addons.find((a) => a.id === p.large_addon_id) || null : null;
+      const id = p && p[SIZE_FIELDS[kind]];
+      return id ? addons.find((a) => a.id === id) || null : null;
     };
-    const isLargeItem = (item) => { const a = sizeAddonFor(item); return !!a && item.addons.some((x) => x.id === a.id); };
-    function setSizeKind(idx, large) {
+    const sizeKinds = (item) => ["medium", "large"].filter((k) => sizeAddonFor(item, k));
+    const sizeKindOf = (item) => sizeKinds(item).find((k) => item.addons.some((x) => x.id === sizeAddonFor(item, k).id)) || "";
+    // kind: "" (صغير) | "medium" | "large"
+    function setSizeKind(idx, kind) {
       const item = OlvCart.all()[idx];
-      const a = item && sizeAddonFor(item);
-      if (!a) return;
-      const rest = item.addons.filter((x) => x.id !== a.id);
-      OlvCart.updateAt(idx, { addons: large ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
+      if (!item) return;
+      const sizeIds = sizeKinds(item).map((k) => sizeAddonFor(item, k).id);
+      const a = kind ? sizeAddonFor(item, kind) : null;
+      if (kind && !a) return;
+      const rest = item.addons.filter((x) => !sizeIds.includes(x.id));
+      OlvCart.updateAt(idx, { addons: a ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
       olvHaptic();
       renderCart();
     }
@@ -1849,9 +1856,9 @@
                 ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => olvEsc(a.name)).join("، ")}</div>` : ""}
                 ${item.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(item.note)}</div>` : ""}
               </div>
-              ${sizeAddonFor(item) || iceOk(item) ? `
+              ${sizeKinds(item).length || iceOk(item) ? `
               <div class="cart-item-opts">
-                ${sizeAddonFor(item) ? `<button type="button" class="opt-chip${isLargeItem(item) ? " on" : ""}" data-size="${idx}:${isLargeItem(item) ? 0 : 1}" aria-pressed="${isLargeItem(item)}">كبير</button>` : ""}
+                ${sizeKinds(item).map((k) => `<button type="button" class="opt-chip${sizeKindOf(item) === k ? " on" : ""}" data-size="${idx}:${sizeKindOf(item) === k ? "" : k}" aria-pressed="${sizeKindOf(item) === k}">${k === "medium" ? "وسط" : "كبير"}</button>`).join("")}
                 ${iceOk(item) ? `<button type="button" class="opt-chip${hasIce(item) ? " on" : ""}" data-ice="${idx}:${hasIce(item) ? 0 : 1}" aria-pressed="${hasIce(item)}">ثلج</button>` : ""}
               </div>` : ""}
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
@@ -1878,7 +1885,7 @@
           });
         });
         list.querySelectorAll("[data-size]").forEach((btn) => {
-          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k === "1"); });
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k); });
         });
         list.querySelectorAll("[data-ice]").forEach((btn) => {
           btn.addEventListener("click", () => { const [i, k] = btn.dataset.ice.split(":"); setIce(Number(i), k === "1"); });

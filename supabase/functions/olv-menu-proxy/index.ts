@@ -261,6 +261,25 @@ Deno.serve(async (req) => {
       // deno-lint-ignore no-explicit-any
       const sized = items.filter((it: any) => Number(it.large?.price) > Number(it.price) && (!cardsMode || !known.has(it.id)));
       const sizeAddonByItem: Record<string, string> = {};
+      // الحجم الوسط (بين الصغير والكبير): نفس الفكرة بإضافة «وسط» (external_id = sizem:<id>)
+      // deno-lint-ignore no-explicit-any
+      const midSized = items.filter((it: any) => Number(it.medium?.price) > Number(it.price) && (!cardsMode || !known.has(it.id)));
+      const midAddonByItem: Record<string, string> = {};
+      if (midSized.length) {
+        // deno-lint-ignore no-explicit-any
+        const mrows = midSized.map((it: any) => ({
+          external_id: `sizem:${it.id}`,
+          name: "وسط",
+          price: Math.round((Number(it.medium.price) - Number(it.price)) * 100) / 100,
+          is_active: true,
+          is_size: true,
+        }));
+        const { error: eam } = await admin.from("addons").upsert(mrows, { onConflict: "external_id" });
+        if (eam) return json({ ok: false, error: eam.message }, 500);
+        const { data: gotm, error: ebm } = await admin.from("addons").select("id, external_id").in("external_id", mrows.map((r: { external_id: string }) => r.external_id));
+        if (ebm) return json({ ok: false, error: ebm.message }, 500);
+        (gotm || []).forEach((g: { id: string; external_id: string }) => { midAddonByItem[g.external_id.slice(6)] = g.id; });
+      }
       if (sized.length) {
         // deno-lint-ignore no-explicit-any
         const rows = sized.map((it: any) => ({
@@ -289,6 +308,7 @@ Deno.serve(async (req) => {
           hall_price: Number(it.hallPrice) > 0 ? Number(it.hallPrice) : null,
         };
         row.large_addon_id = sizeAddonByItem[it.id] ?? null;
+        row.medium_addon_id = midAddonByItem[it.id] ?? null;
         if (it.image) row.image_url = abs(it.image);
         if (it.descAr) row.description = it.descAr;
         // حقول بطاقة المادة (ما كانت موجودة بنقطة البيع)
@@ -341,7 +361,7 @@ Deno.serve(async (req) => {
         // deno-lint-ignore no-explicit-any
         items: (menu.items || []).map((it: any) => ({
           id: it.id, ar: it.ar, cat: it.cat, price: it.price, hallPrice: it.hallPrice ?? null,
-          meal: it.meal?.price ?? null, large: it.large?.price ?? null, available: it.available !== false, source: it.source ?? null,
+          meal: it.meal?.price ?? null, medium: it.medium?.price ?? null, large: it.large?.price ?? null, available: it.available !== false, source: it.source ?? null,
         })),
       });
     }
@@ -351,10 +371,10 @@ Deno.serve(async (req) => {
     if (body.action === "push_cards") {
       if (profile.role === "staff") return json({ ok: false, error: "هذه العملية للمالك والمدير فقط" }, 403);
       const { data: rows, error: pe } = await admin.from("products")
-        .select("external_id, name, name_en, description, description_en, menu_cat, subcat_ar, subcat_en, price, hall_price, meal_price, large_addon_id, flavors, is_active, popular, image_url")
+        .select("external_id, name, name_en, description, description_en, menu_cat, subcat_ar, subcat_en, price, hall_price, meal_price, large_addon_id, medium_addon_id, flavors, is_active, popular, image_url")
         .not("external_id", "is", null);
       if (pe) return json({ ok: false, error: pe.message }, 500);
-      const largeIds = (rows || []).map((r) => r.large_addon_id).filter(Boolean);
+      const largeIds = (rows || []).flatMap((r) => [r.large_addon_id, r.medium_addon_id]).filter(Boolean);
       const largeBy: Record<string, number> = {};
       if (largeIds.length) {
         const { data: ad } = await admin.from("addons").select("id, price, is_active").in("id", largeIds);
@@ -374,6 +394,7 @@ Deno.serve(async (req) => {
           price: Number(r.price),
           hallPrice: Number(r.hall_price) > 0 ? Number(r.hall_price) : null,
           mealPrice: Number(r.meal_price) > 0 ? Number(r.meal_price) : null,
+          mediumPrice: r.medium_addon_id && largeBy[r.medium_addon_id] != null ? Math.round((Number(r.price) + largeBy[r.medium_addon_id]) * 100) / 100 : null,
           largePrice: r.large_addon_id && largeBy[r.large_addon_id] != null ? Math.round((Number(r.price) + largeBy[r.large_addon_id]) * 100) / 100 : null,
           flavors: r.flavors ? String(r.flavors).split("|").map((x: string) => x.trim()).filter(Boolean) : [],
           available: r.is_active !== false,

@@ -136,7 +136,7 @@
 
     <header class="ic-head">
       <h1>بطاقة المادة</h1>
-      <div class="ic-sub">بطاقة وحدة لكل صنف: الاسم والسعر والوجبة والكبير والصورة والتوفّر. لما تعتمدها بتصير هي المصدر للمنيو ونقطة البيع، فما بيختلف السعر بين المكانين.</div>
+      <div class="ic-sub">بطاقة وحدة لكل صنف: الاسم والسعر والوجبة والأحجام (صغير/وسط/كبير) والصورة والتوفّر. لما تعتمدها بتصير هي المصدر للمنيو ونقطة البيع، فما بيختلف السعر بين المكانين.</div>
     </header>
 
     <div class="ic-mode" id="mode-box" hidden></div>
@@ -228,7 +228,7 @@
         categories: (menu.categories || []).map((c) => ({ id: c.id, ar: c.ar })),
         items: (menu.items || []).map((it) => ({
           id: it.id, ar: it.ar, cat: it.cat, price: it.price, hallPrice: it.hallPrice ?? null,
-          meal: (it.meal && it.meal.price) ?? null, large: (it.large && it.large.price) ?? null, available: it.available !== false, source: it.source ?? null,
+          meal: (it.meal && it.meal.price) ?? null, medium: (it.medium && it.medium.price) ?? null, large: (it.large && it.large.price) ?? null, available: it.available !== false, source: it.source ?? null,
         })),
       };
     }
@@ -237,6 +237,11 @@
     const isStock = (p) => String(p.external_id || "").startsWith("stk-");
     const largePrice = (p) => {
       const a = p.large_addon_id && addonById.get(p.large_addon_id);
+      return a && a.is_active ? r2(Number(p.price) + Number(a.price)) : null;
+    };
+    // الحجم الوسط: نفس فكرة الكبير (إضافة سعرها = فرق الوسط عن الصغير)
+    const mediumPrice = (p) => {
+      const a = p.medium_addon_id && addonById.get(p.medium_addon_id);
       return a && a.is_active ? r2(Number(p.price) + Number(a.price)) : null;
     };
 
@@ -292,6 +297,7 @@
       cmp("price", "السعر", p.price, m.price);
       cmp("hall", "سعر الصالة", num(p.hall_price), num(m.hallPrice));
       cmp("meal", "سعر الوجبة", num(p.meal_price), num(m.meal));
+      cmp("medium", "سعر الوسط", mediumPrice(p), num(m.medium));
       cmp("large", "سعر الكبير", largePrice(p), num(m.large));
       if ((p.is_active !== false) !== m.available) out.push({ key: "active", label: "التوفّر", card: p.is_active !== false ? "متوفر" : "موقوف", menu: m.available ? "متوفر" : "موقوف" });
       return out;
@@ -362,7 +368,7 @@
 
     function cardHtml(p) {
       const d = diffs(p);
-      const meal = num(p.meal_price), dbl = num(p.double_meal_price), lg = largePrice(p), hall = num(p.hall_price);
+      const meal = num(p.meal_price), dbl = num(p.double_meal_price), lg = largePrice(p), md = mediumPrice(p), hall = num(p.hall_price);
       const ci = costOf(p);
       const costTag = ci && Number(p.price) > 0 ? `<span class="badge">تكلفة ${money(ci.cost)} · ربح ${Math.round((1 - ci.cost / Number(p.price)) * 100)}%</span>` : "";
       const img = p.image_url ? `<img loading="lazy" src="${esc(p.image_url)}" alt="">` : olvIcon("coffee");
@@ -370,7 +376,7 @@
         <span class="ic-thumb">${img}</span>
         <span class="ic-body">
           <span class="ic-name">${esc(p.name)}</span>
-          <span class="ic-prices"><b>${money(p.price)}</b>${hall ? `<span>صالة ${money(hall)}</span>` : ""}${meal ? `<span>وجبة ${money(meal)}</span>` : ""}${dbl ? `<span>دبل ${money(dbl)}</span>` : ""}${lg ? `<span>كبير ${money(lg)}</span>` : ""}</span>
+          <span class="ic-prices"><b>${money(p.price)}</b>${hall ? `<span>صالة ${money(hall)}</span>` : ""}${meal ? `<span>وجبة ${money(meal)}</span>` : ""}${dbl ? `<span>دبل ${money(dbl)}</span>` : ""}${md ? `<span>وسط ${money(md)}</span>` : ""}${lg ? `<span>كبير ${money(lg)}</span>` : ""}</span>
           <span class="ic-tags">
             ${p.is_active === false ? `<span class="badge">موقوف</span>` : ""}
             ${isStock(p) ? `<span class="badge">من المخزون</span>` : ""}
@@ -416,6 +422,7 @@
           <div class="field" data-opt="meal"><label for="f-dbl">سعر وجبة دبل (الكلي)</label><input id="f-dbl" type="number" inputmode="decimal" step="0.05" min="0" value="${p && p.double_meal_price ? esc(p.double_meal_price) : ""}" placeholder="بدون"${disP}></div>
           <div class="field full"><label for="f-flav">النكهات (اختياري، 2 إلى 8)</label><input id="f-flav" maxlength="200" value="${esc(flavList(p).join("، "))}" placeholder="مثلًا: عادي، حار، باربكيو"${dis}${stock ? " disabled" : ""}><div class="hint">افصل بين النكهات بفاصلة. الزبون على المنيو والكاشير لازم يختار وحدة منها، وبتنطبع على تذكرة المطبخ.</div></div>
           <div class="field" data-opt="ice"><label>خيار الثلج</label><div class="hint">«مع ثلج / بدون ثلج» ظاهر عند الكاشير لهالصنف. السعر ما بتغير.</div></div>
+          <div class="field" data-opt="large"><label for="f-medium">سعر الوسط (الكلي)</label><input id="f-medium" type="number" inputmode="decimal" step="0.05" min="0" value="${p && mediumPrice(p) ? esc(mediumPrice(p)) : ""}" placeholder="بدون"${disP}><div class="hint">الأحجام: صغير = سعر الصنف، ثم وسط، ثم كبير. الوسط والكبير اختياريين.</div></div>
           <div class="field" data-opt="large"><label for="f-large">سعر الكبير (الكلي)</label><input id="f-large" type="number" inputmode="decimal" step="0.05" min="0" value="${p && largePrice(p) ? esc(largePrice(p)) : ""}" placeholder="بدون"${disP}></div>
           <div class="field"><label for="f-img">رابط الصورة</label><input id="f-img" type="url" dir="ltr" value="${esc(p ? p.image_url : "")}" placeholder="https://..."${dis}>
             <img class="ic-prev" id="f-prev" alt="" ${p && p.image_url ? `src="${esc(p.image_url)}"` : "hidden"}></div>
@@ -441,7 +448,7 @@
       bd.querySelector("#f-close").onclick = askClose;
       const hallOn = bd.querySelector("#f-hallon"), hallIn = bd.querySelector("#f-hall");
       // إظهار/إخفاء خيارات الوجبة والكبير حسب القسم (وبتتحدّث لما يتغيّر القسم)
-      const hasLarge = !!(p && largePrice(p));
+      const hasLarge = !!(p && (largePrice(p) || mediumPrice(p)));
       const syncOpts = () => {
         const cat = bd.querySelector("#f-cat").value;
         const mealOn = bd.querySelector("#f-mealon").checked;
@@ -543,7 +550,7 @@
             cat: bd.querySelector("#f-cat").value, sub: bd.querySelector("#f-sub").value.trim(),
             price: bd.querySelector("#f-price").value, hall: hallOn.checked ? hallIn.value : "",
             mealOn: bd.querySelector("#f-mealon").checked,
-            meal: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-meal").value : "", dbl: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-dbl").value : "", large: bd.querySelector("#f-large").value,
+            meal: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-meal").value : "", dbl: bd.querySelector("#f-mealon").checked ? bd.querySelector("#f-dbl").value : "", medium: bd.querySelector("#f-medium").value, large: bd.querySelector("#f-large").value,
             flav: bd.querySelector("#f-flav").value,
             img: bd.querySelector("#f-img").value.trim(), desc: bd.querySelector("#f-desc").value.trim(), descEn: bd.querySelector("#f-descen").value.trim(),
             active: bd.querySelector("#f-active").checked, pop: bd.querySelector("#f-pop").checked,
@@ -568,13 +575,15 @@
       const hall = num(f.hall);
       if (f.hall !== "" && hall == null) throw new Error("سعر الصالة غير صحيح");
       if (hall != null && hall < price) throw new Error("سعر الصالة أقل من سعر السفري، تأكد");
-      const meal = stock ? null : num(f.meal), dbl = stock ? null : num(f.dbl), large = stock ? null : num(f.large);
+      const meal = stock ? null : num(f.meal), dbl = stock ? null : num(f.dbl), large = stock ? null : num(f.large), medium = stock ? null : num(f.medium);
       if (!stock) {
         if (f.mealOn && meal == null) throw new Error("اكتب سعر الوجبة، أو شيل علامة «إلو وجبة»");
         if (meal != null && meal <= price) throw new Error("سعر الوجبة لازم يكون أكبر من سعر الصنف لحاله");
         if (dbl != null && meal != null && dbl <= meal) throw new Error("سعر وجبة الدبل لازم يكون أكبر من سعر الوجبة");
         if (dbl != null && dbl <= price) throw new Error("سعر وجبة الدبل لازم يكون أكبر من سعر الصنف لحاله");
         if (large != null && large <= price) throw new Error("سعر الكبير لازم يكون أكبر من سعر الصنف لحاله");
+        if (medium != null && medium <= price) throw new Error("سعر الوسط لازم يكون أكبر من سعر الصنف لحاله");
+        if (medium != null && large != null && medium >= large) throw new Error("سعر الوسط لازم يكون أقل من سعر الكبير");
       }
       if (f.img && !/^https?:\/\//i.test(f.img) && !/^assets\//i.test(f.img)) throw new Error("رابط الصورة لازم يبدأ بـ https://");
       const cat = menuCats.find((c) => c.id === f.cat);
@@ -604,17 +613,18 @@
         id = data.id; p = { id, external_id: data.external_id };
       }
       if (!stock) {
-        // الكبير: إضافة خاصة بالصنف سعرها = الفرق (نفس طريقة المزامنة)، والسيرفر (record_sale) بيحسب السعر منها
-        const ext = "size:" + p.external_id;
-        if (large != null) {
-          const { data: a, error: ea } = await db.from("addons").upsert(
-            { external_id: ext, name: "كبير", price: r2(large - price), is_active: true, is_size: true }, { onConflict: "external_id" }).select("id").single();
-          if (ea) throw ea;
-          const { error: eb } = await db.from("products").update({ large_addon_id: a.id }).eq("id", id);
-          if (eb) throw eb;
-        } else if (p.large_addon_id) {
-          await db.from("addons").update({ is_active: false }).eq("id", p.large_addon_id);
-          await db.from("products").update({ large_addon_id: null }).eq("id", id);
+        // الوسط والكبير: إضافة خاصة بالصنف سعرها = الفرق عن الصغير (نفس طريقة المزامنة)، والسيرفر (record_sale) بيحسب السعر منها
+        for (const [size, val, field, label, prefix] of [["large", large, "large_addon_id", "كبير", "size:"], ["medium", medium, "medium_addon_id", "وسط", "sizem:"]]) {
+          if (val != null) {
+            const { data: a, error: ea } = await db.from("addons").upsert(
+              { external_id: prefix + p.external_id, name: label, price: r2(val - price), is_active: true, is_size: true }, { onConflict: "external_id" }).select("id").single();
+            if (ea) throw ea;
+            const { error: eb } = await db.from("products").update({ [field]: a.id }).eq("id", id);
+            if (eb) throw (/medium_addon_id/.test(eb.message || "") ? new Error("لازم تشغّل ملف accounting/schema-product-medium-size.sql بـ Supabase مرة وحدة قبل ما ينحفظ الحجم الوسط") : eb);
+          } else if (p[field]) {
+            await db.from("addons").update({ is_active: false }).eq("id", p[field]);
+            await db.from("products").update({ [field]: null }).eq("id", id);
+          }
         }
         // الوجبة / الدبل: دالة السيرفر save_meal_price هي اللي بتنشئ الإضافة وبتتحقق من السعر
         const same = (k, v) => (num(k) || null) === (v || null);
