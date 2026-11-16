@@ -462,6 +462,12 @@
       <p class="cmp-note" id="cmp-note"></p>
     </section>
 
+    <section class="group s-cmp" id="staff-sec" hidden>
+      <h2>على حساب الموظفين <small style="font-weight:500;color:var(--muted)">(بالتكلفة، بتنخصم من الراتب، مش من المبيعات)</small></h2>
+      <ul class="cmp-rows" id="staff-rows"></ul>
+      <div><button class="btn" type="button" id="staff-copy">نسخ الكشف</button></div>
+    </section>
+
     <div class="s-grid">
       <section class="group">
         <h2 id="chart-title"></h2>
@@ -494,6 +500,7 @@
         <button class="s-chip" type="button" data-filter="cash" aria-pressed="false">كاش <span class="n" data-n="cash"></span></button>
         <button class="s-chip" type="button" data-filter="card" aria-pressed="false">شبكة <span class="n" data-n="card"></span></button>
         <button class="s-chip" type="button" data-filter="delivery" aria-pressed="false">توصيل <span class="n" data-n="delivery"></span></button>
+        <button class="s-chip" type="button" data-filter="staff" aria-pressed="false">على حساب الموظفين <span class="n" data-n="staff"></span></button>
         <button class="s-chip" type="button" data-filter="voided" aria-pressed="false">الملغاة <span class="n" data-n="voided"></span></button>
       </div>
       <div id="orders"><p class="empty-state">جاري التحميل...</p></div>
@@ -575,6 +582,13 @@
     }
     function ampm(r) { return r.created_at ? (new Date(r.created_at).getHours() < 12 ? "ص" : "م") : ""; }
 
+    // طلب «على حساب موظف»: مبلغه صفر بالمبيعات، والذمة (بالتكلفة) مكتوبة بالملاحظات: «على حساب الموظف <اسم> — <مبلغ>»
+    const STAFF_RE = /على حساب الموظف\s+(.+?)\s+—\s+([\d.]+)/;
+    const staffAcct = (r) => {
+      if (Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount) !== 0) return null;
+      const m = STAFF_RE.exec(r.notes || "");
+      return m ? { name: m[1], amount: Number(m[2]) } : null;
+    };
     const saleTotal = (r) => Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
     function payOf(r) {
       const parts = ["cash", "card", "delivery"].filter((k) => Number(r[k + "_amount"]) > 0);
@@ -657,8 +671,11 @@
     }
 
     function renderAll(prevTotal, prev) {
-      const done = rows.filter((r) => r.status !== "voided");
+      // طلبات الموظفين بنفصلها: ما بتنعدّ بعدد الطلبات ولا بمتوسط الفاتورة، وإلها قسم لحاله
+      const staffRows = rows.filter((r) => r.status !== "voided" && staffAcct(r));
+      const done = rows.filter((r) => r.status !== "voided" && !staffAcct(r));
       const voided = rows.filter((r) => r.status === "voided");
+      renderStaff(staffRows);
       const total = done.reduce((s, r) => s + saleTotal(r), 0);
       const single = range.from === range.to;
       // صورة تقرير اليوم (نفس زر الرئيسية والخزينة) بتطلع بس لما الفترة يوم واحد
@@ -694,6 +711,34 @@
       renderTopItems(done);
       renderOrders(true);
     }
+
+    // ---------------------------------------------------------------
+    // قسم «على حساب الموظفين»: مجموع كل موظف + نسخ كشف مفصّل (للفترة المختارة)
+    // ---------------------------------------------------------------
+    let staffList = [];
+    function renderStaff(list) {
+      staffList = list;
+      const box = $("staff-sec");
+      if (!list.length) { box.hidden = true; return; }
+      const by = {};
+      list.forEach((r) => { const a = staffAcct(r); const e = by[a.name] = by[a.name] || { n: 0, sum: 0 }; e.n++; e.sum += a.amount; });
+      const all = Object.values(by).reduce((x, e) => x + e.sum, 0);
+      box.hidden = false;
+      $("staff-rows").innerHTML = Object.entries(by).sort((a, b) => b[1].sum - a[1].sum).map(([nm, e]) =>
+        `<li><i class="dot"></i><span class="nm">${olvEsc(nm)} <small style="color:var(--muted)">(${e.n} طلب)</small></span><span class="now">${olvFormatMoney(e.sum)}</span></li>`).join("")
+        + `<li><i class="dot net"></i><span class="nm"><b>المجموع</b> <small style="color:var(--muted)">(${list.length} طلب)</small></span><span class="now"><b>${olvFormatMoney(all)}</b></span></li>`;
+    }
+    $("staff-copy").addEventListener("click", async () => {
+      const by = {};
+      staffList.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).forEach((r) => { (by[staffAcct(r).name] = by[staffAcct(r).name] || []).push(r); });
+      const out = [`كشف حساب الموظفين — ${range.label} (${shortDate(range.from)} – ${shortDate(range.to)})`];
+      Object.entries(by).forEach(([nm, rs]) => {
+        out.push("", `${nm}: ${olvFormatMoney(rs.reduce((x, r) => x + staffAcct(r).amount, 0))}`);
+        rs.forEach((r) => out.push(`  ${shortDate(r.entry_date)} — ${itemsText(r)} — ${olvFormatMoney(staffAcct(r).amount)}`));
+      });
+      try { await navigator.clipboard.writeText(out.join("\n")); olvToast("انسخ الكشف، الصقه بالواتساب", { icon: "check" }); }
+      catch (e) { olvToast("ما قدرت أنسخ", { icon: "x" }); }
+    });
 
     // ---------------------------------------------------------------
     // الرسم: يوم واحد ← ساعة بساعة، أكتر ← يوم بيوم (أعمدة، لأن القيم منفصلة)
@@ -935,6 +980,8 @@
     }
     function matches(r) {
       if (filter === "voided" && r.status !== "voided") return false;
+      if (filter === "staff") { if (r.status === "voided" || !staffAcct(r)) return false; }
+      else if (filter === "all" && staffAcct(r) && !query) return false; // طلبات الموظفين مخفية من القائمة العامة (إلها قسمها وحبّتها)
       if (["cash", "card", "delivery"].includes(filter) && (r.status === "voided" || Number(r[filter + "_amount"]) <= 0)) return false;
       if (!query) return true;
       const q = query.replace(/^#/, "");
@@ -975,7 +1022,7 @@
         <button class="order-row" type="button" aria-expanded="${openId === r.id}" aria-controls="od-${r.id}">
           <span class="tm">${timeOf(r)} <small style="font-weight:500; color:var(--muted); font-size:11px;">${ampm(r)}</small>${r.doc_no || r.order_no ? `<span class="no">${r.doc_no ? olvEsc(olvDocNo("sale", r.doc_no)) : ""}${r.doc_no && r.order_no ? " · " : ""}${r.order_no ? "#" + olvEsc(r.order_no) : ""}</span>` : ""}</span>
           <span class="it"><span class="it-names" title="${olvEsc(itemsText(r))}">${olvEsc(itemsText(r))}</span>${meta.length ? `<span class="it-meta">${meta.join("")}</span>` : ""}</span>
-          <span class="am"><b>${olvFormatMoney(saleTotal(r))}</b>${payHtml}</span>
+          <span class="am">${staffAcct(r) ? `<b>${olvFormatMoney(staffAcct(r).amount)}</b><span class="pm">${olvEsc(staffAcct(r).name)}</span>` : `<b>${olvFormatMoney(saleTotal(r))}</b>${payHtml}`}</span>
           ${olvIcon("chevronDown", "chev")}
         </button>
         <div class="order-detail" id="od-${r.id}" ${openId === r.id ? "" : "hidden"}>${openId === r.id ? detailHtml(r) : ""}</div>
@@ -985,9 +1032,10 @@
     function renderOrders(reset) {
       if (reset) shown = LIST_STEP;
       // عدّادات حبوب التصفية
-      const cnt = { cash: 0, card: 0, delivery: 0, voided: 0 };
+      const cnt = { cash: 0, card: 0, delivery: 0, voided: 0, staff: 0 };
       rows.forEach((r) => {
         if (r.status === "voided") { cnt.voided++; return; }
+        if (staffAcct(r)) { cnt.staff++; return; }
         ["cash", "card", "delivery"].forEach((k) => { if (Number(r[k + "_amount"]) > 0) cnt[k]++; });
       });
       document.querySelectorAll("#filter-chips [data-n]").forEach((el) => { el.textContent = cnt[el.dataset.n] || ""; });
@@ -1005,7 +1053,7 @@
       const dayTotals = {};
       list.forEach((r) => {
         const d = dayTotals[r.entry_date] = dayTotals[r.entry_date] || { sum: 0, n: 0 };
-        if (r.status !== "voided") { d.sum += saleTotal(r); d.n++; }
+        if (r.status !== "voided" && !(staffAcct(r) && filter !== "staff")) { d.sum += saleTotal(r); d.n++; }
       });
       const sorted = list.slice().sort((a, b) => (a.entry_date === b.entry_date
         ? String(b.created_at).localeCompare(String(a.created_at)) : b.entry_date.localeCompare(a.entry_date)));
