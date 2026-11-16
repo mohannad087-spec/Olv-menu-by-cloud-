@@ -160,7 +160,7 @@ function olvToday() {
 // المصروفات اللي انحسبت فعلياً بين تاريخين (شامل): الكاش بتاريخ المصروف، والذمة بتاريخ ما انسدّدت (settled_at).
 // الذمة اللي لسا ما اندفعت ما بتنحسب لا بالمبيعات ولا بالأرباح. بترجع {data, error} وكل صف عنده expense_date = اليوم اللي انحسب فيه.
 async function olvExpensesPaid(db, select, from, to) {
-  const cols = select + ", expense_date, settled_at";
+  const cols = select + ", id, expense_date, settled_at";
   const nextDay = new Date(new Date(to + "T00:00:00Z").getTime() + 864e5).toISOString().slice(0, 10);
   const [cashR, settledR] = await Promise.all([
     db.from("expenses").select(cols).eq("payment_type", "cash").is("settled_at", null).gte("expense_date", from).lte("expense_date", to),
@@ -169,7 +169,24 @@ async function olvExpensesPaid(db, select, from, to) {
   const error = cashR.error || settledR.error;
   if (error) return { data: null, error };
   const settled = (settledR.data || []).map((r) => ({ ...r, expense_date: String(r.settled_at).slice(0, 10) }));
-  return { data: [...(cashR.data || []), ...settled], error: null };
+  const cash = cashR.data || [];
+  // فاتورة مشتريات آجلة/جزئية: مصروفها بينسجّل بكامل قيمتها، بس الجزء اللي لسا على المحل للمورّد ما اندفع فما بنحسبه.
+  // بنطرح الباقي (من purchase_invoice_settlement) من مبلغ المصروف. لو الاستعلام فشل منكمل بدون تعديل.
+  try {
+    const ids = cash.map((r) => r.id);
+    const owed = {};
+    for (let i = 0; i < ids.length; i += 150) {
+      const inv = await db.from("purchase_invoices").select("id, expense_id, status, payment_type").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash");
+      const list = (inv.data || []).filter((x) => x.status !== "voided");
+      if (!list.length) continue;
+      const st = await db.from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", list.map((x) => x.id));
+      const rem = {};
+      (st.data || []).forEach((x) => { rem[x.invoice_id] = Number(x.remaining) || 0; });
+      list.forEach((x) => { if (x.id in rem) owed[x.expense_id] = rem[x.id]; });
+    }
+    cash.forEach((r) => { if (owed[r.id] > 0) r.amount = Math.max(Number(r.amount) - owed[r.id], 0); });
+  } catch (e) { /* بدون تعديل */ }
+  return { data: [...cash, ...settled], error: null };
 }
 
 // موافقة المدير برمز: لو عملية الكاشير انرفضت لأنها تحتاج مدير (إلغاء بعد المهلة أو خصم فوق حدّه)،
