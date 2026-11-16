@@ -790,7 +790,7 @@
       const [sales, inv, loose] = await Promise.all([
         db.from("sales_entries").select("entry_date, cash_amount, card_amount, delivery_amount, status")
           .gte("entry_date", y).lte("entry_date", t).limit(5000),
-        db.from("purchase_invoices").select("invoice_date, total_amount, status")
+        db.from("purchase_invoices").select("invoice_date, total_amount, paid_amount, payment_type, status")
           .gte("invoice_date", y).lte("invoice_date", t).limit(2000),
         db.from("purchases").select("purchase_date, total_amount").is("invoice_id", null)
           .gte("purchase_date", y).lte("purchase_date", t).limit(5000),
@@ -799,13 +799,18 @@
       if (sales.error) { $("cmp").hidden = true; return; }
       const sum = (list, dk, day, val) => (list || []).filter((r) => r[dk] === day).reduce((a, r) => a + val(r), 0);
       const buyOk = !inv.error && !loose.error;
-      const buy = (day) => sum((inv.data || []).filter((r) => r.status !== "voided"), "invoice_date", day, (r) => Number(r.total_amount))
+      // الآجل (ذمة) مش مدفوع لسا، فما بنخصمه من المبيعات: المشتريات هون = المدفوع بس، والآجل بسطر لحاله
+      const okInv = (inv.data || []).filter((r) => r.status !== "voided");
+      const owedOf = (r) => r.payment_type === "credit" ? Number(r.total_amount) : Math.max(Number(r.total_amount) - Number(r.paid_amount || 0), 0);
+      const buy = (day) => sum(okInv, "invoice_date", day, (r) => Number(r.total_amount) - owedOf(r))
         + sum(loose.data, "purchase_date", day, (r) => Number(r.total_amount));
+      const owe = (day) => sum(okInv, "invoice_date", day, owedOf);
       const done = (sales.data || []).filter((r) => r.status !== "voided");
       cmpData = {
         t, y, buyOk,
         sales: { now: sum(done, "entry_date", t, saleTotal), was: sum(done, "entry_date", y, saleTotal) },
         buy: buyOk ? { now: buy(t), was: buy(y) } : null,
+        owe: buyOk ? { now: owe(t), was: owe(y) } : null,
       };
       renderCmp();
     }
@@ -835,10 +840,12 @@
         ${d.buy ? `
         <li><i class="dot buy"></i><span class="nm">المشتريات</span><span class="now">${m(d.buy.now)}</span>
           <div class="was"><span>أمس ${m(d.buy.was)}</span>${chgBuy(d.buy.now, d.buy.was)}</div></li>
-        <li><i class="dot net"></i><span class="nm">الفرق (مبيعات − مشتريات)</span><span class="now">${m(net.now)}</span>
-          <div class="was"><span>أمس ${m(net.was)}</span>${chg(net.now, net.was, ["أحسن", "أسوأ"])}</div></li>` : ""}`;
+        <li><i class="dot net"></i><span class="nm">الفرق (مبيعات − مشتريات مدفوعة)</span><span class="now">${m(net.now)}</span>
+          <div class="was"><span>أمس ${m(net.was)}</span>${chg(net.now, net.was, ["أحسن", "أسوأ"])}</div></li>
+        ${d.owe && (d.owe.now || d.owe.was) ? `<li><i class="dot buy"></i><span class="nm">فواتير آجلة (ذمم موردين) — ما انخصمت</span><span class="now">${m(d.owe.now)}</span>
+          <div class="was"><span>أمس ${m(d.owe.was)}</span></div></li>` : ""}` : ""}`;
       $("cmp-note").textContent = d.buy
-        ? "المشتريات = فواتير الموردين + المشتريات المسجّلة لحالها، كلها بتاريخها. اليوم لسا ما خلص، فالمقارنة بتتغير مع الوقت."
+        ? "المشتريات = المدفوع من فواتير الموردين + المشتريات المسجّلة لحالها. الجزء الآجل (ذمة) بيظهر بسطر لحاله ولا بينخصم من المبيعات. اليوم لسا ما خلص، فالمقارنة بتتغير مع الوقت."
         : "ما قدرنا نجيب المشتريات هلأ، فهون المبيعات بس.";
 
       // الرسم: مجموعتين (مبيعات، مشتريات)، بكل وحدة عمود أمس وعمود اليوم.
