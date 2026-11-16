@@ -338,7 +338,12 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f-]{36}$/i.test(id)) return json({ ok: false, error: "صنف غير صالح" }, 400);
       const { data: p, error: pe } = await admin.from("products").select("id, external_id, name, name_en, description, category").eq("id", id).single();
       if (pe || !p) return json({ ok: false, error: "الصنف مش موجود" }, 404);
-      const prompt = `Professional appetizing food/drink photo for a cafe menu in Jordan. Item: "${clean(p.name_en) || clean(p.name)}" (Arabic name: ${clean(p.name)}; category: ${clean(p.category, 40)}${p.description ? "; description: " + clean(p.description, 160) : ""}).
+      // موديلات الصور بتفهم إنجليزي أحسن بكتير: الذكاء بيترجم الاسم العربي لوصف بصري إنجليزي قصير (شو بالكاسة/الصحن بالضبط)، وإذا فشل منكمل بالاسم.
+      let visual = "";
+      const dg = await callGemini(GEMINI_KEY, [{ text: `Describe in ONE English sentence (max 35 words) exactly what this cafe menu item looks like when served, so an image generator can draw it correctly: the container (glass/cup/plate), the main ingredients and toppings that must be visible, colors. Item (Arabic): "${clean(p.name)}"; English name: "${clean(p.name_en) || "none"}"; category: "${clean(p.category, 40)}"${p.description ? `; description: "${clean(p.description, 160)}"` : ""}. Remember brand words: أوريو = Oreo cookies, نوتيلا = Nutella, لوتس = Lotus Biscoff, كيت كات = KitKat. Output only the sentence.` }],
+        { temperature: 0.2 }, { tag: "item-cards-image-desc", totalMs: 20_000, perCallMs: 15_000 });
+      if (dg.ok) visual = clean(dg.text, 300);
+      const prompt = `Professional appetizing food/drink photo for a cafe menu in Jordan. Item: "${clean(p.name_en) || clean(p.name)}"${visual ? `. What it looks like: ${visual}` : ` (Arabic name: ${clean(p.name)}; category: ${clean(p.category, 40)}${p.description ? "; description: " + clean(p.description, 160) : ""})`}.
 Show exactly this item as it is usually served, single serving, centered, 45-degree angle, soft natural light, warm cream/neutral background, shallow depth of field, realistic, square 1:1.
 No text, no letters, no logos, no watermark, no hands.`;
       // جوجل أول، وإذا ما زبطت (حد، فوترة، تأخير) منجرّب Cloudflare المجاني
