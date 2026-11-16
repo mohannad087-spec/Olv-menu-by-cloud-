@@ -170,23 +170,24 @@ async function olvExpensesPaid(db, select, from, to) {
   if (error) return { data: null, error };
   const settled = (settledR.data || []).map((r) => ({ ...r, expense_date: String(r.settled_at).slice(0, 10) }));
   const cash = cashR.data || [];
-  // فاتورة مشتريات آجلة/جزئية: مصروفها بينسجّل بكامل قيمتها، بس الجزء اللي لسا على المحل للمورّد ما اندفع فما بنحسبه.
-  // بنطرح الباقي (من purchase_invoice_settlement) من مبلغ المصروف. لو الاستعلام فشل منكمل بدون تعديل.
+  const extra = [];
+  // الذمة ما بتنحسب يوم الفاتورة، بتنحسب يوم ما اندفعت:
+  // 1) فاتورة آجلة/جزئية: بتنحسب بتاريخها بس اللي اندفع عند الفاتورة (paid_amount)
+  // 2) دفعات المورّد اللاحقة (من صفحة الموردين أو زر «سدّد») بتنحسب بتاريخ الدفعة
+  // لو الاستعلام فشل (مثلًا صلاحيات) منكمل بدون تعديل.
   try {
     const ids = cash.map((r) => r.id);
-    const owed = {};
+    const paidAt = {};
     for (let i = 0; i < ids.length; i += 150) {
-      const inv = await db.from("purchase_invoices").select("id, expense_id, status, payment_type").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash");
-      const list = (inv.data || []).filter((x) => x.status !== "voided");
-      if (!list.length) continue;
-      const st = await db.from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", list.map((x) => x.id));
-      const rem = {};
-      (st.data || []).forEach((x) => { rem[x.invoice_id] = Number(x.remaining) || 0; });
-      list.forEach((x) => { if (x.id in rem) owed[x.expense_id] = rem[x.id]; });
+      const inv = await db.from("purchase_invoices").select("expense_id, status, payment_type, paid_amount").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash");
+      (inv.data || []).forEach((x) => { paidAt[x.expense_id] = x.status === "voided" ? null : Number(x.paid_amount) || 0; });
     }
-    cash.forEach((r) => { if (owed[r.id] > 0) r.amount = Math.max(Number(r.amount) - owed[r.id], 0); });
+    cash.forEach((r) => { if (r.id in paidAt && paidAt[r.id] !== null) r.amount = Math.min(Number(r.amount), paidAt[r.id]); });
+    const pay = await db.from("supplier_transactions").select("id, amount, transaction_date, description")
+      .eq("type", "payment").is("invoice_id", null).gte("transaction_date", from).lte("transaction_date", to);
+    (pay.data || []).forEach((x) => extra.push({ id: "sp-" + x.id, amount: Number(x.amount), expense_date: x.transaction_date, description: x.description || "دفعة مورّد", expense_categories: { name: "مشتريات ومخزون" } }));
   } catch (e) { /* بدون تعديل */ }
-  return { data: [...cash, ...settled], error: null };
+  return { data: [...cash, ...settled, ...extra], error: null };
 }
 
 // موافقة المدير برمز: لو عملية الكاشير انرفضت لأنها تحتاج مدير (إلغاء بعد المهلة أو خصم فوق حدّه)،
