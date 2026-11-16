@@ -3,7 +3,7 @@
 //   stats   { days }        ← مبيعات كل صنف بالفترة (كمية، إيراد، آخر بيعة) — بدون ذكاء، بس تجميع بصلاحية السيرفر
 //   review  {}              ← Gemini بيقرأ البطاقات وبيدوّر على أخطاء محتملة (اسم، سعر غريب، ترجمة ناقصة...) ويقترح تصليح
 //   insights { stats }      ← Gemini بيكتب ملاحظات قصيرة من أرقام التقرير
-//   image   { product_id }  ← بيولّد صورة للصنف (موديل صور Gemini، وإذا ما زبط Cloudflare Workers AI المجاني) وبيرفعها على تخزين Supabase (item-images) ويرجّع الرابط
+//   image   { product_id, provider? }  ← provider: google | cloudflare (اختيار صريح) وإلا تلقائي: بيولّد صورة للصنف (موديل صور Gemini، وإذا ما زبط Cloudflare Workers AI المجاني) وبيرفعها على تخزين Supabase (item-images) ويرجّع الرابط
 // ما بينحفظ شي بالبطاقات هون: الصفحة بتعرض الاقتراح وصاحب المطعم بيعتمده.
 // نفس مفتاح باقي دوال الذكاء: GEMINI_API_KEY (واختياري GEMINI_MODEL، و GEMINI_IMAGE_MODEL للصور).
 // بديل الصور المجاني: CF_ACCOUNT_ID + CF_AI_TOKEN (توكن Cloudflare بصلاحية Workers AI) — إذا مش مضبوطين بنضل على جوجل بس.
@@ -344,19 +344,23 @@ No text, no letters, no logos, no watermark, no hands.`;
       // جوجل أول، وإذا ما زبطت (حد، فوترة، تأخير) منجرّب Cloudflare المجاني
       // الأسرار بتنلصق أحيانًا من الموبايل مع أسطر/مسافات/نقاط زيادة: رقم الحساب أحرف hex بس، والتوكن بلا فراغات
       const cfAccount = (Deno.env.get("CF_ACCOUNT_ID") || "").replace(/[^0-9a-f]/gi, ""), cfToken = (Deno.env.get("CF_AI_TOKEN") || "").replace(/\s+/g, "");
+      // اختيار صريح من المستخدم: "google" أو "cloudflare" (بدون بديل تلقائي، حتى يعرف شو اللي اشتغل). بدون اختيار: جوجل أول ثم Cloudflare.
+      const provider = body.provider === "google" || body.provider === "cloudflare" ? body.provider : "auto";
       const errs: string[] = [];
       let img: Img | string | null = null;
-      if (Date.now() >= geminiImageOffUntil) {
+      if (provider === "google" || (provider === "auto" && Date.now() >= geminiImageOffUntil)) {
         img = await geminiImage(GEMINI_KEY, prompt);
         if (typeof img === "string") { errs.push(img); img = null; }
       }
-      if (!img && cfAccount && cfToken) {
-        img = await cloudflareImage(cfAccount, cfToken, prompt);
-        if (typeof img === "string") { errs.push(img); img = null; }
+      if (!img && (provider === "cloudflare" || provider === "auto")) {
+        if (cfAccount && cfToken) {
+          img = await cloudflareImage(cfAccount, cfToken, prompt);
+          if (typeof img === "string") { errs.push(img); img = null; }
+        } else if (provider === "cloudflare") errs.push("Cloudflare لسا مش مضبوط (CF_ACCOUNT_ID و CF_AI_TOKEN)");
       }
       if (!img) {
         if (!errs.length) errs.push("جوجل موقّفة مؤقتًا عن الصور");
-        if (!cfAccount || !cfToken) errs.push("وبديل Cloudflare المجاني لسا مش مضبوط");
+        if (provider === "auto" && (!cfAccount || !cfToken)) errs.push("وبديل Cloudflare المجاني لسا مش مضبوط");
         return json({ ok: false, error: "ما زبط توليد الصورة: " + errs.join(" — ") }, 502);
       }
       const { bytes, mime, source } = img;
