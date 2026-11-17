@@ -349,6 +349,7 @@ function olvRenderNav(active) {
         { id: "cash", href: "cash-register.html", label: "الخزينة", icon: "wallet" },
         { id: "reports", href: "reports.html", label: "التقارير", icon: "barChart" },
         { id: "leakage", href: "leakage.html", label: "الهدر والرقابة", icon: "warning" },
+        { id: "data-health", href: "data-health.html", label: "صحة البيانات", icon: "clipboard" },
       ],
     },
     {

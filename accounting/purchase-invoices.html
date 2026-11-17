@@ -1884,6 +1884,28 @@
           if (l.tax !== "" && l.tax != null && Number.isFinite(Number(l.tax))) o.tax_rate = lineRate(l, 0);
           return o;
         });
+        // حماية من التكرار: نفس المادة بنفس الكمية والسعر مرتين بنفس الفاتورة، أو مسجّلة قبل عند نفس المورد ونفس التاريخ بفاتورة ثانية
+        {
+          const keyOf = (o) => [o.ingredient_id || o.supply_id, o.qty, Math.round(o.unit_price * 1e4)].join("|");
+          const seen = new Map(), dupNames = [];
+          payloadLines.forEach((o, i) => {
+            const k = keyOf(o);
+            if (seen.has(k)) dupNames.push(itemOf(active[i]).name); else seen.set(k, 1);
+          });
+          let prior = [];
+          if (supplierId) {
+            let q = window.supabaseClient.from("purchases").select("ingredient_id,supply_id,quantity,unit_price,invoice_id")
+              .eq("supplier_id", supplierId).eq("purchase_date", document.getElementById("pi-date").value || olvToday());
+            if (editingId) q = q.neq("invoice_id", editingId);
+            const r = await q; prior = r.data || [];
+          }
+          const priorKeys = new Set(prior.map((x) => keyOf({ ingredient_id: x.ingredient_id, supply_id: x.supply_id, qty: Number(x.quantity), unit_price: Number(x.unit_price) })));
+          payloadLines.forEach((o, i) => { if (priorKeys.has(keyOf(o))) dupNames.push(itemOf(active[i]).name); });
+          if (dupNames.length) {
+            const u = [...new Set(dupNames)];
+            if (!confirm(`ممكن في تكرار: ${u.slice(0, 6).join("، ")}${u.length > 6 ? "…" : ""}\nنفس المادة بنفس الكمية والسعر مكررة بنفس الفاتورة أو مسجّلة قبل عند نفس المورد بنفس التاريخ. التكرار بيضخّم الرصيد وبيطلع «نقص جرد» وهمي.\nتحفظ رغم هيك؟`)) return;
+          }
+        }
         const fromDrawer = payMode === "cash" && document.getElementById("pi-drawer").checked;
         const { data: savedId, error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
           ...(editingId ? { p_invoice_id: editingId } : {}),
