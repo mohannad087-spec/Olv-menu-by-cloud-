@@ -267,6 +267,13 @@ function olvIcon(name, cls) {
 // أقسام بتجمع أكتر من صفحة تحت رابط واحد بالقائمة، وبتطلع كتبويبات بأعلى كل صفحة منها
 const OLV_HUBS = [
   {
+    navId: "employees",
+    tabs: [
+      { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
+      { id: "staff-meals", href: "staff-meals.html", label: "وجبات الموظفين", icon: "dish" },
+    ],
+  },
+  {
     navId: "settings",
     tabs: [
       { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
@@ -349,7 +356,6 @@ function olvRenderNav(active) {
         { id: "cash", href: "cash-register.html", label: "الخزينة", icon: "wallet" },
         { id: "reports", href: "reports.html", label: "التقارير", icon: "barChart" },
         { id: "leakage", href: "leakage.html", label: "الهدر والرقابة", icon: "warning" },
-        { id: "staff-meals", href: "staff-meals.html", label: "وجبات الموظفين", icon: "dish" },
       ],
     },
     {
