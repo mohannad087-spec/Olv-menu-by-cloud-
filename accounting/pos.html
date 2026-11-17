@@ -990,8 +990,8 @@
         const sandwiches = pick("staff_meal_sandwiches"), drinks = pick("staff_meal_drinks");
         const emps = c.data || [];
         if (!sandwiches.length || !drinks.length) {
-          body.innerHTML = `<p class="sm-empty">قوائم وجبة الموظفين لسا مش محددة. المدير بيحددها من الإعدادات ← المنتجات والإضافات ← وجبة الموظفين.</p>`
-            + (window.olvRole && window.olvRole !== "staff" ? `<a class="btn gold checkout-confirm" href="settings.html#staff-meal" style="display:flex;align-items:center;justify-content:center;margin-top:10px;">حدّد الأصناف هلأ</a>` : "");
+          body.innerHTML = `<p class="sm-empty">قوائم وجبة الموظفين لسا مش محددة. المدير بيحددها من صفحة «وجبات الموظفين».</p>`
+            + (window.olvRole && window.olvRole !== "staff" ? `<a class="btn gold checkout-confirm" href="staff-meals.html#items" style="display:flex;align-items:center;justify-content:center;margin-top:10px;">حدّد الأصناف هلأ</a>` : "");
           return;
         }
         let emp = null, sw = null, dr = null, needOverride = false, note = "";
