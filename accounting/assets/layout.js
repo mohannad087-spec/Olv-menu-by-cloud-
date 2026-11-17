@@ -267,13 +267,6 @@ function olvIcon(name, cls) {
 // أقسام بتجمع أكتر من صفحة تحت رابط واحد بالقائمة، وبتطلع كتبويبات بأعلى كل صفحة منها
 const OLV_HUBS = [
   {
-    navId: "employees",
-    tabs: [
-      { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
-      { id: "staff-meals", href: "staff-meals.html", label: "وجبات الموظفين", icon: "dish" },
-    ],
-  },
-  {
     navId: "settings",
     tabs: [
       { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
@@ -339,7 +332,7 @@ function olvRenderNav(active) {
   const mobileOps = primaryLinks.filter((l) => l.deskOnly);
   const moreGroups = [
     {
-      label: "الجرد والمشتريات",
+      label: "الجرد والمشتريات", icon: "box", hue: 1,
       links: [
         { id: "inventory", href: "inventory.html", label: "المخزون والجرد", icon: "box" },
         { id: "purchase-invoices", href: "purchase-invoices.html", label: "المشتريات", icon: "receipt" },
@@ -350,7 +343,7 @@ function olvRenderNav(active) {
       ],
     },
     {
-      label: "الإدارة المالية",
+      label: "الإدارة المالية", icon: "wallet", hue: 2,
       links: [
         { id: "expenses", href: "expenses.html", label: "المصروفات", icon: "minusCircle" },
         { id: "cash", href: "cash-register.html", label: "الخزينة", icon: "wallet" },
@@ -359,12 +352,18 @@ function olvRenderNav(active) {
       ],
     },
     {
-      label: "العملاء والإعدادات",
+      label: "الموظفون", icon: "people", hue: 5,
       links: [
-        { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
         { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
         { id: "attendance", href: "attendance.html", label: "الحضور", icon: "clock" },
         { id: "payroll", href: "payroll.html", label: "الرواتب", icon: "banknote" },
+        { id: "staff-meals", href: "staff-meals.html", label: "وجبات الموظفين", icon: "dish" },
+      ],
+    },
+    {
+      label: "العملاء والإعدادات", icon: "gear", hue: 3,
+      links: [
+        { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
         { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
       ],
     },
@@ -404,15 +403,15 @@ function olvRenderNav(active) {
           </button>
           <div class="tab-more-panel" id="olv-nav-more-panel">
             ${mobileOps.length ? `
-              <div class="tab-more-group mobile-only">
-                <div class="tab-more-group-label">التشغيل</div>
+              <div class="tab-more-group mobile-only" style="--gc:var(--life-6);--gb:var(--life-6b)">
+                <div class="tab-more-group-label"><span class="tab-more-chip">${olvIcon("grid")}</span>التشغيل</div>
                 ${mobileOps.map(moreLinkHtml).join("")}
               </div>` : ""}
             ${moreGroups
               .map(
                 (g) => `
-              <div class="tab-more-group">
-                <div class="tab-more-group-label">${g.label}</div>
+              <div class="tab-more-group" style="--gc:var(--life-${g.hue});--gb:var(--life-${g.hue}b)">
+                <div class="tab-more-group-label"><span class="tab-more-chip">${olvIcon(g.icon)}</span>${g.label}</div>
                 ${g.links.map(moreLinkHtml).join("")}
               </div>`
               )

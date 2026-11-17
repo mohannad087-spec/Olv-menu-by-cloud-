@@ -802,3 +802,32 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
 @media (prefers-reduced-motion: reduce){ .olv-glass tbody tr, .olv-glass .badge, .olv-glass .tab-badge, .olv-glass .olv-modal-backdrop > *{animation:none !important;} }
 /* شيل البني الكمّوني من الحقول والنصوص بالوضع الفاتح: حقول لافندر خفيفة ونص نيلي غامق */
 :root:not([data-theme="dark"]){--ink-3:#f3f2fb; --paper:#25223a; --muted:#625d78; --hair:rgba(60,60,120,.16); --hair-soft:rgba(60,60,120,.09);}
+
+/* ---- «المزيد» لوحة بأعمدة (2026-11-17): كل قسم عمود بلونه وكل صفحاته ظاهرة بضغطة وحدة ----
+   القواعد بـ design-system/olv/MASTER.md (بند «قائمة المزيد»). الألوان من طبقة الحياة (--life-N / --life-Nb). */
+.tab-more-panel{width:min(1080px, calc(100vw - 24px)); padding:12px; border-radius:22px;
+  background:var(--ink-2); -webkit-backdrop-filter:none; backdrop-filter:none;}
+.tab-more-panel{display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px; align-items:stretch;}
+.tab-more-panel .tab-more-group{--gc:var(--life-1); --gb:var(--life-1b); margin:0; padding:12px; border-radius:18px;
+  background:var(--gb); border:1px solid color-mix(in srgb, var(--gc) 22%, transparent);
+  display:flex; flex-direction:column; gap:6px;}
+.tab-more-panel .tab-more-group + .tab-more-group{margin-top:0; padding-top:12px; border-top:1px solid color-mix(in srgb, var(--gc) 22%, transparent);}
+.tab-more-panel .tab-more-group-label{display:flex; align-items:center; gap:10px; padding:0 2px 6px; font-size:16px; font-weight:800; color:var(--paper);}
+.tab-more-chip{flex:none; width:38px; height:38px; border-radius:12px; display:grid; place-items:center; background:var(--gc); color:#fff;}
+.tab-more-chip .icon{width:19px; height:19px;}
+.tab-more-panel .tab-more-link{min-height:46px; padding:10px 12px; border-radius:12px; background:var(--ink-2);
+  font-size:15px; font-weight:700; border:1px solid transparent;}
+.tab-more-panel .tab-more-link .icon{color:var(--gc);}
+.tab-more-panel .tab-more-link:hover{border-color:color-mix(in srgb, var(--gc) 45%, transparent);}
+.tab-more-panel .tab-more-link.on{background:var(--gc); color:#fff; box-shadow:none;}
+.tab-more-panel .tab-more-link.on .icon{color:#fff;}
+.tab-more-panel .tab-more-group.mobile-only{display:none;}
+@media (max-width:640px){
+  .tab-more-panel{grid-template-columns:1fr; gap:10px;}
+  .tab-more-panel .tab-more-group{display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:10px;}
+  .tab-more-panel .tab-more-group.mobile-only{display:grid;}
+  .tab-more-panel .tab-more-group-label{grid-column:1 / -1; font-size:15px; padding-bottom:2px;}
+  .tab-more-chip{width:32px; height:32px; border-radius:10px;}
+  .tab-more-panel .tab-more-link{min-height:48px; font-size:14.5px;}
+}
+:root[data-theme="dark"] .tab-more-panel .tab-more-link.on, :root[data-theme="dark"] .tab-more-panel .tab-more-link.on .icon, :root[data-theme="dark"] .tab-more-chip{color:#17120d;}
