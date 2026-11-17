@@ -133,7 +133,7 @@ begin
     select * into v_prod from public.products where id = v_pid;
     if not found then raise exception 'صنف غير موجود'; end if;
     insert into public.sale_items (sale_id, product_id, product_name, qty, unit_price, note, addons_total)
-    values (v_sale, v_pid, v_prod.name, 1, 0, 'وجبة موظف', 0);
+    values (v_sale, v_pid, v_prod.name, 1, 0, case when v_pid = p_sandwich_id then 'وجبة موظف — مع بطاطا' else 'وجبة موظف' end, 0);
     update public.ingredients i set current_stock = i.current_stock - pi.quantity
       from public.product_ingredients pi where pi.product_id = v_pid and pi.ingredient_id = i.id;
     select coalesce(v_prod.cost_manual,
