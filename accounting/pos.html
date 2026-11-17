@@ -317,6 +317,20 @@
   .change-row .value{font-family:'Tajawal',sans-serif; font-weight:800; font-size:24px; font-weight:700; color:var(--ok);}
   .change-row.insufficient .value{color:var(--danger-hi);}
 
+  /* وجبة الموظف: اختيار الموظف (اللي بصم) + ساندويش + مشروب، بدون سعر ودفع */
+  .sm-modal{max-width:560px;}
+  .sm-sec{margin:14px 0 6px; font-size:13px; font-weight:700; color:var(--muted);}
+  .sm-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px;}
+  .sm-chip{
+    min-height:48px; padding:8px 10px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-3);
+    color:var(--paper); font-size:14.5px; font-weight:600; text-align:center; line-height:1.3;
+  }
+  .sm-chip small{display:block; font-size:11.5px; font-weight:500; color:var(--muted); margin-top:2px;}
+  .sm-chip.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.14); color:var(--gold-hi);}
+  .sm-chip.done{opacity:.6;}
+  .sm-chip:active{transform:scale(.96);}
+  .sm-empty{color:var(--muted); font-size:13.5px; padding:8px 0;}
+  .sm-note{margin-top:12px; padding:10px 12px; border-radius:12px; background:rgba(193,88,63,.1); border:1px solid rgba(193,88,63,.35); color:var(--danger-hi); font-size:13.5px;}
   .checkout-confirm{width:100%; min-height:52px; font-size:16px;}
   /* عرض الشاشة: عمودين (الملخص + طرق الدفع | لوحة المبلغ) بدل عمود طويل */
   @media (min-width:700px){
@@ -823,6 +837,7 @@
             <span class="search-icon" id="search-icon"></span>
             <input type="search" id="product-search" aria-label="ابحث عن صنف" placeholder="ابحث عن صنف..." enterkeyhint="done" autocomplete="off">
           </div>
+          <button type="button" class="btn small" id="staff-meal-btn"></button>
           <button type="button" class="btn small" id="reprint-open-btn"></button>
           <button type="button" class="btn small" id="focus-toggle-btn"></button>
         </div>
@@ -939,6 +954,94 @@
     document.getElementById("discount-toggle-btn").innerHTML = olvIcon("tag") + "<span>إضافة خصم</span>";
     document.getElementById("reprint-open-btn").innerHTML = olvIcon("printer") + '<span class="btn-label">إعادة طباعة</span>';
     document.getElementById("reprint-open-btn").addEventListener("click", () => olvOpenReprintList());
+
+    // ---------------------------------------------------------------
+    // وجبة موظف: الكاشير بيختار موظف بصم اليوم + ساندويش + مشروب من القوائم المسموحة (الإعدادات).
+    // بدون سعر ولا دفع؛ بتنطبع للمطبخ/البار بدون فاتورة. وجبة وحدة باليوم، وبعدها بموافقة مدير.
+    // ---------------------------------------------------------------
+    document.getElementById("staff-meal-btn").innerHTML = olvIcon("dish") + '<span class="btn-label">وجبة موظف</span>';
+    document.getElementById("staff-meal-btn").addEventListener("click", () => openStaffMeal());
+    async function openStaffMeal() {
+      if (!navigator.onLine) { showToast("وجبة الموظف بتحتاج اتصال بالإنترنت", "var(--danger)", "warning"); return; }
+      const db = window.supabaseClient;
+      const fmtT = (iso) => new Date(iso).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
+      const backdrop = document.createElement("div");
+      backdrop.className = "checkout-backdrop";
+      backdrop.innerHTML = `<div class="checkout-modal sm-modal" role="dialog" aria-modal="true" aria-label="وجبة موظف">
+        <div class="checkout-head"><h2>وجبة موظف</h2><button type="button" class="checkout-close" aria-label="إغلاق">${olvIcon("x")}</button></div>
+        <div id="sm-body"><p class="sm-empty">جاري التحميل...</p></div></div>`;
+      document.body.appendChild(backdrop);
+      requestAnimationFrame(() => backdrop.classList.add("in"));
+      let busy = false;
+      const close = () => { if (busy) return; backdrop.classList.remove("in"); setTimeout(() => backdrop.remove(), 170); };
+      backdrop.querySelector(".checkout-close").addEventListener("click", close);
+      backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+      const body = backdrop.querySelector("#sm-body");
+      try {
+        const [c, st] = await Promise.all([
+          db.rpc("staff_meal_candidates"),
+          db.from("app_settings").select("key, value").in("key", ["staff_meal_sandwiches", "staff_meal_drinks"]),
+        ]);
+        if (c.error) throw c.error;
+        const cfg = {};
+        (st.data || []).forEach((r) => { cfg[r.key] = String(r.value || "").split(",").filter(Boolean); });
+        const byId = new Map(products.map((p) => [p.id, p]));
+        const pick = (key) => (cfg[key] || []).map((id) => byId.get(id)).filter(Boolean);
+        const sandwiches = pick("staff_meal_sandwiches"), drinks = pick("staff_meal_drinks");
+        const emps = c.data || [];
+        if (!sandwiches.length || !drinks.length) {
+          body.innerHTML = `<p class="sm-empty">قوائم وجبة الموظفين لسا مش محددة. المدير بيحددها من الإعدادات ← وجبة الموظفين.</p>`;
+          return;
+        }
+        let emp = null, sw = null, dr = null, needOverride = false, note = "";
+        const ref = (crypto.randomUUID && crypto.randomUUID()) || null;
+        const chips = (list, sel, attr, extra) => list.map((x) =>
+          `<button type="button" class="sm-chip${sel === x.id ? " on" : ""}${extra ? extra(x) : ""}" data-${attr}="${x.id}">${olvEsc(x.name || x.full_name)}${x.meal_at ? `<small>استلم ${fmtT(x.meal_at)}</small>` : ""}</button>`).join("");
+        function render() {
+          body.innerHTML = `
+            <div class="sm-sec">الموظف (اللي بصم اليوم)</div>
+            ${emps.length ? `<div class="sm-grid">${chips(emps, emp, "emp", (x) => (x.meal_at ? " done" : ""))}</div>` : `<p class="sm-empty">ما حدا بصم اليوم لسا</p>`}
+            <div class="sm-sec">الساندويش</div><div class="sm-grid">${chips(sandwiches, sw, "sw")}</div>
+            <div class="sm-sec">المشروب</div><div class="sm-grid">${chips(drinks, dr, "dr")}</div>
+            ${note ? `<div class="sm-note">${olvEsc(note)}</div>` : ""}
+            <button type="button" class="btn gold checkout-confirm" id="sm-go" style="margin-top:16px;" ${emp && sw && dr ? "" : "disabled"}>${needOverride ? "وجبة ثانية بموافقة المدير" : "تسجيل الوجبة"}</button>`;
+          body.querySelectorAll("[data-emp]").forEach((b) => b.addEventListener("click", () => { emp = b.dataset.emp; needOverride = false; note = ""; render(); }));
+          body.querySelectorAll("[data-sw]").forEach((b) => b.addEventListener("click", () => { sw = b.dataset.sw; render(); }));
+          body.querySelectorAll("[data-dr]").forEach((b) => b.addEventListener("click", () => { dr = b.dataset.dr; render(); }));
+          body.querySelector("#sm-go").addEventListener("click", submit);
+        }
+        async function submit() {
+          const go = body.querySelector("#sm-go");
+          go.disabled = true; busy = true;
+          try {
+            if (needOverride && window.olvRole === "staff") {
+              const pin = await olvAskManagerPin("discount");
+              if (!pin) { busy = false; render(); return; }
+              const { data: ok, error: ae } = await db.rpc("request_approval", { p_pin: pin, p_kind: "discount" });
+              if (ae) throw ae;
+              if (!ok) throw new Error("رمز المدير غلط");
+            }
+            const { data, error } = await db.rpc("record_staff_meal", { p_profile_id: emp, p_sandwich_id: sw, p_drink_id: dr, p_client_ref: ref, p_override: needOverride });
+            if (error) throw error;
+            const who = emps.find((x) => x.id === emp);
+            if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+            busy = false; close();
+            showToast(`تم تسجيل وجبة ${who ? who.full_name : ""}${data && data.order_no ? " — طلب " + data.order_no : ""}`, "var(--ok)", "check");
+          } catch (err) {
+            busy = false;
+            const m = String((err && err.message) || "");
+            if (/استلم وجبته/.test(m)) { needOverride = true; note = m + " — وجبة ثانية بتحتاج موافقة المدير."; }
+            else if (/record_staff_meal|staff_meal_candidates/.test(m) && /function|schema cache/i.test(m)) note = "وجبة الموظفين لسا ما تفعّلت بقاعدة البيانات";
+            else note = olvIsNetworkError(err) ? "تعذّر الاتصال بالإنترنت — الوجبة ما انسجّلت" : m || "صار خطأ";
+            if (typeof OlvSound !== "undefined") OlvSound.playError();
+            render();
+          }
+        }
+        render();
+      } catch (err) {
+        body.innerHTML = `<div class="sm-note">${olvEsc((err && err.message) || "تعذّر التحميل")}</div>`;
+      }
+    }
     document.getElementById("discount-remove-btn").innerHTML = olvIcon("x");
 
     // يحسب ارتفاع الشريط العلوي فعليًا (يتغيّر حسب حجم الشاشة) ويخزّنه
