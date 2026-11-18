@@ -329,15 +329,24 @@ Deno.serve(async (req) => {
         // أصناف المخزون (stk-) مصدرها «المنيو من المخزون» مش البطاقة: سعرها وسعر الصالة والتوفّر بيتحدّثوا من المنيو
         const stockRows = payload
           .filter((r) => String(r.external_id).startsWith("stk-") && known.has(r.external_id as string))
-          .map((r) => ({ external_id: r.external_id, name: r.name, category: r.category, price: r.price, hall_price: r.hall_price, is_active: r.is_active }));
+          .map((r) => ({ external_id: r.external_id, name: r.name, category: r.category, price: r.price, hall_price: r.hall_price }));
+        // ملاحظة: التوفّر (is_active) ما بنلمسه لأصناف المخزون: «متوفر بالمنيو» معناه المخزون > 0، ولو الجرد ناقص (صفر/سالب)
+        // كان الصنف يختفي من الكاشير (حصل مع «ماء 500 مل»). إيقاف الصنف من الكاشير بيصير فقط من «بطاقة المادة».
         if (stockRows.length) {
           const { error: e6 } = await admin.from("products").upsert(stockRows, { onConflict: "external_id" });
           if (e6) return json({ ok: false, error: e6.message }, 500);
         }
         return json({ ok: true, mode: "cards", count: payload.length, added: fresh.length, stock: stockRows.length, hidden: 0 });
       }
-      const { error: e2 } = await admin.from("products").upsert(payload, { onConflict: "external_id" });
+      // أصناف المخزون (stk-): نحدّث الاسم والسعر بدون التوفّر (نفس السبب فوق)؛ الصنف الجديد بيدخل متوفر
+      const isStk = (r: Record<string, unknown>) => String(r.external_id).startsWith("stk-");
+      const stkNoActive = payload.filter(isStk).map((r) => { const { is_active: _a, ...rest } = r; return rest; });
+      const { error: e2 } = await admin.from("products").upsert(payload.filter((r) => !isStk(r)), { onConflict: "external_id" });
       if (e2) return json({ ok: false, error: e2.message }, 500);
+      if (stkNoActive.length) {
+        const { error: e2b } = await admin.from("products").upsert(stkNoActive, { onConflict: "external_id" });
+        if (e2b) return json({ ok: false, error: e2b.message }, 500);
+      }
       // deno-lint-ignore no-explicit-any
       const inMenu = new Set(items.map((it: any) => it.id));
       const gone = (before || []).filter((p) => !inMenu.has(p.external_id) && p.is_active).map((p) => p.id);
