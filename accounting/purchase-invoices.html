@@ -508,6 +508,7 @@
     let editingId = null;        // لو عم تعدّل فاتورة محفوظة: رقمها (بتنلغى القديمة وبتنحفظ الجديدة مكانها)
     let editingAttach = null;
     let isOwner = false;
+    let aliases = {};            // اسم الصنف بفواتير الموردين (بعد norm) ← kind:id، بيتعلّم لحاله
     let barcodes = new Map();    // الكود → { item_kind, item_id, unit_mode }
     const HISTORY_LIMIT = 60;
 
@@ -582,6 +583,11 @@
         ...(sup || []).map((i) => ({ ...i, kind: "supply" })),
       ];
       await refreshCatalogHints();
+      try {
+        const { data: al } = await window.supabaseClient.from("app_settings").select("value").eq("key", "invoice_item_aliases").maybeSingle();
+        const v = al && al.value; const o = typeof v === "string" ? JSON.parse(v) : v;
+        aliases = o && typeof o === "object" && !Array.isArray(o) ? o : {};
+      } catch (_) { aliases = aliases || {}; }
       // الباركودات (لو الجدول لسا مش موجود بالسيرفر منكمّل بدونها)
       const { data: bc } = await window.supabaseClient.from("item_barcodes").select("code, item_kind, item_id, unit_mode").then((r) => r, () => ({ data: null }));
       barcodes = new Map((bc || []).map((b) => [b.code, b]));
@@ -1508,6 +1514,19 @@
       document.getElementById("pi-paste-box").hidden = true;
     });
 
+    // بعد حفظ الفاتورة: كل سطر اسمه بالفاتورة غير اسم الصنف اللي انربط فيه، منتذكره ليربطه لحاله بالفواتير الجاية
+    async function learnAliases() {
+      try {
+        const add = {};
+        lines.forEach((l) => {
+          const it = itemOf(l); const src = norm(l.srcName);
+          if (it && src && src !== norm(it.name) && aliases[src] !== it.kind + ":" + it.id) add[src] = it.kind + ":" + it.id;
+        });
+        if (!Object.keys(add).length) return;
+        aliases = Object.assign({}, aliases, add);
+        await window.supabaseClient.from("app_settings").upsert({ key: "invoice_item_aliases", value: JSON.stringify(aliases) }, { onConflict: "key" });
+      } catch (_) { /* التعلّم إضافة، ما بنوقف الحفظ عليه */ }
+    }
     // يضيف أصناف محلّلة ({name, qty, price, unit?}) للجدول ويطابقها مع مواد المخزون؛
     // اللي ما انعرف بيتعلّم بالأحمر. مشترك بين اللصق وقراءة الذكاء الاصطناعي
     function addParsedLines(parsed) {
@@ -1515,6 +1534,8 @@
       lines = existing.concat(parsed.map((p) => {
         let it = findItem(p.name);
         let guess = false;
+        // اسم اتعلّمنا ربطه من فواتير قبل (مثلًا اسم الصنف عند مورّد ثاني): بنربطه بدون تخمين
+        if (!it && aliases[norm(p.name)]) it = items.find((i) => i.kind + ":" + i.id === aliases[norm(p.name)]) || null;
         if (!it) {
           // الأقرب: إذا في صنف واحد متقدم بوضوح على الباقي منربطه وبنعلّمه «تأكد»؛ إذا في تعادل (نكهات كتير) ما منخمّن
           const c = candidatesFor(p.name);
@@ -1523,7 +1544,7 @@
         // لو الوحدة بالفاتورة = وحدة الشراء المضبوطة للصنف (كرتونة)، السعر المقروء هو سعر الكرتونة
         const purchaseUnit = it && p.unit && it.purchase_unit && it.purchase_unit_factor && norm(p.unit) === norm(it.purchase_unit);
         return newLine({
-          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "",
+          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "", srcName: p.name,
           guessFrom: guess ? p.name : "",
           unitMode: purchaseUnit ? "purchase" : "stock",
           qty: p.qty === "" || p.qty == null ? "" : String(p.qty),
@@ -1991,6 +2012,7 @@
           const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
           if (!poErr) { const b = document.getElementById("pi-from-order"); if (b) b.remove(); fromOrderId = null; if (window.olvToast) olvToast("انعلّمت الطلبية كمستلمة"); }
         }
+        learnAliases();
         const wasEdit = !!editingId;
         endEdit();
         clearDraft();
