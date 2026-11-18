@@ -870,6 +870,7 @@
             ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
             <div data-stock>${stockNote(line, it)}</div>
             <div data-warn>${priceWarning(line, it)}</div>
+            ${it ? `<button type="button" class="pi-newbtn" data-act="editdlg">✏️ تعديل المادة</button>` : ""}
             ${bonusHtml(line, it)}
             ${discHtml(line)}
             ${taxHtml(line)}
@@ -1103,6 +1104,7 @@
         renderLines(); return;
       }
       if (btn.dataset.act === "newdlg") { await addNewItemForLine(line, btn); return; }
+      if (btn.dataset.act === "editdlg") { await editItemForLine(line); return; }
       if (btn.dataset.act === "new") {
         const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
         if (!name) return;
@@ -1172,6 +1174,59 @@
         });
         setTimeout(() => nameEl.focus(), 50);
       });
+    }
+    // نافذة «تعديل المادة» من داخل الفاتورة: الاسم + الوحدة + السعر + وحدة الشراء، بدون ما تطلع من الصفحة
+    function openEditItemDialog(it) {
+      return new Promise((resolve) => {
+        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس", "صندوق"];
+        if (it.unit && !UNITS.includes(it.unit)) UNITS.unshift(it.unit);
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">تعديل المادة</h3>
+          <div class="hint" style="margin-bottom:12px;">${it.kind === "supply" ? "مستلزم" : "مادة خام"} — التعديل بيتحفظ على المادة نفسها وبيضل سطر الفاتورة مربوط فيها.</div>
+          <div class="field"><label>اسم المادة</label><input type="text" id="ei-name" maxlength="120" value="${olvEsc(it.name)}"></div>
+          <div class="field"><label>وحدة المخزون</label>
+            <select id="ei-unit">${UNITS.map((u) => `<option value="${olvEsc(u)}"${u === it.unit ? " selected" : ""}>${olvEsc(u)}</option>`).join("")}</select>
+            <div class="hint">تغيير الوحدة ما بيحوّل الكمية الموجودة بالمخزون (${olvEsc(fmtQ(Number(it.current_stock) || 0))}).</div></div>
+          <div class="field"><label>سعر الوحدة (بوحدة المخزون)</label><input type="number" id="ei-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(it.unit_price || "")}" placeholder="اختياري"></div>
+          <div class="field"><label>وحدة الشراء (مثال: كرتونة) — اختياري</label><input type="text" id="ei-pu" maxlength="30" value="${olvEsc(it.purchase_unit || "")}" placeholder="فاضي = بدون"></div>
+          <div class="field"><label>كم وحدة مخزون بوحدة الشراء الواحدة؟</label><input type="number" id="ei-pf" min="0.001" step="any" dir="ltr" value="${olvEsc(it.purchase_unit_factor || "")}" placeholder="مثال: 12"></div>
+          <div class="pi-warn bad" id="ei-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="ei-save" style="flex:1;">حفظ التعديل</button>
+            <button type="button" class="btn" id="ei-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const err = box.querySelector("#ei-err");
+        box.querySelector("#ei-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        box.querySelector("#ei-save").addEventListener("click", () => {
+          const name = box.querySelector("#ei-name").value.trim().slice(0, 120);
+          if (!name) { err.textContent = "اكتب اسم المادة"; return; }
+          const pu = box.querySelector("#ei-pu").value.trim();
+          const pf = Number(box.querySelector("#ei-pf").value) || 0;
+          if (pu && !(pf > 0)) { err.textContent = "اكتب كم وحدة مخزون بالـ" + pu + " (رقم أكبر من صفر)"; return; }
+          const price = Number(box.querySelector("#ei-price").value) || 0;
+          done({ name, unit: box.querySelector("#ei-unit").value, unit_price: price > 0 ? price : null, purchase_unit: pu || null, purchase_unit_factor: pu ? pf : null });
+        });
+        setTimeout(() => box.querySelector("#ei-name").focus(), 50);
+      });
+    }
+    async function editItemForLine(line) {
+      const it = itemOf(line); if (!it) return;
+      const res = await openEditItemDialog(it);
+      if (!res) return;
+      const { error } = await window.supabaseClient.from(it.kind === "ingredient" ? "ingredients" : "supplies").update(res).eq("id", it.id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      await loadItems();
+      if (line.unitMode === "purchase" && !res.purchase_unit) line.unitMode = "stock";
+      renderLines();
+      if (window.olvToast) olvToast("تم تعديل المادة");
     }
     // يرجّع true إذا انربط السطر بمادة (جديدة أو موجودة بنفس الاسم)
     async function addNewItemForLine(line, btn) {
