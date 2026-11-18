@@ -167,7 +167,24 @@
       const a = ings.filter((i) => !(Number(i.unit_price) > 0) && usedBy.has(i.id))
         .sort((x, y) => usedBy.get(y.id) - usedBy.get(x.id));
       $("k-a").textContent = a.length; $("k-a-s").textContent = "من " + ings.filter((i) => usedBy.has(i.id)).length + " مادة بوصفات";
-      list("l-a", a, a.length, (i) => row(i.name, usedBy.get(i.id) + " وصفة", "الوحدة: " + esc(i.unit || "—")));
+      // إدخال سريع للسعر من نفس القائمة
+      $("l-a").innerHTML = a.length ? a.slice(0, 40).map((i) => `<div class="dh-row"><span class="nm">${esc(i.name)}</span><span class="v" dir="ltr">${usedBy.get(i.id)} وصفة</span>
+        <small style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">سعر ${esc(i.unit || "الوحدة")} (دينار):
+        <input class="dh-price" data-id="${esc(i.id)}" type="number" inputmode="decimal" min="0" step="any" style="width:110px;min-height:40px;" aria-label="سعر ${esc(i.name)}">
+        <button class="btn small gold" type="button" data-save="${esc(i.id)}">حفظ</button></small></div>`).join("") + (a.length > 40 ? `<div class="dh-more">و${a.length - 40} غيرهم…</div>` : "")
+        : `<div class="dh-ok">✓ ما في مشكلة</div>`;
+      $("l-a").onclick = async (e) => {
+        const b = e.target.closest("[data-save]"); if (!b) return;
+        const id = b.dataset.save, inp = document.querySelector(`.dh-price[data-id="${CSS.escape(id)}"]`);
+        const v = Number(inp.value);
+        if (!(v > 0)) { $("err").textContent = "اكتب سعر أكبر من صفر"; $("err").style.display = "block"; return; }
+        b.disabled = true;
+        const { error } = await db.from("ingredients").update({ unit_price: v }).eq("id", id);
+        if (error) { b.disabled = false; $("err").textContent = error.message; $("err").style.display = "block"; return; }
+        $("err").style.display = "none";
+        b.closest(".dh-row").remove();
+        olvToast("انحفظ السعر");
+      };
 
       // ب) رصيد سالب
       const b = ings.filter((i) => Number(i.current_stock) < 0).sort((x, y) => Number(x.current_stock) - Number(y.current_stock));
