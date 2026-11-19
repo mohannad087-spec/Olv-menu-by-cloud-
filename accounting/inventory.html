@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -59,7 +59,7 @@
 })();
 </script>
 <style>
-  .wrap.inv-wrap{max-width:1120px;}
+  .wrap.inv-wrap{max-width:var(--page-max);}
   .iv-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
   .iv-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
   .iv-head .iv-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
@@ -232,6 +232,17 @@
         <button class="btn small gold" id="go-add" type="button"></button>
       </div>
     </header>
+
+    <details class="group" id="qr-box">
+      <summary><h2 style="display:inline; margin:0;">استلام سريع</h2> <span class="hint">(توريد يومي بدون فاتورة، مثل الدونات)</span></summary>
+      <form id="qr-form" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; align-items:flex-end;">
+        <label style="flex:2 1 220px;">المادة<input id="qr-name" list="qr-list" autocomplete="off" placeholder="اكتب اسم المادة" required></label>
+        <datalist id="qr-list"></datalist>
+        <label style="flex:1 1 110px;">الكمية الواصلة<input id="qr-qty" type="number" inputmode="decimal" min="0" step="any" placeholder="45" required></label>
+        <button class="btn gold" id="qr-save" type="submit">استلام</button>
+      </form>
+      <p class="iv-sub" style="margin-top:8px;">بيزيد الرصيد وبيسجّل حركة «استلام سريع». لا بيدخل بالمصروفات: سجّل قيمة التوريد آخر اليوم بالمصروفات.</p>
+    </details>
 
     <div class="stats iv-stats">
       <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-val"></div>
@@ -666,6 +677,25 @@
     });
     $("inv-q").addEventListener("input", () => renderList());
     $("inv-q").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.target.value = ""; renderList(); } });
+    // استلام سريع: توريد يومي بدون فاتورة (adjust_stock على السيرفر + سطر بسجل الحركات)
+    const fillQr = () => { $("qr-list").innerHTML = ingredients.map((i) => `<option value="${olvEsc(i.name)}">`).join(""); };
+    $("qr-box").addEventListener("toggle", fillQr);
+    $("qr-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = $("err");
+      const name = $("qr-name").value.trim(), qty = Number($("qr-qty").value);
+      const ing = ingredients.find((i) => i.name === name);
+      if (!ing) { olvShowError(errBox, new Error("اختار المادة من القائمة بنفس اسمها")); return; }
+      if (!(qty > 0)) { olvShowError(errBox, new Error("اكتب كمية أكبر من صفر")); return; }
+      $("qr-save").disabled = true;
+      const { error } = await window.supabaseClient.rpc("adjust_stock", { p_kind: "ingredient", p_id: ing.id, p_delta: qty, p_reason: "adjust", p_note: "استلام سريع" });
+      $("qr-save").disabled = false;
+      if (error) { olvShowError(errBox, error); return; }
+      await loadIngredients();
+      fillQr();
+      $("qr-name").value = ""; $("qr-qty").value = ""; $("qr-name").focus();
+      olvToast(`${ing.name}: +${fmtQty(qty)}`);
+    });
     // مادة جديدة انضافت: نمسح البحث والفلتر حتى تظهر بالقائمة
     const clearInvFilter = () => { $("inv-q").value = ""; statusFilter = "all"; };
 

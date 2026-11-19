@@ -10,6 +10,7 @@ const { buildTicketBuffer, buildDrawerBuffer, kitchenCopies, receiptCopies } = r
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { saveCache, runLocalQueue, wasPrintedLocally } = require("./offline");
 const { buildReceiptTicket } = require("./ticket-receipt");
+const { buildCharcoalBuffer } = require("./charcoal");
 const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
 
 // فحص المهام الجديدة: استعلام واحد خفيف كل ثانية ونص (كان ٥ استعلامات كل ٤ ثواني)، والباقي (نبضة الحياة،
@@ -30,7 +31,13 @@ async function loadPrinterSettings() {
   const { data, error } = await supabase
     .from("printer_settings").select("*").eq("id", 1).maybeSingle();
   if (error) throw error;
-  return data || {};
+  const settings = data || {};
+  // إعداد بطاقة الفحم (اختياري، بيرجع للافتراضي لو ما انحفظ)
+  try {
+    const cc = await supabase.from("app_settings").select("value").eq("key", "charcoal_card").maybeSingle();
+    if (cc.data) settings.charcoal_card = cc.data.value;
+  } catch (_) { /* مش حرج */ }
+  return settings;
 }
 
 async function loadSaleWithItems(saleId) {
@@ -157,7 +164,18 @@ async function processJob(job, settings, printers, saleCache) {
       if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
       // البيع انطبع أصلًا من سيرفر المحل وقت انقطاع النت، ورجع النت ووصل للسحابة: ما منطبعه مرتين
       // (إعادة الطباعة اليدوية reprint_no بتنطبع عادي)
-      if (!job.reprint_no && wasPrintedLocally(sale.client_ref)) {
+      // مهمة «إضافة على حساب طاولة»: الرقم المرجعي المحلي هو رقم الإضافة (sale_additions) مش رقم الحساب الأول،
+      // وإلا إضافة بعد رجوع النت بتنتجاهل بالغلط لأن الحساب انفتح بدون نت
+      let localRef = sale.client_ref;
+      if (job.is_addition) {
+        localRef = null;
+        if (job.item_ids && job.item_ids.length) {
+          const { data: add } = await supabase.from("sale_additions").select("client_ref")
+            .eq("sale_id", job.sale_id).contains("item_ids", [job.item_ids[0]]).maybeSingle();
+          localRef = add ? add.client_ref : null;
+        }
+      }
+      if (!job.reprint_no && !job.bill_kind && wasPrintedLocally(localRef)) {
         await markJob(job.id, { status: "skipped", error_message: "انطبعت أصلًا وقت انقطاع النت" });
         return;
       }
@@ -171,14 +189,15 @@ async function processJob(job, settings, printers, saleCache) {
           await markJob(job.id, { status: "skipped", error_message: "كل أصناف هذه التذكرة انلغت قبل الطباعة" });
           return;
         }
-        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems }, printer ? printer.name : null, await hasOtherStations(job), layout);
+        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems, is_addition: !!job.is_addition }, printer ? printer.name : null, await hasOtherStations(job), layout);
       } else if (job.job_type === "cancel") {
         canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems, layout);
       } else {
         canvas = buildReceiptTicket(
           sale, settings,
           job.reprint_no ? { no: job.reprint_no, reason: job.reprint_reason || "—", by: job.reprint_by } : null,
-          layout
+          layout,
+          job.bill_kind ? { kind: job.bill_kind, by: job.reprint_by } : null
         );
       }
     }
@@ -186,13 +205,22 @@ async function processJob(job, settings, printers, saleCache) {
     // درج الكاش موصول بطابعة الكاشير: بينفتح مع فاتورة البيع (مش إعادة الطباعة)
     // وبالطباعة التجريبية حتى تتأكد إنو الدرج شغّال
     const openDrawer = !!(printer && printer.open_drawer &&
-      ((job.job_type === "receipt" && !job.reprint_no) || isTest));
+      ((job.job_type === "receipt" && !job.reprint_no && !job.bill_kind) || isTest));
     // تذكرة القسم وفاتورة البيع الحقيقيتين (مش تجريبي ولا إعادة طباعة) بتنطبعوا نسختين؛ الإلغاء نسخة وحدة
     const copies = isTest ? 1
       : job.job_type === "kitchen" ? kitchenCopies()
-      : job.job_type === "receipt" && !job.reprint_no ? receiptCopies() : 1;
+      : job.job_type === "receipt" && !job.reprint_no && !job.bill_kind ? receiptCopies() : 1;
     const buffer = buildTicketBuffer(canvas, openDrawer, copies);
     await sendToPrinter(target.ip, target.port || 9100, buffer, retryLog(label));
+
+    // بطاقة فحم لكل أرجيلة مع فاتورة البيع الحقيقية (مش تجريبي ولا إعادة طباعة)؛ فشلها ما بيفشّل الفاتورة
+    if (job.job_type === "receipt" && !job.reprint_no && !job.bill_kind && !isTest && printer && printer.kind === "receipt") {
+      try {
+        const sale = saleCache.get(job.sale_id);
+        const cards = sale ? buildCharcoalBuffer(sale, settings) : null;
+        if (cards) { await sendToPrinter(target.ip, target.port || 9100, cards, retryLog(label)); log(`✓ بطاقات فحم انطبعت على "${label}"`); }
+      } catch (e) { log(`⚠ تعذّرت طباعة بطاقة الفحم على "${label}":`, e.message); }
+    }
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
     log(`✓ تمت الطباعة (${job.job_type}) على "${label}"${job.sale_id ? ` لعملية بيع ${job.sale_id}` : ""}${openDrawer ? " + أمر فتح الدرج" : ""}`);

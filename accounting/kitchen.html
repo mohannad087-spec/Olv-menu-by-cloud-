@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -302,6 +302,8 @@
     document.querySelectorAll("[data-ic]").forEach((el) => { el.outerHTML = olvIcon(el.dataset.ic); });
 
     const db = window.supabaseClient;
+    // شاشة المطبخ ما فيها شي بيضيع: التحديث الجديد بينزل عليها لحاله (olvWatchUpdates بـ layout.js)
+    window.olvAutoReload = () => true;
     const PENDING_STATUS = "قيد التحضير";
     const READY_STATUS = "جاهز";
     const WINDOW_HOURS = 12; // الشاشة بتعرض طلبات آخر 12 ساعة بس؛ الأقدم «عالقة» وبتنعرض كتنبيه لحالها
@@ -594,10 +596,18 @@
         let saleId = o.id;
         let mapId = (id) => id;
         if (o.source === "local") {
-          const { data, error } = await db.from("sales_entries").select("id, sale_items(id, product_name, qty, status)")
+          let { data, error } = await db.from("sales_entries").select("id, sale_items(id, product_name, qty, status)")
             .eq("client_ref", o.client_ref).maybeSingle();
           if (error) throw error;
-          if (!data) continue;
+          if (!data) {
+            // طلب انضاف على حساب طاولة مفتوح: السحابة بتحفظه بسجل الإضافات (sale_additions) مش كطلب لحاله
+            const add = await db.from("sale_additions").select("sale_id, item_ids").eq("client_ref", o.client_ref).maybeSingle();
+            if (add.error) throw add.error;
+            if (!add.data) continue;
+            const its = await db.from("sale_items").select("id, product_name, qty, status").in("id", add.data.item_ids);
+            if (its.error) throw its.error;
+            data = { id: add.data.sale_id, sale_items: its.data || [] };
+          }
           saleId = data.id;
           // نفس الصنف ونفس الكمية، بالترتيب
           const pool = (data.sale_items || []).filter((it) => it.status !== "voided");

@@ -1,5 +1,6 @@
 -- مطبّق مسبقًا على قاعدة البيانات (مشروع Supabase) — هذا الملف للتوثيق وإعادة البناء فقط.
 -- حضور الموظفين: يوم الدوام = أول وآخر بصمة باليوم (يوم العمل بيبدأ 04:00 بتوقيت عمّان)،
+-- بدون حد للشفت الصباحي: الساعات من أول بصمة لآخر بصمة باليوم (انلغى حد 4 العصر بتاريخ 2026-11-06)
 -- اليوم اللي فرق بصماته أقل من p_min_minutes (افتراضي 30) بينتجاهل، واليوم ببصمة وحدة = missing_exit.
 -- SECURITY INVOKER: RLS على employee_punches/profiles بتنطبق على المستدعي. التنفيذ لـ authenticated فقط.
 
@@ -29,7 +30,7 @@ as $function$
   )
   select p.id, p.full_name, p.device_user_id, d.work_date, d.first_punch, d.last_punch, d.punch_count,
          case when d.punch_count > 1 and d.last_punch - d.first_punch >= make_interval(mins => p_min_minutes)
-              then round(extract(epoch from d.last_punch - d.first_punch) / 3600.0, 2) else 0 end,
+              then round(extract(epoch from (d.last_punch - d.first_punch)) / 3600.0, 2) else 0 end,
          case when d.punch_count = 1 then 'missing_exit'
               when d.last_punch - d.first_punch < make_interval(mins => p_min_minutes) then 'ignored'
               else 'ok' end

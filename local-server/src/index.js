@@ -177,6 +177,8 @@ async function handleLocal(req, res, url) {
     res.end();
     return;
   }
+  // ما حدا فتح صفحة من دقيقة؟ منجرّب الموقع بالخلفية حتى «online» يضل صادق المرة الجاية
+  if (route === "ping" && Date.now() - lastOnlineAt >= 60000) fetchUpstream("accounting/version.json").catch(() => {});
   if (route === "ping") return json(res, 200, { ok: true, paired: paired(req), online: Date.now() - lastOnlineAt < 60000, print_pending: store.printPending().length });
   // جسر الطباعة (نفس الكمبيوتر) بيسحب مهام الطباعة وقت انقطاع النت. من نفس الجهاز بس، بدون ربط
   if (route === "print-queue" || route === "print-done") {

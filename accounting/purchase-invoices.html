@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -65,6 +65,7 @@
   .pi-lines td{padding:5px 4px; vertical-align:top;}
   .pi-lines input,.pi-lines select{width:100%; box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-2);
     border:1px solid var(--hair); border-radius:8px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  #pi-supplier.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
   .pi-lines input.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
   .pi-line-total{font-weight:700; white-space:nowrap; padding-top:12px; display:block;}
   .pi-warn{font-size:11.5px; color:var(--gold-hi); margin-top:3px; line-height:1.4;}
@@ -92,6 +93,9 @@
   .pi-pay{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;}
   .pi-pay label{flex:1; min-width:72px; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
   .pi-pay input{display:none;}
+  .pi-pay.need{outline:2px solid var(--bad,#d33); outline-offset:3px; border-radius:12px; animation:piNeed .35s;}
+  @keyframes piNeed{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  @media (prefers-reduced-motion:reduce){.pi-pay.need{animation:none}}
   .pi-pay label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .pi-snap{display:flex; align-items:center; gap:14px; padding:16px; border:1.5px dashed var(--gold); border-radius:14px; background:rgba(var(--gold-rgb),.07); cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .16s var(--spring);}
   .pi-snap:active{transform:scale(.98);}
@@ -114,7 +118,7 @@
   .pi-snaps{display:grid; grid-template-columns:1fr; gap:10px;}
   @media(min-width:700px){ .pi-snaps{grid-template-columns:1fr 1fr;} }
   button.pi-snap{width:100%; font:inherit; color:inherit; text-align:right;}
-  .pi-snap.scan{border-color:var(--olive); background:rgba(86,105,46,.07);}
+  .pi-snap.scan{border-color:var(--olive); background:rgba(91,71,230,.07);}
   .pi-snap.scan b{color:var(--olive);}
   tr.pi-hit td{animation:piHit .9s ease-out;}
   @keyframes piHit{from{background:rgba(var(--gold-rgb),.28);} to{background:transparent;}}
@@ -163,7 +167,7 @@
   .pi-badge{display:inline-block; font-size:11.5px; border-radius:999px; padding:2px 9px; font-weight:700;}
   .pi-badge.cash{background:rgba(124,138,74,.25); color:var(--ok);}
   .pi-badge.credit{background:rgba(193,88,63,.2); color:var(--danger-hi);}
-  .pi-badge.partial{background:rgba(201,162,75,.22); color:var(--gold-hi);}
+  .pi-badge.partial{background:rgba(66,84,232,.22); color:var(--gold-hi);}
   .pi-void{opacity:.5; text-decoration:line-through;}
   .pi-paste textarea{width:100%; box-sizing:border-box; min-height:110px; background:var(--ink-2); border:1px solid var(--hair); color:var(--paper);
     border-radius:10px; padding:10px; font-family:'Tajawal',sans-serif; font-size:14px; direction:rtl;}
@@ -175,7 +179,7 @@
 
   /* صفحة المشتريات (2026-10): الفاتورة الجديدة ورا زر ← 3 أرقام ← سجل الفواتير مجمّع بالشهر مع فلاتر وبحث.
      القواعد بـ design-system/olv/pages/purchases.md */
-  .wrap.pv-wrap{max-width:1120px;}
+  .wrap.pv-wrap{max-width:var(--page-max);}
   .pv-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
   .pv-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
   .pv-head .pv-sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
@@ -243,10 +247,50 @@
   .pv-more .btn{min-height:44px;}
   @media (max-width:640px){ .pv-detail{padding-inline-start:12px;} .pv-row{grid-template-columns:46px minmax(0,1fr) auto; gap:10px;} }
   @media (prefers-reduced-motion: reduce){ .pv-chip{transition:none;} .pv-chip:active{transform:none;} .pv-detail:not([hidden]){animation:none;} }
+
+  /* ===== طباعة الفاتورة (A4): الشاشة العادية ما بتشوفها ===== */
+  #inv-print{display:none;}
+  @page{size:A4; margin:12mm;}
+  @media print{
+    html, body{background:#fff !important; background-image:none !important;}
+    body::before, body::after, html::before, html::after{display:none !important;}
+    body > *:not(#inv-print){display:none !important;}
+    #inv-print{display:block; color:#111; font-family:'Tajawal',sans-serif; direction:rtl; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    #inv-print, #inv-print *{animation:none !important; transition:none !important; opacity:1 !important;}
+    #inv-print .ip-head{display:flex; justify-content:space-between; align-items:center; gap:16px; padding-bottom:12px; border-bottom:3px solid #4254e8;}
+    #inv-print .ip-brand{display:flex; align-items:center; gap:14px;}
+    #inv-print .ip-logo{width:92px; height:92px; border-radius:14px; background:#000; object-fit:contain; padding:4px; box-sizing:border-box;}
+    #inv-print .ip-shop b{display:block; font-size:22px; font-weight:800; line-height:1.2;}
+    #inv-print .ip-shop span{display:block; font-size:12.5px; color:#555; margin-top:2px;}
+    #inv-print .ip-title{text-align:left;}
+    #inv-print .ip-title h1{margin:0; font-size:22px; font-weight:800; color:#4254e8;}
+    #inv-print .ip-title div{font-size:13px; margin-top:3px;}
+    #inv-print .ip-title .no{font-size:18px; font-weight:800; direction:ltr;}
+    #inv-print .ip-boxes{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;}
+    #inv-print .ip-box{border:1px solid #ccc; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.8;}
+    #inv-print .ip-box h3{margin:0 0 2px; font-size:12px; color:#777; font-weight:700;}
+    #inv-print .ip-box b{font-weight:800;}
+    #inv-print table{width:100%; border-collapse:collapse; font-size:13px;}
+    #inv-print th{background:#eef0ff; border:1px solid #c9ceef; padding:7px 8px; font-weight:800; text-align:right;}
+    #inv-print td{border:1px solid #ddd; padding:6px 8px; text-align:right;}
+    #inv-print td.n, #inv-print th.n{text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums;}
+    #inv-print tr{page-break-inside:avoid;}
+    #inv-print thead{display:table-header-group;}
+    #inv-print .ip-tot{margin-top:12px; margin-inline-start:auto; width:300px; font-size:13.5px; page-break-inside:avoid;}
+    #inv-print .ip-tot div{display:flex; justify-content:space-between; padding:5px 10px; border-bottom:1px solid #eee;}
+    #inv-print .ip-tot .grand{background:#4254e8; color:#fff; font-size:16px; font-weight:800; border-radius:8px; margin:4px 0; border:0;}
+    #inv-print .ip-tot .due{font-weight:800; color:#b3402f;}
+    #inv-print .ip-note{margin-top:14px; border:1px dashed #bbb; border-radius:10px; padding:8px 12px; font-size:13px; page-break-inside:avoid;}
+    #inv-print .ip-sign{display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px; margin-top:44px; font-size:12.5px; color:#555; text-align:center; page-break-inside:avoid;}
+    #inv-print .ip-sign div{border-top:1px solid #888; padding-top:5px;}
+    #inv-print .ip-foot{margin-top:18px; padding-top:8px; border-top:1px solid #ddd; font-size:11px; color:#888; display:flex; justify-content:space-between;}
+    #inv-print .ip-void{position:fixed; top:42%; left:0; right:0; text-align:center; font-size:90px; font-weight:800; color:rgba(179,64,47,.16); transform:rotate(-18deg); pointer-events:none;}
+  }
 </style>
 
 </head>
 <body>
+  <div id="inv-print" aria-hidden="true"></div>
   <div id="olv-nav"></div>
   <div class="wrap pv-wrap">
     <div class="err" id="err"></div>
@@ -313,12 +357,16 @@
         </div>
       </div>
 
-      <label style="font-size:13px; color:var(--muted); display:block; margin-top:18px;">الدفع</label>
+      <label style="font-size:13px; color:var(--muted); display:block; margin-top:18px;">طريقة الدفع <b style="color:var(--bad,#d33);">*</b> <span id="pi-pay-need" style="color:var(--bad,#d33); font-weight:700;" hidden>اختار كاش أو ذمة قبل الحفظ</span></label>
       <div class="pi-pay" id="pi-pay">
-        <label class="on" data-pay="cash"><input type="radio" name="pi-pay" value="cash" checked>كاش</label>
-        <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">آجل</label>
-        <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">جزء</label>
+        <label data-pay="cash"><input type="radio" name="pi-pay" value="cash">كاش</label>
+        <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">ذمة</label>
+        <label data-pay="partial"><input type="radio" name="pi-pay" value="partial">جزء ذمة</label>
       </div>
+      <label class="pi-drawer" id="pi-drawer-wrap" hidden style="display:flex; align-items:center; gap:10px; margin-top:10px; padding:12px 14px; border:1px solid var(--line,#ddd); border-radius:12px; cursor:pointer;">
+        <input type="checkbox" id="pi-drawer" style="width:20px; height:20px;">
+        <span><b>دفعتها من الدرج</b><br><small style="color:var(--muted);">بتنزل من رصيد الدرج بتقفيل الخزينة، وبتضل محسوبة مشتريات</small></span>
+      </label>
       <div class="field" id="pi-partial-wrap" hidden>
         <label for="pi-partial">المبلغ المدفوع الآن</label>
         <input type="number" id="pi-partial" min="0" step="0.01" dir="ltr">
@@ -456,10 +504,11 @@
     let items = [];              // مواد خام + مستلزمات
     let catalogOnly = [];        // أصناف الكتالوج اللي لسا مش عندك (بتنضاف تلقائيًا أول ما تنختار)
     let lines = [];              // سطور الفاتورة الحالية
-    let payMode = "cash";
+    let payMode = ""; // فاضي = لسا ما اختار (إلزامي قبل الحفظ)
     let editingId = null;        // لو عم تعدّل فاتورة محفوظة: رقمها (بتنلغى القديمة وبتنحفظ الجديدة مكانها)
     let editingAttach = null;
     let isOwner = false;
+    let aliases = {};            // اسم الصنف بفواتير الموردين (بعد norm) ← kind:id، بيتعلّم لحاله
     let barcodes = new Map();    // الكود → { item_kind, item_id, unit_mode }
     const HISTORY_LIMIT = 60;
 
@@ -477,12 +526,16 @@
     const round2 = (n) => Math.round(n * 100) / 100;
 
     function newLine(over) {
-      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, bMode: "total", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, disc: "", discOpen: false, bMode: "total", bPct: "", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
     }
     const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
     // نوع السطر: مادة خام ولا مستلزم. الصنف المربوط هو المرجع، وغير هيك اللي اختاره المستخدم (أو تخمين من الاسم للسطور المقروءة من الصورة)
     const kindOf = (line) => { const it = itemOf(line); return it ? it.kind : (line.kind || (line.unmatchedName ? guessKind(line.unmatchedName) : "ingredient")); };
-    const lineTotal = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
+    // المبلغ قبل خصم السطر، وخصم السطر (نسبة %)، والصافي (هو اللي بنجمعه ونحسب عليه الضريبة)
+    const lineGross = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
+    const lineDiscOf = (line) => round2(lineGross(line) * Math.min(Math.max(Number(line.disc) || 0, 0), 100) / 100);
+    const lineTotal = (line) => round2(lineGross(line) - lineDiscOf(line));
+    const lineDiscSum = () => round2(lines.reduce((s, l) => s + lineDiscOf(l), 0));
     // كل سطر فيه كمية وسعر بينحسب، حتى لو لسا مش مربوط بصنف — هيك الإجمالي بيطابق الورقة من أول ما تنقرا
     const subtotalOf = () => round2(lines.reduce((s, l) => s + lineTotal(l), 0));
     // نفس حساب السيرفر بالضبط (record_purchase_invoice): الخصم ثم الضريبة، والسيرفر هو المرجع
@@ -511,7 +564,7 @@
       } else taxRaw = 0;
       const tax = round2(taxRaw);
       const total = inclusive ? net : round2(net + tax);
-      return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct };
+      return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct, lineDisc: lineDiscSum() };
     }
     const invoiceTotal = () => computeTotals().total;
     const ROUND_TOL = 0.1; // أكبر فرق تقريب مقبول بين الورقة والمدخل (دينار)
@@ -530,6 +583,11 @@
         ...(sup || []).map((i) => ({ ...i, kind: "supply" })),
       ];
       await refreshCatalogHints();
+      try {
+        const { data: al } = await window.supabaseClient.from("app_settings").select("value").eq("key", "invoice_item_aliases").maybeSingle();
+        const v = al && al.value; const o = typeof v === "string" ? JSON.parse(v) : v;
+        aliases = o && typeof o === "object" && !Array.isArray(o) ? o : {};
+      } catch (_) { aliases = aliases || {}; }
       // الباركودات (لو الجدول لسا مش موجود بالسيرفر منكمّل بدونها)
       const { data: bc } = await window.supabaseClient.from("item_barcodes").select("code, item_kind, item_id, unit_mode").then((r) => r, () => ({ data: null }));
       barcodes = new Map((bc || []).map((b) => [b.code, b]));
@@ -567,6 +625,11 @@
     // البونص بوحدة المخزون. إما رقم إجمالي مباشرة، أو نسبة «كمية بونص لكل كمية مشتراة»: بنحسب المجموعات الكاملة بس (٢٥ كيلو مع «نص لكل ١٠» = مجموعتين)
     function bonusInfo(line) {
       const it = itemOf(line);
+      if (line.bMode === "percent") {
+        // نسبة مئوية من الكمية المشتراة (١٠٪ من ٢٠ كيلو = ٢ كيلو مجانًا)
+        const pct = Math.max(Number(line.bPct) || 0, 0), sq = it ? stockQtyOf(line, it) : 0;
+        return { total: r3(sq * pct / 100), groups: null };
+      }
       if (line.bMode !== "ratio") {
         const b = Math.max(Number(line.bonus) || 0, 0);
         return { total: b, groups: null };
@@ -585,6 +648,7 @@
     const stockPriceOf = (line, it) => {
       const b = bonusOf(line), q = stockQtyOf(line, it);
       if (b > 0 && q > 0) return lineTotal(line) / (q + b);
+      if (lineDiscOf(line) > 0 && q > 0) return lineTotal(line) / q;
       return Number(line.price) / factorOf(line, it);
     };
     // كمية المخزون الحالية تحت اسم الصنف، ومعها الكمية بعد الفاتورة (المشتراة + البونص)
@@ -597,7 +661,7 @@
     }
     function bonusHtml(line, it) {
       if (!it) return "";
-      if (!line.bonusOpen && !bonusOf(line) && line.bMode !== "ratio") return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في بونص (مجاني)؟</button>`;
+      if (!line.bonusOpen && !bonusOf(line) && line.bMode !== "ratio" && line.bMode !== "percent") return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في بونص (مجاني)؟</button>`;
       const hasPU = it.purchase_unit && it.purchase_unit_factor;
       const ratio = line.bMode === "ratio";
       const buyUnit = line.unitMode === "purchase" && hasPU ? it.purchase_unit : it.unit;
@@ -608,7 +672,12 @@
       const foreign = gu !== "stock" && gu !== "purchase";
       const unitName = gu === "other" ? (line.bOther || "وحدة") : gu;
       const factorHtml = foreign ? `<div class="pi-bonus-row"><span>${gu === "other" ? `<input type="text" data-f="bOther" value="${olvEsc(line.bOther)}" placeholder="اسم الوحدة" aria-label="اسم الوحدة" style="max-width:110px;">` : ""} 1 ${olvEsc(unitName)} =</span><input type="number" data-f="bFactor" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bFactor)}" placeholder="كم" aria-label="كم بتساوي"><span>${olvEsc(it.unit)}</span></div>` : "";
-      const body = ratio
+      const pctMode = line.bMode === "percent";
+      const body = pctMode
+        ? `<div class="pi-bonus-row"><span>بونص</span>
+            <input type="number" data-f="bPct" min="0" max="1000" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.bPct)}" placeholder="مثلًا 10" aria-label="نسبة البونص">
+            <span>% من الكمية المشتراة</span></div>`
+        : ratio
         ? `<div class="pi-bonus-row"><span>بونص</span>
             <input type="number" data-f="bGet" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bGet)}" placeholder="مثلًا 0.5" aria-label="كمية البونص">
             ${getUnitHtml}
@@ -620,7 +689,9 @@
       return `<div class="pi-bonus" style="margin-top:6px;">
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <b style="font-size:13px;">🎁 بونص</b>
-          <button type="button" class="pi-mini" data-act="bonus-mode">${ratio ? "أدخل الرقم الإجمالي" : "احسبه بنسبة (مثلًا نص كيلو لكل 10)"}</button>
+          ${line.bMode !== "total" ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="total">أدخل الرقم الإجمالي</button>` : ""}
+          ${!ratio ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="ratio">نسبة (نص كيلو لكل 10)</button>` : ""}
+          ${!pctMode ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="percent">نسبة مئوية %</button>` : ""}
         </div>
         ${body}
         <div data-bonus-sum>${bonusSum(line, it)}</div>
@@ -774,6 +845,12 @@
       const eff = base > 0 ? Math.round(Number(i.tax_amount) / base * 10000) / 100 : Number(i.tax_rate);
       return Math.abs(eff - Number(i.tax_rate)) < 0.05 ? Number(i.tax_rate) : eff;
     }
+    // خصم خاص بالسطر بنسبة % (مثل عروض الموزّع: ٣٧٪ على العلب): الصافي = المبلغ − الخصم، وتكلفة الوحدة من الصافي
+    function discHtml(line) {
+      if (!line.discOpen && line.disc === "") return `<button type="button" class="pi-newbtn" data-act="disc-open">🏷 في خصم % على هالسطر؟</button>`;
+      const d = lineDiscOf(line);
+      return `<div class="pi-bonus-row"><span>خصم السطر %</span><input type="number" data-f="disc" min="0" max="100" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.disc)}" placeholder="مثلًا 37" aria-label="نسبة خصم السطر"><small class="hint" data-disc-sum>${d > 0 ? `المبلغ ${money(lineGross(line))} − خصم ${money(d)} = صافي ${money(lineTotal(line))}` : ""}</small></div>`;
+    }
     // ضريبة خاصة بالسطر (اختياري): فاضي = نسبة الفاتورة، 0 = معفى
     function taxHtml(line) {
       if (!line.taxOpen && line.tax === "") return `<button type="button" class="pi-newbtn" data-act="tax-open">％ ضريبة مختلفة لهالمادة؟</button>`;
@@ -799,7 +876,9 @@
             ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
             <div data-stock>${stockNote(line, it)}</div>
             <div data-warn>${priceWarning(line, it)}</div>
+            ${it ? `<button type="button" class="pi-newbtn" data-act="editdlg">✏️ تعديل المادة</button>` : ""}
             ${bonusHtml(line, it)}
+            ${discHtml(line)}
             ${taxHtml(line)}
           </td>
           <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
@@ -817,24 +896,26 @@
     function updateTotals() {
       const T = computeTotals();
       const total = T.total;
-      let paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
+      let paid = (payMode === "cash" || !payMode) ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
       document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l) || lineTotal(l) > 0).length;
       const qtySum = qtyOfLines();
       document.getElementById("pi-qty").textContent = String(qtySum);
       document.getElementById("pi-subtotal").textContent = money(T.subtotal);
-      document.getElementById("pi-row-discount").hidden = !(T.discount > 0);
-      document.getElementById("pi-discount-val").textContent = "- " + money(T.discount);
+      // إجمالي الخصم = خصم السطور + خصم الفاتورة (ونسبته من المبلغ قبل الخصم)
+      const allDisc = round2(T.discount + T.lineDisc), grossAll = round2(T.subtotal + T.lineDisc);
+      document.getElementById("pi-row-discount").hidden = !(allDisc > 0);
+      document.getElementById("pi-discount-val").textContent = "- " + money(allDisc) + (grossAll > 0 ? ` (${Math.round(allDisc / grossAll * 10000) / 100}%)` : "");
       document.getElementById("pi-row-tax").hidden = !(T.tax > 0);
       document.getElementById("pi-tax-val").textContent = money(T.tax) + (T.inclusive ? " (مضمّنة)" : "");
       document.getElementById("pi-total").textContent = money(total);
       document.getElementById("pi-paid").textContent = money(paid);
       document.getElementById("pi-remaining").textContent = money(total - paid);
-      document.getElementById("pi-row-paid").hidden = payMode === "cash";
-      document.getElementById("pi-row-remaining").hidden = payMode === "cash";
+      document.getElementById("pi-row-paid").hidden = payMode === "cash" || !payMode;
+      document.getElementById("pi-row-remaining").hidden = payMode === "cash" || !payMode;
       // ملخّص القسم المطوي حتى تعرف شو فيه بدون ما تفتحه
       const more = [];
       if (document.getElementById("pi-no").value.trim()) more.push("رقم " + document.getElementById("pi-no").value.trim());
-      if (T.discount > 0) more.push("خصم " + money(T.discount));
+      if (T.discount + T.lineDisc > 0) more.push("خصم " + money(T.discount + T.lineDisc));
       if (T.rate > 0) more.push("ضريبة " + T.rate + "%");
       document.getElementById("pi-more-sum").textContent = more.join(" · ");
       const paper = document.getElementById("pi-paper-total").value;
@@ -944,6 +1025,8 @@
       else if (f === "price") line.price = e.target.value;
       else if (f === "bonus") line.bonus = e.target.value;
       else if (f === "tax") line.tax = e.target.value;
+      else if (f === "disc") line.disc = e.target.value;
+      else if (f === "bPct") line.bPct = e.target.value;
       else if (f === "bGet") line.bGet = e.target.value;
       else if (f === "bFactor") line.bFactor = e.target.value;
       else if (f === "bOther") line.bOther = e.target.value;
@@ -951,6 +1034,7 @@
       const it = itemOf(line);
       const bs = tr.querySelector("[data-bonus-sum]"); if (bs && it) bs.innerHTML = bonusSum(line, it);
       tr.querySelector("[data-total]").textContent = money(lineTotal(line));
+      const ds = tr.querySelector("[data-disc-sum]"); if (ds) ds.textContent = lineDiscOf(line) > 0 ? `المبلغ ${money(lineGross(line))} − خصم ${money(lineDiscOf(line))} = صافي ${money(lineTotal(line))}` : "";
       tr.querySelector("[data-warn]").innerHTML = priceWarning(line, it);
       const sn = tr.querySelector("[data-stock]"); if (sn) sn.innerHTML = stockNote(line, it);
       updateTotals();
@@ -1011,10 +1095,12 @@
         renderLines(); return;
       }
       if (btn.dataset.act === "tax-open") { line.taxOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="tax"]`); if (q) q.focus(); return; }
+      if (btn.dataset.act === "disc-open") { line.discOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="disc"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
       if (btn.dataset.act === "bonus-mode") {
-        if (line.bMode === "ratio") { const t = bonusOf(line); line.bonus = t > 0 ? String(t) : ""; line.bMode = "total"; }
-        else line.bMode = "ratio";
+        const to = btn.dataset.to || "total";
+        if (to === "total") { const t = bonusOf(line); line.bonus = t > 0 ? String(t) : ""; }
+        line.bMode = to;
         renderLines(); return;
       }
       if (btn.dataset.act === "pick") {
@@ -1024,6 +1110,7 @@
         renderLines(); return;
       }
       if (btn.dataset.act === "newdlg") { await addNewItemForLine(line, btn); return; }
+      if (btn.dataset.act === "editdlg") { await editItemForLine(line); return; }
       if (btn.dataset.act === "new") {
         const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
         if (!name) return;
@@ -1093,6 +1180,59 @@
         });
         setTimeout(() => nameEl.focus(), 50);
       });
+    }
+    // نافذة «تعديل المادة» من داخل الفاتورة: الاسم + الوحدة + السعر + وحدة الشراء، بدون ما تطلع من الصفحة
+    function openEditItemDialog(it) {
+      return new Promise((resolve) => {
+        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس", "صندوق"];
+        if (it.unit && !UNITS.includes(it.unit)) UNITS.unshift(it.unit);
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">تعديل المادة</h3>
+          <div class="hint" style="margin-bottom:12px;">${it.kind === "supply" ? "مستلزم" : "مادة خام"} — التعديل بيتحفظ على المادة نفسها وبيضل سطر الفاتورة مربوط فيها.</div>
+          <div class="field"><label>اسم المادة</label><input type="text" id="ei-name" maxlength="120" value="${olvEsc(it.name)}"></div>
+          <div class="field"><label>وحدة المخزون</label>
+            <select id="ei-unit">${UNITS.map((u) => `<option value="${olvEsc(u)}"${u === it.unit ? " selected" : ""}>${olvEsc(u)}</option>`).join("")}</select>
+            <div class="hint">تغيير الوحدة ما بيحوّل الكمية الموجودة بالمخزون (${olvEsc(fmtQ(Number(it.current_stock) || 0))}).</div></div>
+          <div class="field"><label>سعر الوحدة (بوحدة المخزون)</label><input type="number" id="ei-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(it.unit_price || "")}" placeholder="اختياري"></div>
+          <div class="field"><label>وحدة الشراء (مثال: كرتونة) — اختياري</label><input type="text" id="ei-pu" maxlength="30" value="${olvEsc(it.purchase_unit || "")}" placeholder="فاضي = بدون"></div>
+          <div class="field"><label>كم وحدة مخزون بوحدة الشراء الواحدة؟</label><input type="number" id="ei-pf" min="0.001" step="any" dir="ltr" value="${olvEsc(it.purchase_unit_factor || "")}" placeholder="مثال: 12"></div>
+          <div class="pi-warn bad" id="ei-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="ei-save" style="flex:1;">حفظ التعديل</button>
+            <button type="button" class="btn" id="ei-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const err = box.querySelector("#ei-err");
+        box.querySelector("#ei-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        box.querySelector("#ei-save").addEventListener("click", () => {
+          const name = box.querySelector("#ei-name").value.trim().slice(0, 120);
+          if (!name) { err.textContent = "اكتب اسم المادة"; return; }
+          const pu = box.querySelector("#ei-pu").value.trim();
+          const pf = Number(box.querySelector("#ei-pf").value) || 0;
+          if (pu && !(pf > 0)) { err.textContent = "اكتب كم وحدة مخزون بالـ" + pu + " (رقم أكبر من صفر)"; return; }
+          const price = Number(box.querySelector("#ei-price").value) || 0;
+          done({ name, unit: box.querySelector("#ei-unit").value, unit_price: price > 0 ? price : null, purchase_unit: pu || null, purchase_unit_factor: pu ? pf : null });
+        });
+        setTimeout(() => box.querySelector("#ei-name").focus(), 50);
+      });
+    }
+    async function editItemForLine(line) {
+      const it = itemOf(line); if (!it) return;
+      const res = await openEditItemDialog(it);
+      if (!res) return;
+      const { error } = await window.supabaseClient.from(it.kind === "ingredient" ? "ingredients" : "supplies").update(res).eq("id", it.id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      await loadItems();
+      if (line.unitMode === "purchase" && !res.purchase_unit) line.unitMode = "stock";
+      renderLines();
+      if (window.olvToast) olvToast("تم تعديل المادة");
     }
     // يرجّع true إذا انربط السطر بمادة (جديدة أو موجودة بنفس الاسم)
     async function addNewItemForLine(line, btn) {
@@ -1297,10 +1437,16 @@
     // ---------- الدفع ----------
     document.getElementById("pi-pay").addEventListener("change", (e) => {
       payMode = e.target.value;
+      document.getElementById("pi-pay").classList.remove("need"); document.getElementById("pi-pay-need").hidden = true;
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      syncDrawerBox();
       updateTotals();
     });
+    function syncDrawerBox() {
+      document.getElementById("pi-drawer-wrap").hidden = payMode !== "cash";
+      if (payMode !== "cash") document.getElementById("pi-drawer").checked = false;
+    }
     document.getElementById("pi-partial").addEventListener("input", updateTotals);
     // الخصم والضريبة: نتذكّر آخر ضريبة استخدمتها (نسبة، شاملة/غير شاملة، قابلة للاسترداد) لأنها ثابتة غالبًا
     const TAX_KEY = "olv_pi_tax_v1";
@@ -1368,6 +1514,19 @@
       document.getElementById("pi-paste-box").hidden = true;
     });
 
+    // بعد حفظ الفاتورة: كل سطر اسمه بالفاتورة غير اسم الصنف اللي انربط فيه، منتذكره ليربطه لحاله بالفواتير الجاية
+    async function learnAliases() {
+      try {
+        const add = {};
+        lines.forEach((l) => {
+          const it = itemOf(l); const src = norm(l.srcName);
+          if (it && src && src !== norm(it.name) && aliases[src] !== it.kind + ":" + it.id) add[src] = it.kind + ":" + it.id;
+        });
+        if (!Object.keys(add).length) return;
+        aliases = Object.assign({}, aliases, add);
+        await window.supabaseClient.from("app_settings").upsert({ key: "invoice_item_aliases", value: JSON.stringify(aliases) }, { onConflict: "key" });
+      } catch (_) { /* التعلّم إضافة، ما بنوقف الحفظ عليه */ }
+    }
     // يضيف أصناف محلّلة ({name, qty, price, unit?}) للجدول ويطابقها مع مواد المخزون؛
     // اللي ما انعرف بيتعلّم بالأحمر. مشترك بين اللصق وقراءة الذكاء الاصطناعي
     function addParsedLines(parsed) {
@@ -1375,6 +1534,8 @@
       lines = existing.concat(parsed.map((p) => {
         let it = findItem(p.name);
         let guess = false;
+        // اسم اتعلّمنا ربطه من فواتير قبل (مثلًا اسم الصنف عند مورّد ثاني): بنربطه بدون تخمين
+        if (!it && aliases[norm(p.name)]) it = items.find((i) => i.kind + ":" + i.id === aliases[norm(p.name)]) || null;
         if (!it) {
           // الأقرب: إذا في صنف واحد متقدم بوضوح على الباقي منربطه وبنعلّمه «تأكد»؛ إذا في تعادل (نكهات كتير) ما منخمّن
           const c = candidatesFor(p.name);
@@ -1383,11 +1544,12 @@
         // لو الوحدة بالفاتورة = وحدة الشراء المضبوطة للصنف (كرتونة)، السعر المقروء هو سعر الكرتونة
         const purchaseUnit = it && p.unit && it.purchase_unit && it.purchase_unit_factor && norm(p.unit) === norm(it.purchase_unit);
         return newLine({
-          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "",
+          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "", srcName: p.name,
           guessFrom: guess ? p.name : "",
           unitMode: purchaseUnit ? "purchase" : "stock",
           qty: p.qty === "" || p.qty == null ? "" : String(p.qty),
           price: p.price === "" || p.price == null ? (it && it.unit_price ? String(it.unit_price) : "") : String(p.price),
+          disc: p.disc > 0 && p.disc <= 100 ? String(p.disc) : "", discOpen: p.disc > 0,
         });
       }));
       renderLines();
@@ -1525,7 +1687,7 @@
         const qty = it.qty;
         let price = it.unit_price;
         if ((price == null) && it.line_total != null && qty > 0) price = Math.round(it.line_total / qty * 1000) / 1000;
-        return { name: it.name, qty: qty == null ? "" : qty, price: price == null ? "" : price, unit: it.unit };
+        return { name: it.name, qty: qty == null ? "" : qty, price: price == null ? "" : price, unit: it.unit, disc: Number(it.discount_pct) || 0 };
       });
       // قراءة ثانية (بعد زيادة صورة): منشيل أسطر القراءة السابقة قبل ما نضيف الجديدة، حتى ما تتكرر
       if (lastAiLines) lines = lines.filter((l) => !lastAiLines.has(l));
@@ -1670,11 +1832,12 @@
       if (!d || !Array.isArray(d.lines) || !d.lines.length || Date.now() - d.at > 3 * 24 * 3600 * 1000) { clearDraft(); return false; }
       lines = d.lines.map((l) => newLine(l));
       Object.keys(d.fields || {}).forEach((id) => { if (DRAFT_IDS.includes(id)) document.getElementById(id).value = d.fields[id]; });
-      payMode = ["cash", "credit", "partial"].includes(d.payMode) ? d.payMode : "cash";
-      const radio = document.querySelector('#pi-pay input[value="' + payMode + '"]');
+      payMode = ["cash", "credit", "partial"].includes(d.payMode) ? d.payMode : "";
+      const radio = payMode ? document.querySelector('#pi-pay input[value="' + payMode + '"]') : null;
       if (radio) radio.checked = true;
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      syncDrawerBox();
       const banner = document.createElement("div");
       banner.className = "pi-warn"; banner.id = "pi-draft-banner";
       const mins = Math.max(1, Math.round((Date.now() - d.at) / 60000));
@@ -1688,18 +1851,21 @@
         lines = [newLine()];
         ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         document.getElementById("pi-supplier").value = "";
-        document.querySelector('#pi-pay input[value="cash"]').checked = true;
-        payMode = "cash";
-        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+        document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+        payMode = "";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
         document.getElementById("pi-partial-wrap").hidden = true;
+        syncDrawerBox();
         renderLines();
       });
       return true;
     }
 
     document.getElementById("pi-save").addEventListener("click", async () => {
-      const errBox = document.getElementById("err");
-      errBox.style.display = "none";
+      const errBox0 = document.getElementById("err");
+      errBox0.style.display = "none";
+      // زر الحفظ تحت بالصفحة وصندوق الخطأ فوق: كان الخطأ يطلع وما يشوفه أحد ("كبسة حفظ وما صار شي"). هلأ بنطلّع رسالة ظاهرة (توست) وبنوصّل للصندوق.
+      const errBox = { style: errBox0.style, set textContent(v) { errBox0.textContent = v; if (window.olvToast) olvToast(v, { type: "danger" }); try { errBox0.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} } };
       if (!navigator.onLine) { olvShowError(errBox, new Error("فواتير المشتريات بتحتاج اتصال بالإنترنت (بترفع الصورة وبتتحقق من التكرار) — حاول لما يرجع النت")); return; }
       // سطر "شبح": فيه كمية أو سعر بس بدون صنف ولا اسم — منشيله تلقائيًا بدل ما يمنع الحفظ
       const ghosts = lines.filter((l) => !itemOf(l) && !String(l.typed || "").trim() && !String(l.unmatchedName || "").trim() && (Number(l.qty) || Number(l.price)));
@@ -1745,11 +1911,24 @@
         }
         return;
       }
+      if (!payMode) {
+        const box = document.getElementById("pi-pay");
+        box.classList.remove("need"); void box.offsetWidth; box.classList.add("need");
+        document.getElementById("pi-pay-need").hidden = false;
+        box.scrollIntoView({ block: "center", behavior: "smooth" });
+        olvShowError(errBox, new Error("اختار طريقة الدفع: كاش أو ذمة، قبل ما تحفظ الفاتورة"));
+        return;
+      }
       const supplierId = document.getElementById("pi-supplier").value || null;
       const T = computeTotals();
       const total = T.total;
       const paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Number(document.getElementById("pi-partial").value) || 0;
-      if (payMode !== "cash" && !supplierId) { olvShowError(errBox, new Error("الدفع الآجل أو الجزئي لازم يكون معه مورّد")); return; }
+      if (payMode !== "cash" && !supplierId) {
+        const sel = document.getElementById("pi-supplier");
+        olvShowError(errBox, new Error("الدفع آجل/جزئي: اختر المورّد من فوق (أو غيّر الدفع إلى كاش)"));
+        if (sel) { sel.classList.add("bad"); sel.addEventListener("change", () => sel.classList.remove("bad"), { once: true }); }
+        return;
+      }
       if (payMode === "partial" && !(paid > 0 && paid < total)) { olvShowError(errBox, new Error("الدفعة الجزئية لازم تكون أكبر من صفر وأقل من الإجمالي")); return; }
       const paper = document.getElementById("pi-paper-total").value;
       if (paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
@@ -1776,11 +1955,35 @@
           // السعر بدقة عالية (مو 3 خانات) حتى إجمالي السطر على السيرفر يطابق اللي انكتب بالفاتورة (مثال: 3 صناديق × 25 ÷ 24 حبة)
           const o = { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1e8) / 1e8 };
           // بونص: الكمية = المشتراة + المجانية، والسعر = المدفوع ÷ الكمية (بدقة عالية حتى يضل إجمالي السطر نفسه بالضبط)
+          if (bonus <= 0 && lineDiscOf(l) > 0 && o.qty > 0) o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8;
           if (bonus > 0) { o.qty = Math.round((Number(l.qty) * f + bonus) * 1000) / 1000; o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8; }
           if (l.tax !== "" && l.tax != null && Number.isFinite(Number(l.tax))) o.tax_rate = lineRate(l, 0);
           return o;
         });
-        const { error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
+        // حماية من التكرار: نفس المادة بنفس الكمية والسعر مرتين بنفس الفاتورة، أو مسجّلة قبل عند نفس المورد ونفس التاريخ بفاتورة ثانية
+        {
+          const keyOf = (o) => [o.ingredient_id || o.supply_id, o.qty, Math.round(o.unit_price * 1e4)].join("|");
+          const seen = new Map(), dupNames = [];
+          payloadLines.forEach((o, i) => {
+            const k = keyOf(o);
+            if (seen.has(k)) dupNames.push(itemOf(active[i]).name); else seen.set(k, 1);
+          });
+          let prior = [];
+          if (supplierId) {
+            let q = window.supabaseClient.from("purchases").select("ingredient_id,supply_id,quantity,unit_price,invoice_id,purchase_invoices(status)")
+              .eq("supplier_id", supplierId).eq("purchase_date", document.getElementById("pi-date").value || olvToday());
+            if (editingId) q = q.neq("invoice_id", editingId);
+            const r = await q; prior = (r.data || []).filter((x) => !x.purchase_invoices || x.purchase_invoices.status !== "voided");
+          }
+          const priorKeys = new Set(prior.map((x) => keyOf({ ingredient_id: x.ingredient_id, supply_id: x.supply_id, qty: Number(x.quantity), unit_price: Number(x.unit_price) })));
+          payloadLines.forEach((o, i) => { if (priorKeys.has(keyOf(o))) dupNames.push(itemOf(active[i]).name); });
+          if (dupNames.length) {
+            const u = [...new Set(dupNames)];
+            if (!confirm(`ممكن في تكرار: ${u.slice(0, 6).join("، ")}${u.length > 6 ? "…" : ""}\nنفس المادة بنفس الكمية والسعر مكررة بنفس الفاتورة أو مسجّلة قبل عند نفس المورد بنفس التاريخ. التكرار بيضخّم الرصيد وبيطلع «نقص جرد» وهمي.\nتحفظ رغم هيك؟`)) return;
+          }
+        }
+        const fromDrawer = payMode === "cash" && document.getElementById("pi-drawer").checked;
+        const { data: savedId, error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
           ...(editingId ? { p_invoice_id: editingId } : {}),
           p_supplier_id: supplierId,
           p_invoice_no: document.getElementById("pi-no").value.trim() || null,
@@ -1796,11 +1999,20 @@
           p_tax_recoverable: document.getElementById("pi-tax-rec").checked,
         });
         if (error) throw error;
+        if (fromDrawer && savedId) {
+          // الفاتورة انحفظت؛ بنعلّم مصروفها «طلع من الدرج» (فشلها ما بيضيّع الفاتورة)
+          const { data: inv2 } = await window.supabaseClient.from("purchase_invoices").select("expense_id").eq("id", savedId).maybeSingle();
+          if (inv2 && inv2.expense_id) {
+            const { error: dErr } = await window.supabaseClient.from("expenses").update({ from_drawer: true }).eq("id", inv2.expense_id);
+            if (dErr && window.olvToast) olvToast("انحفظت الفاتورة بس ما انعلّمت من الدرج، علّمها من السجل", { type: "warn" });
+          }
+        }
         if (fromOrderId) {
           // الفاتورة انحفظت: بنعلّم الطلبية مستلمة (لو فشلت ما بنوقف شي، الفاتورة أهم)
           const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
           if (!poErr) { const b = document.getElementById("pi-from-order"); if (b) b.remove(); fromOrderId = null; if (window.olvToast) olvToast("انعلّمت الطلبية كمستلمة"); }
         }
+        learnAliases();
         const wasEdit = !!editingId;
         endEdit();
         clearDraft();
@@ -1809,10 +2021,11 @@
         ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
         clearPages();
         document.getElementById("pi-supplier").value = "";
-        document.querySelector('#pi-pay input[value="cash"]').checked = true;
-        payMode = "cash";
-        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+        document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+        payMode = "";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
         document.getElementById("pi-partial-wrap").hidden = true;
+        syncDrawerBox();
         await Promise.all([loadItems(), loadHistory()]);
         renderLines();
         if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
@@ -1827,7 +2040,7 @@
     });
 
     // ---------- السجل ----------
-    const PAY_LABELS = { cash: "كاش", credit: "آجل", partial: "جزئي" };
+    const PAY_LABELS = { cash: "كاش", credit: "ذمة", partial: "جزء ذمة" };
     let payable = {}; // الفواتير اللي عليها باقي وبينفع تتسدّد من هون: id → { supplierId, no, remaining }
     let invRows = [];
     let invChip = "all";
@@ -1861,6 +2074,12 @@
           const st = await window.supabaseClient.from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", openIds);
           (st.data || []).forEach((r) => { settle[r.invoice_id] = Number(r.remaining); });
         }
+        const drawerOf = {};
+        const expIds = (data || []).filter((i) => i.status === "active" && i.payment_type === "cash" && i.expense_id).map((i) => i.expense_id);
+        if (expIds.length) {
+          const ex = await window.supabaseClient.from("expenses").select("id, from_drawer").in("id", expIds);
+          (ex.data || []).forEach((r) => { drawerOf[r.id] = r.from_drawer === true; });
+        }
         const canPay = ["owner", "manager"].includes(window.olvRole);
         payable = {};
         invRows = (data || []).map((i) => {
@@ -1869,7 +2088,7 @@
           const showPay = canPay && !voided && i.supplier_id && remaining >= 0.005;
           if (showPay) payable[i.id] = { supplierId: i.supplier_id, no: i.invoice_no, remaining };
           const settledLater = i.payment_type !== "cash" && remaining < 0.005;
-          return { ...i, voided, remaining, showPay, settledLater, owing: !voided && i.payment_type !== "cash" && remaining >= 0.005 };
+          return { ...i, fromDrawer: !!(i.expense_id && drawerOf[i.expense_id]), canDrawer: !voided && i.payment_type === "cash" && !!i.expense_id && i.expense_id in drawerOf, voided, remaining, showPay, settledLater, owing: !voided && i.payment_type !== "cash" && remaining >= 0.005 };
         });
         renderHistory();
       } catch (err) { olvShowError(errBox, err); }
@@ -1946,7 +2165,7 @@
     function invHtml(i) {
       const payBadge = i.voided ? `<span class="pi-badge credit">ملغاة</span>`
         : i.settledLater ? `<span class="pi-badge cash">مدفوعة</span>`
-        : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${i.remaining > 0.004 ? ` <span>باقي ${money(i.remaining)}</span>` : ""}`;
+        : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${i.fromDrawer ? ` <span class="pi-badge partial">من الدرج</span>` : ""}${i.remaining > 0.004 ? ` <span>باقي ${money(i.remaining)}</span>` : ""}`;
       const tax = Number(i.tax_amount) > 0 && !i.voided ? `<span>شامل ضريبة ${money(i.tax_amount)}</span>` : "";
       return `
         <li class="pv-inv${i.voided ? " void" : ""}">
@@ -1962,12 +2181,86 @@
             ${i.voided && i.replaced_by ? `<div class="pi-warn">انعدّلت، الفاتورة الجديدة مكانها${(invRows.find((x) => x.id === i.replaced_by) || {}).doc_no ? " (" + olvDocNo("purchase", invRows.find((x) => x.id === i.replaced_by).doc_no) + ")" : ""}</div>` : i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
             <div class="pv-acts">
               ${i.showPay ? `<button class="btn go" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
+              <button class="btn" data-print="${i.id}">${olvIcon("printer")} طباعة</button>
               ${i.attachment_path ? i.attachment_path.split("|").map((pth, n, all) => `<button class="btn" data-file="${olvEsc(pth)}">${all.length > 1 ? "صورة " + (n + 1) : "صورة الفاتورة"}</button>`).join("") : ""}
+              ${i.canDrawer && ["owner", "manager"].includes(window.olvRole) ? `<button class="btn" data-drawer="${i.id}">${i.fromDrawer ? "شيلها من الدرج" : "حوّلها لدفع من الدرج"}</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn" data-edit="${i.id}">تعديل</button>` : ""}
               ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
             </div>
           </div>
         </li>`;
+    }
+
+
+    // ---------- طباعة الفاتورة (A4) ----------
+    // بتجيب أصناف الفاتورة وبيانات المحل (printer_settings) وتبني ورقة جاهزة للطباعة، وبعدها بتفتح نافذة الطباعة
+    async function printInvoice(id) {
+      const i = invRows.find((x) => x.id === id);
+      if (!i) throw new Error("الفاتورة مش موجودة");
+      const sb = window.supabaseClient;
+      const [lr, sr, pr] = await Promise.all([
+        sb.from("purchases").select("*").eq("invoice_id", id),
+        sb.from("printer_settings").select("restaurant_name, restaurant_address, restaurant_phone").eq("id", 1).maybeSingle(),
+        i.supplier_id ? sb.from("suppliers").select("name, phone").eq("id", i.supplier_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      if (lr.error) throw lr.error;
+      const shop = (sr && sr.data) || {};
+      const sup = (pr && pr.data) || null;
+      const lines = (lr.data || []).slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+      const hasLineTax = lines.some((l) => Number(l.line_tax_rate) > 0);
+      const r2 = (v) => Math.round(Number(v) * 100) / 100;
+      const qty = (v) => String(Math.round(Number(v) * 1000) / 1000);
+      const rows = lines.map((l, n) => {
+        const lp = l.list_price != null ? Number(l.list_price) : Number(l.unit_price);
+        return `<tr><td class="n">${n + 1}</td><td>${olvEsc(l.item_name)}</td><td class="n">${qty(l.quantity)}</td><td class="n">${olvEsc(l.unit || "")}</td><td class="n">${money(lp)}</td>${hasLineTax ? `<td class="n">${Number(l.line_tax_rate) > 0 ? Number(l.line_tax_rate) + "%" : "—"}</td>` : ""}<td class="n">${money(r2(Number(l.quantity) * lp))}</td></tr>`;
+      }).join("");
+      const subtotal = i.subtotal_amount != null ? Number(i.subtotal_amount) : Number(i.total_amount);
+      const disc = Number(i.discount_amount) || 0, tax = Number(i.tax_amount) || 0, total = Number(i.total_amount) || 0, paid = Number(i.paid_amount) || 0;
+      const remaining = i.voided ? 0 : (i.remaining != null ? Number(i.remaining) : Math.max(total - paid, 0));
+      const payLabel = i.payment_type === "cash" ? "كاش" : i.payment_type === "credit" ? "ذمة" : "جزء ذمة";
+      const dt = new Date();
+      const when = dt.toLocaleDateString("en-GB") + " " + dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const dayStr = (s) => { try { return new Date(s + "T00:00:00").toLocaleDateString("en-GB"); } catch (_) { return s; } };
+      const box = document.getElementById("inv-print");
+      box.innerHTML = `
+        ${i.voided ? `<div class="ip-void">ملغاة</div>` : ""}
+        <div class="ip-head">
+          <div class="ip-brand">
+            <img class="ip-logo" src="assets/brand/olv-logo.png" alt="">
+            <div class="ip-shop"><b>${olvEsc(shop.restaurant_name || "OLV")}</b>${shop.restaurant_address ? `<span>${olvEsc(shop.restaurant_address)}</span>` : ""}${shop.restaurant_phone ? `<span dir="ltr" style="text-align:right;">${olvEsc(shop.restaurant_phone)}</span>` : ""}</div>
+          </div>
+          <div class="ip-title">
+            <h1>فاتورة مشتريات</h1>
+            <div class="no">${olvDocNo("purchase", i.doc_no) || "—"}</div>
+            <div>التاريخ: <b>${dayStr(i.invoice_date)}</b></div>
+          </div>
+        </div>
+        <div class="ip-boxes">
+          <div class="ip-box"><h3>المورّد</h3><b>${olvEsc(sup ? sup.name : (i.suppliers ? i.suppliers.name : "كاش من السوق"))}</b>
+            ${sup && sup.phone ? `<br>هاتف: <span dir="ltr">${olvEsc(sup.phone)}</span>` : ""}
+            ${i.invoice_no ? `<br>رقم فاتورة المورّد: <b dir="ltr">${olvEsc(i.invoice_no)}</b>` : ""}</div>
+          <div class="ip-box"><h3>الدفع</h3>طريقة الدفع: <b>${payLabel}</b>
+            <br>المدفوع: <b>${money(paid)}</b>
+            <br>المتبقي على المحل: <b>${money(remaining)}</b></div>
+        </div>
+        <table>
+          <thead><tr><th class="n">#</th><th>الصنف</th><th class="n">الكمية</th><th class="n">الوحدة</th><th class="n">سعر الوحدة</th>${hasLineTax ? `<th class="n">ضريبة</th>` : ""}<th class="n">الإجمالي</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="${hasLineTax ? 7 : 6}" class="n">ما في أصناف</td></tr>`}</tbody>
+        </table>
+        <div class="ip-tot">
+          <div><span>مجموع الأصناف</span><b>${money(subtotal)}</b></div>
+          ${disc > 0 ? `<div><span>الخصم${Number(i.discount_pct) > 0 ? " (" + Number(i.discount_pct) + "%)" : ""}</span><b>− ${money(disc)}</b></div>` : ""}
+          ${tax > 0 ? `<div><span>الضريبة${Number(i.tax_rate) > 0 ? " (" + Number(i.tax_rate) + "%" + (i.tax_inclusive ? " شاملة" : "") + ")" : ""}</span><b>${money(tax)}</b></div>` : ""}
+          <div class="grand"><span>الإجمالي</span><b>${money(total)}</b></div>
+          <div><span>المدفوع</span><b>${money(paid)}</b></div>
+          ${remaining > 0.004 ? `<div class="due"><span>المتبقي</span><b>${money(remaining)}</b></div>` : ""}
+        </div>
+        ${i.notes ? `<div class="ip-note"><b>ملاحظات:</b> ${olvEsc(i.notes)}</div>` : ""}
+        <div class="ip-sign"><div>المستلم</div><div>المحاسب</div><div>المورّد</div></div>
+        <div class="ip-foot"><span>${olvEsc(shop.restaurant_name || "OLV")} — فاتورة مشتريات ${olvDocNo("purchase", i.doc_no)}</span><span>طُبعت ${when}</span></div>`;
+      const img = box.querySelector(".ip-logo");
+      if (img && !img.complete) await new Promise((res) => { img.onload = img.onerror = res; setTimeout(res, 2500); });
+      window.print();
     }
 
     async function loadInvoiceDetail(id) {
@@ -2109,6 +2402,13 @@
             <button type="button" class="btn small" data-q="half" style="flex:1;">النص</button>
           </div>
           <div class="field"><label for="pd-amount">المبلغ المدفوع</label><input type="number" id="pd-amount" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${inv.remaining.toFixed(2)}"></div>
+          <div class="field"><label>طريقة السداد</label>
+            <div class="pi-pay" id="pd-method" style="margin:4px 0 0;">
+              <label class="on" data-m="cash"><input type="radio" name="pd-m" value="cash" checked>كاش</label>
+              <label data-m="bank"><input type="radio" name="pd-m" value="bank">بنك</label>
+              <label data-m="click"><input type="radio" name="pd-m" value="click">كليك</label>
+            </div>
+          </div>
           <div class="field"><label for="pd-note">ملاحظة (اختياري)</label><input type="text" id="pd-note" maxlength="100" placeholder="مثال: حوالة، شيك رقم..."></div>
           <div class="pi-warn bad" id="pd-err" style="min-height:16px;"></div>
           <div style="display:flex; gap:8px; margin-top:6px;">
@@ -2123,13 +2423,16 @@
           amt.value = (b.dataset.q === "half" ? Math.round(inv.remaining * 50) / 100 : inv.remaining).toFixed(2);
           err.textContent = "";
         }));
+        box.querySelector("#pd-method").addEventListener("change", (e) => {
+          box.querySelectorAll("#pd-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
+        });
         box.querySelector("#pd-cancel").addEventListener("click", () => done(null));
         back.addEventListener("click", (e) => { if (e.target === back) done(null); });
         const go = () => {
           const amount = Math.round(Number(String(amt.value).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[,،\s]/g, "")) * 100) / 100;
           if (!(amount > 0)) { err.textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
           if (amount > inv.remaining + 0.004) { err.textContent = `المبلغ أكبر من الباقي على الفاتورة (${money(inv.remaining)}). الزيادة سجّلها من صفحة الموردين.`; return; }
-          done({ amount, note: box.querySelector("#pd-note").value.trim() });
+          done({ amount, method: (box.querySelector("#pd-method input:checked") || {}).value || "cash", note: box.querySelector("#pd-note").value.trim() });
         };
         box.querySelector("#pd-go").addEventListener("click", go);
         box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } if (e.key === "Escape") done(null); });
@@ -2155,16 +2458,39 @@
         if (!picked) return;
         const amount = picked.amount;
         payBtn.disabled = true;
-        const { error } = await window.supabaseClient.from("supplier_transactions").insert({
+        const row = {
           supplier_id: inv.supplierId,
           type: "payment",
           amount,
           description: "تسديد " + (inv.no ? "فاتورة #" + inv.no : "فاتورة مشتريات") + (picked.note ? " — " + picked.note : ""),
           transaction_date: olvToday(),
           applies_to_invoice: payBtn.dataset.pay,
-        });
+        };
+        let { error } = await window.supabaseClient.from("supplier_transactions").insert({ ...row, payment_method: picked.method });
+        // لو عمود طريقة السداد لسا ما انضاف بقاعدة البيانات: نسجّل الدفعة بدونه ونكتب الطريقة بالبيان
+        if (error && /payment_method/.test(error.message || "")) {
+          ({ error } = await window.supabaseClient.from("supplier_transactions").insert({ ...row, description: row.description + " [" + ({ cash: "كاش", bank: "بنك", click: "كليك" }[picked.method]) + "]" }));
+        }
         if (error) { payBtn.disabled = false; olvShowError(errBox, error); return; }
         if (window.olvToast) olvToast(amount >= inv.remaining - 0.004 ? "انسدّت الفاتورة" : "انسجلت الدفعة", { type: "ok" });
+        await loadHistory();
+        return;
+      }
+      const pr = e.target.closest("[data-print]");
+      if (pr) {
+        pr.disabled = true;
+        try { await printInvoice(pr.dataset.print); } catch (err) { olvShowError(errBox, err); }
+        pr.disabled = false;
+        return;
+      }
+      const dr = e.target.closest("[data-drawer]");
+      if (dr) {
+        const row = invRows.find((x) => x.id === dr.dataset.drawer);
+        if (!row || !row.expense_id) return;
+        dr.disabled = true;
+        const { error } = await window.supabaseClient.from("expenses").update({ from_drawer: !row.fromDrawer }).eq("id", row.expense_id);
+        if (error) { dr.disabled = false; olvShowError(errBox, error); return; }
+        if (window.olvToast) olvToast(row.fromDrawer ? "انشالت من الدرج" : "انحسبت مدفوعة من الدرج", { type: "ok" });
         await loadHistory();
         return;
       }
@@ -2198,10 +2524,11 @@
       ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
       clearPages();
       document.getElementById("pi-supplier").value = "";
-      document.querySelector('#pi-pay input[value="cash"]').checked = true;
-      payMode = "cash";
-      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === "cash"));
+      document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+      payMode = "";
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
       document.getElementById("pi-partial-wrap").hidden = true;
+      syncDrawerBox();
       renderLines();
     }
     async function startEdit(id) {
@@ -2235,6 +2562,8 @@
       document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
       document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
       if (payMode === "partial") document.getElementById("pi-partial").value = String(Number(inv.paid_amount));
+      syncDrawerBox();
+      document.getElementById("pi-drawer").checked = payMode === "cash" && !!(invRows.find((x) => x.id === id) || {}).fromDrawer;
       const banner = document.createElement("div");
       banner.className = "pi-warn"; banner.id = "pi-edit-banner";
       banner.innerHTML = `عم تعدّل ${inv.doc_no ? olvDocNo("purchase", inv.doc_no) : "فاتورة"}${inv.invoice_no ? " (مورّد #" + olvEsc(inv.invoice_no) + ")" : ""}. أول ما تحفظ، بتنلغى القديمة وبتنحفظ هاي مكانها (المخزون وحساب المورّد بيتعدّلوا لحالهم). <button type="button" class="btn" id="pi-edit-cancel" style="margin-inline-start:8px;">إلغاء التعديل</button>`;

@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -260,7 +260,17 @@
   .checkout-summary .row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:var(--muted);}
   .checkout-summary .row span:first-child{color:var(--paper);}
 
-  .pm-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
+  .pm-tiles{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:20px;}
+  @media (max-width:520px){ .pm-tiles{grid-template-columns:repeat(3,1fr);} }
+  /* «على حساب موظف»: ذمة بتنخصم من الراتب، بسعر المنيو ناقص 15% */
+  .staff-panel{display:flex; flex-direction:column; gap:12px;}
+  .staff-panel label{font-size:12.5px; color:var(--muted); display:block; margin-bottom:5px;}
+  .staff-panel select, .staff-panel input{width:100%; min-height:50px; font-size:17px; padding:8px 12px; border-radius:14px; border:1.5px solid var(--hair); background:var(--ink-3); color:var(--paper); font-family:inherit; box-sizing:border-box;}
+  .staff-panel input{font-size:26px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums;}
+  .staff-panel select:focus, .staff-panel input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .staff-hint{font-size:12.5px; color:var(--muted); line-height:1.7; padding:10px 12px; border-radius:12px; background:rgba(var(--gold-rgb),.08);}
+  .staff-hint b{color:var(--paper);}
+  .staff-hint.warn{background:rgba(179,64,47,.1);}
   .pm-tile{
     background:var(--ink-3); border:1.5px solid var(--hair); border-radius:14px; padding:14px 6px;
     display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12.5px; color:var(--muted);
@@ -307,6 +317,20 @@
   .change-row .value{font-family:'Tajawal',sans-serif; font-weight:800; font-size:24px; font-weight:700; color:var(--ok);}
   .change-row.insufficient .value{color:var(--danger-hi);}
 
+  /* وجبة الموظف: اختيار الموظف (اللي بصم) + ساندويش + مشروب، بدون سعر ودفع */
+  .sm-modal{max-width:560px;}
+  .sm-sec{margin:14px 0 6px; font-size:13px; font-weight:700; color:var(--muted);}
+  .sm-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px;}
+  .sm-chip{
+    min-height:48px; padding:8px 10px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-3);
+    color:var(--paper); font-size:14.5px; font-weight:600; text-align:center; line-height:1.3;
+  }
+  .sm-chip small{display:block; font-size:11.5px; font-weight:500; color:var(--muted); margin-top:2px;}
+  .sm-chip.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.14); color:var(--gold-hi);}
+  .sm-chip.done{opacity:.6;}
+  .sm-chip:active{transform:scale(.96);}
+  .sm-empty{color:var(--muted); font-size:13.5px; padding:8px 0;}
+  .sm-note{margin-top:12px; padding:10px 12px; border-radius:12px; background:rgba(193,88,63,.1); border:1px solid rgba(193,88,63,.35); color:var(--danger-hi); font-size:13.5px;}
   .checkout-confirm{width:100%; min-height:52px; font-size:16px;}
   /* عرض الشاشة: عمودين (الملخص + طرق الدفع | لوحة المبلغ) بدل عمود طويل */
   @media (min-width:700px){
@@ -340,7 +364,7 @@
   }
 
   /* زر الدفع بلون الزيتون من الشعار: أهم زر بالشاشة، فبيتميّز عن باقي الأزرار الذهبية */
-  .btn.gold.pay, .btn.gold.checkout-confirm{background:var(--olive); color:#fff; box-shadow:0 8px 18px -10px rgba(86,105,46,.8); font-size:16px;}
+  .btn.gold.pay, .btn.gold.checkout-confirm{background:var(--olive); color:#fff; box-shadow:0 8px 18px -10px rgba(66,84,232,.7); font-size:16px;}
   :root[data-theme="dark"] .btn.gold.pay, :root[data-theme="dark"] .btn.gold.checkout-confirm{color:#11160a;}
 
   .checkout-success{
@@ -407,6 +431,7 @@
   .discount-remove-btn .icon{width:15px; height:15px;}
   .cart-totals{display:flex; flex-direction:column; gap:4px;}
   .cart-total-row{display:flex; align-items:center; justify-content:space-between; font-size:13px; color:var(--muted);}
+  .cart-total-row[hidden]{display:none;}
   .cart-total-row.discount span:last-child{color:var(--danger-hi);}
   .cart-total-row.grand{
     font-size:15px; color:var(--paper); font-weight:600; padding-top:8px;
@@ -415,26 +440,29 @@
   .cart-bar .total{font-family:'Tajawal',sans-serif; font-weight:800; font-size:24px; color:var(--gold-hi); font-weight:700;}
   .cart-bar .actions{display:flex; gap:8px;}
   .cart-bar .actions .btn{flex:1;}
+  .cart-bar .actions .btn[hidden]{display:none;}
+  .cart-list{margin-bottom:0;}
+  /* كل صنف سطر واحد متل تذاكر Toast/Square (2026-10-28): الاسم والسعر، وجنبهم − الكمية +،
+     والخيارات (كبير/ثلج/وجبة) تحتهم. − على كمية 1 بتصير سلة وبتحذف؛ الضغط على الاسم بيفتح التعديل */
   .cart-list{margin-bottom:0;}
   .cart-item{
-    background:var(--ink-3); border:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));
-    border-radius:14px; padding:12px 14px; margin-bottom:10px;
+    display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:10px;
+    padding:8px 2px; border-bottom:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));
   }
-  .cart-item-top{display:flex; align-items:flex-start; gap:10px;}
-  .qty-badge{
-    flex:none; background:var(--gold); color:var(--on-gold);
-    font-weight:700; font-size:12.5px; min-width:24px; height:24px; border-radius:7px;
-    display:flex; align-items:center; justify-content:center; padding:0 4px;
-  }
+  .cart-item-top{display:flex; align-items:center; gap:8px; min-width:0;}
   .cart-item-info{flex:1; min-width:0; cursor:pointer;}
-  .cart-item-info .name{font-weight:600; font-size:15px; line-height:1.35;}
-  .cart-item-info .meta{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:3px; line-height:1.5;}
+  .cart-item-info .name{font-weight:700; font-size:15.5px; line-height:1.35;}
+  .cart-item-info .meta{color:var(--olive-hi,#9dab63); font-size:12.5px; margin-top:2px; line-height:1.45;}
   .cart-item-info .meta .icon{width:12px; height:12px; vertical-align:-1px;}
-  .cart-item-price{flex:none; font-weight:700; color:var(--gold-hi); font-size:14.5px; white-space:nowrap;}
-  .cart-item-controls{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.12));
+  .cart-item-price{flex:none; min-width:48px; text-align:end; font-weight:700; color:var(--gold-hi); font-size:15.5px; white-space:nowrap;}
+  .cart-item > .meal-seg{grid-column:1 / -1; margin-top:6px;}
+  .cart-item-opts{flex:none; display:flex; gap:4px;}
+  .opt-chip{
+    min-height:44px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:transparent;
+    color:var(--muted); font-size:13.5px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
   }
+  .opt-chip.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
+  .opt-chip:active{transform:scale(.96);}
   .qty-stepper{
     display:flex; align-items:center; gap:2px; background:var(--ink-2); border:1px solid var(--hair);
     border-radius:999px; padding:3px;
@@ -445,6 +473,9 @@
   }
   .qty-stepper button:active{background:var(--gold); color:var(--on-gold);}
   .qty-stepper .qty-value{min-width:24px; text-align:center; font-size:14px; font-weight:700;}
+  .qty-stepper button.is-remove{color:var(--danger-hi);}
+  .qty-stepper button.is-remove .icon{width:18px; height:18px;}
+  .qty-stepper button.is-remove:active{background:var(--danger-hi); color:#fff;}
   .flavor-grid{max-height:42vh; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-bottom:12px;}
   .flavor-chip{
     min-height:48px; padding:0 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-3);
@@ -453,13 +484,6 @@
   .flavor-chip.on{background:var(--olive); color:var(--on-olive); border-color:var(--olive);}
   .flavor-chip:active{transform:scale(.96);}
   .meal-seg{margin-top:10px;} .meal-seg button{min-height:44px; font-size:14.5px;}
-  .cart-item-remove{
-    width:32px; height:32px; border-radius:8px; border:1px solid transparent; background:transparent;
-    color:var(--danger-hi); font-size:15px; flex:none; opacity:.75;
-    display:flex; align-items:center; justify-content:center;
-  }
-  .cart-item-remove .icon{width:16px; height:16px;}
-  .cart-item-remove:hover{opacity:1; background:rgba(193,88,63,.12); border-color:rgba(193,88,63,.3);}
   .cart-clear-btn{
     min-height:44px; padding:0 14px; border-radius:12px; border:1px solid rgba(179,65,42,.4); background:transparent;
     color:var(--danger-hi); font-size:14px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
@@ -467,7 +491,10 @@
   .cart-clear-btn[hidden]{display:none;}
   .cart-clear-btn:active{transform:scale(.96);}
   .cart-clear-btn.confirm{background:var(--danger-hi); color:#fff; border-color:transparent;}
-  .cart-empty{color:var(--muted); font-size:14px; text-align:center; padding:60px 0;}
+  .cart-empty{color:var(--muted); font-size:13px; text-align:center; padding:40px 12px; display:flex; flex-direction:column; align-items:center; gap:8px;}
+  .cart-empty .ce-icon{width:52px; height:52px; border-radius:16px; display:grid; place-items:center; background:var(--ink-3); color:var(--gold-hi);}
+  .cart-empty .ce-icon .icon{width:24px; height:24px;}
+  .cart-empty b{color:var(--paper); font-size:15px;}
   .ticket-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .ticket-header h2{margin:0;}
   .ticket-badge{
@@ -586,7 +613,7 @@
   .cat-tab{border-radius:16px; background:var(--ink-2); border-color:var(--hair-soft);}
   .card{border-radius:22px; border-color:var(--hair-soft);}
   .card .thumb-fallback{border-radius:16px;}
-  .cart-item{background:var(--ink-2); border-radius:16px; animation:olv-line-in .3s var(--spring) backwards;}
+  .cart-item.is-new{animation:olv-line-in .3s var(--spring) backwards;}
   @keyframes olv-line-in{from{opacity:0; transform:translateX(-10px);}}
   .btn.gold.pay, .btn.gold.checkout-confirm{color:var(--on-olive); border-radius:16px;}
   /* رقم الكمية فوق الصنف: بيطلع بنطّة أول مرة، وبيرتدّ مع كل إضافة */
@@ -611,7 +638,7 @@
     100%{transform:translate(var(--dx),70vh) rotate(var(--rot)); opacity:0;}
   }
   @media (prefers-reduced-motion: reduce){
-    .card .q{transition:none;} .card .q.bump, .cart-item{animation:none;}
+    .card .q{transition:none;} .card .q.bump, .cart-item.is-new{animation:none;}
     .checkout-success .check .icon{stroke-dasharray:none; animation:none;}
   }
   @media (prefers-reduced-transparency: reduce){
@@ -709,8 +736,6 @@
   .field input:not([type=checkbox]):not([type=radio]), .field select{min-height:48px;}
   .qty-stepper button{width:44px; height:44px; font-size:22px;}
   .qty-stepper .qty-value{min-width:30px; font-size:16px;}
-  .cart-item-remove{width:44px; height:44px; border-radius:12px;}
-  .cart-item-remove .icon{width:20px; height:20px;}
   .discount-toggle-btn{min-height:44px; font-size:14px;}
   .discount-remove-btn{width:44px; height:44px;}
   .discount-input-wrap input{min-height:44px;}
@@ -722,14 +747,23 @@
   .card .price{font-size:16px;}
   .pos-pagination button{width:52px; height:52px;}
   @media (min-width:901px){
-    .pos-cart-panel{flex-basis:26%; min-width:270px; max-width:330px; display:flex; flex-direction:column; overflow:hidden;}
+    /* التذكرة ثلث الشاشة تقريبًا (2026-10-28، كانت 26% وضيقة: صنف أو صنفين بس كانوا يبينوا) */
+    .pos-cart-panel{flex-basis:32%; min-width:340px; max-width:440px; display:flex; flex-direction:column; overflow:hidden;}
     .cart-panel-inner{flex:1 1 auto; min-height:0; padding:14px 14px 0; overflow-y:auto; overscroll-behavior:contain;}
     .cart-panel-inner .field{margin-bottom:8px !important;}
-    /* رقم الطاولة + اسم الزبون جنب بعض (بيوفّروا ارتفاع)، والباقي بعرض كامل */
-    .cart-panel-inner{display:grid; grid-template-columns:1fr 1fr; column-gap:8px; align-content:start; grid-auto-rows:min-content;}
+    /* الطاولة + الاسم + التلفون بسطر واحد (بيوفّروا ارتفاع)، والباقي بعرض كامل.
+       سفري: الاسم بياخد مكان الطاولة؛ توصيل: التلفون بالعرض كله */
+    .cart-panel-inner{display:grid; grid-template-columns:76px minmax(0,1fr) minmax(0,1fr); column-gap:6px; align-content:start; grid-auto-rows:min-content;}
     .cart-panel-inner > *{grid-column:1 / -1;}
-    .cart-panel-inner > #table-number-field, .cart-panel-inner > #customer-name-field{grid-column:auto;}
-    .cart-panel-inner > #table-number-field[hidden] + #customer-name-field{grid-column:1 / -1;}
+    .cart-panel-inner > #table-number-field{grid-column:1;}
+    .cart-panel-inner > #customer-name-field{grid-column:2;}
+    .cart-panel-inner > #customer-phone-field{grid-column:3;}
+    .cart-panel-inner > #table-number-field[hidden] + #customer-name-field{grid-column:1 / 3;}
+    .cart-panel-inner > #customer-name-field[hidden] + #customer-phone-field{grid-column:1 / -1;}
+    .cart-panel-inner .field input:not([type=checkbox]):not([type=radio]){min-height:44px; padding-inline:10px; font-size:14.5px;}
+    .cart-panel-inner > .field:first-of-type .seg button{min-height:44px;}
+    .cart-list{border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));}
+    .cart-bar .actions .btn.pay{flex:2;}
     .cart-panel-inner .field label{display:none;}
     .cart-list{min-height:60px;}
     /* حفظ/الدفع والإجمالي ثابتين تحت التذكرة حتى لو الحقول والأصناف طوّلت */
@@ -756,6 +790,29 @@
     .cart-bar{padding:8px 0 10px;}
     .cart-bar .total{font-size:24px;}
   }
+
+  /* ---- تجديد 2026-11-01: ألوان وتمييز بدون ما نأخّر الكاشير ----
+     لا blur ولا حركة دخول ولا hover يتحرك: الضغطة بس بتصغّر البطاقة 80ms، والباقي ألوان ثابتة */
+  .h0{--tc:#4254e8; --tb:#e9ecff;} .h1{--tc:#0b86c9; --tb:#dff2fd;} .h2{--tc:#e0367a; --tb:#fde4ef;}
+  .h3{--tc:#d97a00; --tb:#fff0cf;} .h4{--tc:#8b3fe0; --tb:#f0e5fd;} .h5{--tc:#0f9d83; --tb:#d9f6ef;}
+  :root[data-theme="dark"] .h0{--tc:#8f9cff; --tb:rgba(143,156,255,.14);} :root[data-theme="dark"] .h1{--tc:#5cc0f2; --tb:rgba(92,192,242,.14);}
+  :root[data-theme="dark"] .h2{--tc:#f07aa8; --tb:rgba(240,122,168,.14);} :root[data-theme="dark"] .h3{--tc:#f2b33d; --tb:rgba(242,179,61,.14);}
+  :root[data-theme="dark"] .h4{--tc:#c096f5; --tb:rgba(192,150,245,.14);} :root[data-theme="dark"] .h5{--tc:#4fd1b6; --tb:rgba(79,209,182,.14);}
+  .card{transition:transform .08s linear; border-color:transparent; box-shadow:0 1px 2px rgba(40,40,100,.06), 0 8px 16px -10px rgba(60,70,170,.28);}
+  :root:not([data-theme="dark"]) .card{background:linear-gradient(180deg,#fff 40%,var(--tb,#fff));}
+  .card:nth-child(n){--tile:var(--tb);}
+  :root[data-theme="dark"] .card{--tile:var(--tb) !important;}
+  .card .thumb-fallback .icon, :root[data-theme="dark"] .card .thumb-fallback .icon{color:var(--tc); opacity:1;}
+  .card .price{color:var(--tc);}
+  .card .add-btn{background:var(--tc); color:#fff;}
+  :root[data-theme="dark"] .card .add-btn{color:#0e0e1a;}
+  @media (hover:hover) and (pointer:fine){ .card:hover{transform:none; border-color:var(--tc); box-shadow:0 1px 2px rgba(40,40,100,.06), 0 8px 16px -10px rgba(60,70,170,.28);} }
+  .cat-tab{transition:none; background:#fff; border-color:transparent; box-shadow:0 1px 2px rgba(40,40,100,.06), 0 6px 12px -8px rgba(60,70,170,.25);}
+  :root[data-theme="dark"] .cat-tab{background:var(--ink-2);}
+  .cat-tab .cat-tab-icon{color:var(--tc);}
+  .cat-tab.on{background:linear-gradient(135deg,var(--tc),color-mix(in srgb,var(--tc) 70%,#b04fe0)); color:#fff; border-color:transparent; box-shadow:0 8px 16px -8px var(--tc);}
+  .cat-tab.on .cat-tab-icon{color:#fff;}
+  .cat-chip.on{background:var(--gold); color:#fff;}
 </style>
 </head>
 <body class="olv-glass pos-page">
@@ -778,8 +835,9 @@
           </div>
           <div class="search-wrap">
             <span class="search-icon" id="search-icon"></span>
-            <input type="search" id="product-search" placeholder="ابحث عن صنف..." enterkeyhint="done" autocomplete="off">
+            <input type="search" id="product-search" aria-label="ابحث عن صنف" placeholder="ابحث عن صنف..." enterkeyhint="done" autocomplete="off">
           </div>
+          <button type="button" class="btn small" id="staff-meal-btn"></button>
           <button type="button" class="btn small" id="reprint-open-btn"></button>
           <button type="button" class="btn small" id="focus-toggle-btn"></button>
         </div>
@@ -823,12 +881,12 @@
           </div>
           <div class="field" id="table-number-field" style="margin-bottom:12px;" hidden>
             <label>رقم الطاولة (اختياري)</label>
-            <input type="text" id="table-number" placeholder="مثال: 5" list="table-options" autocomplete="off">
+            <input type="text" id="table-number" placeholder="طاولة" list="table-options" autocomplete="off">
             <datalist id="table-options"></datalist>
           </div>
           <div class="field" id="customer-name-field" style="margin-bottom:12px;" hidden>
             <label>اسم الزبون (اختياري)</label>
-            <input type="text" id="customer-name" placeholder="مثال: أحمد">
+            <input type="text" id="customer-name" placeholder="اسم الزبون">
           </div>
           <div class="field" id="customer-phone-field" style="margin-bottom:12px;">
             <label id="customer-phone-label">رقم تلفون الزبون</label>
@@ -848,12 +906,13 @@
               </div>
             </div>
             <div class="cart-totals">
-              <div class="cart-total-row"><span>المجموع الفرعي</span><span id="cart-subtotal">0.00</span></div>
+              <div class="cart-total-row" hidden><span>المجموع الفرعي</span><span id="cart-subtotal">0.00</span></div>
               <div class="cart-total-row discount" id="cart-discount-row" style="display:none;"><span>الخصم</span><span id="cart-discount">0.00</span></div>
               <div class="cart-total-row grand"><span>الإجمالي</span><span class="total" id="cart-total">0.00</span></div>
             </div>
             <div class="actions">
               <button class="btn" id="save-draft-btn" disabled>حفظ</button>
+              <button class="btn gold pay" id="send-tab-btn" hidden disabled></button>
               <button class="btn gold pay" id="checkout-btn" disabled>الدفع</button>
             </div>
           </div>
@@ -895,6 +954,95 @@
     document.getElementById("discount-toggle-btn").innerHTML = olvIcon("tag") + "<span>إضافة خصم</span>";
     document.getElementById("reprint-open-btn").innerHTML = olvIcon("printer") + '<span class="btn-label">إعادة طباعة</span>';
     document.getElementById("reprint-open-btn").addEventListener("click", () => olvOpenReprintList());
+
+    // ---------------------------------------------------------------
+    // وجبة موظف: الكاشير بيختار موظف بصم اليوم + ساندويش + مشروب من القوائم المسموحة (الإعدادات).
+    // بدون سعر ولا دفع؛ بتنطبع للمطبخ/البار بدون فاتورة. وجبة وحدة باليوم، وبعدها بموافقة مدير.
+    // ---------------------------------------------------------------
+    document.getElementById("staff-meal-btn").innerHTML = olvIcon("dish") + '<span class="btn-label">وجبة موظف</span>';
+    document.getElementById("staff-meal-btn").addEventListener("click", () => openStaffMeal());
+    async function openStaffMeal() {
+      if (!navigator.onLine) { showToast("وجبة الموظف بتحتاج اتصال بالإنترنت", "var(--danger)", "warning"); return; }
+      const db = window.supabaseClient;
+      const fmtT = (iso) => new Date(iso).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
+      const backdrop = document.createElement("div");
+      backdrop.className = "checkout-backdrop";
+      backdrop.innerHTML = `<div class="checkout-modal sm-modal" role="dialog" aria-modal="true" aria-label="وجبة موظف">
+        <div class="checkout-head"><h2>وجبة موظف</h2><button type="button" class="checkout-close" aria-label="إغلاق">${olvIcon("x")}</button></div>
+        <div id="sm-body"><p class="sm-empty">جاري التحميل...</p></div></div>`;
+      document.body.appendChild(backdrop);
+      requestAnimationFrame(() => backdrop.classList.add("in"));
+      let busy = false;
+      const close = () => { if (busy) return; backdrop.classList.remove("in"); setTimeout(() => backdrop.remove(), 170); };
+      backdrop.querySelector(".checkout-close").addEventListener("click", close);
+      backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+      const body = backdrop.querySelector("#sm-body");
+      try {
+        const [c, st] = await Promise.all([
+          db.rpc("staff_meal_candidates"),
+          db.from("app_settings").select("key, value").in("key", ["staff_meal_sandwiches", "staff_meal_drinks"]),
+        ]);
+        if (c.error) throw c.error;
+        const cfg = {};
+        (st.data || []).forEach((r) => { cfg[r.key] = String(r.value || "").split(",").filter(Boolean); });
+        const byId = new Map(products.map((p) => [p.id, p]));
+        const pick = (key) => (cfg[key] || []).map((id) => byId.get(id)).filter(Boolean);
+        const sandwiches = pick("staff_meal_sandwiches"), drinks = pick("staff_meal_drinks");
+        const emps = c.data || [];
+        if (!sandwiches.length || !drinks.length) {
+          body.innerHTML = `<p class="sm-empty">قوائم وجبة الموظفين لسا مش محددة. المدير بيحددها من صفحة «وجبات الموظفين».</p>`
+            + (window.olvRole && window.olvRole !== "staff" ? `<a class="btn gold checkout-confirm" href="staff-meals.html#items" style="display:flex;align-items:center;justify-content:center;margin-top:10px;">حدّد الأصناف هلأ</a>` : "");
+          return;
+        }
+        let emp = null, sw = null, dr = null, needOverride = false, note = "";
+        const ref = (crypto.randomUUID && crypto.randomUUID()) || null;
+        const chips = (list, sel, attr, extra) => list.map((x) =>
+          `<button type="button" class="sm-chip${sel === x.id ? " on" : ""}${extra ? extra(x) : ""}" data-${attr}="${x.id}">${olvEsc(x.name || x.full_name)}${x.meal_at ? `<small>استلم ${fmtT(x.meal_at)}</small>` : ""}</button>`).join("");
+        function render() {
+          body.innerHTML = `
+            <div class="sm-sec">الموظف (اللي بصم اليوم)</div>
+            ${emps.length ? `<div class="sm-grid">${chips(emps, emp, "emp", (x) => (x.meal_at ? " done" : ""))}</div>` : `<p class="sm-empty">ما حدا بصم اليوم لسا</p>`}
+            <div class="sm-sec">الساندويش</div><div class="sm-grid">${chips(sandwiches, sw, "sw")}</div>
+            <div class="sm-sec">المشروب</div><div class="sm-grid">${chips(drinks, dr, "dr")}</div>
+            ${note ? `<div class="sm-note">${olvEsc(note)}</div>` : ""}
+            <button type="button" class="btn gold checkout-confirm" id="sm-go" style="margin-top:16px;" ${emp && sw && dr ? "" : "disabled"}>${needOverride ? "وجبة ثانية بموافقة المدير" : "تسجيل الوجبة"}</button>`;
+          body.querySelectorAll("[data-emp]").forEach((b) => b.addEventListener("click", () => { emp = b.dataset.emp; needOverride = false; note = ""; render(); }));
+          body.querySelectorAll("[data-sw]").forEach((b) => b.addEventListener("click", () => { sw = b.dataset.sw; render(); }));
+          body.querySelectorAll("[data-dr]").forEach((b) => b.addEventListener("click", () => { dr = b.dataset.dr; render(); }));
+          body.querySelector("#sm-go").addEventListener("click", submit);
+        }
+        async function submit() {
+          const go = body.querySelector("#sm-go");
+          go.disabled = true; busy = true;
+          try {
+            if (needOverride && window.olvRole === "staff") {
+              const pin = await olvAskManagerPin("discount");
+              if (!pin) { busy = false; render(); return; }
+              const { data: ok, error: ae } = await db.rpc("request_approval", { p_pin: pin, p_kind: "discount" });
+              if (ae) throw ae;
+              if (!ok) throw new Error("رمز المدير غلط");
+            }
+            const { data, error } = await db.rpc("record_staff_meal", { p_profile_id: emp, p_sandwich_id: sw, p_drink_id: dr, p_client_ref: ref, p_override: needOverride });
+            if (error) throw error;
+            const who = emps.find((x) => x.id === emp);
+            if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+            busy = false; close();
+            showToast(`تم تسجيل وجبة ${who ? who.full_name : ""}${data && data.order_no ? " — طلب " + data.order_no : ""}`, "var(--ok)", "check");
+          } catch (err) {
+            busy = false;
+            const m = String((err && err.message) || "");
+            if (/استلم وجبته/.test(m)) { needOverride = true; note = m + " — وجبة ثانية بتحتاج موافقة المدير."; }
+            else if (/record_staff_meal|staff_meal_candidates/.test(m) && /function|schema cache/i.test(m)) note = "وجبة الموظفين لسا ما تفعّلت بقاعدة البيانات";
+            else note = olvIsNetworkError(err) ? "تعذّر الاتصال بالإنترنت — الوجبة ما انسجّلت" : m || "صار خطأ";
+            if (typeof OlvSound !== "undefined") OlvSound.playError();
+            render();
+          }
+        }
+        render();
+      } catch (err) {
+        body.innerHTML = `<div class="sm-note">${olvEsc((err && err.message) || "تعذّر التحميل")}</div>`;
+      }
+    }
     document.getElementById("discount-remove-btn").innerHTML = olvIcon("x");
 
     // يحسب ارتفاع الشريط العلوي فعليًا (يتغيّر حسب حجم الشاشة) ويخزّنه
@@ -1116,7 +1264,12 @@
         return { label, value: label };
       }).sort((a, b) => a.label.localeCompare(b.label, "ar"));
     }
+    // نكهات الأكل (بطاقة المادة → products.flavors مفصولة بـ |): اختيار واحد إجباري
+    const prodFlavors = (p) => (p && p.flavors ? String(p.flavors).split("|").map((x) => x.trim()).filter(Boolean) : []);
     const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
+    // الإضافات لازم تنطبق على المنطق: الجبنة مثلًا بس للأكل المالح (مش للمشروبات ولا الحلويات)
+    const SAVORY_CAT = /برغر|ساندويش|سناك|بيتزا|معجنات|باستا|عروض/;
+    const addonFits = (a, cat) => !/جبن/.test(a.name || "") || SAVORY_CAT.test(cat || "");
     const itemCat = (item) => item.category || (window.olvCategoryOf && window.olvCategoryOf(item.productId));
     const flavorPrefix = "نكهة: ";
     // ساندويش | وجبة | وجبة دبل (OlvMeal): السعر بيتخزن على المنتج ويتعدّل يدويًا من الكاشير
@@ -1127,18 +1280,38 @@
     };
     const mealOk = (item) => !isHookah(itemCat(item)) && OlvMeal.eligible(products.find((x) => x.id === item.productId));
     const mealKindOf = (item) => (["double", "meal"].find((k) => { const a = mealAddonFor(item, k); return a && item.addons.some((x) => x.id === a.id); })) || "";
-    // الحجم الكبير: إضافة «كبير» خاصة بالصنف (بتتولّد من المنيو، سعرها = فرق السعر)؛ الصغير = بدونها
-    const sizeAddonFor = (item) => {
+    // الأحجام: إضافة «وسط» وإضافة «كبير» خاصة بالصنف (بتتولّد من المنيو/البطاقة، سعرها = فرق السعر عن الصغير)؛ الصغير = بدونهم.
+    // الوسط والكبير بيستبعدوا بعض (حجم واحد فقط بالسطر)
+    const SIZE_FIELDS = { medium: "medium_addon_id", large: "large_addon_id" };
+    const sizeAddonFor = (item, kind = "large") => {
       const p = products.find((x) => x.id === item.productId);
-      return p && p.large_addon_id ? addons.find((a) => a.id === p.large_addon_id) || null : null;
+      const id = p && p[SIZE_FIELDS[kind]];
+      return id ? addons.find((a) => a.id === id) || null : null;
     };
-    const isLargeItem = (item) => { const a = sizeAddonFor(item); return !!a && item.addons.some((x) => x.id === a.id); };
-    function setSizeKind(idx, large) {
+    const sizeKinds = (item) => ["medium", "large"].filter((k) => sizeAddonFor(item, k));
+    const sizeKindOf = (item) => sizeKinds(item).find((k) => item.addons.some((x) => x.id === sizeAddonFor(item, k).id)) || "";
+    // kind: "" (صغير) | "medium" | "large"
+    function setSizeKind(idx, kind) {
       const item = OlvCart.all()[idx];
-      const a = item && sizeAddonFor(item);
-      if (!a) return;
-      const rest = item.addons.filter((x) => x.id !== a.id);
-      OlvCart.updateAt(idx, { addons: large ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
+      if (!item) return;
+      const sizeIds = sizeKinds(item).map((k) => sizeAddonFor(item, k).id);
+      const a = kind ? sizeAddonFor(item, kind) : null;
+      if (kind && !a) return;
+      const rest = item.addons.filter((x) => !sizeIds.includes(x.id));
+      OlvCart.updateAt(idx, { addons: a ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
+      olvHaptic();
+      renderCart();
+    }
+    // «مع ثلج» للمشروبات الباردة (بدون تسعير): بتنكتب بملاحظة الصنف فبتطلع على تذكرة البار والفاتورة
+    const ICE = "مع ثلج";
+    const iceOk = (item) => /مشروبات باردة|كوكتيل|عصائر|ميلك شيك|ميلكشيك|سموذي|موهيتو/.test(itemCat(item) || "");
+    const noteParts = (item) => String(item.note || "").split(" - ").map((x) => x.trim()).filter(Boolean);
+    const hasIce = (item) => noteParts(item).includes(ICE);
+    function setIce(idx, on) {
+      const item = OlvCart.all()[idx];
+      if (!item) return;
+      const rest = noteParts(item).filter((x) => x !== ICE);
+      OlvCart.updateAt(idx, { note: (on ? [ICE, ...rest] : rest).join(" - ") });
       olvHaptic();
       renderCart();
     }
@@ -1201,6 +1374,8 @@
     setFocus(focusOn, false); // تطبيق الوضع المحفوظ بعد ما تتعرّف المتغيرات
     const BEST_SELLERS = "الأكثر مبيعًا";
     const DRAFT_KEY = "olv_pos_draft";
+    // تحديث البرنامج بيصير لحاله بس والتذكرة فاضية (olvWatchUpdates بـ layout.js)
+    window.olvAutoReload = () => OlvCart.all().length === 0 && !document.querySelector(".checkout-backdrop, .sheet-backdrop, .olv-modal-backdrop");
     let discountMode = "percent"; // "percent" أو "fixed"
     let discountValue = 0;
 
@@ -1234,6 +1409,7 @@
       document.getElementById("order-type").value = "صالة";
       updateOrderTypeFields();
       if (table) document.getElementById("table-number").value = table.slice(0, 30);
+      updateTabBtn();
       const name = (q.get("name") || "").trim();
       if (name && !document.getElementById("customer-name").value.trim()) document.getElementById("customer-name").value = name.slice(0, 60);
       history.replaceState(null, "", location.pathname);
@@ -1280,7 +1456,8 @@
     function computeGridCapacity(rowsOverride) {
       const grid = document.getElementById("products-grid");
       const containerWidth = grid.clientWidth || 300;
-      const targetCardWidth = document.body.classList.contains("pos-focus") ? 150 : 165;
+      // 136 بملء الشاشة: التذكرة صارت أعرض (2026-10-28) وبدنا نضل 6 أعمدة على شاشة 1366
+      const targetCardWidth = document.body.classList.contains("pos-focus") ? 136 : 165;
       const columns = Math.max(1, Math.floor((containerWidth + GRID_GAP) / (targetCardWidth + GRID_GAP)));
       const cardWidth = (containerWidth - (columns - 1) * GRID_GAP) / columns;
       const cardHeight = measuredCardH || (cardWidth * 0.75 + 88);
@@ -1322,6 +1499,13 @@
       return groups.find((g) => g.cats.includes(activeCategory)) || null;
     }
 
+    // لون ثابت لكل تصنيف (6 ألوان) من اسمه: تمييز بصري سريع بدون أي كلفة وقت
+    function catHue(name) {
+      let h = 0;
+      const t = String(name || "");
+      for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+      return h % 6;
+    }
     function renderCategoryTabs() {
       const hasBestSellers = Object.keys(popularity).length > 0;
       const groups = liveGroups();
@@ -1331,8 +1515,8 @@
         ...(hasBestSellers ? [{ k: BEST_SELLERS, t: BEST_SELLERS, icon: olvIcon("star"), on: activeCategory === BEST_SELLERS }] : []),
         ...groups.map((g) => ({ k: "g:" + g.id, t: g.name, icon: olvIcon(g.icon), on: !!cur && cur.id === g.id })),
       ];
-      document.getElementById("cat-tabs").innerHTML = tabs.map((c) => `
-        <button class="cat-tab${c.on ? " on" : ""}" data-cat="${olvEsc(c.k)}">
+      document.getElementById("cat-tabs").innerHTML = tabs.map((c, i) => `
+        <button class="cat-tab h${i % 6}${c.on ? " on" : ""}" data-cat="${olvEsc(c.k)}">
           <span class="cat-tab-icon">${c.icon}</span>
           <span class="cat-tab-label">${olvEsc(c.t)}</span>
         </button>
@@ -1406,9 +1590,10 @@
       grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
       grid.innerHTML = pageItems.map((p) => {
         const fallbackIcon = categoryIconName(p.category);
+        const hue = catHue(p.category);
         const src = OlvMenuProducts.imageUrl(p.image_url) || productPhotoUrl(p.name, p.category);
         return `
-        <div class="card" data-id="${p.id}" data-sound="add">
+        <div class="card h${hue}" data-id="${p.id}" data-sound="add">
           <span class="q" aria-hidden="true"></span>
           ${topSellerIds.has(p.id) ? `<span class="best-badge">${olvIcon("star")}الأكثر طلبًا</span>` : ""}
           ${src
@@ -1480,7 +1665,7 @@
       if (!product) return;
       // لو في إضافات بالنظام: نضيف الصنف كسطر جديد ونفتح نافذة اختيار الإضافات فورًا
       // («إلغاء» بتخليه بدون إضافات، «حذف» بتشيله)
-      if (addons.length || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length))) {
+      if (addons.some((a) => !a.is_meal && !a.is_size && addonFits(a, product.category)) || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length)) || prodFlavors(product).length) {
         OlvCart.add(product, [], 1, "");
         olvHaptic();
         renderCart();
@@ -1518,8 +1703,9 @@
       const hookah = isHookah(itemCat(item));
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
-      const flavorList = hookah ? flavorsFor(item) : [];
-      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size);
+      const flavorList = hookah ? flavorsFor(item) : prodFlavors(products.find((x) => x.id === item.productId)).map((f) => ({ label: f, value: f }));
+      const flavorRequired = !hookah && flavorList.length > 0;
+      const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size && addonFits(a, itemCat(item)));
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
       function render() {
@@ -1527,7 +1713,7 @@
           <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(OlvCart.unitPrice(item))}</div>
-          ${hookah && flavorList.length ? `
+          ${flavorList.length ? `
             <div class="flavor-grid" role="radiogroup" aria-label="النكهة">
               ${flavorList.map((f) => `<button type="button" class="flavor-chip${f.value === flavor ? " on" : ""}" data-flavor="${olvEsc(f.value)}">${olvEsc(f.label)}</button>`).join("")}
             </div>` : ""}
@@ -1570,13 +1756,14 @@
         });
         sheet.querySelector("#qty-minus").addEventListener("click", () => { qty = Math.max(1, qty - 1); note = sheet.querySelector("#item-note").value; render(); });
         sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; note = sheet.querySelector("#item-note").value; render(); });
-        sheet.querySelector("#sheet-cancel").addEventListener("click", close);
+        sheet.querySelector("#sheet-cancel").addEventListener("click", dismiss);
         sheet.querySelector("#sheet-delete").addEventListener("click", () => {
           OlvCart.removeAt(idx);
           renderCart();
           close();
         });
         sheet.querySelector("#sheet-save").addEventListener("click", () => {
+          if (flavorRequired && !flavor) { olvToast("اختار النكهة أول", { type: "gold", icon: "warning" }); return; }
           const chosenAddons = addons.filter((a) => selectedAddons.has(a.id));
           const typed = sheet.querySelector("#item-note").value.trim();
           const finalNote = [flavor ? flavorPrefix + flavor : "", typed].filter(Boolean).join(" - ");
@@ -1598,10 +1785,15 @@
         sheet.addEventListener("animationend", remove, { once: true });
         setTimeout(remove, 400);
       }
-      function onEsc(e) { if (e.key === "Escape") close(); }
+      // صنف بنكهة إجبارية: لو انسكرت النافذة بدون اختيار نكهة بينشال السطر
+      function dismiss() {
+        if (flavorRequired && !(OlvCart.all()[idx] && (OlvCart.all()[idx].note || "").startsWith(flavorPrefix))) { OlvCart.removeAt(idx); renderCart(); }
+        close();
+      }
+      function onEsc(e) { if (e.key === "Escape") dismiss(); }
       document.addEventListener("keydown", onEsc);
-      backdrop.addEventListener("click", close);
-      olvAttachSwipeDismiss(sheet, backdrop, close);
+      backdrop.addEventListener("click", dismiss);
+      olvAttachSwipeDismiss(sheet, backdrop, dismiss);
       render();
       document.body.appendChild(backdrop);
       document.body.appendChild(sheet);
@@ -1622,13 +1814,14 @@
       tableField.hidden = type !== "صالة";
       nameField.hidden = type === "توصيل";
       if (type !== "صالة") document.getElementById("table-number").value = "";
+      updateTabBtn();
       if (type === "توصيل") document.getElementById("customer-name").value = "";
       // حقل رقم الهاتف ظاهر دايمًا الآن (مش بس لطلبات التوصيل) — إجباري
       // لسا لطلبات التوصيل بس (نفس التحقق بالأسفل)، واختياري لباقي
       // الأنواع عشان يقدر الكاشير يسجّل نقاط ولاء حتى لزبون صالة/سفري
       document.getElementById("customer-phone-label").textContent =
         type === "توصيل" ? "رقم تلفون الزبون" : "رقم تلفون الزبون (اختياري — لبرنامج الولاء)";
-      document.getElementById("customer-phone").placeholder = type === "توصيل" ? "رقم تلفون الزبون (إجباري)" : "رقم تلفون الزبون — اختياري (07xxxxxxxx)";
+      document.getElementById("customer-phone").placeholder = type === "توصيل" ? "تلفون الزبون (إجباري)" : "تلفون (اختياري)";
     }
 
     function saveDraft() {
@@ -1736,6 +1929,7 @@
       renderCart();
     }
 
+    let lastCartLen = 0;
     function renderCart() {
       const cart = OlvCart.all();
       syncCardQty();
@@ -1750,38 +1944,39 @@
       if (!cart.length) resetClearBtn();
       document.getElementById("psb-qty-count").textContent = itemCount;
       if (!cart.length) {
-        list.innerHTML = `<div class="cart-empty">السلة فارغة — اختر أصنافًا من القائمة</div>`;
+        lastCartLen = 0;
+        list.innerHTML = `<div class="cart-empty"><span class="ce-icon">${olvIcon("receipt")}</span><b>التذكرة فاضية</b><span>اضغط على أي صنف لتضيفه هون</span></div>`;
         checkoutBtn.disabled = true;
         saveDraftBtn.disabled = true;
       } else {
+        // الأسطر الجديدة بس بتعمل حركة الدخول (مش كل التذكرة مع كل ضغطة +)
+        const prevLen = lastCartLen;
+        lastCartLen = cart.length;
         list.innerHTML = cart.map((item, idx) => `
-          <div class="cart-item">
+          <div class="cart-item${idx >= prevLen ? " is-new" : ""}">
             <div class="cart-item-top">
-              <div class="qty-badge">${item.qty}×</div>
               <div class="cart-item-info" data-edit="${idx}">
                 <div class="name">${olvEsc(item.name)}</div>
                 ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => olvEsc(a.name)).join("، ")}</div>` : ""}
                 ${item.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(item.note)}</div>` : ""}
               </div>
+              ${sizeKinds(item).length || iceOk(item) ? `
+              <div class="cart-item-opts">
+                ${sizeKinds(item).map((k) => `<button type="button" class="opt-chip${sizeKindOf(item) === k ? " on" : ""}" data-size="${idx}:${sizeKindOf(item) === k ? "" : k}" aria-pressed="${sizeKindOf(item) === k}">${k === "medium" ? "وسط" : "كبير"}</button>`).join("")}
+                ${iceOk(item) ? `<button type="button" class="opt-chip${hasIce(item) ? " on" : ""}" data-ice="${idx}:${hasIce(item) ? 0 : 1}" aria-pressed="${hasIce(item)}">ثلج</button>` : ""}
+              </div>` : ""}
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
             </div>
-            ${sizeAddonFor(item) ? `
-            <div class="seg meal-seg" role="group" aria-label="الحجم: صغير أو كبير">
-              ${[[0, "صغير"], [1, "كبير"]].map(([k, l]) => `<button type="button" class="${(isLargeItem(item) ? 1 : 0) === k ? "on" : ""}" data-size="${idx}:${k}">${l}</button>`).join("")}
-            </div>` : ""}
+            <div class="qty-stepper">
+              <button type="button" data-dec="${idx}" ${item.qty <= 1 ? `class="is-remove" data-sound="remove" aria-label="حذف الصنف"` : `aria-label="نقّص واحد"`}>${item.qty <= 1 ? olvIcon("trash") : "−"}</button>
+              <span class="qty-value">${item.qty}</span>
+              <button type="button" data-inc="${idx}" aria-label="زيد واحد">+</button>
+            </div>
             ${mealOk(item) ? `
             <div class="seg meal-seg" role="group" aria-label="نوع الطلب: ساندويش أو وجبة">
               ${[["", "ساندويش"], ["meal", "وجبة"], ["double", "وجبة دبل"]].map(([k, l]) => `<button type="button" class="${mealKindOf(item) === k ? "on" : ""}" data-meal="${idx}:${k}">${l}</button>`).join("")}
               ${mealKindOf(item) ? `<button type="button" class="meal-edit" data-meal-edit="${idx}" aria-label="تعديل سعر الوجبة" style="flex:none; width:48px;">✎</button>` : ""}
             </div>` : ""}
-            <div class="cart-item-controls">
-              <div class="qty-stepper">
-                <button type="button" data-dec="${idx}">−</button>
-                <span class="qty-value">${item.qty}</span>
-                <button type="button" data-inc="${idx}">+</button>
-              </div>
-              <button type="button" class="cart-item-remove" data-remove="${idx}" data-sound="remove" aria-label="حذف الصنف">${olvIcon("trash")}</button>
-            </div>
           </div>
         `).join("");
         list.querySelectorAll("[data-edit]").forEach((el) => {
@@ -1794,7 +1989,10 @@
           });
         });
         list.querySelectorAll("[data-size]").forEach((btn) => {
-          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k === "1"); });
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k); });
+        });
+        list.querySelectorAll("[data-ice]").forEach((btn) => {
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.ice.split(":"); setIce(Number(i), k === "1"); });
         });
         list.querySelectorAll("[data-meal]").forEach((btn) => {
           btn.addEventListener("click", () => { const [i, k] = btn.dataset.meal.split(":"); setMealKind(Number(i), k); });
@@ -1811,19 +2009,16 @@
             renderCart();
           });
         });
-        list.querySelectorAll("[data-remove]").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            OlvCart.removeAt(Number(btn.dataset.remove));
-            renderCart();
-          });
-        });
         checkoutBtn.disabled = false;
         saveDraftBtn.disabled = false;
       }
+      updateTabBtn();
       const subtotal = OlvCart.total();
       const discountAmount = computeDiscountAmount(subtotal);
       const discountRow = document.getElementById("cart-discount-row");
       document.getElementById("cart-subtotal").textContent = olvFormatMoney(subtotal);
+      // بدون خصم المجموع الفرعي = الإجمالي، فبنخبّيه ونوفّر سطر
+      document.getElementById("cart-subtotal").parentElement.hidden = !(discountAmount > 0);
       if (discountAmount > 0) {
         discountRow.style.display = "";
         document.getElementById("cart-discount").textContent = "- " + olvFormatMoney(discountAmount);
@@ -1831,6 +2026,51 @@
         discountRow.style.display = "none";
       }
       document.getElementById("cart-total").textContent = olvFormatMoney(subtotal - discountAmount);
+    }
+
+    // «أرسل للطاولة»: صالة + رقم طاولة = الطلب بينضاف على حساب الطاولة المفتوح وبينطبع للأقسام بدون دفع،
+    // والكاشير بيحاسب مرة وحدة من صفحة الطاولات. «الدفع» بيضل للدفع الفوري
+    function updateTabBtn() {
+      const btn = document.getElementById("send-tab-btn");
+      if (!btn) return;
+      const table = olvNormTable(document.getElementById("table-number").value);
+      const show = document.getElementById("order-type").value === "صالة" && !!table;
+      btn.hidden = !show;
+      document.getElementById("checkout-btn").classList.toggle("pay", !show);
+      if (!show) return;
+      btn.innerHTML = `${olvIcon("dineIn")}<span>أرسل لطاولة ${olvEsc(table)}</span>`;
+      btn.disabled = !OlvCart.all().length;
+    }
+
+    async function sendToTable() {
+      const errBox = document.getElementById("err");
+      const btn = document.getElementById("send-tab-btn");
+      const tableNumber = olvNormTable(document.getElementById("table-number").value);
+      const customerPhone = document.getElementById("customer-phone").value.trim();
+      const customerName = document.getElementById("customer-name").value.trim();
+      errBox.style.display = "none";
+      btn.disabled = true;
+      try {
+        await OlvCart.sendToTab({ tableNumber, entryDate: olvToday(), customerPhone, customerName });
+        clearDraft();
+        resetDiscount();
+        ["table-number", "customer-name", "customer-phone"].forEach((id) => { document.getElementById(id).value = ""; });
+        renderCart();
+        refreshPopularityAndGrid();
+        const off = OlvCart.lastOffline();
+        if (off && off.queued && off.sentToKitchen) {
+          olvToast(`بدون نت: وصل لشاشات المطبخ والبار وبينطبع، وبينضاف لحساب طاولة ${tableNumber} لما يرجع النت`, { type: "ok", icon: "check", ms: 6000 });
+        } else if (off && off.queued) {
+          olvToast("الطلب محفوظ محليًا ولم يُرسل للمطبخ/البار بعد. بلّغهم شفهيًا، وبينضاف للحساب لما يرجع النت", { type: "danger", icon: "warning", ms: 9000 });
+        } else {
+          olvToast(`انرسل لطاولة ${tableNumber} وانطبع للأقسام. الحساب مفتوح`, { type: "ok", icon: "check", ms: 3500 });
+        }
+      } catch (err) {
+        const msg = String((err && err.message) || "");
+        olvShowError(errBox, /place_table_order/.test(msg) && /function|schema cache/i.test(msg)
+          ? new Error("ميزة حساب الطاولة لسا ما تفعّلت بقاعدة البيانات") : err);
+        btn.disabled = !OlvCart.all().length;
+      }
     }
 
     function openCheckoutSheet() {
@@ -1854,6 +2094,22 @@
       let method = "cash";
       let receivedCents = 0;
       let isSubmitting = false;
+      // «على حساب موظف»: الموظف + المبلغ المحمّل عليه = سعر المنيو ناقص 15% (قرار المالك 2026-11-13).
+      // قبل كان بسعر التكلفة، بس تكلفة أصناف كتير مش مسجّلة فكانت تنحسب قروش. المبلغ ثابت وما بيتعدّل بالإيد
+      const STAFF_DISCOUNT = 0.15;
+      let staffList = null, staffId = "", staffErr = "";
+      const staffAmount = (Math.round(exact * (1 - STAFF_DISCOUNT) * 100) / 100).toFixed(2);
+      async function loadStaffInfo() {
+        if (staffList) return;
+        try {
+          const { data, error } = await window.supabaseClient.rpc("staff_names");
+          if (error) throw error;
+          staffList = data || [];
+        } catch (e) {
+          staffList = [];
+          staffErr = /staff_names/.test(String(e && e.message)) ? "ميزة الحساب على الموظف لسا ما تفعّلت بقاعدة البيانات" : ((e && e.message) || "تعذّر تحميل الموظفين");
+        }
+      }
 
       const backdrop = document.createElement("div");
       backdrop.className = "checkout-backdrop";
@@ -1873,14 +2129,14 @@
       function render() {
         const receivedAmount = receivedCents / 100;
         const change = receivedAmount - exact;
-        const canConfirm = method !== "cash" || receivedAmount >= exact;
+        const canConfirm = method === "staff" ? !!staffId && Number(staffAmount) > 0 : (method !== "cash" || receivedAmount >= exact);
 
         modal.innerHTML = `
           <div class="checkout-head">
             <h2>إتمام الدفع</h2>
             <button type="button" class="checkout-close" id="checkout-close">${olvIcon("x")}</button>
           </div>
-          <div class="checkout-body${method === "cash" ? " has-cash" : ""}">
+          <div class="checkout-body${method === "cash" || method === "staff" ? " has-cash" : ""}">
           <div class="checkout-info">
           <div class="checkout-total">
             <div class="label">الإجمالي المطلوب</div>
@@ -1898,9 +2154,24 @@
           <div class="pm-tiles">
             <button type="button" class="pm-tile${method === "cash" ? " on" : ""}" data-method="cash">${olvIcon("banknote")}كاش</button>
             <button type="button" class="pm-tile${method === "card" ? " on" : ""}" data-method="card">${olvIcon("creditCard")}شبكة</button>
+            <button type="button" class="pm-tile${method === "cliq" ? " on" : ""}" data-method="cliq">${olvIcon("creditCard")}كليك</button>
             <button type="button" class="pm-tile${method === "delivery" ? " on" : ""}" data-method="delivery">${olvIcon("mapPin")}توصيل</button>
+            <button type="button" class="pm-tile${method === "staff" ? " on" : ""}" data-method="staff">${olvIcon("person")}حساب موظف</button>
           </div>
           </div>
+          ${method === "staff" ? `
+            <div class="staff-panel">
+              <div>
+                <label for="staff-sel">الموظف</label>
+                <select id="staff-sel"><option value="">${staffList ? "اختار الموظف…" : "بنحمّل…"}</option>${(staffList || []).map((u) => `<option value="${olvEsc(u.id)}"${u.id === staffId ? " selected" : ""}>${olvEsc(u.full_name)}</option>`).join("")}</select>
+              </div>
+              <div>
+                <label for="staff-amt">المبلغ عليه (سعر المنيو ناقص ${Math.round(STAFF_DISCOUNT * 100)}%)</label>
+                <input id="staff-amt" type="number" dir="ltr" value="${olvEsc(staffAmount)}" readonly aria-readonly="true">
+              </div>
+              ${staffErr ? `<div class="staff-hint warn">${olvEsc(staffErr)}</div>` : `<div class="staff-hint">سعر المنيو ${olvFormatMoney(exact)} ناقص ${Math.round(STAFF_DISCOUNT * 100)}% خصم موظفين. بينسجّل ذمة على الموظف وبينخصم من راتبه، أو بيسدّد قبلها. ما بينزل بالدرج. بالصالة قد يحتاج رمز المدير.</div>`}
+            </div>
+          ` : ""}
           ${method === "cash" ? `
             <div class="cash-panel">
               <div class="received-row">
@@ -1929,8 +2200,14 @@
 
         modal.querySelector("#checkout-close").addEventListener("click", close);
         modal.querySelectorAll(".pm-tile").forEach((btn) => {
-          btn.addEventListener("click", () => { method = btn.dataset.method; render(); });
+          btn.addEventListener("click", () => {
+            method = btn.dataset.method; render();
+            if (method === "staff" && !staffList) loadStaffInfo().then(() => { if (method === "staff") render(); });
+          });
         });
+        if (method === "staff") {
+          modal.querySelector("#staff-sel").addEventListener("change", (e) => { staffId = e.target.value; modal.querySelector("#checkout-confirm").disabled = !(staffId && Number(staffAmount) > 0); });
+        }
         if (method === "cash") {
           modal.querySelectorAll(".quick-amounts button").forEach((btn) => {
             btn.addEventListener("click", () => { receivedCents = Math.round(Number(btn.dataset.amt) * 100); render(); });
@@ -1959,17 +2236,48 @@
           let extraNotes = "بيع سريع";
           let cashReceived = null;
           let changeDue = null;
+          if (method === "cliq") extraNotes += " — دفع كليك";
           if (method === "cash") {
             cashReceived = receivedCents / 100;
             changeDue = Math.max(cashReceived - exact, 0);
             extraNotes += ` — مستلم ${olvFormatMoney(cashReceived)}، الباقي ${olvFormatMoney(changeDue)}`;
           }
           const queuedBefore = window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0;
-          await OlvCart.checkout({
+          let staffSaleId = null;
+          if (method === "staff") {
+            if (!navigator.onLine) throw new Error("الحساب على الموظف بيحتاج اتصال بالإنترنت. اختار كاش أو حاول لما يرجع النت");
+            const who = (staffList || []).find((u) => u.id === staffId);
+            if (!who || !(Number(staffAmount) > 0)) throw new Error("اختار الموظف");
+            extraNotes = `على حساب الموظف ${who.full_name} — ${olvFormatMoney(Number(staffAmount))}`;
+          }
+          // خصم فوق حد الكاشير: السيرفر بيرفض، فبنسأل عن رمز المدير وبنعيد نفس البيع (client_ref بيمنع التكرار)
+          const itemsNote = cartSnapshot.map((i) => `${i.qty}× ${i.name}`).join("، ");
+          if (method === "staff" && window.olvRole === "staff") {
+            // الكاشير بيبيع على حساب موظف بدون رمز المدير: موافقة تلقائية لبيعة وحدة (الذمة بتنسجّل على الموظف)
+            const { error: apErr } = await window.supabaseClient.rpc("staff_account_approval");
+            if (apErr) {
+              const m = String(apErr.message || "");
+              if (/staff_account_approval/.test(m) && /function|schema cache/i.test(m)) throw new Error("البيع على حساب الموظف بدون رمز لسا ما تفعّل بقاعدة البيانات");
+              throw apErr;
+            }
+          }
+          staffSaleId = await olvWithApproval("discount", () => OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
             discountAmount,
-          });
+          }));
+          if (method === "staff") {
+            // البيعة انحفظت؛ هلأ منسجّل الذمة على الموظف. لو فشلت لازم الكاشير يعرف حتى ما تضيع
+            const { error: chErr } = await window.supabaseClient.rpc("add_staff_charge", {
+              p_profile_id: staffId, p_sale_id: staffSaleId, p_amount: Number(staffAmount), p_note: "طلب على الحساب: " + itemsNote,
+            });
+            if (chErr) {
+              clearDraft(); resetDiscount(); renderCart(); refreshPopularityAndGrid();
+              isSubmitting = false; close();
+              olvShowError(errBox, new Error("البيعة انحفظت بس الذمة على الموظف ما انسجلت (" + (chErr.message || "خطأ") + "). بلّغ المدير يسجّلها يدويًا من الرواتب > سلف: " + olvFormatMoney(Number(staffAmount))));
+              return;
+            }
+          }
           clearDraft();
           resetDiscount();
           // بعد كل بيع: فضّي الاسم ورقم الصالة والتلفون حتى الطلب الجاي يبدأ فاضي
@@ -2168,6 +2476,14 @@
         sel.dispatchEvent(new Event("change"));
       });
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
+      document.getElementById("send-tab-btn").addEventListener("click", sendToTable);
+      document.getElementById("table-number").addEventListener("input", updateTabBtn);
+      // رجوع من صفحة ثانية (الطاولات مثلاً): المتصفح بيرجّع الشاشة بحقولها القديمة؛ لو التذكرة فاضية منفضّي الطاولة والاسم
+      window.addEventListener("pageshow", (e) => {
+        if (!e.persisted || OlvCart.all().length) return;
+        ["table-number", "customer-name", "customer-phone"].forEach((id) => { document.getElementById(id).value = ""; });
+        updateTabBtn();
+      });
       // فحص سريع (مو إجباري) لما الكاشير يخلص كتابة رقم هاتف — لو الرقم
       // لزبون متكرر موجود أصلًا ببرنامج الولاء، بيطلعله تنبيه ترحيبي
       document.getElementById("customer-phone").addEventListener("blur", async (e) => {

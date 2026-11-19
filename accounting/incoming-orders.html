@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -61,7 +61,7 @@
 <style>
   /* الطلبات الواردة (2026-10): ترويسة + عدّادين ← «جديدة بتنتظر قرارك» ← «قيد التحضير».
      القواعد بـ design-system/olv/pages/incoming-orders.md */
-  .wrap.io-wrap{max-width:1120px;}
+  .wrap.io-wrap{max-width:var(--page-max);}
   .io-pagehead{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
   .io-pagehead h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
   .io-pagehead .io-sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
@@ -85,6 +85,7 @@
   .io-card.io-prep{background:var(--ink-3);}
   .io-card .hint .icon{width:13px; height:13px; vertical-align:-2px;}
   .io-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px;}
+  .io-time{font-size:14px; font-weight:700; color:var(--muted,#6b6b6b); margin-inline-end:auto; display:inline-flex; align-items:center; gap:4px;}
   .io-head b{font-weight:800; font-size:21px; color:var(--gold-hi);}
   .io-total{font-weight:800; font-size:20px; white-space:nowrap; font-variant-numeric:tabular-nums;}
   .io-badges{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
@@ -163,12 +164,14 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script>
+    // شاشة الطلبات الواردة ما فيها شي بيضيع: التحديث الجديد بينزل عليها لحاله (olvWatchUpdates بـ layout.js)
+    window.olvAutoReload = () => true;
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("incoming-orders");
 
     const STATUS_LABELS = {
       new: "جديد", confirmed: "مؤكد", preparing: "قيد التحضير",
-      ready: "جاهز", completed: "مكتمل", cancelled: "ملغى",
+      ready: "جاهز", out: "طلع للتوصيل", completed: "مكتمل", cancelled: "ملغى",
     };
     const MODE_LABELS = { hall: "صالة", takeaway: "سفري", delivery: "توصيل" };
 
@@ -226,6 +229,21 @@
       `;
     }
 
+    // عنوان التوصيل بدون رابط الخريطة (بيجي ملصوق بآخره من موقع المنيو) + الرابط لحاله
+    const mapOf = (a) => { const m = /https:\/\/[^\s]+/.exec(a || ""); return m ? m[0] : ""; };
+    const addrText = (a) => String(a || "").replace(/\s*—?\s*الموقع:\s*https:\/\/[^\s]+/, "").trim();
+
+    // وقت وصول الطلب (توقيت عمّان) + كم صار له
+    function orderTimeHtml(o) {
+      const t = o.createdAt ? new Date(o.createdAt) : null;
+      if (!t || isNaN(t)) return "";
+      const hm = t.toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit", numberingSystem: "latn", timeZone: "Asia/Amman" });
+      const mins = Math.max(0, Math.round((Date.now() - t.getTime()) / 60000));
+      const ago = mins < 1 ? "هلأ" : mins < 60 ? `قبل ${mins} د` : `قبل ${Math.floor(mins / 60)} س ${mins % 60} د`;
+      return `<span class="io-time">${olvIcon("clock")} ${hm} · ${ago}</span>`;
+    }
+    setInterval(() => { if (typeof renderOrders === "function" && lastOrders && lastOrders.length) renderOrders(); }, 60000);
+
     const ioTracker = olvNewTracker();
     function renderOrders() {
       const list = document.getElementById("orders-list");
@@ -242,12 +260,14 @@
       const cardHtml = (o) => {
         const isNew = o.status === "new";
         const mapped = orderFullyMapped(o);
+        const needsContact = (o.mode === "takeaway" || o.mode === "delivery") && !(String(o.name || "").trim() && String(o.phone || "").replace(/\D/g, "").length >= 7);
         const statusClass = isNew ? "io-status-new" : o.status === "preparing" ? "io-status-preparing" : "io-status-other";
         return `
           <div class="io-card${isNew ? " io-new" : " io-prep"}" data-row-id="${olvEsc(String(o.id))}">
             <div class="io-head">
               <b>#${olvEsc(o.number)}</b>
-              <div class="io-total">${olvFormatMoney(o.total)}</div>
+              ${orderTimeHtml(o)}
+              <div class="io-total">${olvFormatMoney(itemsTotal(o))}${feeOf(o) > 0 ? `<div class="hint" style="font-size:12px;font-weight:600">+ توصيل ${olvFormatMoney(feeOf(o))} = ${olvFormatMoney(o.total)} عالزبون</div>` : ""}</div>
             </div>
             <div class="io-badges">
               <span class="io-mode-badge">${o.mode === "delivery" ? olvIcon("mapPin") : olvIcon("dineIn")} ${olvEsc(MODE_LABELS[o.mode] || o.mode)}</span>
@@ -255,18 +275,24 @@
             </div>
             ${o.table ? `<div class="hint">${olvIcon("grid")} طاولة رقم ${olvEsc(o.table)}</div>` : ""}
             ${o.phone ? `<div class="hint" dir="ltr">${olvIcon("phone")} ${olvEsc(o.phone)}</div>` : ""}
-            ${o.address ? `<div class="hint">${olvIcon("mapPin")} ${olvEsc(o.address)}</div>` : ""}
+            ${o.address ? `<div class="hint">${olvIcon("mapPin")} ${olvEsc(addrText(o.address))}${mapOf(o.address) ? ` — <a href="${olvEsc(mapOf(o.address))}" target="_blank" rel="noopener">الموقع عالخريطة</a>` : ""}</div>` : ""}
+            ${o.mode === "delivery" && o.driver ? `<div class="hint">${olvIcon("truck")} السائق: ${olvEsc(o.driver)}</div>` : ""}
             ${o.notes ? `<div class="hint">${olvIcon("note")} ${olvEsc(o.notes)}</div>` : ""}
             <div class="io-items">${(o.items || []).map((it) => renderItemRow(o, it)).join("")}</div>
             ${isNew ? `
               <div class="io-actions">
-                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
-                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
+                ${o.mode === "hall" && olvNormTable(o.table) ? `<button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="tab" ${mapped ? "" : "disabled"}>${olvIcon("receipt")} على حساب الطاولة ${olvEsc(olvNormTable(o.table))}</button>` : ""}
+                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="cash" ${mapped && !needsContact ? "" : "disabled"}>${olvIcon("banknote")} قبول (كاش)</button>
+                <button class="btn pay" data-approve="${olvEsc(o.id)}" data-method="card" ${mapped && !needsContact ? "" : "disabled"}>${olvIcon("creditCard")} قبول (شبكة)</button>
                 <button class="btn danger" data-reject="${olvEsc(o.id)}">رفض</button>
               </div>
+              ${needsContact ? `<div class="hint" style="margin-top:8px;color:var(--danger,#c0392b);font-weight:700;">⚠ طلب ${olvEsc(MODE_LABELS[o.mode])} بدون اسم أو رقم هاتف — ما بينقبل. ارفضه أو اطلب من الزبون يعيد الطلب.</div>` : ""}
               ${!mapped ? `<div class="hint" style="margin-top:8px;">اربط كل الأصناف أعلاه بمنتج حتى يمكن القبول</div>` : ""}
             ` : `<div class="io-waiting">${olvIcon("checkCircle")} انقبل وراح للمطبخ (${olvEsc(STATUS_LABELS[o.status] || o.status)})</div>
               <div class="io-actions" style="margin-top:10px;padding-top:10px;">
+                ${o.mode === "delivery" ? `<button class="btn" data-driver-link="${olvEsc(o.id)}" data-num="${olvEsc(o.number)}">${olvIcon("share")} رابط السائق</button>
+                ${o.phone && (o.status === "ready" || o.status === "out") ? `<button class="btn" data-track="${olvEsc(o.id)}" data-num="${olvEsc(o.number)}" data-phone="${olvEsc(o.phone)}">${olvIcon("share")} تتبع للزبون</button>` : ""}
+                ${o.status !== "out" ? `<button class="btn" data-out="${olvEsc(o.id)}">${olvIcon("truck")} طلع للتوصيل</button>` : ""}` : ""}
                 <button class="btn pay" data-done="${olvEsc(o.id)}">${olvIcon("checkCircle")} تم التسليم</button>
               </div>`}
           </div>`;
@@ -297,6 +323,15 @@
       list.querySelectorAll("button[data-done]").forEach((btn) => {
         btn.addEventListener("click", () => completeOrder(btn.dataset.done, btn));
       });
+      list.querySelectorAll("button[data-driver-link]").forEach((btn) => {
+        btn.addEventListener("click", () => sendDriverLink(btn.dataset.driverLink, btn.dataset.num, btn));
+      });
+      list.querySelectorAll("button[data-track]").forEach((btn) => {
+        btn.addEventListener("click", () => sendTrackLink(btn.dataset.track, btn.dataset.num, btn.dataset.phone));
+      });
+      list.querySelectorAll("button[data-out]").forEach((btn) => {
+        btn.addEventListener("click", () => markOut(btn.dataset.out, btn));
+      });
       list.querySelectorAll("button[data-reject]").forEach((btn) => {
         btn.addEventListener("click", () => rejectOrder(btn.dataset.reject));
       });
@@ -305,10 +340,18 @@
     // نفس المرجع بتستعمله لوحة «جاهز للزبون» لتربط الطلب بالبيع (menu-ready-panel.js)
     const orderRef = (id) => window.olvMenuOrderRef(id);
 
+    // رسوم التوصيل بتنحسب للسائق، فما بتندمج مع سعر الطلبات بالبيع (الإيراد والنقاط)
+    const feeOf = (o) => { const m = /رسوم التوصيل[^:]*:\s*([\d.]+)/.exec(o.text || ""); return m ? Number(m[1]) : 0; };
+    const itemsTotal = (o) => Math.max(Math.round((Number(o.total || 0) - feeOf(o)) * 100) / 100, 0);
+
     async function approveOrder(orderId, method) {
       const errBox = document.getElementById("err");
       const order = lastOrders.find((o) => o.id === orderId);
       if (!order || !orderFullyMapped(order)) return;
+      if ((order.mode === "takeaway" || order.mode === "delivery") && !(String(order.name || "").trim() && String(order.phone || "").replace(/\D/g, "").length >= 7)) {
+        olvShowError(errBox, new Error("طلبات السفري والتوصيل ما بتنقبل بدون اسم ورقم هاتف."));
+        return;
+      }
       const card = document.querySelector(`button[data-approve="${orderId}"]`)?.closest(".io-card");
       card?.querySelectorAll("button").forEach((b) => { b.disabled = true; });
       try {
@@ -319,8 +362,8 @@
         });
         const args = {
           p_entry_date: olvToday(),
-          p_cash: method === "cash" ? order.total : 0,
-          p_card: method === "card" ? order.total : 0,
+          p_cash: method === "cash" ? itemsTotal(order) : 0,
+          p_card: method === "card" ? itemsTotal(order) : 0,
           p_delivery: 0,
           p_notes: order.notes || null,
           p_items: items,
@@ -328,6 +371,23 @@
           p_table_number: olvNormTable(order.table) || null,
           p_customer_phone: order.phone || null,
         };
+        // حساب الطاولة المفتوح: بينطبع للأقسام بس، والدفع لاحقًا من صفحة الطاولات (زر «حاسب الطاولة»)
+        if (method === "tab") {
+          const { error: tabErr } = await window.supabaseClient.rpc("place_table_order", {
+            p_entry_date: olvToday(),
+            p_total: itemsTotal(order),
+            p_notes: order.notes || null,
+            p_items: items,
+            p_client_ref: await orderRef(order.id),
+            p_table_number: olvNormTable(order.table),
+            p_customer_phone: order.phone || null,
+          });
+          if (tabErr) throw tabErr;
+          if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+          await OlvIncomingPoll.callProxy({ action: "update", id: order.id, status: "preparing" });
+          await OlvIncomingPoll.pollNow();
+          return;
+        }
         // رقم مرجعي ثابت لكل طلب أونلاين: لو انضغط «قبول» مرتين (أو فشل تحديث الحالة بعد تسجيل البيع)
         // السيرفر بيرجّع نفس البيع بدل ما يسجّل بيع تاني
         let { error } = await window.supabaseClient.rpc("record_sale", { ...args, p_client_ref: await orderRef(order.id) });
@@ -349,15 +409,82 @@
       const errBox = document.getElementById("err");
       btn.disabled = true;
       try {
-        // موقع المنيو بيسمح بس preparing => ready => completed، فبنمرّ على «جاهز» أول
+        // موقع المنيو بيسمح بس preparing => ready => (out) => completed، فبنمرّ على «جاهز» أول (إلا لو جاهز أو طالع للتوصيل أصلًا)
         const cur = lastOrders.find((o) => o.id === orderId);
-        if (!cur || cur.status !== "ready") await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "ready" });
+        if (!cur || (cur.status !== "ready" && cur.status !== "out")) await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "ready" });
         await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "completed" });
         await OlvIncomingPoll.pollNow();
       } catch (err) {
         olvShowError(errBox, err);
         btn.disabled = false;
       }
+    }
+
+    // «طلع للتوصيل»: الطلب لازم يكون جاهز أول، فبنمرّ على «جاهز» لو لسا قيد التحضير
+    async function markOut(orderId, btn) {
+      const errBox = document.getElementById("err");
+      btn.disabled = true;
+      try {
+        const cur = lastOrders.find((o) => o.id === orderId);
+        if (!cur || cur.status !== "ready") await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "ready" });
+        await OlvIncomingPoll.callProxy({ action: "update", id: orderId, status: "out" });
+        await OlvIncomingPoll.pollNow();
+      } catch (err) {
+        olvShowError(errBox, err);
+        btn.disabled = false;
+      }
+    }
+
+    // رابط سري للسائق (مش موظف عندنا): بيفتح واتساب للسائق فيه الرابط. لو ما كتبنا رقم بنكتفي بنسخ الرابط
+    async function sendDriverLink(orderId, num, btn) {
+      const errBox = document.getElementById("err");
+      btn.disabled = true;
+      try {
+        const out = await OlvIncomingPoll.callProxy({ action: "driver_link", id: orderId });
+        if (!out || !out.url) throw new Error((out && out.error) || "تعذّر توليد الرابط");
+        // الرابط لحاله بدون أي كلام عربي: الكلام الملاصق للرابط كان يمنع فتحه
+        const msg = out.url;
+        // السائقين المحفوظين بإدارة المنيو: سائق الطلب إن كان محدد، وإلا اختيار برقمه من القائمة
+        let drivers = [];
+        try { const d = await OlvIncomingPoll.callProxy({ action: "drivers" }); drivers = (d && d.drivers || []).filter((x) => x.phone); } catch { /* نكمل بالإدخال اليدوي */ }
+        const cur = lastOrders.find((o) => o.id === orderId);
+        let ph = null, saved = false;
+        const own = cur && cur.driver && drivers.find((x) => x.name === cur.driver);
+        if (own) { ph = own.phone; saved = true; }
+        else if (drivers.length) {
+          const pick = prompt("اختر السائق (اكتب رقمه) أو اترك فاضي لكتابة رقم يدوي:\n" + drivers.map((x, i) => `${i + 1}) ${x.name}`).join("\n"), "1");
+          if (pick === null) return;
+          const d = drivers[Number(pick) - 1];
+          if (d) { ph = d.phone; saved = true; }
+        }
+        if (ph === null) {
+          ph = prompt("رقم واتساب السائق (اتركه فاضي لنسخ الرابط فقط):", localStorage.getItem("olv-driver-phone") || "");
+          if (ph === null) return;
+        }
+        ph = ph.replace(/\D/g, "");
+        if (ph) {
+          if (!saved) localStorage.setItem("olv-driver-phone", ph);
+          if (ph.startsWith("0")) ph = "962" + ph.slice(1);
+          const wu = "https://wa.me/" + ph + "?text=" + encodeURIComponent(msg);
+          // المتصفح بيمنع النافذة الجديدة بعد الانتظار (await) فبنفتح واتساب بنفس الصفحة بدالها
+          if (!window.open(wu, "_blank")) location.href = wu;
+        } else {
+          try { await navigator.clipboard.writeText(msg); alert("اننسخ رابط السائق."); } catch { prompt("انسخ الرابط:", out.url); }
+        }
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // رابط تتبع السائق للزبون على واتساب (صفحة متابعة الطلب بموقع المنيو)
+    function sendTrackLink(orderId, num, phone) {
+      let ph = String(phone || "").replace(/\D/g, "");
+      if (!ph) return;
+      if (ph.startsWith("0")) ph = "962" + ph.slice(1);
+      const msg = `طلبك #${num} من OLV بالطريق إلك 🛵 تابع السائق على الخريطة:\nhttps://olv-menu.pages.dev/order.html?id=${encodeURIComponent(orderId)}`;
+      window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
     }
 
     async function rejectOrder(orderId) {

@@ -23,11 +23,11 @@ const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN;
 const USE_INGEST = !!(BRIDGE_TOKEN && process.env.SUPABASE_URL);
 const supabase = USE_INGEST ? null : require("./supabase").supabase;
 
-async function ingest(events, users) {
+async function ingest(events, users, active) {
   const res = await fetch(`${process.env.SUPABASE_URL.replace(/\/+$/, "")}/functions/v1/attendance-ingest`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-bridge-token": BRIDGE_TOKEN },
-    body: JSON.stringify({ events, users }),
+    body: JSON.stringify({ events, users, active }),
   });
   const out = await res.json().catch(() => ({}));
   if (!res.ok || !out.ok) throw new Error(`رفضت السحابة البصمات (${res.status}): ${out.error || "رد غير متوقع"}`);
@@ -61,13 +61,14 @@ async function loadDeviceUserMap() {
 
 // أسماء الموظفين على الجهاز: كل 10 دقايق، والسحابة بتربط بالاسم أي موظف لسا ما إله رقم
 let lastUsersSync = 0;
-async function syncUsers() {
-  if (!USE_INGEST || Date.now() - lastUsersSync < 10 * 60 * 1000) return;
+async function syncUsers(active) {
+  if (!USE_INGEST || Date.now() - lastUsersSync < (active ? 2 : 10) * 60 * 1000) return;
   lastUsersSync = Date.now();
   try {
     const users = await listDeviceUsers({ host: DEVICE_IP, port: DEVICE_PORT, username: DEVICE_USER, password: DEVICE_PASSWORD });
-    const out = await ingest([], users);
+    const out = await ingest([], users, active);
     if (out.linked && out.linked.length) log(`تم ربط موظفين بالاسم مع رقمهم على الجهاز: ${out.linked.join("، ")}`);
+    if (out.created && out.created.length) log(`تم فتح ملف موظف تلقائيًا لأشخاص جدد على الجهاز: ${out.created.join("، ")}`);
   } catch (err) {
     log("تنبيه: ما قدرت أقرأ أسماء الموظفين من الجهاز:", err.message);
   }
@@ -100,7 +101,8 @@ async function tick() {
       for (let i = 0; i < list.length; i += 500) {
         const out = await ingest(list.slice(i, i + 500));
         if (out.unmapped && out.unmapped.length) {
-          log(`تحذير: بصمات من رقم/أرقام موظفين غير مربوطة بأي حساب (${out.unmapped.join("، ")}) — اربط "رقم الموظف على جهاز البصمة" من صفحة الموظفين.`);
+          log(`بصمات من رقم/أرقام غير مربوطة بأي حساب (${out.unmapped.join("، ")}) — بفتحلهم ملف موظف تلقائيًا من قائمة أشخاص الجهاز.`);
+          await syncUsers(out.unmapped); // بيرسل أسماء الجهاز فورًا والسحابة بتفتح الملف وبتربطه، وبصماته بتنحفظ بالدورة الجاية بعد 30 ثانية
         }
         log(`أُرسلت ${out.received} بصمة، حُفظ منها ${out.saved} (المكرر يُتجاهل تلقائيًا).`);
       }

@@ -13,6 +13,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
+const OLV_DRIVER_API = "https://olv-menu.pages.dev/api/driver-order";
 const OLV_CONTROLS_API = "https://olv-menu.pages.dev/api/controls";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
 const OLV_CARD_SYNC_API = "https://olv-menu.pages.dev/api/card-sync";
@@ -160,7 +161,7 @@ Deno.serve(async (req) => {
       const { status, out } = await olvFetchJson(OLV_MENU_API, {
         method: "PATCH",
         headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
-        body: JSON.stringify({ id: body.id, status: body.status, ...(typeof body.pickup === "string" ? { pickup: body.pickup } : {}) }),
+        body: JSON.stringify({ id: body.id, status: body.status, ...(typeof body.pickup === "string" ? { pickup: body.pickup } : {}), ...(typeof body.driver === "string" ? { driver: body.driver } : {}) }),
       });
       if (status < 400 && body.status === "ready" && typeof body.wa_phone === "string") {
         out.whatsapp = await sendWhatsAppReady(admin, String(body.id), body);
@@ -168,12 +169,32 @@ Deno.serve(async (req) => {
       return json(out, status);
     }
 
+    // رابط السائق لطلب توصيل (السائقين مش موظفين عندنا): رابط سري لهالطلب بس فيه العنوان والملاحة والمبلغ وأزرار الاستلام والتسليم.
+    // التوكن بيتولّد بموقع المنيو (HMAC من مفتاح الإدارة)؛ أي حساب فعّال بيقدر يطلبه (الكاشير مثلًا).
+    if (body.action === "driver_link") {
+      const id = String(body.id || "");
+      if (!id) return json({ ok: false, error: "id مطلوب" }, 400);
+      const { status, out } = await olvFetchJson(`${OLV_DRIVER_API}?id=${encodeURIComponent(id)}&link=1`, { headers: { "x-olv-admin-key": adminKey } }, 1);
+      if (status >= 400 || !out.token) return json({ ok: false, error: String(out.error || "تعذّر توليد رابط السائق") }, status >= 400 ? status : 502);
+      return json({ ok: true, url: `${OLV_SITE}/d.html?o=${encodeURIComponent(id)}&t=${out.token}` });
+    }
+
+    // قائمة السائقين بأرقام واتساب (من إعدادات التوصيل بإدارة المنيو)، حتى الكاشير يختار الاسم بدل ما يكتب الرقم
+    if (body.action === "drivers") {
+      const { status, out } = await olvFetchJson(`${OLV_SITE}/api/delivery?full=1`, { headers: { "x-olv-admin-key": adminKey } }, 1);
+      if (status >= 400) return json({ ok: false, error: String(out.error || "تعذّر تحميل السائقين") }, status);
+      // deno-lint-ignore no-explicit-any
+      const cfg: any = out.config || {};
+      const phones = cfg.driverPhones || {};
+      return json({ ok: true, drivers: (cfg.drivers || []).map((n: string) => ({ name: n, phone: phones[n] || "" })) });
+    }
+
     // مزامنة أصناف المخزون (مشروبات وبضاعة جاهزة) مع المنيو العام: كل مادة معلّمة menu_enabled
     // بتظهر بالمنيو، ومتاحة بس لو مخزونها > 0 — لما تخلص بتختفي، ولما ينزل مخزون جديد بترجع.
     // أي حساب فعّال بيقدر يستدعيها (الكاشير مثلًا بعد البيع): ما بتكشف شي ولا بتغيّر غير أصناف المخزون
     if (body.action === "sync_stock") {
       const { data: rows, error } = await admin.from("ingredients")
-        .select("menu_item_id, name, menu_name_en, menu_price, menu_hall_price, menu_cat, current_stock, menu_group, menu_variant")
+        .select("menu_item_id, name, menu_name_en, menu_price, menu_hall_price, menu_cat, current_stock, menu_group, menu_variant, menu_always_available")
         .eq("menu_enabled", true);
       if (error) return json({ ok: false, error: error.message }, 500);
       // نكهات المعسل (menu_cat = shisha-flavor) بتروح كخيار نكهة جوا الأرجيلة، والباقي كأصناف بسعر
@@ -185,7 +206,7 @@ Deno.serve(async (req) => {
             id: r.menu_item_id,
             ar: String(r.name).replace(/^معسل\s*/, ""),
             en: r.menu_name_en || undefined,
-            available: Number(r.current_stock) > 0,
+            available: Number(r.current_stock) > 0 || r.menu_always_available === true,
           }
           : {
             id: r.menu_item_id,
@@ -195,7 +216,7 @@ Deno.serve(async (req) => {
             price: Number(r.menu_price),
             // سعر الصالة (menu_price = السفري)؛ فاضي = نفس السعر
             hallPrice: Number(r.menu_hall_price) > 0 ? Number(r.menu_hall_price) : undefined,
-            available: Number(r.current_stock) > 0,
+            available: Number(r.current_stock) > 0 || r.menu_always_available === true,
             // بطاقة المادة: الأنواع اللي إلها نفس menu_group بتظهر ببطاقة وحدة، واسم الخيار menu_variant
             group: r.menu_group || undefined,
             variant: r.menu_variant || undefined,
@@ -240,6 +261,25 @@ Deno.serve(async (req) => {
       // deno-lint-ignore no-explicit-any
       const sized = items.filter((it: any) => Number(it.large?.price) > Number(it.price) && (!cardsMode || !known.has(it.id)));
       const sizeAddonByItem: Record<string, string> = {};
+      // الحجم الوسط (بين الصغير والكبير): نفس الفكرة بإضافة «وسط» (external_id = sizem:<id>)
+      // deno-lint-ignore no-explicit-any
+      const midSized = items.filter((it: any) => Number(it.medium?.price) > Number(it.price) && (!cardsMode || !known.has(it.id)));
+      const midAddonByItem: Record<string, string> = {};
+      if (midSized.length) {
+        // deno-lint-ignore no-explicit-any
+        const mrows = midSized.map((it: any) => ({
+          external_id: `sizem:${it.id}`,
+          name: "وسط",
+          price: Math.round((Number(it.medium.price) - Number(it.price)) * 100) / 100,
+          is_active: true,
+          is_size: true,
+        }));
+        const { error: eam } = await admin.from("addons").upsert(mrows, { onConflict: "external_id" });
+        if (eam) return json({ ok: false, error: eam.message }, 500);
+        const { data: gotm, error: ebm } = await admin.from("addons").select("id, external_id").in("external_id", mrows.map((r: { external_id: string }) => r.external_id));
+        if (ebm) return json({ ok: false, error: ebm.message }, 500);
+        (gotm || []).forEach((g: { id: string; external_id: string }) => { midAddonByItem[g.external_id.slice(6)] = g.id; });
+      }
       if (sized.length) {
         // deno-lint-ignore no-explicit-any
         const rows = sized.map((it: any) => ({
@@ -268,6 +308,7 @@ Deno.serve(async (req) => {
           hall_price: Number(it.hallPrice) > 0 ? Number(it.hallPrice) : null,
         };
         row.large_addon_id = sizeAddonByItem[it.id] ?? null;
+        row.medium_addon_id = midAddonByItem[it.id] ?? null;
         if (it.image) row.image_url = abs(it.image);
         if (it.descAr) row.description = it.descAr;
         // حقول بطاقة المادة (ما كانت موجودة بنقطة البيع)
@@ -288,15 +329,24 @@ Deno.serve(async (req) => {
         // أصناف المخزون (stk-) مصدرها «المنيو من المخزون» مش البطاقة: سعرها وسعر الصالة والتوفّر بيتحدّثوا من المنيو
         const stockRows = payload
           .filter((r) => String(r.external_id).startsWith("stk-") && known.has(r.external_id as string))
-          .map((r) => ({ external_id: r.external_id, name: r.name, category: r.category, price: r.price, hall_price: r.hall_price, is_active: r.is_active }));
+          .map((r) => ({ external_id: r.external_id, name: r.name, category: r.category, price: r.price, hall_price: r.hall_price }));
+        // ملاحظة: التوفّر (is_active) ما بنلمسه لأصناف المخزون: «متوفر بالمنيو» معناه المخزون > 0، ولو الجرد ناقص (صفر/سالب)
+        // كان الصنف يختفي من الكاشير (حصل مع «ماء 500 مل»). إيقاف الصنف من الكاشير بيصير فقط من «بطاقة المادة».
         if (stockRows.length) {
           const { error: e6 } = await admin.from("products").upsert(stockRows, { onConflict: "external_id" });
           if (e6) return json({ ok: false, error: e6.message }, 500);
         }
         return json({ ok: true, mode: "cards", count: payload.length, added: fresh.length, stock: stockRows.length, hidden: 0 });
       }
-      const { error: e2 } = await admin.from("products").upsert(payload, { onConflict: "external_id" });
+      // أصناف المخزون (stk-): نحدّث الاسم والسعر بدون التوفّر (نفس السبب فوق)؛ الصنف الجديد بيدخل متوفر
+      const isStk = (r: Record<string, unknown>) => String(r.external_id).startsWith("stk-");
+      const stkNoActive = payload.filter(isStk).map((r) => { const { is_active: _a, ...rest } = r; return rest; });
+      const { error: e2 } = await admin.from("products").upsert(payload.filter((r) => !isStk(r)), { onConflict: "external_id" });
       if (e2) return json({ ok: false, error: e2.message }, 500);
+      if (stkNoActive.length) {
+        const { error: e2b } = await admin.from("products").upsert(stkNoActive, { onConflict: "external_id" });
+        if (e2b) return json({ ok: false, error: e2b.message }, 500);
+      }
       // deno-lint-ignore no-explicit-any
       const inMenu = new Set(items.map((it: any) => it.id));
       const gone = (before || []).filter((p) => !inMenu.has(p.external_id) && p.is_active).map((p) => p.id);
@@ -320,7 +370,7 @@ Deno.serve(async (req) => {
         // deno-lint-ignore no-explicit-any
         items: (menu.items || []).map((it: any) => ({
           id: it.id, ar: it.ar, cat: it.cat, price: it.price, hallPrice: it.hallPrice ?? null,
-          meal: it.meal?.price ?? null, large: it.large?.price ?? null, available: it.available !== false, source: it.source ?? null,
+          meal: it.meal?.price ?? null, medium: it.medium?.price ?? null, large: it.large?.price ?? null, available: it.available !== false, source: it.source ?? null,
         })),
       });
     }
@@ -330,10 +380,10 @@ Deno.serve(async (req) => {
     if (body.action === "push_cards") {
       if (profile.role === "staff") return json({ ok: false, error: "هذه العملية للمالك والمدير فقط" }, 403);
       const { data: rows, error: pe } = await admin.from("products")
-        .select("external_id, name, name_en, description, description_en, menu_cat, subcat_ar, subcat_en, price, hall_price, meal_price, large_addon_id, is_active, popular, image_url")
+        .select("external_id, name, name_en, description, description_en, menu_cat, subcat_ar, subcat_en, price, hall_price, meal_price, large_addon_id, medium_addon_id, flavors, is_active, popular, image_url")
         .not("external_id", "is", null);
       if (pe) return json({ ok: false, error: pe.message }, 500);
-      const largeIds = (rows || []).map((r) => r.large_addon_id).filter(Boolean);
+      const largeIds = (rows || []).flatMap((r) => [r.large_addon_id, r.medium_addon_id]).filter(Boolean);
       const largeBy: Record<string, number> = {};
       if (largeIds.length) {
         const { data: ad } = await admin.from("addons").select("id, price, is_active").in("id", largeIds);
@@ -353,7 +403,9 @@ Deno.serve(async (req) => {
           price: Number(r.price),
           hallPrice: Number(r.hall_price) > 0 ? Number(r.hall_price) : null,
           mealPrice: Number(r.meal_price) > 0 ? Number(r.meal_price) : null,
+          mediumPrice: r.medium_addon_id && largeBy[r.medium_addon_id] != null ? Math.round((Number(r.price) + largeBy[r.medium_addon_id]) * 100) / 100 : null,
           largePrice: r.large_addon_id && largeBy[r.large_addon_id] != null ? Math.round((Number(r.price) + largeBy[r.large_addon_id]) * 100) / 100 : null,
+          flavors: r.flavors ? String(r.flavors).split("|").map((x: string) => x.trim()).filter(Boolean) : [],
           available: r.is_active !== false,
           popular: !!r.popular,
           image: r.image_url || undefined,
@@ -389,7 +441,7 @@ Deno.serve(async (req) => {
       return json(out, status);
     }
 
-    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو menu_items أو push_cards أو staff_link أو get_controls أو set_controls)" }, 400);
+    return json({ ok: false, error: "action غير معروف (list أو update أو sync_stock أو sync_products أو menu_items أو push_cards أو staff_link أو driver_link أو drivers أو get_controls أو set_controls)" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "خطأ بالسيرفر" }, 500);
   }

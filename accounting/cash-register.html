@@ -10,7 +10,7 @@
 <style>
   /* تقفيل الخزينة (2026-10): يوم ← المفروض بالدرج (معادلة واضحة) ← العدّ ← الفرق كبير ← السجل.
      القواعد بـ design-system/olv/pages/cash-register.md */
-  .wrap.cr-wrap{max-width:1120px;}
+  .wrap.cr-wrap{max-width:var(--page-max);}
   .cr-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
   .cr-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
   .cr-head .cr-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
@@ -78,6 +78,9 @@
   .eq li.total .op{background:var(--paper); color:var(--ink-2);}
   .eq li.total .nm b{font-size:16px; font-weight:800;}
   .eq li.total .v{font-size:clamp(26px,4vw,34px); color:var(--paper);}
+  .cr-match{margin-top:10px; padding:10px 12px; border-radius:14px; background:var(--ink-3);}
+  .cr-match summary{cursor:pointer; font-size:13.5px; font-weight:700; min-height:32px; display:flex; align-items:center;}
+  .cr-match input{width:100%; box-sizing:border-box; min-height:44px; margin-top:8px; padding:8px 12px; font-size:16px; border:1px solid var(--hair); border-radius:12px; background:var(--ink-2); color:var(--paper); font-family:'Tajawal',sans-serif;}
   .cr-aside{margin:6px 0 0; color:var(--muted); font-size:12.5px; line-height:1.6; display:flex; gap:6px; align-items:flex-start;}
   .cr-aside .icon{width:14px; height:14px; flex:none; margin-top:3px;}
 
@@ -104,10 +107,10 @@
   .result .rt b{display:block; font-size:16px; font-weight:800;}
   .result .rt small{display:block; color:var(--muted); font-size:12.5px; margin-top:2px; line-height:1.5;}
   .result .rv{font-size:clamp(26px,4vw,34px); font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap;}
-  .result.ok{background:rgba(86,105,46,.12);}
+  .result.ok{background:rgba(91,71,230,.12);}
   .result.ok .ri{background:var(--olive); color:var(--on-olive);}
   .result.ok .rv, .result.over .rv{color:var(--ok);}
-  .result.over{background:rgba(86,105,46,.08);}
+  .result.over{background:rgba(91,71,230,.08);}
   .result.over .ri{color:var(--ok);}
   .result.short{background:rgba(179,65,42,.10);}
   .result.short .ri{background:var(--danger); color:#fff;}
@@ -184,7 +187,7 @@
   }
 </style>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -299,6 +302,12 @@
             </li>
           </ul>
           <p class="cr-aside" id="other-pay" hidden></p>
+          <details class="cr-match" id="card-match">
+            <summary>طابق الشبكة وكليك (لو في عجز)</summary>
+            <p class="cr-aside" style="margin-top:8px">اكتب مجموع الشبكة وكليك اليوم حسب جهاز الشبكة وكشف كليك، وبنقارنه بالمسجّل بالنظام. لو أكتر، معناها دفعات كليك أو شبكة انسجلت كاش بالغلط، وهاي بتزيّد «المفروض بالدرج» وبتطلّع عجز وهمي.</p>
+            <input type="number" id="card_actual" step="0.01" min="0" inputmode="decimal" placeholder="مجموع الشبكة + كليك الفعلي" aria-label="مجموع الشبكة وكليك الفعلي">
+            <p class="cr-aside" id="card-match-out" aria-live="polite"></p>
+          </details>
         </section>
 
         <section class="group">
@@ -469,11 +478,30 @@
       $("r-val").innerHTML = `<span class="num">${s.cls === "ok" ? "0.00" : (diff > 0 ? "+" : "−") + money(Math.abs(diff))}</span>`;
       $("notes-label").textContent = s.cls === "ok" ? "ملاحظة (اختياري)" : "سبب " + s.word + " (اختياري)";
     }
+    // مطابقة الشبكة/كليك: الفرق بين الفعلي والمسجّل = دفعات انسجلت كاش بالغلط (بتزيّد المفروض بالدرج)
+    function recalcCardMatch() {
+      const out = $("card-match-out"), raw = $("card_actual").value;
+      if (raw === "") { out.textContent = ""; return; }
+      const diff = r2(Number(raw) - ctx.card);
+      if (Math.abs(diff) < 0.005) out.textContent = `مطابق. المسجّل بالنظام شبكة وكليك ${money(ctx.card)}.`;
+      else if (diff > 0) out.textContent = `الفعلي أكتر من المسجّل بـ ${money(diff)} (المسجّل ${money(ctx.card)}). غالباً ${money(diff)} دفعات شبكة أو كليك انسجلت كاش. صحّحها من صفحة المبيعات ← الطلب ← «صحّح طريقة الدفع»، وبينزل المفروض بالدرج لـ ${money(r2(expectedNow() - diff))}.`;
+      else out.textContent = `المسجّل شبكة أكتر من الفعلي بـ ${money(Math.abs(diff))}. ممكن دفعة كاش انسجلت شبكة.`;
+    }
+    $("card_actual").addEventListener("input", recalcCardMatch);
     ["opening_balance", "cash_out", "actual_closing"].forEach((id) => $(id).addEventListener("input", () => {
       if (id === "opening_balance") openingTouched = true;
-      recalc();
+      recalc(); recalcCardMatch();
     }));
     $("fill-exp").addEventListener("click", () => { $("cash_out").value = ctx.expToday.toFixed(2); recalc(); });
+
+    // ---------- عدد تقفيلات اليوم (من الإعدادات: 1 أو 2) ----------
+    let perDay = 1;
+    async function loadPerDay() {
+      try {
+        const { data } = await window.supabaseClient.from("app_settings").select("value").eq("key", "cash_closings_per_day").maybeSingle();
+        perDay = data && String(data.value).trim() === "2" ? 2 : 1;
+      } catch (e) { perDay = 1; }
+    }
 
     // ---------- تحميل اليوم ----------
     async function loadDay() {
@@ -507,10 +535,23 @@
           openingHint = `اللي ضل بالدرج بتقفيل ${shortDate(before[0].closing_date)}. غيّره إذا شلت منه شي`;
         }
       }
-      let qs = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", date).eq("status", "completed");
-      let qe = sb.from("expenses").select("amount, created_at").eq("expense_date", date);
-      if (prev) { qs = qs.gt("created_at", prev.created_at); qe = qe.gt("created_at", prev.created_at); }
-      const [{ data: sales, error: e1 }, { data: exps }] = await Promise.all([qs, qe]);
+      // حسابات الطاولات المفتوحة ما بتدخل الخزينة (مدفوعها صفر)؛ لما تنسدّد بتنحسب بوقت التسديد (settled_at) يعني بالوردية اللي انسدّدت فيها
+      let qs = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at, settled_at").eq("entry_date", date).eq("status", "completed").eq("tab_open", false);
+      // كاش بس: الذمة ما بتنزل من الدرج، إلا لما تنسدّد (settled_at) فبتنحسب بيوم التسديد
+      let qe = sb.from("expenses").select("amount, created_at").eq("expense_date", date).eq("payment_type", "cash").is("settled_at", null);
+      const dayStart = new Date(date + "T00:00:00"), dayEnd = new Date(dayStart.getTime() + 864e5);
+      let qe2 = sb.from("expenses").select("amount, settled_at").gte("settled_at", dayStart.toISOString()).lt("settled_at", dayEnd.toISOString());
+      if (prev) { qs = qs.or(`and(settled_at.is.null,created_at.gt.${prev.created_at}),settled_at.gt.${prev.created_at}`); qe = qe.gt("created_at", prev.created_at); qe2 = qe2.gt("settled_at", prev.created_at); }
+      // المصروف بيدخل بحساب الدرج بس لو انحدّد «طلع من الدرج» (عمود from_drawer)
+      // ذمة انسدّدت بنك/كليك (from_drawer=false) ما بتنزل من الدرج؛ كاش بتنزل
+      let [{ data: sales, error: e1 }, { data: exps, error: e3 }, { data: exps2, error: e4 }] = await Promise.all([qs, qe.eq("from_drawer", true), qe2.eq("from_drawer", true)]);
+      if (e1 && /settled_at/.test(e1.message || "")) { // العمود لسا ما انضاف: السلوك القديم
+        let q0 = sb.from("sales_entries").select("cash_amount, card_amount, delivery_amount, created_at").eq("entry_date", date).eq("status", "completed").eq("tab_open", false);
+        if (prev) q0 = q0.gt("created_at", prev.created_at);
+        ({ data: sales, error: e1 } = await q0);
+      }
+      if (e4) exps2 = (await qe2).data; // العمود لسا ما انضاف: السلوك القديم
+      if (e3) exps = (await qe).data; // العمود لسا ما انضاف بالداتابيس: السلوك القديم
       if (seq !== loadSeq) return;
       if (e1) throw e1;
       const cashRows = (sales || []).filter((s) => Number(s.cash_amount) > 0);
@@ -519,7 +560,7 @@
         salesCount: cashRows.length,
         card: r2((sales || []).reduce((s, r) => s + Number(r.card_amount || 0), 0)),
         delivery: r2((sales || []).reduce((s, r) => s + Number(r.delivery_amount || 0), 0)),
-        expToday: r2((exps || []).reduce((s, r) => s + Number(r.amount || 0), 0)),
+        expToday: r2([...(exps || []), ...(exps2 || [])].reduce((s, r) => s + Number(r.amount || 0), 0)),
         sinceClosing: prev,
       };
       if (!openingTouched) $("opening_balance").value = (opening || 0).toFixed(2);
@@ -539,10 +580,16 @@
       // اليوم متقفّل؟
       showForm = !sameDay.length;
       $("done-box").hidden = !sameDay.length;
+      const canAgain = sameDay.length < perDay;
+      $("again-btn").hidden = !canAgain;
+      $("again-btn").textContent = perDay === 2 ? "تقفيل الوردية التانية" : "تقفيل تاني لنفس اليوم";
       if (sameDay.length) {
         const s = state(prev.difference);
         $("done-ic").innerHTML = olvIcon("checkCircle");
-        $("done-text").innerHTML = `<b>هاليوم متقفّل</b>${sameDay.length > 1 ? ` (${sameDay.length} مرات)` : ""}. آخر مرة الساعة ${timeOf(prev.created_at)}:
+        const head = perDay === 2
+          ? (canAgain ? `تقفيل الوردية الأولى تم (1 من 2)` : `تقفيلات اليوم كاملة (${Math.min(sameDay.length, 2)} من 2)`)
+          : `هاليوم متقفّل${sameDay.length > 1 ? ` (${sameDay.length} مرات)` : ""}`;
+        $("done-text").innerHTML = `<b>${head}</b>. آخر مرة الساعة ${timeOf(prev.created_at)}:
           بالدرج <b>${money(prev.actual_closing)}</b>، ${s.cls === "ok" ? "مزبوط" : s.word + " " + money(Math.abs(prev.difference))}.`;
       }
       $("form-grid").hidden = !showForm;
@@ -759,6 +806,7 @@
       if (!session) return;
       $("closing_date").value = olvToday();
       try {
+        await loadPerDay();
         await loadClosings();
         await loadDay();
       } catch (err) { olvShowError($("err"), err); }

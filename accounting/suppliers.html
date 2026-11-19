@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -70,7 +70,7 @@
   .sup-card.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.08);}
   .sup-card:active{transform:scale(.99);}
   .sup-main{flex:1; min-width:0;}
-  .sup-name{font-weight:700; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sup-name{font-weight:700; font-size:15px; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-height:1.3; overflow-wrap:anywhere;} /* سطرين بدل قص الاسم بـ"..." */
   .sup-sub{font-size:12px; color:var(--muted); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .sup-bal{font-weight:800; font-size:15px; white-space:nowrap;}
   .sup-bal small{display:block; font-size:11px; font-weight:500; color:var(--muted); text-align:left;}
@@ -85,6 +85,10 @@
   .detail-acts{display:flex; gap:8px; flex-wrap:wrap;}
   .chips{display:flex; flex-wrap:wrap; gap:6px;}
   .chip{padding:5px 11px; border-radius:999px; background:var(--ink-3); border:1px solid var(--hair); font-size:12.5px;}
+  .pay-method{display:flex; gap:8px; margin-top:4px;}
+  .pay-method label{flex:1; border:1px solid var(--hair); border-radius:10px; padding:11px; text-align:center; cursor:pointer; background:var(--ink-2); font-size:14px;}
+  .pay-method input{display:none;}
+  .pay-method label.on{background:var(--gold); color:var(--on-gold); border-color:var(--gold); font-weight:700;}
   .pay-box{background:var(--ink-3); border-radius:12px; padding:14px;}
   details.more{margin-top:12px; border:1px dashed var(--hair); border-radius:12px; padding:10px 14px;}
   details.more summary{cursor:pointer; font-weight:700; font-size:14px; min-height:32px; display:flex; align-items:center;}
@@ -98,18 +102,6 @@
     .stats.compact .value{font-size:18px;}
     .stats.compact .label{font-size:11px;}
   }
-  #print-area{display:none;}
-  @media print {
-    body *{visibility:hidden;}
-    #print-area, #print-area *{visibility:visible;}
-    #print-area{display:block; position:absolute; inset:0 0 auto 0; padding:24px; background:#fff; color:#111;}
-    #print-area h1{font-size:20px; margin-bottom:2px;}
-    #print-area .range{color:#555; font-size:13px; margin-bottom:18px;}
-    #print-area table{width:100%; border-collapse:collapse; margin-bottom:22px;}
-    #print-area th, #print-area td{border:1px solid #ccc; padding:6px 8px; text-align:right; font-size:13px;}
-    #print-area th{background:#f2f2f2;}
-    #print-area .totals td{font-weight:700;}
-  }
 </style>
 </head>
 <body>
@@ -117,22 +109,13 @@
   <div class="wrap">
     <div class="err" id="err"></div>
 
-    <div id="print-area">
-      <h1 id="print-supplier-name"></h1>
-      <div class="range" id="print-supplier-phone"></div>
-      <table>
-        <tbody>
-          <tr><td>رصيد أول المدة</td><td id="print-opening"></td></tr>
-          <tr><td>فواتير بالفترة</td><td id="print-total-invoiced"></td></tr>
-          <tr><td>دفعات بالفترة</td><td id="print-total-paid"></td></tr>
-          <tr class="totals"><td>الرصيد آخر المدة</td><td id="print-balance"></td></tr>
-        </tbody>
-      </table>
-      <table>
-        <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
-        <tbody id="print-transactions-body"></tbody>
-      </table>
-    </div>
+    <header class="olv-pagehead">
+      <div>
+        <h1>الموردون</h1>
+        <div class="olv-pagesub">حسابات الموردين، المستحق عليك، والدفعات.</div>
+      </div>
+      <div class="olv-pagehead-actions"></div>
+    </header>
 
     <div class="stats compact">
       <div class="stat"><div class="label">مجموع المستحق للموردين</div><div class="value bad" id="sum-owed">—</div></div>
@@ -144,7 +127,7 @@
       <div class="sup-toolbar">
         <div class="sup-search field" style="margin:0;">
           <span id="search-icon"></span>
-          <input type="search" id="sup-q" placeholder="دوّر باسم المورّد أو رقمه" autocomplete="off">
+          <input type="search" id="sup-q" aria-label="دوّر على مورّد" placeholder="دوّر باسم المورّد أو رقمه" autocomplete="off">
         </div>
         <button type="button" class="btn gold" id="new-sup-btn"></button>
       </div>
@@ -219,6 +202,14 @@
           <div class="field">
             <label for="pay-date">التاريخ</label>
             <input type="date" id="pay-date" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>طريقة السداد</label>
+          <div class="pay-method" id="pay-method">
+            <label class="on" data-m="cash"><input type="radio" name="pay-m" value="cash" checked>كاش</label>
+            <label data-m="bank"><input type="radio" name="pay-m" value="bank">بنك</label>
+            <label data-m="click"><input type="radio" name="pay-m" value="click">كليك</label>
           </div>
         </div>
         <div class="field">
@@ -495,7 +486,7 @@
       body.innerHTML = rows.slice().reverse().map((t) => `
         <tr>
           <td>${olvEsc(t.transaction_date)}</td>
-          <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type] || olvEsc(t.type)}</td>
+          <td class="${t.type === "invoice" ? "balance-owed" : "balance-clear"}">${TYPE_LABELS[t.type] || olvEsc(t.type)}${t.payment_method ? " · " + ({ cash: "كاش", bank: "بنك", click: "كليك" }[t.payment_method] || "") : ""}</td>
           <td>${olvEsc(t.description) || "—"}</td>
           <td>${olvFormatMoney(t.amount)}</td>
           <td>${olvFormatMoney(t.running)}</td>
@@ -553,29 +544,107 @@
     ["f-from", "f-to"].forEach((id) => $(id).addEventListener("change", renderTransactions));
     $("f-clear").addEventListener("click", () => { $("f-from").value = ""; $("f-to").value = ""; renderTransactions(); });
 
+    // كشف الحساب بيتطبع من صفحة نظيفة جوّا iframe مخفي: بهالشكل ما بتأثّر عليه ألوان
+    // البرنامج ولا حركات الجداول (كانت بتطلّع الخلايا فاضية بمعاينة الطباعة)
     function printStatement() {
       const supplier = suppliers.find((s) => s.id === selectedSupplier);
       if (!supplier) return;
       const { opening, rows, inv, paid, closing } = rangeSummary();
       const f = $("f-from").value, to = $("f-to").value;
-      const period = f || to ? `الفترة: ${f || "البداية"} — ${to || "اليوم"}` : "كل السجل";
-      $("print-supplier-name").textContent = `كشف حساب — ${supplier.name}`;
-      $("print-supplier-phone").textContent = [supplier.phone ? `هاتف: ${supplier.phone}` : "", period].filter(Boolean).join(" · ");
-      $("print-opening").textContent = olvFormatMoney(opening);
-      $("print-total-invoiced").textContent = olvFormatMoney(inv);
-      $("print-total-paid").textContent = olvFormatMoney(paid);
-      $("print-balance").textContent = olvFormatMoney(closing);
-      $("print-transactions-body").innerHTML = rows.length
-        ? rows.map((t) => `
-            <tr>
-              <td>${olvEsc(t.transaction_date)}</td>
-              <td>${TYPE_LABELS[t.type] || olvEsc(t.type)}</td>
-              <td>${olvEsc(t.description) || "—"}</td>
-              <td>${olvFormatMoney(t.amount)}</td>
-              <td>${olvFormatMoney(t.running)}</td>
-            </tr>`).join("")
-        : `<tr><td colspan="5">لا يوجد سجل</td></tr>`;
-      window.print();
+      const period = f || to ? `من ${f || "البداية"} إلى ${to || "اليوم"}` : "كل السجل";
+      const money = (n) => olvFormatMoney(n);
+      const closingTxt = Math.abs(closing) < 0.005 ? "مسدَّد بالكامل" : closing > 0 ? "مستحق للمورّد" : "رصيد لصالحنا عند المورّد";
+      const logo = new URL("assets/brand/olv-mark.png", location.href).href;
+      const now = new Date().toLocaleString("ar-JO", { dateStyle: "long", timeStyle: "short" });
+      const body = rows.length
+        ? rows.map((t, i) => `<tr class="${t.type}">
+            <td class="n">${i + 1}</td>
+            <td>${olvEsc(t.transaction_date)}</td>
+            <td>${TYPE_LABELS[t.type] || olvEsc(t.type)}${t.payment_method ? " · " + ({ cash: "كاش", bank: "بنك", click: "كليك" }[t.payment_method] || "") : ""}</td>
+            <td class="d">${olvEsc(t.description) || "—"}</td>
+            <td class="m">${t.type === "invoice" ? money(t.amount) : ""}</td>
+            <td class="m">${t.type === "payment" ? money(t.amount) : ""}</td>
+            <td class="m b">${money(t.running)}</td>
+          </tr>`).join("")
+        : `<tr><td colspan="7" class="empty">ما في حركات بهالفترة</td></tr>`;
+      const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف حساب — ${olvEsc(supplier.name)}</title>
+<style>
+@page{size:A4; margin:14mm 12mm}
+*{box-sizing:border-box; animation:none !important; transition:none !important}
+html,body{margin:0; padding:0; background:#fff; color:#1b1b24; -webkit-print-color-adjust:exact; print-color-adjust:exact}
+body{font-family:Tajawal,"Segoe UI",Tahoma,Arial,sans-serif; font-size:13px; line-height:1.55}
+.head{display:flex; align-items:center; gap:14px; padding-bottom:12px; border-bottom:3px solid #4254e8}
+.logo{width:58px; height:58px; border-radius:12px; background:#0b0a08; display:flex; align-items:center; justify-content:center; flex:none}
+.logo img{width:46px; height:46px; object-fit:contain}
+.brand{flex:1}
+.brand b{font-size:20px; display:block}
+.brand span{color:#625d78; font-size:12px}
+.doc{text-align:left}
+.doc h1{margin:0; font-size:22px; color:#4254e8; font-weight:800}
+.doc span{color:#625d78; font-size:12px}
+.party{display:flex; justify-content:space-between; gap:12px; margin:14px 0; padding:10px 14px; background:#f3f2fb; border-radius:10px}
+.party b{font-size:16px}
+.party small{display:block; color:#625d78; font-size:11px}
+table{width:100%; border-collapse:collapse}
+.tx th{background:#25223a; color:#fff; font-weight:700; padding:8px 7px; text-align:right; font-size:12px}
+.tx td{padding:7px; border-bottom:1px solid #e3e1ee; vertical-align:top}
+.tx tr:nth-child(even) td{background:#faf9fe}
+.tx tr{break-inside:avoid}
+.tx thead{display:table-header-group}
+.n{width:28px; color:#8a86a0}
+.d{width:32%}
+.m{text-align:left; white-space:nowrap; font-variant-numeric:tabular-nums}
+.b{font-weight:800}
+.tx th.m{text-align:left}
+tr.payment td.m:nth-child(6){color:#0f7d68; font-weight:700}
+.empty{text-align:center; color:#8a86a0; padding:22px}
+.sum{display:flex; gap:10px; margin-top:16px; break-inside:avoid}
+.sum div{flex:1; border:1px solid #d9d6ea; border-radius:10px; padding:9px 12px}
+.sum small{display:block; color:#625d78; font-size:11px}
+.sum b{font-size:16px; font-variant-numeric:tabular-nums}
+.sum .final{background:#4254e8; border-color:#4254e8; color:#fff}
+.sum .final small{color:#dfe3ff}
+.foot{margin-top:22px; padding-top:8px; border-top:1px solid #e3e1ee; color:#8a86a0; font-size:11px; display:flex; justify-content:space-between}
+.sign{margin-top:30px; display:flex; gap:40px; color:#625d78; font-size:12px; break-inside:avoid}
+.sign div{flex:1; border-top:1px solid #aaa; padding-top:4px; text-align:center}
+</style></head><body>
+<div class="head">
+  <div class="logo"><img src="${logo}" alt="OLV"></div>
+  <div class="brand"><b>OLV</b><span>كافيه ومطعم</span></div>
+  <div class="doc"><h1>كشف حساب مورّد</h1><span>${olvEsc(period)}</span></div>
+</div>
+<div class="party">
+  <div><small>المورّد</small><b>${olvEsc(supplier.name)}</b></div>
+  ${supplier.phone ? `<div><small>الهاتف</small><b>${olvEsc(supplier.phone)}</b></div>` : ""}
+  <div><small>تاريخ الطباعة</small><b>${olvEsc(now)}</b></div>
+</div>
+<table class="tx">
+  <thead><tr><th class="n">#</th><th>التاريخ</th><th>النوع</th><th class="d">البيان</th><th class="m">فواتير (مدين)</th><th class="m">دفعات (دائن)</th><th class="m">الرصيد</th></tr></thead>
+  <tbody>${body}</tbody>
+</table>
+<div class="sum">
+  <div><small>رصيد أول المدة</small><b>${money(opening)}</b></div>
+  <div><small>مجموع الفواتير</small><b>${money(inv)}</b></div>
+  <div><small>مجموع الدفعات</small><b>${money(paid)}</b></div>
+  <div class="final"><small>الرصيد آخر المدة — ${closingTxt}</small><b>${money(Math.abs(closing))}</b></div>
+</div>
+<div class="sign"><div>توقيع المورّد</div><div>توقيع المحاسب</div></div>
+<div class="foot"><span>OLV — نظام المحاسبة</span><span>الأرقام بالدينار الأردني</span></div>
+</body></html>`;
+      const old = document.getElementById("print-frame");
+      if (old) old.remove();
+      const fr = document.createElement("iframe");
+      fr.id = "print-frame";
+      fr.setAttribute("aria-hidden", "true");
+      fr.style.cssText = "position:fixed; inset-inline-end:0; bottom:0; width:0; height:0; border:0; visibility:hidden;";
+      document.body.appendChild(fr);
+      fr.onload = () => {
+        const w = fr.contentWindow;
+        const img = w.document.querySelector("img");
+        const go = () => { w.focus(); w.print(); };
+        if (img && !img.complete) { img.onload = go; img.onerror = go; } else go();
+      };
+      fr.srcdoc = html;
     }
 
     // المبلغ لازم أكبر من صفر — قبل كان 0 بينرسل وبيرجع خطأ قاعدة بيانات غامض
@@ -632,9 +701,16 @@
           description: $(prefix + "-desc").value.trim() || null,
           transaction_date: $(prefix + "-date").value || olvToday(),
         };
-        const { error } = await sb().from("supplier_transactions").insert(payload);
+        let method = null;
+        if (type === "payment") method = (document.querySelector("#pay-method input:checked") || {}).value || "cash";
+        let { error } = await sb().from("supplier_transactions").insert(method ? { ...payload, payment_method: method } : payload);
+        // لو عمود طريقة السداد لسا ما انضاف: نسجّل بدونه ونكتب الطريقة بالبيان
+        if (error && method && /payment_method/.test(error.message || "")) {
+          ({ error } = await sb().from("supplier_transactions").insert({ ...payload, description: ((payload.description || "") + " [" + ({ cash: "كاش", bank: "بنك", click: "كليك" }[method]) + "]").trim() }));
+        }
         if (error) throw error;
         $(prefix === "pay" ? "payment-form" : "invoice-form").reset();
+        document.querySelectorAll("#pay-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === "cash"));
         $(prefix + "-date").value = olvToday();
         if (prefix === "inv") $("opening-box").open = false;
         olvToast(type === "payment" ? "انسجلت الدفعة" : "انسجل الدين");
@@ -645,6 +721,9 @@
       }
     }
     $("invoice-form").addEventListener("submit", (e) => { e.preventDefault(); addTransaction("invoice", "inv"); });
+    $("pay-method").addEventListener("change", (e) => {
+      document.querySelectorAll("#pay-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
+    });
     $("payment-form").addEventListener("submit", (e) => { e.preventDefault(); addTransaction("payment", "pay"); });
 
     $("edit-supplier-btn").addEventListener("click", () => {

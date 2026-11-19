@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/theme.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f7f1e6">
+<meta name="theme-color" content="#fbf9ff">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="محاسبة OLV">
@@ -61,7 +61,7 @@
 <style>
   /* صفحة المصروفات (2026-10): فترة ← 4 أرقام ← رسمين ← الثابتة ← السجل مجمّع حسب التصنيف.
      القواعد بـ design-system/olv/pages/expenses.md */
-  .wrap.ex-wrap{max-width:1120px;}
+  .wrap.ex-wrap{max-width:var(--page-max);}
   .ex-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
   .ex-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
   .ex-head .ex-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
@@ -236,6 +236,21 @@
   .tag .icon{width:12px; height:12px;}
   .tag.rec{color:var(--olive);}
   .tag.inv{color:var(--gold-hi);}
+  .tag.credit{color:var(--danger, #b3402f);}
+  .ex-credit-bar{display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:10px 14px; border-radius:14px; background:rgba(179,64,47,.08); color:var(--paper); font-size:13.5px; font-weight:600;}
+  .ex-credit-bar .icon{width:16px; height:16px;}
+  .ex-credit-bar a{margin-inline-start:auto; color:var(--gold-hi); font-weight:800; text-decoration:none; white-space:nowrap;}
+  .ex-credit-bar a:hover{text-decoration:underline;}
+  /* كروت فاضية ما بتاخد مساحة */
+  .ex-grid[hidden], .ex-grid > [hidden]{display:none;}
+  .ex-grid.solo{grid-template-columns:minmax(0,1fr);}
+  #rec-group.compact{padding-block:12px;}
+  #rec-group.compact .rec-head{margin:0;}
+  #rec-group.compact .rec-note, #rec-group.compact .rec-list{display:none;}
+  /* نسبة المصروفات من المبيعات: حيادية، وبتتلوّن بالوردي بس لما تقرب من المبيعات كلها */
+  .olv-glass .ex-stats .stat:nth-child(4){--tc:var(--life-4); --tb:var(--life-4b);}
+  .olv-glass .ex-stats .stat.hot:nth-child(4){--tc:var(--life-3); --tb:var(--life-3b);}
+  .ex-credit-bar[hidden]{display:none;}
   .ex-row .am{font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:left;}
   .ex-detail{padding:2px 10px 14px; padding-inline-start:74px;}
   .ex-detail:not([hidden]){animation:od-in .18s var(--spring) both;}
@@ -247,6 +262,62 @@
   .cat-more{display:flex; justify-content:center; padding-top:8px;}
   .cat-more .btn{min-height:44px;}
 
+  /* عرض «اليوم»: سجل مسطّح حسب الوقت، بدون رسوم ولا ثابتة */
+  .today-mode .ex-grid, .today-mode #rec-group, .today-mode #kind-chips [data-kind=manual], .today-mode #kind-chips [data-kind=rec], .today-mode #kind-chips [data-kind=inv]{display:none;}
+  .td-sum{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 14px; border-radius:14px; background:var(--ink-3); margin-bottom:8px; font-size:13.5px; color:var(--muted);}
+  .td-sum b{color:var(--paper); font-size:18px; font-variant-numeric:tabular-nums;}
+  .td-sum{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .td-tile{display:flex; flex-direction:column; gap:2px; align-items:flex-start; min-height:56px; padding:8px 10px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-2); color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; text-align:right;}
+  .td-tile:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .td-all{grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; font-size:13px;}
+  .td-list{list-style:none; margin:0; padding:0;}
+  .td{display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:12px; align-items:start; padding:12px 8px; border-bottom:1px solid var(--hair-soft);}
+  .td:last-child{border-bottom:0;}
+  .td .tm{font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; direction:ltr; text-align:right;}
+  .td .tm small{display:block; color:var(--muted); font-size:11px; font-weight:500;}
+  .td .bd b{display:block; font-size:14.5px; font-weight:700; overflow-wrap:anywhere;}
+  .td .bd .note{display:block; color:var(--paper); font-size:13.5px; margin-top:2px; overflow-wrap:anywhere;}
+  .td .bd .meta{display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:4px; font-size:12px; color:var(--muted);}
+  .td .am{font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:left;}
+  .td .am .tag{display:flex; justify-content:flex-end; margin-top:3px;}
+  .td .acts{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .td .acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; text-decoration:none;}
+  @media (max-width:640px){ .td{grid-template-columns:54px minmax(0,1fr) auto; gap:10px;} }
+
+  /* تقرير المصروفات اليومي: نافذة للعرض، وبتنطبع لحالها */
+  #day-dlg{width:min(960px,calc(100% - 20px)); max-height:92vh; padding:0; border:1px solid var(--hair); border-radius:20px; background:var(--ink-2); color:var(--paper); overflow:auto;}
+  #day-dlg::backdrop{background:rgba(0,0,0,.45);}
+  .dr-bar{position:sticky; top:0; z-index:2; display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 14px; background:var(--ink-2); border-bottom:1px solid var(--hair-soft);}
+  .dr-bar input{min-height:44px; padding:6px 10px; border:1px solid var(--hair); border-radius:12px; background:var(--ink-3); color:var(--paper); font:inherit; font-size:15px;}
+  .dr-bar .btn{min-height:44px;}
+  .dr-gap{flex:1;}
+  .dr-sheet{padding:18px 18px 24px;}
+  .dr-sheet h2{margin:0 0 2px; font-size:20px;}
+  .dr-sheet .dr-sub{color:var(--muted); font-size:13px; margin:0 0 14px;}
+  .dr-sec{margin:0 0 18px;}
+  .dr-sec h3{margin:0 0 6px; font-size:16px; display:flex; justify-content:space-between; gap:10px; align-items:baseline; padding:8px 12px; border-radius:12px; background:var(--ink-3);}
+  .dr-sec h3 small{color:var(--muted); font-weight:500; font-size:12.5px;}
+  .dr-tbl{width:100%; border-collapse:collapse; font-size:14px;}
+  .dr-tbl th{font-size:12px; color:var(--muted); font-weight:700; text-align:right; padding:6px 8px; border-bottom:1px solid var(--hair);}
+  .dr-tbl td{padding:8px; border-bottom:1px solid var(--hair-soft); vertical-align:top;}
+  .dr-tbl td.n, .dr-tbl th.n{text-align:left; font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:700;}
+  .dr-tbl td.t{white-space:nowrap; direction:ltr; text-align:right; color:var(--muted); font-size:12.5px;}
+  .dr-tbl tfoot td{font-weight:800; border-bottom:0; padding-top:10px;}
+  .dr-grand{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:14px 16px; border-radius:14px; background:var(--gold); color:var(--on-gold); font-size:18px; font-weight:800; margin-top:6px;}
+  .dr-grand span:last-child{font-variant-numeric:tabular-nums;}
+  .dr-sums{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:16px;}
+  .dr-sums div{padding:10px 12px; border-radius:12px; background:var(--ink-3); font-size:13px; color:var(--muted);}
+  .dr-sums b{display:block; color:var(--paper); font-size:18px; font-variant-numeric:tabular-nums;}
+  @media (max-width:640px){ .dr-tbl{font-size:13px;} .dr-tbl th:nth-child(5), .dr-tbl td:nth-child(5){display:none;} }
+  @media print{
+    body.day-printing #olv-nav, body.day-printing .wrap, body.day-printing .dr-bar{display:none !important;}
+    body.day-printing #day-dlg{position:static; display:block; width:auto; max-height:none; border:0; background:#fff; color:#000; overflow:visible;}
+    body.day-printing .dr-sheet{padding:0;}
+    body.day-printing .dr-sec h3, body.day-printing .dr-sums div{background:#f1ece2;}
+    body.day-printing .dr-grand{background:#e8dcc0; color:#000;}
+    body.day-printing .dr-tbl th:nth-child(5), body.day-printing .dr-tbl td:nth-child(5){display:table-cell;}
+  }
+
   @media (prefers-reduced-motion: reduce){
     .cat-h .chev, .ex-chip, .ex-bars .bar{transition:none;}
     .cat-body:not([hidden]), .ex-detail:not([hidden]), .cat-bars .tr i{animation:none;}
@@ -256,7 +327,7 @@
 </head>
 <body>
   <div id="olv-nav"></div>
-  <div class="wrap ex-wrap">
+  <div class="wrap ex-wrap" id="ex-wrap">
     <div class="err" id="err"></div>
 
     <header class="ex-head">
@@ -266,6 +337,7 @@
       </div>
       <div class="ex-head-actions">
         <button class="btn go" type="button" id="add-toggle" aria-expanded="false" aria-controls="add-group"></button>
+        <button class="btn" type="button" id="day-report-btn"></button>
         <a class="btn small" id="reports-link" href="reports.html" hidden></a>
       </div>
     </header>
@@ -298,6 +370,12 @@
             <input type="date" id="expense_date" required>
           </div>
         </div>
+        <span class="ex-label" id="pay-label">طريقة الدفع</span>
+        <div class="ex-chips" id="pay-chips" role="radiogroup" aria-labelledby="pay-label">
+          <button class="ex-chip" type="button" data-pay="drawer" aria-pressed="true">طلع من درج الكاش</button>
+          <button class="ex-chip" type="button" data-pay="cash" aria-pressed="false">دفع من برّا الدرج (بنك، جيب...)</button>
+          <button class="ex-chip" type="button" data-pay="credit" aria-pressed="false">ذمة (لسا ما اندفع)</button>
+        </div>
         <label class="ex-repeat" id="repeat-wrap" hidden>
           <input type="checkbox" id="repeat">
           <span>مصروف ثابت؟ خلّيه ينزل لحاله كل شهر
@@ -311,6 +389,7 @@
     </section>
 
     <div class="ex-chips" id="period-chips" role="group" aria-label="الفترة">
+      <button class="ex-chip" type="button" data-period="today" aria-pressed="false">اليوم</button>
       <button class="ex-chip" type="button" data-period="month" aria-pressed="true">هالشهر</button>
       <button class="ex-chip" type="button" data-period="last" aria-pressed="false">الشهر الماضي</button>
       <button class="ex-chip" type="button" data-period="q" aria-pressed="false">3 شهور</button>
@@ -412,13 +491,30 @@
       </div>
       <div class="ex-chips ex-kind" id="kind-chips" role="group" aria-label="نوع المصروف">
         <button class="ex-chip" type="button" data-kind="all" aria-pressed="true">الكل</button>
+        <button class="ex-chip" type="button" data-kind="drawer" aria-pressed="false">طلع من الدرج</button>
         <button class="ex-chip" type="button" data-kind="manual" aria-pressed="false">يدوي</button>
         <button class="ex-chip" type="button" data-kind="rec" aria-pressed="false">ثابت</button>
         <button class="ex-chip" type="button" data-kind="inv" aria-pressed="false">من المشتريات</button>
+        <button class="ex-chip" type="button" data-kind="credit" aria-pressed="false">ذمة</button>
       </div>
+      <div class="ex-credit-bar" id="credit-bar" hidden></div>
       <div id="ex-list"><p class="empty-state">جاري التحميل...</p></div>
     </section>
   </div>
+
+  <dialog id="day-dlg" aria-label="تقرير المصروفات اليومي">
+    <div class="dr-bar">
+      <label for="dr-date" class="olv-sr">اليوم</label>
+      <input type="date" id="dr-date">
+      <button class="ex-chip" type="button" data-drday="0">اليوم</button>
+      <button class="ex-chip" type="button" data-drday="-1">أمس</button>
+      <span class="dr-gap"></span>
+      <button class="btn small go" type="button" id="dr-print">طباعة / PDF</button>
+      <button class="btn small" type="button" id="dr-csv">تنزيل Excel</button>
+      <button class="btn small" type="button" id="dr-close">إغلاق</button>
+    </div>
+    <div id="day-rep" class="dr-sheet"></div>
+  </dialog>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
@@ -467,6 +563,8 @@
     const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
     const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
     const todayIso = () => iso(new Date());
+    // يوم العمل بيتسكّر الساعة 3 الفجر (بتوقيت الجهاز): قبلها لسا نفس يوم أمس
+    const bizToday = () => { const d = new Date(); if (d.getHours() < 3) d.setDate(d.getDate() - 1); return iso(d); };
     const shortDate = (s) => Number(s.slice(8, 10)) + "/" + Number(s.slice(5, 7));
     const monthName = (s) => MONTHS[Number(s.slice(5, 7)) - 1];
     const lastDayOf = (s) => { const d = parse(s.slice(0, 8) + "01"); d.setMonth(d.getMonth() + 1); d.setDate(0); return iso(d); };
@@ -474,6 +572,7 @@
 
     // أيقونات وأزرار ثابتة
     $("add-toggle").innerHTML = olvIcon("plus") + "<span>سجّل مصروف</span>";
+    $("day-report-btn").innerHTML = olvIcon("printer") + "<span>تقرير يومي</span>";
     $("reports-link").innerHTML = olvIcon("barChart") + "<span>التقارير</span>";
     $("custom-chip").innerHTML = olvIcon("calendar") + "<span>فترة…</span>";
     $("ic-total").innerHTML = olvIcon("minusCircle");
@@ -494,13 +593,28 @@
     let period = "month";
     let range = null;
     let kind = "all";
+    let payType = "drawer"; // drawer = طلع من الدرج | cash = كاش/بنك من برّا الدرج | credit = ذمة
+    const payFields = () => ({ payment_type: payType === "credit" ? "credit" : "cash", from_drawer: payType === "drawer" });
+    function setPay(v) { payType = v; setPressed("pay-chips", "pay", v); }
+    $("pay-chips").addEventListener("click", (e) => { const b = e.target.closest(".ex-chip"); if (b) setPay(b.dataset.pay); });
     let query = "";
     let openCats = new Set();
     let openRow = null;
     let shown = {};           // كم سطر ظاهر بكل تصنيف
     let editing = null;       // المصروف اللي عم يتعدّل
+    let nameOf = {};          // مين سجّل المصروف (بعرض اليوم)
 
     const catName = (id) => { const c = categories.find((x) => x.id === id); return c ? c.name : "بدون تصنيف"; };
+    // مصروفات الدرج = مصاري طلعت من درج الكاش وبس، والكاشير أو صاحب المحل هو اللي بيحدد هيك وقت التسجيل (from_drawer).
+    // المشتريات (كاش أو آجل) والثابتة والذمة مالها علاقة بالدرج، وبتنضاف آخر اليوم للمصروفات الكلية
+    function split(x) {
+      const inv = invoiceOf[x.id];
+      // مشتريات من الدرج: بس لو فاتورة كاش كاملة وانحدّدت «طلعت من الدرج»
+      if (inv) return { purchase: true, drawer: x.from_drawer === true && (inv.old || inv.pay === "cash") };
+      return { purchase: false, drawer: x.from_drawer === true && x.payment_type !== "credit" };
+    }
+    const canMarkDrawer = (x) => { const i = invoiceOf[x.id]; return isAdmin() && (i ? !i.voided && (i.old || i.pay === "cash") : x.payment_type !== "credit"); };
+    const drawerBtn = (x) => canMarkDrawer(x) ? `<button class="btn small" type="button" data-act="drawer">${olvIcon(x.from_drawer ? "minusCircle" : "check")}<span>${x.from_drawer ? "شيله من الدرج" : "علّمه طلع من الدرج"}</span></button>` : "";
     const kindOf = (r) => invoiceOf[r.id] ? "inv" : r.recurring_id ? "rec" : "manual";
 
     // ---------------------------------------------------------------
@@ -508,6 +622,7 @@
     // ---------------------------------------------------------------
     function rangeFor(p) {
       const t = todayIso(), m0 = t.slice(0, 8) + "01";
+      if (p === "today") { const b = bizToday(); return { from: b, to: b, label: "اليوم", prevLabel: "أمس" }; }
       if (p === "month") return { from: m0, to: t, label: "هالشهر", prevLabel: "نفس الأيام من الشهر الماضي" };
       if (p === "last") { const f = monthShift(t, -1); return { from: f, to: lastDayOf(f), label: "الشهر الماضي", prevLabel: "الشهر اللي قبله" }; }
       if (p === "q") return { from: monthShift(t, -2), to: t, label: "آخر 3 شهور", prevLabel: "الـ3 شهور اللي قبلها" };
@@ -518,6 +633,7 @@
       return { from, to, label: `من ${shortDate(from)} لـ ${shortDate(to)}`, prevLabel: "الفترة اللي قبلها" };
     }
     function prevRange(r, p) {
+      if (p === "today") { const y = addDays(r.from, -1); return { from: y, to: y }; }
       if (p === "month") {
         const f = monthShift(r.from, -1);
         const to = f.slice(0, 8) + String(Math.min(Number(r.to.slice(8)), Number(lastDayOf(f).slice(8)))).padStart(2, "0");
@@ -572,11 +688,18 @@
         for (let i = 0; i < ids.length; i += 150) {
           const part = ids.slice(i, i + 150);
           const [pi, pu] = await Promise.all([
-            db.from("purchase_invoices").select("id, invoice_no, expense_id, status, suppliers(name)").in("expense_id", part),
+            db.from("purchase_invoices").select("id, invoice_no, expense_id, status, payment_type, paid_amount, total_amount, suppliers(name)").in("expense_id", part),
             db.from("purchases").select("id, expense_id").in("expense_id", part),
           ]);
-          (pi.data || []).forEach((x) => { invoiceOf[x.expense_id] = { no: x.invoice_no, supplier: x.suppliers && x.suppliers.name, voided: x.status === "voided" }; });
+          (pi.data || []).forEach((x) => { invoiceOf[x.expense_id] = { no: x.invoice_no, supplier: x.suppliers && x.suppliers.name, voided: x.status === "voided", pay: x.payment_type, paid: Number(x.paid_amount) }; });
           (pu.data || []).forEach((x) => { if (!invoiceOf[x.expense_id]) invoiceOf[x.expense_id] = { old: true }; });
+        }
+        if (seq !== loadSeq) return;
+        nameOf = {};
+        const uids = [...new Set(rows.map((r) => r.created_by).filter(Boolean))];
+        if (period === "today" && uids.length) {
+          const pr = await db.from("profiles").select("id, full_name").in("id", uids);
+          (pr.data || []).forEach((p) => { nameOf[p.id] = p.full_name; });
         }
         if (seq !== loadSeq) return;
         const prevTotal = old.error ? null : (old.data || []).reduce((s, r) => s + Number(r.amount), 0);
@@ -590,7 +713,9 @@
 
     function renderAll(prevTotal, salesTotal) {
       const r = range;
-      $("ex-sub").textContent = period === "custom" ? r.label
+      $("ex-wrap").classList.toggle("today-mode", period === "today");
+      $("ex-sub").textContent = period === "today" ? `اليوم · ${DAY_NAMES[parse(r.from).getDay()]} ${shortDate(r.from)} (اليوم بيسكّر الساعة 3 الفجر)`
+        : period === "custom" ? r.label
         : period === "month" || period === "last" ? `${r.label} · ${monthName(r.from)} ${r.from.slice(0, 4)}`
         : `${r.label} (${shortDate(r.from)} – ${shortDate(r.to)})`;
 
@@ -610,13 +735,25 @@
       } else vs.hidden = true;
       if (salesTotal != null && salesTotal > 0) {
         setVal("k-ratio", Math.round((total / salesTotal) * 100) + "%");
+        $("k-ratio").closest(".stat").classList.toggle("hot", total / salesTotal >= 0.9);
         $("k-ratio-note").textContent = `المبيعات ${olvFormatMoney(salesTotal)}`;
       } else {
         setVal("k-ratio", "—");
+        $("k-ratio").closest(".stat").classList.remove("hot");
         $("k-ratio-note").textContent = salesTotal === 0 ? "ما في مبيعات بهالفترة" : " ";
       }
+      const cr = rows.filter((x) => x.payment_type === "credit" && !invoiceOf[x.id]);
+      const bar = $("credit-bar");
+      bar.hidden = !cr.length;
+      if (cr.length) bar.innerHTML = olvIcon("clock") + `<span>ذمة لسا ما انسدّدت: ${olvFormatMoney(cr.reduce((s, x) => s + Number(x.amount), 0))} (${cr.length})</span>` + (isAdmin() ? `<a href="dhamam.html">شوف الذمم ←</a>` : "");
       renderChart();
       renderCatBars(total);
+      // الرسم أو الأشرطة الفاضية ما بتاخد مساحة
+      const exg = document.querySelector(".ex-grid");
+      const secs = [...exg.children];
+      secs.forEach((x) => { x.hidden = !!x.querySelector(".ex-empty"); });
+      exg.hidden = secs.every((x) => x.hidden);
+      exg.classList.toggle("solo", secs.some((x) => x.hidden));
       renderList();
     }
 
@@ -726,7 +863,10 @@
     // السجل: مجمّع حسب التصنيف، مسكّر لحد ما تفتحه
     // ---------------------------------------------------------------
     function matches(x) {
-      if (kind !== "all" && kindOf(x) !== kind) return false;
+      const sp = split(x);
+      if (kind === "drawer") { if (!sp.drawer) return false; }
+      else if (kind === "credit") { if (x.payment_type !== "credit" || sp.purchase) return false; }
+      else if (kind !== "all" && kindOf(x) !== kind) return false;
       if (!query) return true;
       const inv = invoiceOf[x.id] || {};
       const hay = [x.description, catName(x.category_id), inv.supplier, inv.no, String(x.amount), x.expense_date].join(" ").toLowerCase();
@@ -736,6 +876,8 @@
       const inv = invoiceOf[x.id];
       const tags = [];
       if (x.recurring_id) tags.push(`<span class="tag rec">${olvIcon("refresh")}ثابت</span>`);
+      if (x.payment_type === "credit" && !inv) tags.push(`<span class="tag credit">${olvIcon("clock")}ذمة</span>`);
+      else if (x.settled_at) tags.push(`<span class="tag rec">${olvIcon("check")}انسدّد</span>`);
       if (inv) tags.push(`<span class="tag inv">${olvIcon("receipt")}${inv.old ? "مشتريات" : "فاتورة مشتريات" + (inv.voided ? " (ملغاة)" : "")}</span>`);
       const open = openRow === x.id;
       return `<li class="ex${open ? " open" : ""}" data-id="${olvEsc(x.id)}">
@@ -754,17 +896,53 @@
       if (when) facts.push(`انسجّل <b>${olvEsc(when)}</b>`);
       if (inv && inv.supplier) facts.push(`المورّد <b>${olvEsc(inv.supplier)}</b>`);
       if (x.recurring_id) facts.push("نزل لحاله من مصروف ثابت");
+      if (x.payment_type === "credit") facts.push("<b>ذمة</b>: لسا ما نزل من الدرج");
+      if (x.settled_at) facts.push(`انسدّد <b>${olvEsc(new Date(x.settled_at).toLocaleDateString("ar", { day: "numeric", month: "numeric" }))}</b>`);
       let acts = "";
       if (inv) {
         acts = `<span class="ex-locked" style="margin:0">انسجّل من المشتريات، فتعديله أو إلغاؤه من هناك حتى يضل المخزون وحساب المورّد مزبوط.</span>
-          <a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
+          ${drawerBtn(x)}<a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
       } else if (isAdmin()) {
-        acts = `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button>
+        acts = (x.payment_type === "credit" ? `<button class="btn small go" type="button" data-act="settle">${olvIcon("check")}<span>سدّد (كاش)</span></button>` : "") + `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button>
           <button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}<span>حذف</span></button>`;
       }
       return `<div class="ex-detail"><div class="facts">${facts.map((f) => `<span>${f}</span>`).join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>`;
     }
+    function todayHtml(x) {
+      const inv = invoiceOf[x.id];
+      const t = x.created_at ? new Date(x.created_at) : null;
+      const time = t ? t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "—";
+      const who = x.created_by ? (nameOf[x.created_by] || "مستخدم غير معروف") : (x.recurring_id ? "تلقائي (ثابت)" : "—");
+      const sp = split(x), credit = x.payment_type === "credit" && !sp.purchase;
+      const meta = [`<span>${olvIcon(catIcon(catName(x.category_id)))} ${olvEsc(catName(x.category_id))}</span>`, `<span>سجّله: ${olvEsc(who)}</span>`];
+      if (inv && inv.supplier) meta.push(`<span>المورّد: ${olvEsc(inv.supplier)}</span>`);
+      if (x.recurring_id) meta.push("<span>من مصروف ثابت</span>");
+      if (inv) meta.push(`<span>${inv.old ? "من المشتريات" : "فاتورة مشتريات" + (inv.voided ? " (ملغاة)" : "")}</span>`);
+      let acts = "";
+      if (inv) acts = drawerBtn(x) + `<a class="btn small" href="purchase-invoices.html">${olvIcon("externalLink")}<span>افتح المشتريات</span></a>`;
+      else if (isAdmin()) acts = (credit ? `<button class="btn small go" type="button" data-act="settle">${olvIcon("check")}<span>سدّد (كاش)</span></button>` : "")
+        + drawerBtn(x) + `<button class="btn small" type="button" data-act="edit">${olvIcon("note")}<span>تعديل</span></button><button class="btn small danger" type="button" data-act="del">${olvIcon("trash")}<span>حذف</span></button>`;
+      return `<li class="td ex" data-id="${olvEsc(x.id)}">
+        <span class="tm">${olvEsc(time)}</span>
+        <div class="bd"><b>${olvEsc(catName(x.category_id))}</b>${x.description ? `<span class="note">${olvEsc(x.description)}</span>` : ""}
+          <div class="meta">${meta.join("")}</div>${acts ? `<div class="acts">${acts}</div>` : ""}</div>
+        <span class="am">${olvFormatMoney(x.amount)}<span class="tag ${credit ? "credit" : "rec"}">${sp.purchase ? olvIcon("cart") + (sp.drawer ? "مشتريات · من الدرج" : "مشتريات") : credit ? olvIcon("clock") + "ذمة" : sp.drawer ? olvIcon("check") + "من الدرج" : x.recurring_id ? olvIcon("refresh") + "ثابت" : "برّا الدرج"}</span></span>
+      </li>`;
+    }
+    function renderToday() {
+      const box = $("ex-list");
+      $("list-count").textContent = rows.length ? `(${rows.length})` : "";
+      if (!rows.length) { box.innerHTML = `<p class="ex-empty">ما سُجّل أي مصروف اليوم</p>`; return; }
+      const list = rows.filter(matches).slice().sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+      const money = (f) => rows.filter(f).reduce((t, x) => t + Number(x.amount), 0);
+      const drawer = money((x) => split(x).drawer && !split(x).purchase), buy = money((x) => split(x).purchase), buyDrawer = money((x) => split(x).drawer && split(x).purchase);
+      const other = money((x) => !split(x).drawer && !split(x).purchase);
+      const tile = (l, v, k) => `<button type="button" class="td-tile" data-jump="${k}"><span>${l}</span><b>${olvFormatMoney(v)}</b></button>`;
+      box.innerHTML = `<div class="td-sum">${tile("طلع من الدرج", drawer + buyDrawer, "drawer")}${tile("المشتريات (كلها)", buy, "inv")}${tile("مصروفات أخرى", other, "all")}<span class="td-all">المجموع الكلي للمحل <b>${olvFormatMoney(drawer + buy + other)}</b></span></div>`
+        + (list.length ? `<ul class="td-list">${list.map(todayHtml).join("")}</ul>` : `<p class="ex-empty">ما في نتيجة</p>`);
+    }
     function renderList() {
+      if (period === "today") { renderToday(); return; }
       const box = $("ex-list");
       const gs = groups().map((g) => ({ ...g, items: g.items.filter(matches) })).filter((g) => g.items.length);
       const n = gs.reduce((s, g) => s + g.items.length, 0);
@@ -810,6 +988,19 @@
       const x = rows.find((r) => r.id === li.dataset.id); if (!x) return;
       const act = e.target.closest("[data-act]");
       if (act && act.dataset.act === "edit") { startEdit(x); return; }
+      if (act && act.dataset.act === "drawer") {
+        act.disabled = true;
+        window.supabaseClient.from("expenses").update({ from_drawer: !x.from_drawer }).eq("id", x.id)
+          .then(({ error }) => { if (error) { act.disabled = false; olvShowError(errBox, error); } else { olvToast(x.from_drawer ? "انشال من الدرج" : "انعلّم: طلع من الدرج"); load(); } });
+        return;
+      }
+      if (act && act.dataset.act === "settle") {
+        if (!confirm(`تسديد ${olvFormatMoney(x.amount)} كاش؟ رح ينحسب من درج اليوم.`)) return;
+        act.disabled = true;
+        window.supabaseClient.from("expenses").update({ payment_type: "cash", settled_at: new Date().toISOString(), from_drawer: true }).eq("id", x.id).eq("payment_type", "credit")
+          .then(({ error }) => { if (error) olvShowError(errBox, error); else { olvToast("تم التسديد"); load(); } });
+        return;
+      }
       if (act && act.dataset.act === "del") {
         olvUndoDelete(act, {
           msg: "انحذف المصروف",
@@ -825,6 +1016,10 @@
       }
     });
     $("ex-search").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
+    $("ex-list").addEventListener("click", (e) => {
+      const t = e.target.closest("[data-jump]"); if (!t) return;
+      kind = t.dataset.jump; setPressed("kind-chips", "kind", kind); renderList();
+    });
     $("kind-chips").addEventListener("click", (e) => {
       const b = e.target.closest(".ex-chip"); if (!b) return;
       kind = b.dataset.kind; setPressed("kind-chips", "kind", kind); renderList();
@@ -833,6 +1028,148 @@
     // ---------------------------------------------------------------
     // تسجيل/تعديل مصروف
     // ---------------------------------------------------------------
+    // ---------------------------------------------------------------
+    // تقرير المصروفات اليومي: كل دفعة وسببها، مفصول بين «من الدرج» و«من برّا الدرج»، والمجموع آخر شي
+    // ---------------------------------------------------------------
+    let drRows = [];
+    async function buildDayReport(date) {
+      const db = window.supabaseClient, box = $("day-rep");
+      box.innerHTML = `<p class="ex-empty">جاري التحميل...</p>`;
+      const { data, error } = await db.from("expenses").select("*").eq("expense_date", date).order("created_at", { ascending: true }).limit(2000);
+      if (error) { box.innerHTML = `<p class="ex-empty">${olvEsc(error.message || "خطأ")}</p>`; return; }
+      const list = data || [], inv = {};
+      for (let i = 0; i < list.length; i += 150) {
+        const ids = list.slice(i, i + 150).map((x) => x.id);
+        const [pi, pu] = await Promise.all([
+          db.from("purchase_invoices").select("expense_id, invoice_no, status, payment_type, suppliers(name)").in("expense_id", ids),
+          db.from("purchases").select("expense_id").in("expense_id", ids),
+        ]);
+        (pi.data || []).forEach((x) => { inv[x.expense_id] = { no: x.invoice_no, supplier: x.suppliers && x.suppliers.name, pay: x.payment_type, voided: x.status === "voided" }; });
+        (pu.data || []).forEach((x) => { if (!inv[x.expense_id]) inv[x.expense_id] = { old: true, pay: "cash" }; });
+      }
+      const uids = [...new Set(list.map((x) => x.created_by).filter(Boolean))], names = {};
+      if (uids.length) { const pr = await db.from("profiles").select("id, full_name").in("id", uids); (pr.data || []).forEach((p) => { names[p.id] = p.full_name; }); }
+      drRows = list.filter((x) => !(inv[x.id] && inv[x.id].voided)).map((x) => {
+        const iv = inv[x.id], credit = iv ? iv.pay === "credit" : x.payment_type === "credit";
+        const drawer = !credit && x.from_drawer === true;
+        let how;
+        if (drawer) how = iv ? "مشتريات من الدرج" : "من الدرج";
+        else if (iv) how = credit ? "فاتورة مشتريات آجل" : "فاتورة مشتريات (برّا الدرج)";
+        else if (x.recurring_id) how = "ثابت (برّا الدرج)";
+        else if (credit) how = "ذمة (لسا ما اندفع)";
+        else how = "برّا الدرج (بنك/جيب)";
+        const reason = [x.description, iv && iv.supplier ? "المورّد: " + iv.supplier : "", iv && iv.no ? "فاتورة #" + iv.no : ""].filter(Boolean).join(" · ");
+        const t = x.created_at ? new Date(x.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "—";
+        return { drawer, t, cat: catName(x.category_id), reason: reason || "—", how, who: x.created_by ? (names[x.created_by] || "غير معروف") : (x.recurring_id ? "تلقائي" : "—"), amount: Number(x.amount) || 0 };
+      });
+      renderDayReport(date);
+    }
+    function renderDayReport(date) {
+      const box = $("day-rep");
+      const A = drRows.filter((r) => r.drawer), B = drRows.filter((r) => !r.drawer);
+      const sum = (a) => a.reduce((t, r) => t + r.amount, 0);
+      const d = parse(date), title = `${DAY_NAMES[d.getDay()]} ${shortDate(date)}/${date.slice(0, 4)}`;
+      const table = (rows, label) => rows.length ? `<table class="dr-tbl"><thead><tr><th>الوقت</th><th>التصنيف</th><th>السبب / البيان</th><th>سجّله</th><th>${label}</th><th class="n">المبلغ</th></tr></thead><tbody>${
+        rows.map((r) => `<tr><td class="t">${olvEsc(r.t)}</td><td>${olvEsc(r.cat)}</td><td>${olvEsc(r.reason)}</td><td>${olvEsc(r.who)}</td><td>${olvEsc(r.how)}</td><td class="n">${olvFormatMoney(r.amount)}</td></tr>`).join("")
+      }</tbody></table>` : `<p class="ex-empty" style="padding:10px">ما في دفعات بهالقسم</p>`;
+      const aMore = A.length ? "" : "";
+      box.innerHTML = `<h2>تقرير المصروفات اليومي</h2><p class="dr-sub">${olvEsc(title)} · يوم العمل بيسكّر الساعة 3 الفجر</p>
+        <div class="dr-sums"><div>طلع من درج الكاش<b>${olvFormatMoney(sum(A))}</b></div><div>من برّا الدرج<b>${olvFormatMoney(sum(B))}</b></div></div>
+        <section class="dr-sec"><h3><span>أولاً: طلع من درج الكاش</span><small>${A.length} دفعة · ${olvFormatMoney(sum(A))}</small></h3>${table(A, "الطريقة")}</section>
+        <section class="dr-sec"><h3><span>ثانياً: طلع من برّا الدرج</span><small>${B.length} دفعة · ${olvFormatMoney(sum(B))}</small></h3>${table(B, "الطريقة")}</section>
+        <div class="dr-grand"><span>مجموع المصروفات الكلي لليوم (${drRows.length} دفعة)</span><span>${olvFormatMoney(sum(drRows))}</span></div>`;
+    }
+    function drCsv(date) {
+      const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+      const rows = [["القسم", "الوقت", "التصنيف", "السبب / البيان", "سجّله", "الطريقة", "المبلغ"]];
+      const add = (list, sec) => list.forEach((r) => rows.push([sec, r.t, r.cat, r.reason, r.who, r.how, r.amount.toFixed(2)]));
+      const A = drRows.filter((r) => r.drawer), B = drRows.filter((r) => !r.drawer);
+      const sum = (a) => a.reduce((t, r) => t + r.amount, 0).toFixed(2);
+      add(A, "طلع من الدرج"); rows.push(["مجموع من الدرج", "", "", "", "", "", sum(A)]);
+      add(B, "من برّا الدرج"); rows.push(["مجموع من برّا الدرج", "", "", "", "", "", sum(B)]);
+      rows.push(["المجموع الكلي", "", "", "", "", "", sum(drRows)]);
+      const blob = new Blob(["\ufeff" + rows.map((r) => r.map(q).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = `مصروفات-${date}.csv`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+    function openDayReport(date) {
+      const dlg = $("day-dlg");
+      $("dr-date").value = date;
+      if (!dlg.open) dlg.showModal();
+      buildDayReport(date);
+    }
+    $("day-report-btn").addEventListener("click", () => openDayReport(bizToday()));
+    $("dr-close").addEventListener("click", () => $("day-dlg").close());
+    $("dr-date").addEventListener("change", (e) => { if (e.target.value) buildDayReport(e.target.value); });
+    document.querySelectorAll("[data-drday]").forEach((b) => b.addEventListener("click", () => { const d = addDays(bizToday(), Number(b.dataset.drday)); $("dr-date").value = d; buildDayReport(d); }));
+    $("dr-csv").addEventListener("click", () => drCsv($("dr-date").value));
+    // الطباعة/PDF: ورقة A4 مستقلة بإطار مخفي (مش النافذة نفسها) حتى يطلع التنسيق نضيف
+    function drPrintHtml(date) {
+      const A = drRows.filter((r) => r.drawer), B = drRows.filter((r) => !r.drawer);
+      const sum = (a) => a.reduce((t, r) => t + r.amount, 0);
+      const d = parse(date), title = `${DAY_NAMES[d.getDay()]} ${shortDate(date)}/${date.slice(0, 4)}`;
+      const sec = (label, rows) => `<h2>${label} <span>${rows.length} دفعة</span></h2>` + (rows.length ? `<table><colgroup><col style="width:4%"><col style="width:9%"><col style="width:14%"><col style="width:29%"><col style="width:12%"><col style="width:20%"><col style="width:12%"></colgroup>
+        <thead><tr><th>#</th><th>الوقت</th><th>التصنيف</th><th>السبب / البيان</th><th>سجّله</th><th>الطريقة</th><th class="n">المبلغ</th></tr></thead><tbody>${
+        rows.map((r, i) => `<tr><td>${i + 1}</td><td class="t">${olvEsc(r.t)}</td><td>${olvEsc(r.cat)}</td><td>${olvEsc(r.reason)}</td><td>${olvEsc(r.who)}</td><td>${olvEsc(r.how)}</td><td class="n">${olvFormatMoney(r.amount)}</td></tr>`).join("")
+      }</tbody><tfoot><tr><td colspan="6">مجموع ${label}</td><td class="n">${olvFormatMoney(sum(rows))}</td></tr></tfoot></table>` : `<p class="none">ما في دفعات بهالقسم</p>`);
+      const now = new Date().toLocaleString("ar-EG", { numberingSystem: "latn", dateStyle: "short", timeStyle: "short" });
+      return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مصروفات ${olvEsc(date)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+@page{size:A4 portrait; margin:12mm 11mm;}
+*{box-sizing:border-box;}
+html,body{margin:0; padding:0; background:#fff; color:#1f1a14; font-family:'Tajawal','Segoe UI',Tahoma,Arial,sans-serif; font-size:11.5px; line-height:1.5; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+header{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2.5px solid #b8923a; padding-bottom:8px; margin-bottom:12px;}
+header h1{margin:0; font-size:21px; font-weight:800;}
+header .d{font-size:13px; font-weight:700; text-align:left;}
+header small{display:block; color:#6b6254; font-weight:500; font-size:10.5px;}
+.sums{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
+.sums div{border:1px solid #d9cfba; border-radius:8px; padding:8px 10px; background:#faf6ec; color:#6b6254; font-size:11px;}
+.sums b{display:block; margin-top:2px; font-size:17px; color:#1f1a14; font-variant-numeric:tabular-nums;}
+.sums div.g{background:#b8923a; border-color:#b8923a; color:#fff;} .sums div.g b{color:#fff;}
+h2{margin:14px 0 6px; font-size:13.5px; font-weight:800; background:#f1e9d5; border-right:4px solid #b8923a; padding:5px 10px; display:flex; justify-content:space-between; page-break-after:avoid;}
+h2 span{font-weight:500; color:#6b6254; font-size:11px;}
+table{width:100%; border-collapse:collapse; table-layout:fixed;}
+thead{display:table-header-group;} tfoot{display:table-footer-group;}
+th{background:#f7f2e6; font-size:10.5px; color:#4a4237; text-align:right; padding:5px 6px; border-bottom:1.5px solid #b8923a;}
+td{padding:5px 6px; border-bottom:1px solid #e6dec9; vertical-align:top; overflow-wrap:anywhere; word-break:break-word;}
+tr{page-break-inside:avoid;}
+tbody tr:nth-child(even) td{background:#fcfaf4;}
+.n{text-align:left; white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums;}
+.t{direction:ltr; text-align:right; white-space:nowrap; color:#6b6254;}
+tfoot td{font-weight:800; background:#f1e9d5; border-bottom:0; padding:6px;}
+.none{color:#6b6254; padding:6px 10px; margin:0;}
+.grand{margin-top:16px; display:flex; justify-content:space-between; align-items:center; border:2px solid #b8923a; border-radius:10px; padding:10px 14px; font-size:15px; font-weight:800; page-break-inside:avoid;}
+.grand b{font-size:19px; font-variant-numeric:tabular-nums;}
+footer{margin-top:22px; display:flex; justify-content:space-between; color:#6b6254; font-size:10px; page-break-inside:avoid;}
+.sig{margin-top:26px; display:flex; gap:40px; font-size:11px; page-break-inside:avoid;} .sig div{flex:1; border-top:1px solid #999; padding-top:4px; color:#6b6254;}
+</style></head><body>
+<header><div><h1>تقرير المصروفات اليومي</h1><small>OLV Café</small></div><div class="d">${olvEsc(title)}<small>يوم العمل بيسكّر الساعة 3 الفجر</small></div></header>
+<div class="sums"><div>طلع من درج الكاش<b>${olvFormatMoney(sum(A))}</b></div><div>طلع من برّا الدرج<b>${olvFormatMoney(sum(B))}</b></div><div class="g">المجموع الكلي<b>${olvFormatMoney(sum(drRows))}</b></div></div>
+${sec("أولاً: طلع من درج الكاش", A)}
+${sec("ثانياً: طلع من برّا الدرج", B)}
+<div class="grand"><span>مجموع المصروفات الكلي لليوم (${drRows.length} دفعة)</span><b>${olvFormatMoney(sum(drRows))}</b></div>
+<div class="sig"><div>المحاسب</div><div>صاحب المحل</div></div>
+<footer><span>طُبع: ${olvEsc(now)}</span><span>محاسبة OLV</span></footer>
+</body></html>`;
+    }
+    $("dr-print").addEventListener("click", () => {
+      const date = $("dr-date").value;
+      if (!drRows.length) { olvToast("ما في مصروفات لهاليوم لنطبعها"); return; }
+      const old = document.getElementById("dr-frame"); if (old) old.remove();
+      const fr = document.createElement("iframe");
+      fr.id = "dr-frame"; fr.setAttribute("aria-hidden", "true");
+      fr.style.cssText = "position:fixed; inset-inline-start:-9999px; top:0; width:210mm; height:297mm; border:0;";
+      fr.srcdoc = drPrintHtml(date);
+      fr.onload = async () => {
+        const w = fr.contentWindow;
+        try { if (w.document.fonts && w.document.fonts.ready) await Promise.race([w.document.fonts.ready, new Promise((r) => setTimeout(r, 2500))]); } catch (_) {}
+        w.focus(); w.print();
+      };
+      document.body.appendChild(fr);
+    });
+
     let pickedCat = null;
     function renderCatChips() {
       $("cat-chips").innerHTML = categories.map((c) =>
@@ -845,9 +1182,9 @@
     });
     function setDate(v) {
       $("expense_date").value = v;
-      document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.setAttribute("aria-pressed", String(addDays(todayIso(), Number(b.dataset.day)) === v)));
+      document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.setAttribute("aria-pressed", String(addDays(bizToday(), Number(b.dataset.day)) === v)));
     }
-    document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.addEventListener("click", () => setDate(addDays(todayIso(), Number(b.dataset.day)))));
+    document.querySelectorAll(".ex-date-line .ex-chip").forEach((b) => b.addEventListener("click", () => setDate(addDays(bizToday(), Number(b.dataset.day)))));
     $("expense_date").addEventListener("change", (e) => setDate(e.target.value));
 
     function openForm(open) {
@@ -865,7 +1202,8 @@
       pickedCat = (localStorage.getItem("olv_exp_last_cat") && categories.some((c) => c.id === localStorage.getItem("olv_exp_last_cat")))
         ? localStorage.getItem("olv_exp_last_cat") : firstOther ? firstOther.id : (categories[0] || {}).id;
       renderCatChips();
-      setDate(todayIso());
+      setDate(bizToday());
+      setPay("drawer");
       $("add-title").innerHTML = olvIcon("plus") + " مصروف جديد";
       $("save-btn").textContent = "حفظ المصروف";
       $("edit-note").hidden = true;
@@ -878,6 +1216,7 @@
       $("description").value = x.description || "";
       pickedCat = x.category_id; renderCatChips();
       setDate(x.expense_date);
+      setPay(x.payment_type === "credit" ? "credit" : x.from_drawer ? "drawer" : "cash");
       $("add-title").innerHTML = olvIcon("note") + " تعديل مصروف";
       $("save-btn").textContent = "حفظ التعديل";
       $("repeat-wrap").hidden = true;
@@ -904,7 +1243,9 @@
       try {
         const db = window.supabaseClient;
         if (editing) {
-          const { error } = await db.from("expenses").update({ amount, category_id: pickedCat, expense_date: date, description: desc }).eq("id", editing);
+          const upd = { amount, category_id: pickedCat, expense_date: date, description: desc, ...payFields(), ...(payType === "credit" ? { settled_at: null } : {}) };
+          let { error } = await db.from("expenses").update(upd).eq("id", editing);
+          if (error && /from_drawer/.test(error.message || "")) ({ error } = await db.from("expenses").update({ ...upd, from_drawer: undefined }).eq("id", editing));
           if (error) throw error;
           olvToast("تم تعديل المصروف");
         } else if ($("repeat").checked && isAdmin()) {
@@ -918,7 +1259,10 @@
           await loadRecs();
           olvToast(date > todayIso() ? "تم حفظ المصروف الثابت. أول دفعة بتنزل بموعدها" : "تم حفظ المصروف الثابت، وبينزل لحاله كل شهر");
         } else {
-          const { error } = await db.from("expenses").insert({ expense_date: date, category_id: pickedCat, amount, description: desc, created_by: session.user.id });
+          const row = { expense_date: date, category_id: pickedCat, amount, description: desc, ...payFields(), created_by: session.user.id };
+          let { error } = await db.from("expenses").insert(row);
+          // لو عمود from_drawer لسا ما انضاف بالداتابيس، منحفظ المصروف بدونه
+          if (error && /from_drawer/.test(error.message || "")) ({ error } = await db.from("expenses").insert({ ...row, from_drawer: undefined }));
           if (error) throw error;
           olvToast("تم حفظ المصروف");
         }
@@ -964,6 +1308,7 @@
       $("rec-note").innerHTML = recs.length
         ? `${act.length} ${act.length === 1 ? "مصروف ثابت شغّال" : "مصروفات ثابتة شغّالة"}، تقريبًا <b>${olvFormatMoney(monthly)}</b> بالشهر. بتنزل لحالها بموعدها بالسجل.`
         : "عرّف المصروف مرة وحدة (إيجار، إنترنت، اشتراك...) وبينزل لحاله بموعده بدون ما تكرره.";
+      $("rec-group").classList.toggle("compact", !recs.length);
       if (!recs.length) { list.innerHTML = ""; return; }
       // الشغّال أول، مرتّب حسب الدفعة الجاية
       const sorted = recs.map((r) => ({ r, nd: r.is_active ? nextDue(r) : null }))
@@ -980,12 +1325,42 @@
           </div>
           <span class="rec-next${days != null && days <= 7 ? " soon" : ""}">${olvIcon("calendar")}${when}</span>
           <div class="rec-actions">
+            <button class="btn small" type="button" data-rec-stmt="${olvEsc(r.id)}">كشف</button>
             <button class="btn small" type="button" data-rec-edit="${olvEsc(r.id)}">تعديل</button>
             <button class="btn small" type="button" data-rec-toggle="${olvEsc(r.id)}">${r.is_active ? "إيقاف" : "تشغيل"}</button>
             <button class="btn small danger" type="button" data-rec-del="${olvEsc(r.id)}">حذف</button>
           </div>
         </li>`;
       }).join("");
+    }
+    // كشف مصروف ثابت: كل الدفعات اللي نزلت منه وكم اندفع، والدفعة الجاية
+    function showRecStatement(r, rows) {
+      const paid = rows.filter((x) => x.payment_type !== "credit" || x.settled_at);
+      const owed = rows.filter((x) => x.payment_type === "credit" && !x.settled_at);
+      const sum = (a) => a.reduce((t, x) => t + Number(x.amount), 0);
+      const nd = r.is_active ? nextDue(r) : null;
+      const back = document.createElement("div");
+      back.style.cssText = "position:fixed;inset:0;background:rgba(20,18,40,.55);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;";
+      const draw = () => { back.innerHTML = `<div role="dialog" aria-modal="true" style="width:100%;max-width:440px;max-height:90vh;overflow-y:auto;background:var(--ink-2);border:1px solid var(--hair);border-radius:20px;padding:20px;color:var(--paper);font-family:'Tajawal',sans-serif;">
+        <h3 style="margin:0 0 4px;font-size:17px;">كشف: ${olvEsc(r.name)}</h3>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:12px;">اندفع <b>${olvFormatMoney(sum(paid))}</b> بـ ${paid.length} ${paid.length === 1 ? "دفعة" : "دفعات"}${owed.length ? ` · ذمة لسا ما انسدّدت <b>${olvFormatMoney(sum(owed))}</b>` : ""}${nd ? ` · الجاية ${shortDate(nd)}` : ""}</div>
+        <div style="color:var(--muted);font-size:12px;margin-bottom:6px;">اضغط «خارجي» أو «من الدرج» جنب كل دفعة لتحدد من وين اندفعت.</div><ul style="list-style:none;margin:0;padding:0;">${rows.length ? rows.map((x) => `<li style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--hair-soft);font-size:14px;"><span>${olvEsc(x.expense_date)}</span><span style="color:var(--muted);font-size:12.5px;">${x.payment_type === "credit" && !x.settled_at ? "ذمة (ما انسدّدت)" : `<button type="button" class="btn small" data-drawer="${olvEsc(x.id)}">${x.from_drawer ? "من الدرج" : "خارجي"}</button>`}</span><b style="font-variant-numeric:tabular-nums;">${olvFormatMoney(x.amount)}</b></li>`).join("") : '<li style="padding:20px 0;text-align:center;color:var(--muted);">لسا ما نزلت أي دفعة منه</li>'}</ul>
+        <button type="button" class="btn" style="width:100%;margin-top:14px;min-height:46px;">إغلاق</button></div>`;
+      }; // نهاية draw
+      back.addEventListener("click", async (e) => {
+        const d = e.target.closest("[data-drawer]");
+        if (d) {
+          const x = rows.find((q) => q.id === d.dataset.drawer);
+          d.disabled = true;
+          const { error } = await window.supabaseClient.from("expenses").update({ from_drawer: !x.from_drawer }).eq("id", x.id);
+          if (error) { d.disabled = false; olvShowError(errBox, error); return; }
+          x.from_drawer = !x.from_drawer; draw(); load();
+          return;
+        }
+        if (e.target === back || e.target.closest("button")) back.remove();
+      });
+      draw();
+      document.body.appendChild(back);
     }
     async function loadRecs() {
       const { data, error } = await window.supabaseClient.from("recurring_expenses").select("*").order("created_at");
@@ -1049,6 +1424,15 @@
     $("rec-list").addEventListener("click", async (e) => {
       const b = e.target.closest("button"); if (!b) return;
       const db = window.supabaseClient;
+      if (b.dataset.recStmt) {
+        const r = recs.find((x) => x.id === b.dataset.recStmt); if (!r) return;
+        b.disabled = true;
+        const { data, error } = await db.from("expenses").select("id, expense_date, amount, payment_type, settled_at, from_drawer").eq("recurring_id", r.id).order("expense_date", { ascending: false });
+        b.disabled = false;
+        if (error) { olvShowError(errBox, error); return; }
+        showRecStatement(r, data || []);
+        return;
+      }
       if (b.dataset.recEdit) {
         const r = recs.find((x) => x.id === b.dataset.recEdit); if (!r) return;
         resetRecForm();

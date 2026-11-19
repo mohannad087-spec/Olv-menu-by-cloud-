@@ -51,8 +51,17 @@ function olvHoursBetween(a, b) {
   return (new Date(b) - new Date(a)) / 3600000;
 }
 
+// الوقت المحسوب الفعلي: من أول بصمة لآخر بصمة باليوم، بدون أي حد للشفت الصباحي (انلغى حد 4 العصر بتاريخ 2026-11-06)
+function olvEffectiveOutMs(s) {
+  return s.clockOut ? new Date(s.clockOut.punched_at).getTime() : null;
+}
+
+// الإضافي: ساعات الوردية فوق 9 (صباحي أو مسائي)، بنفس أجر الساعة. عرض بس، الأجر ما بيتغير لأن الساعات كلها محسوبة أصلاً
+const OLV_OVERTIME_AFTER_H = 9;
+
 // ساعات وردية: null = ناقص خروج، 0 = يوم مهمل (أقل من 30 دقيقة)
 function olvShiftHours(s) {
   if (s.ignored) return 0;
-  return olvHoursBetween(s.clockIn.punched_at, s.clockOut ? s.clockOut.punched_at : null);
+  if (!s.clockOut) return null;
+  return (olvEffectiveOutMs(s) - new Date(s.clockIn.punched_at).getTime()) / 3600000;
 }

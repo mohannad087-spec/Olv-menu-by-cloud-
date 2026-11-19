@@ -267,7 +267,8 @@
     return null;
   }
 
-  function buildReceipt(createCanvas, sale, settings, layoutRaw, reprint) {
+  // bill = { kind: 'draft' | 'customer', by } لحساب طاولة مفتوح بيطلبه الويتر (الدفع عند الكاشير)
+  function buildReceipt(createCanvas, sale, settings, layoutRaw, reprint, bill) {
     const L = resolveLayout("receipt", layoutRaw);
     const t = new TicketBuilder(createCanvas, widthFor(L), L.dividers_show);
     const info = scaled(22, 32, L.info_size / 22);
@@ -278,6 +279,12 @@
       t.center(`*** نسخة مكررة رقم ${reprint.no} ***`, `bold 30px ${BOLD}`, 42);
       t.divider();
       t.spacer(34);
+    }
+    if (bill && bill.kind === "draft") {
+      t.center("*** مسودة حساب ***", `bold 30px ${BOLD}`, 42);
+      t.center("ليست فاتورة نهائية", `24px ${REG}`, 34);
+      t.divider();
+      t.spacer(24);
     }
 
     if (L.head_name_show) {
@@ -303,6 +310,7 @@
     if (L.customer_name_show && sale.customer_name) t.row("اسم الزبون", String(sale.customer_name), `${info.px}px ${REG}`, info.lh);
     if (L.table_show && sale.table_number) t.row("رقم الطاولة", String(sale.table_number), `${info.px}px ${REG}`, info.lh);
     if (L.phone_show && sale.customer_phone) t.row("هاتف الزبون", sale.customer_phone, `${info.px}px ${REG}`, info.lh);
+    if (bill && bill.by) t.row("الويتر", String(bill.by), `${infoSm.px}px ${REG}`, infoSm.lh);
     t.spacer(10);
     t.divider();
     t.spacer(14 + Math.round(Math.max(0, scaled(26, 36, L.items_size / 26).px - 26) * 0.6));
@@ -360,6 +368,13 @@
       footerLines.forEach((line) => t.center(line, `${Math.max(14, Math.round(fs.px * 0.8))}px ${REG}`, Math.round(fs.lh * 0.85)));
     }
 
+    if (bill) {
+      t.spacer(12);
+      t.divider();
+      t.spacer(10);
+      t.center("الحساب والدفع عند الكاشير", `bold 24px ${BOLD}`, 34);
+    }
+
     if (reprint) {
       t.spacer(10);
       t.divider();
@@ -385,6 +400,10 @@
       const title = (L.title_text || "طلب {station}").split("{station}").join(stationName || "مطبخ");
       const n = scaled(40, 54, L.title_size / 40);
       t.center(title, `bold ${n.px}px ${BOLD}`, n.lh);
+    }
+    if (sale.is_addition) {
+      // إضافة على طلب انطبع قبل: التذكرة فيها الأصناف الجديدة بس
+      t.center('+ إضافة على الطلب', `bold 34px ${BOLD}`, 46);
     }
     if (L.order_no_show && sale.order_no) {
       const o = scaled(56, 72, L.order_no_size / 56);

@@ -291,6 +291,13 @@ const OLV_HUBS = [
     ],
   },
   {
+    navId: "expenses",
+    tabs: [
+      { id: "expenses", href: "expenses.html", label: "المصروفات", icon: "minusCircle" },
+      { id: "dhamam", href: "dhamam.html", label: "الذمم", icon: "wallet" },
+    ],
+  },
+  {
     navId: "item-cards",
     tabs: [
       { id: "item-cards", href: "item-cards.html", label: "البطاقات", icon: "tag" },
@@ -325,7 +332,7 @@ function olvRenderNav(active) {
   const mobileOps = primaryLinks.filter((l) => l.deskOnly);
   const moreGroups = [
     {
-      label: "الجرد والمشتريات",
+      label: "الجرد والمشتريات", icon: "box", hue: 1,
       links: [
         { id: "inventory", href: "inventory.html", label: "المخزون والجرد", icon: "box" },
         { id: "purchase-invoices", href: "purchase-invoices.html", label: "المشتريات", icon: "receipt" },
@@ -336,21 +343,29 @@ function olvRenderNav(active) {
       ],
     },
     {
-      label: "الإدارة المالية",
+      label: "الإدارة المالية", icon: "wallet", hue: 2,
       links: [
         { id: "expenses", href: "expenses.html", label: "المصروفات", icon: "minusCircle" },
         { id: "cash", href: "cash-register.html", label: "الخزينة", icon: "wallet" },
         { id: "reports", href: "reports.html", label: "التقارير", icon: "barChart" },
         { id: "leakage", href: "leakage.html", label: "الهدر والرقابة", icon: "warning" },
+        { id: "food-cost", href: "food-cost.html", label: "تكلفة الطعام والربح", icon: "barChart" },
+        { id: "data-health", href: "data-health.html", label: "صحة البيانات", icon: "clipboard" },
       ],
     },
     {
-      label: "العملاء والإعدادات",
+      label: "الموظفون", icon: "people", hue: 5,
       links: [
-        { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
         { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
         { id: "attendance", href: "attendance.html", label: "الحضور", icon: "clock" },
         { id: "payroll", href: "payroll.html", label: "الرواتب", icon: "banknote" },
+        { id: "staff-meals", href: "staff-meals.html", label: "وجبات الموظفين", icon: "dish" },
+      ],
+    },
+    {
+      label: "العملاء والإعدادات", icon: "gear", hue: 3,
+      links: [
+        { id: "customers", href: "customers.html", label: "العملاء والولاء", icon: "star" },
         { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
       ],
     },
@@ -373,44 +388,52 @@ function olvRenderNav(active) {
 
   const nav = document.getElementById("olv-nav");
   if (!nav) return;
+  // صف واحد (2026-10-28): الشعار + التبويبات + زر الحساب. الأزرار الثانوية
+  // (إدارة المنيو، رابط الموظفين، الطابعات، الإعدادات، الموقع، الخروج) صارت
+  // بقائمة الحساب، لأن الصفين القدام كانوا ياكلوا ربع شاشة لابتوب المحل
   nav.innerHTML = `
     <div class="top">
-      <h1 class="olv-brand">
+      <a class="olv-brand" href="index.html" aria-label="محاسبة OLV — الرئيسية">
         <span class="brand-mark-sm"><img src="assets/brand/olv-mark.png" alt="OLV" width="84" height="32"></span>
         <span class="brand-text">محاسبة OLV <span>لوحة تحكم المطعم</span></span>
-      </h1>
-      <div class="actions">
-        <span class="olv-user-badge" id="olv-user-badge" hidden>${olvIcon("person")}<span id="olv-user-name"></span></span>
-        <button class="btn small" id="theme-toggle-btn" aria-label="تبديل الإضاءة" title="تبديل الإضاءة"></button>
-        <button class="btn small" type="button" id="olv-admin-link-btn" data-staff-hide aria-label="إدارة المنيو" title="إدارة المنيو">${olvIcon("link")}<span class="btn-label">إدارة المنيو</span></button>
-        <button class="btn small" type="button" id="olv-staff-link-btn" data-staff-hide aria-label="رابط الموظفين" title="نسخ رابط شاشة الموظفين">${olvIcon("link")}<span class="btn-label">رابط الموظفين</span></button>
-        <a class="btn small" href="printer-check.html" aria-label="فحص الطابعات" title="فحص الطابعات">${olvIcon("printer")}</a>
-        <a class="btn small" href="settings.html" data-staff-hide aria-label="الإعدادات" title="الإعدادات">${olvIcon("gear")}</a>
-        <a class="btn small" href="https://olv-menu.pages.dev" target="_blank" rel="noopener" aria-label="الموقع" title="الموقع">${olvIcon("externalLink")}<span class="btn-label">الموقع</span></a>
-        <button class="btn small danger" id="olv-logout-btn" aria-label="خروج" title="خروج">${olvIcon("logOut")}<span class="btn-label">خروج</span></button>
+      </a>
+      <div class="tabs">
+        ${primaryLinks.map(tabLinkHtml).join("")}
+        <div class="tab-more" id="olv-nav-more">
+          <button type="button" class="tab-link tab-more-btn${moreActive ? " on" : ""}${moreActiveMobile ? " on-mobile" : ""}" id="olv-nav-more-btn">
+            ${olvIcon("grid")}<span>المزيد</span>${olvIcon("chevronDown", "tab-more-chevron")}
+          </button>
+          <div class="tab-more-panel" id="olv-nav-more-panel">
+            ${mobileOps.length ? `
+              <div class="tab-more-group mobile-only" style="--gc:var(--life-6);--gb:var(--life-6b)">
+                <div class="tab-more-group-label"><span class="tab-more-chip">${olvIcon("grid")}</span>التشغيل</div>
+                ${mobileOps.map(moreLinkHtml).join("")}
+              </div>` : ""}
+            ${moreGroups
+              .map(
+                (g) => `
+              <div class="tab-more-group" style="--gc:var(--life-${g.hue});--gb:var(--life-${g.hue}b)">
+                <div class="tab-more-group-label"><span class="tab-more-chip">${olvIcon(g.icon)}</span>${g.label}</div>
+                ${g.links.map(moreLinkHtml).join("")}
+              </div>`
+              )
+              .join("")}
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="tabs">
-      ${primaryLinks.map(tabLinkHtml).join("")}
-      <div class="tab-more" id="olv-nav-more">
-        <button type="button" class="tab-link tab-more-btn${moreActive ? " on" : ""}${moreActiveMobile ? " on-mobile" : ""}" id="olv-nav-more-btn">
-          ${olvIcon("grid")}<span>المزيد</span>${olvIcon("chevronDown", "tab-more-chevron")}
+      <div class="olv-acct" id="olv-acct">
+        <button type="button" class="olv-acct-btn" id="olv-user-badge" aria-haspopup="true" aria-expanded="false" aria-label="الحساب والإعدادات">
+          ${olvIcon("person")}<span class="olv-acct-name" id="olv-user-name">الحساب</span>${olvIcon("chevronDown", "olv-acct-chevron")}
         </button>
-        <div class="tab-more-panel" id="olv-nav-more-panel">
-          ${mobileOps.length ? `
-            <div class="tab-more-group mobile-only">
-              <div class="tab-more-group-label">التشغيل</div>
-              ${mobileOps.map(moreLinkHtml).join("")}
-            </div>` : ""}
-          ${moreGroups
-            .map(
-              (g) => `
-            <div class="tab-more-group">
-              <div class="tab-more-group-label">${g.label}</div>
-              ${g.links.map(moreLinkHtml).join("")}
-            </div>`
-            )
-            .join("")}
+        <div class="olv-acct-panel" id="olv-acct-panel" role="menu">
+          <div class="olv-acct-head"><strong id="olv-acct-fullname">—</strong><span id="olv-acct-role"></span></div>
+          <button type="button" class="olv-acct-item" id="theme-toggle-btn"></button>
+          <button type="button" class="olv-acct-item" id="olv-admin-link-btn" data-staff-hide>${olvIcon("link")}<span>إدارة المنيو</span></button>
+          <button type="button" class="olv-acct-item" id="olv-staff-link-btn" data-staff-hide title="نسخ رابط شاشة الموظفين (صالح 14 يوم)">${olvIcon("link")}<span>رابط الموظفين</span></button>
+          <a class="olv-acct-item" href="printer-check.html">${olvIcon("printer")}<span>فحص الطابعات</span></a>
+          <a class="olv-acct-item" href="settings.html" data-staff-hide>${olvIcon("gear")}<span>الإعدادات</span></a>
+          <a class="olv-acct-item" href="https://olv-menu.pages.dev" target="_blank" rel="noopener">${olvIcon("externalLink")}<span>موقع المنيو</span></a>
+          <button type="button" class="olv-acct-item danger" id="olv-logout-btn">${olvIcon("logOut")}<span>خروج</span></button>
         </div>
       </div>
     </div>
@@ -424,6 +447,7 @@ function olvRenderNav(active) {
   if (logoutBtn) logoutBtn.addEventListener("click", olvLogout);
   olvInitThemeToggle();
   olvInitMoreMenu();
+  olvInitAccountMenu();
   olvLoadCurrentUserBadge();
 }
 
@@ -500,10 +524,70 @@ async function olvLoadCurrentUserBadge() {
     if (!profile) return;
     if (profile.role === "staff") olvHideAdminLinks();
     const roleLabel = OLV_ROLE_LABELS[profile.role] || profile.role;
-    nameEl.textContent = `${profile.full_name || "—"} (${roleLabel})`;
-    badge.title = nameEl.textContent; // الشاشات الضيقة بتخفي الاسم وبتخلّي الأيقونة
-    badge.hidden = false;
+    // بالزر الاسم الأول بس (عشان الشريط يضل صف واحد)، والاسم الكامل والدور براس القائمة
+    const full = profile.full_name || "—";
+    nameEl.textContent = full.split(/\s+/)[0];
+    const fullEl = document.getElementById("olv-acct-fullname");
+    const roleEl = document.getElementById("olv-acct-role");
+    if (fullEl) fullEl.textContent = full;
+    if (roleEl) roleEl.textContent = roleLabel;
+    badge.title = `${full} (${roleLabel})`;
   } catch (e) { /* شارة تعريفية بس — تجاهل أي فشل صامت */ }
+}
+
+// أقصى ارتفاع لقائمة منسدلة بتبدأ من top: لحد أسفل الشاشة. لو نافذة المتصفح
+// أطول من المساحة الظاهرة فوق شريط ويندوز (متل لابتوب المحل)، منحسب لحد أسفل
+// المساحة المتاحة فعليًا من الشاشة (screen.availHeight)
+function olvPanelMaxHeight(top) {
+  let viewBottom = window.innerHeight;
+  try {
+    const availBottom = (screen.availTop || 0) + screen.availHeight - window.screenY;
+    if (availBottom > 0) viewBottom = Math.min(viewBottom, availBottom);
+  } catch (e) { /* نرجع لارتفاع النافذة */ }
+  return Math.max(160, viewBottom - top - 16);
+}
+
+// قائمة الحساب (يسار الشريط): نفس سلوك "المزيد" — fixed، بتتسكّر بضغطة برّا أو Esc
+function olvInitAccountMenu() {
+  const wrap = document.getElementById("olv-acct");
+  const btn = document.getElementById("olv-user-badge");
+  const panel = document.getElementById("olv-acct-panel");
+  if (!wrap || !btn || !panel) return;
+  function position() {
+    const r = btn.getBoundingClientRect();
+    const top = Math.round(r.bottom + 8);
+    const width = panel.offsetWidth || 240;
+    panel.style.top = top + "px";
+    // بالـRTL الزر بآخر الشريط (يسار): القائمة بتبدأ من حافة الزر اليسرى
+    panel.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - width - 8))) + "px";
+    panel.style.maxHeight = olvPanelMaxHeight(top) + "px";
+  }
+  function close() {
+    wrap.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onOutside);
+    document.removeEventListener("keydown", onEsc);
+    window.removeEventListener("resize", close);
+  }
+  // composedPath بدل contains: زر الإضاءة بيبدّل محتواه وقت الضغطة، فالعنصر
+  // المضغوط بيصير مفصول عن الصفحة وcontains بترجع false وبتسكّر القائمة
+  function onOutside(e) { if (!e.composedPath().includes(wrap)) close(); }
+  function onEsc(e) { if (e.key === "Escape") close(); }
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    if (wrap.classList.contains("open")) { close(); return; }
+    position();
+    wrap.classList.add("open");
+    btn.setAttribute("aria-expanded", "true");
+    document.addEventListener("click", onOutside);
+    document.addEventListener("keydown", onEsc);
+    window.addEventListener("resize", close);
+  };
+  // أي اختيار من القائمة بيسكّرها (ما عدا تبديل الإضاءة، عشان يشوف النتيجة ويكمل)
+  panel.addEventListener("click", (e) => {
+    const item = e.target.closest(".olv-acct-item");
+    if (item && item.id !== "theme-toggle-btn") close();
+  });
 }
 
 // يتحكم بفتح/قفل قائمة "المزيد" المنسدلة — position:fixed عمدًا (بدل
@@ -518,13 +602,17 @@ function olvInitMoreMenu() {
   function position() {
     // بالموبايل القائمة ورقة فوق الشريط السفلي، ومكانها محدد بالـCSS
     if (window.matchMedia("(max-width:640px)").matches) {
-      panel.style.top = panel.style.right = "";
+      panel.style.top = panel.style.right = panel.style.maxHeight = "";
       panel.style.transformOrigin = "";
       return;
     }
     const r = btn.getBoundingClientRect();
     const panelWidth = panel.offsetWidth || 260;
-    panel.style.top = Math.round(r.bottom + 8) + "px";
+    const top = Math.round(r.bottom + 8);
+    panel.style.top = top + "px";
+    // الارتفاع المتاح = من أسفل الزر لحد أسفل الشاشة (على الشاشات القصيرة
+    // كان الحد الثابت بالـCSS يخلي آخر البنود تنزل تحت حافة الشاشة)
+    panel.style.maxHeight = olvPanelMaxHeight(top) + "px";
     let right = window.innerWidth - r.right;
     right = Math.min(right, window.innerWidth - panelWidth - 12);
     right = Math.max(right, 12);
@@ -581,6 +669,12 @@ function olvThemeModeIcon(mode) {
   return olvIcon("moonAuto");
 }
 
+// زر الإضاءة صار سطر بقائمة الحساب: أيقونة + اسم الوضع الحالي
+function olvThemeModeLabel(mode) {
+  const name = mode === "light" ? "فاتح" : mode === "dark" ? "داكن" : "تلقائي";
+  return `${olvThemeModeIcon(mode)}<span>الإضاءة: ${name}</span>`;
+}
+
 function olvInitThemeToggle() {
   const btn = document.getElementById("theme-toggle-btn");
   if (!btn) return;
@@ -593,7 +687,7 @@ function olvInitThemeToggle() {
   }
   btn.style.display = "";
   const currentMode = localStorage.getItem("olv_theme_mode_v2") || "light";
-  btn.innerHTML = olvThemeModeIcon(currentMode);
+  btn.innerHTML = olvThemeModeLabel(currentMode);
   // onclick بدل addEventListener عمدًا: الدالة هاي ممكن تُستدعى أكثر من
   // مرة بنفس تحميل الصفحة (بعد حفظ/استعادة الثيم المخصَّص من الإعدادات)،
   // وonclick بيستبدل المعالج السابق بدل ما يراكم معالجات مكرَّرة فوق بعض
@@ -602,7 +696,7 @@ function olvInitThemeToggle() {
     const next = mode === "auto" ? "light" : mode === "light" ? "dark" : "auto";
     localStorage.setItem("olv_theme_mode_v2", next);
     if (window.olvApplyTheme) window.olvApplyTheme();
-    btn.innerHTML = olvThemeModeIcon(next);
+    btn.innerHTML = olvThemeModeLabel(next);
   };
 }
 
@@ -862,16 +956,139 @@ document.addEventListener("click", (e) => {
   f.scrollIntoView({ behavior: olvReduceMotion ? "auto" : "smooth", block: "center" });
   setTimeout(() => f.focus({ preventScroll: true }), olvReduceMotion ? 0 : 350);
 });
+// حقول التاريخ: Chrome بيعرضها حسب لغة الجهاز (عند المحل إنجليزي = 10/28/2026، الشهر أول).
+// منخلي الحقل الأصلي (المنتقي والكيبورد بيضلوا شغالين) بس نصّه شفاف، وفوقه طبقة بتعرض
+// التاريخ بالترتيب العربي: يوم/شهر/سنة. أي تغيير للقيمة من الكود (input.value = ...) بيحدّثها كمان
+const OLV_DATE_VALUE = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+function olvArabicDates(root = document) {
+  root.querySelectorAll('input[type="date"]:not([data-olv-date])').forEach((input) => {
+    input.dataset.olvDate = "1";
+    const wrap = document.createElement("span");
+    wrap.className = "olv-date";
+    const cs = getComputedStyle(input);
+    // الحقل اللي ماخد عرض سطره كامل (block أو 100%) لازم الغلاف ياخد نفس العرض
+    if (cs.display === "block" || input.offsetWidth >= (input.parentElement ? input.parentElement.clientWidth - 2 : 0)) wrap.classList.add("block");
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const face = document.createElement("span");
+    face.className = "olv-date-face";
+    face.setAttribute("aria-hidden", "true");
+    face.style.font = cs.font;
+    // نفس اتجاه الحقل: Chrome بيرسمه LTR وأيقونة التقويم يمين، فالمسافة المحجوزة لازم تكون من جهتها
+    face.style.direction = cs.direction;
+    wrap.appendChild(face);
+    const paint = () => {
+      const v = OLV_DATE_VALUE.get.call(input);
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || "");
+      face.textContent = m ? `${m[3]}/${m[2]}/${m[1]}` : "يوم/شهر/سنة";
+      wrap.classList.toggle("empty", !m);
+    };
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      get() { return OLV_DATE_VALUE.get.call(this); },
+      set(v) { OLV_DATE_VALUE.set.call(this, v); paint(); },
+    });
+    input.addEventListener("input", paint);
+    input.addEventListener("change", paint);
+    // ضغطة بأي مكان بالحقل بتفتح التقويم (بدل ما تحط المؤشر على جزء مخفي)
+    input.addEventListener("click", () => { try { input.showPicker(); } catch (_) { /* متصفح قديم */ } });
+    paint();
+  });
+}
+// أشرطة الشرائح اللي بتتمرر أفقيًا (أقسام الإعدادات، تبويبات القسم، أصناف البيع): حافة
+// باهتة بالجهة اللي فيها كمان شرائح، حتى يبين إنه في أكتر ويتمرر. (مش على شريط التبويبات
+// العلوي: mask بيقص القوائم المنسدلة اللي جوّاه)
+const OLV_FADE_STRIPS = ".sub-tabs, .olv-hub-tabs, .ai-tabs, .cat-sub, .cat-tabs";
+function olvScrollFades(root = document) {
+  root.querySelectorAll(OLV_FADE_STRIPS).forEach((el) => {
+    // محتوى الشريط ممكن يتبدّل (أقسام البيع بتنرسم من جديد): كل مرور بيعيد الحساب
+    if (el._olvFadeSync) { el._olvFadeSync(); return; }
+    const sync = el._olvFadeSync = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      const pos = Math.abs(el.scrollLeft); // بالـRTL scrollLeft بيمشي بالسالب
+      el.classList.toggle("olv-fade-start", max > 2 && pos > 2);
+      el.classList.toggle("olv-fade-end", max > 2 && pos < max - 2);
+    };
+    el.addEventListener("scroll", sync, { passive: true });
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(el);
+    sync();
+  });
+}
+// ---- التحديث التلقائي (2026-10-29): شاشات المحل (الكاشير، المطبخ…) بتضل مفتوحة طول اليوم
+// فما كانت تشوف أي تحديث لحد ما حدا يحدّث الصفحة بإيده. كل نشر بيكتب version.json
+// (.github/workflows/static.yml)، والصفحة بتسأل عنه كل 3 دقايق ولما ترجع للواجهة.
+// إذا تغيّر: الصفحة اللي بتعرّف window.olvAutoReload (ودالتها بترجع true = ما في شغل
+// بيضيع، متل تذكرة فاضية) بتتحدث لحالها؛ الباقي بيطلعلها شريط «حدّث هلأ».
+// منستنى 11 دقيقة بعد النشر لأن GitHub Pages بيخزّن الملفات لعشر دقايق.
+function olvWatchUpdates() {
+  if (location.protocol === "file:") return;
+  let first = null, pending = false, bar = null;
+  const get = () => fetch("version.json?t=" + Date.now(), { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  // ملء الشاشة بيروح مع التحديث وما بيرجع بدون ضغطة، فمنكتفي بالشريط
+  const busy = () => !!document.fullscreenElement || !!document.querySelector(".sheet-backdrop, .checkout-backdrop, .olv-modal-backdrop, dialog[open], .modal.open")
+    || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.value);
+  function apply() {
+    if (!pending) return;
+    let auto = false;
+    try { auto = typeof window.olvAutoReload === "function" && window.olvAutoReload() && !busy(); } catch (_) { auto = false; }
+    if (auto) { location.reload(); return; }
+    if (bar) return;
+    bar = document.createElement("div");
+    bar.className = "olv-update-bar";
+    bar.setAttribute("role", "status");
+    bar.innerHTML = `<span>في تحديث جديد للبرنامج</span><button type="button">حدّث هلأ</button>`;
+    bar.querySelector("button").addEventListener("click", () => {
+      // الكاشير بنص طلب؟ ما منضيّع التذكرة: بيتحدث لحاله أول ما تفضى
+      if (typeof window.olvAutoReload === "function" && !window.olvAutoReload() && typeof olvToast === "function") {
+        olvToast("خلّص الطلب أول، والبرنامج بيتحدث لحاله", { type: "info" });
+        return;
+      }
+      location.reload();
+    });
+    document.body.appendChild(bar);
+  }
+  async function check() {
+    const v = await get();
+    if (!v || !v.v) return;
+    if (!first) { first = v.v; return; }
+    if (v.v === first) return;
+    const age = Date.now() - Date.parse(v.at || 0);
+    if (!(age > 11 * 60e3)) return; // لسا الملفات القديمة ممكن تكون مخزّنة
+    pending = true;
+    apply();
+  }
+  check();
+  setInterval(check, 3 * 60e3);
+  setInterval(apply, 20e3); // الكاشير خلّص الطلب؟ هلأ منحدّث
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+  window.addEventListener("online", check);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  olvWatchUpdates();
   olvSkeletons();
   olvA11yTables();
   olvEmptyStates();
   olvLinkFieldLabels();
   olvCountUpStats();
+  olvArabicDates();
+  olvScrollFades();
   let pending = false;
   new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); olvA11yTables(); });
+    requestAnimationFrame(() => { pending = false; olvSkeletons(); olvEmptyStates(); olvLinkFieldLabels(); olvCountUpStats(); olvA11yTables(); olvArabicDates(); olvScrollFades(); });
   }).observe(document.body, { childList: true, subtree: true });
 });
+
+// موجة مكان اللمس على أزرار الشريط العلوي (بتتحرك بـCSS، هون بس بنحدد النقطة)
+document.addEventListener("pointerdown", (e) => {
+  const el = e.target.closest && e.target.closest(".top .tab-link, .top .olv-acct-btn, .top .actions .btn");
+  if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty("--rx", (e.clientX - r.left) + "px");
+  el.style.setProperty("--ry", (e.clientY - r.top) + "px");
+  el.classList.remove("rip"); void el.offsetWidth; el.classList.add("rip");
+  setTimeout(() => el.classList.remove("rip"), 650);
+}, { passive: true });

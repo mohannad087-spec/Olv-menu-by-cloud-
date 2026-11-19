@@ -16,6 +16,8 @@ const OLV_STAFF_PAGES = [
   "recipes.html", // دليل تحضير المشروبات — مرجع ثابت للباريستا، ما فيه بيانات حساسة
 ];
 window.OLV_STAFF_PAGES = OLV_STAFF_PAGES;
+// الويتر (role = waiter): صفحة واحدة بس. الحماية الفعلية بقاعدة البيانات (schema-waiter-role.sql)
+const OLV_WAITER_PAGES = ["waiter-orders.html", "login.html"];
 
 // يتحقق من وجود جلسة دخول؛ وفي حال عدم وجودها يُعاد توجيه المستخدم إلى صفحة تسجيل الدخول
 async function olvRequireAuth() {
@@ -50,6 +52,10 @@ async function olvRequireAuth() {
   if (profile && profile.role) {
     window.olvRole = profile.role;
     const page = (window.location.pathname.split("/").pop() || "index.html");
+    if (profile.role === "waiter" && !OLV_WAITER_PAGES.includes(page)) {
+      window.location.replace("waiter-orders.html");
+      return null;
+    }
     if (profile.role === "staff" && !OLV_STAFF_PAGES.includes(page)) {
       window.location.replace("pos.html");
       return null;
@@ -149,6 +155,87 @@ function olvNormTable(v) {
 
 function olvToday() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// المصروفات اللي انحسبت فعلياً بين تاريخين (شامل): الكاش بتاريخ المصروف، والذمة بتاريخ ما انسدّدت (settled_at).
+// الذمة اللي لسا ما اندفعت ما بتنحسب لا بالمبيعات ولا بالأرباح. بترجع {data, error} وكل صف عنده expense_date = اليوم اللي انحسب فيه.
+async function olvExpensesPaid(db, select, from, to) {
+  const cols = select + ", id, expense_date, settled_at";
+  const nextDay = new Date(new Date(to + "T00:00:00Z").getTime() + 864e5).toISOString().slice(0, 10);
+  const [cashR, settledR] = await Promise.all([
+    db.from("expenses").select(cols).eq("payment_type", "cash").is("settled_at", null).gte("expense_date", from).lte("expense_date", to),
+    db.from("expenses").select(cols).not("settled_at", "is", null).gte("settled_at", from + "T00:00:00Z").lt("settled_at", nextDay + "T00:00:00Z"),
+  ]);
+  const error = cashR.error || settledR.error;
+  if (error) return { data: null, error };
+  const settled = (settledR.data || []).map((r) => ({ ...r, expense_date: String(r.settled_at).slice(0, 10) }));
+  const cash = cashR.data || [];
+  const extra = [];
+  // الذمة ما بتنحسب يوم الفاتورة، بتنحسب يوم ما اندفعت:
+  // 1) فاتورة آجلة/جزئية: بتنحسب بتاريخها بس اللي اندفع عند الفاتورة (paid_amount)
+  // 2) دفعات المورّد اللاحقة (من صفحة الموردين أو زر «سدّد») بتنحسب بتاريخ الدفعة
+  // لو الاستعلام فشل (مثلًا صلاحيات) منكمل بدون تعديل.
+  try {
+    const ids = cash.map((r) => r.id);
+    const paidAt = {};
+    for (let i = 0; i < ids.length; i += 150) {
+      const inv = await db.from("purchase_invoices").select("expense_id, status, payment_type, paid_amount").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash");
+      (inv.data || []).forEach((x) => { paidAt[x.expense_id] = x.status === "voided" ? null : Number(x.paid_amount) || 0; });
+    }
+    cash.forEach((r) => { if (r.id in paidAt && paidAt[r.id] !== null) r.amount = Math.min(Number(r.amount), paidAt[r.id]); });
+    const pay = await db.from("supplier_transactions").select("id, amount, transaction_date, description")
+      .eq("type", "payment").is("invoice_id", null).gte("transaction_date", from).lte("transaction_date", to);
+    (pay.data || []).forEach((x) => extra.push({ id: "sp-" + x.id, amount: Number(x.amount), expense_date: x.transaction_date, description: x.description || "دفعة مورّد", expense_categories: { name: "مشتريات ومخزون" } }));
+  } catch (e) { /* بدون تعديل */ }
+  return { data: [...cash, ...settled, ...extra], error: null };
+}
+
+// موافقة المدير برمز: لو عملية الكاشير انرفضت لأنها تحتاج مدير (إلغاء بعد المهلة أو خصم فوق حدّه)،
+// منسأل عن رمز المدير وبنعيد نفس العملية. الرمز بيتفحص بالسيرفر (request_approval) ويصلح لعملية وحدة وأقل من 3 دقايق.
+// run لازم ترمي الخطأ لما تفشل. المدير/المالك ما بيحتاج رمز. kind: "void" أو "discount"
+function olvAskManagerPin(kind) {
+  return new Promise((resolve) => {
+    const dlg = document.createElement("dialog");
+    dlg.setAttribute("aria-label", "موافقة المدير");
+    dlg.style.cssText = "border:1px solid var(--hair-soft,#ddd);border-radius:18px;padding:20px;max-width:340px;width:calc(100% - 32px);background:var(--surface,#fffdf8);color:var(--text,#2b2118);";
+    dlg.innerHTML = `
+      <form method="dialog" style="display:flex;flex-direction:column;gap:12px;">
+        <h2 style="margin:0;font-size:18px;">${kind === "discount" ? "الخصم يحتاج موافقة المدير" : "الإلغاء يحتاج موافقة المدير"}</h2>
+        <div style="color:var(--muted,#7a6a58);font-size:14px;">اطلب من المدير يدخل رمزه</div>
+        <input id="olv-pin-in" type="password" inputmode="numeric" autocomplete="off" maxlength="8" dir="ltr"
+          style="min-height:52px;font-size:24px;text-align:center;letter-spacing:6px;border-radius:12px;border:1px solid var(--hair-soft,#ccc);padding:0 12px;" aria-label="رمز المدير">
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="olv-pin-cancel" class="btn" style="flex:1;min-height:48px;">إلغاء</button>
+          <button type="submit" id="olv-pin-ok" class="btn gold" style="flex:1;min-height:48px;">موافقة</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dlg);
+    let value = null;
+    dlg.querySelector("#olv-pin-cancel").addEventListener("click", () => dlg.close());
+    dlg.querySelector("form").addEventListener("submit", () => { value = dlg.querySelector("#olv-pin-in").value.trim(); });
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(value || null); });
+    dlg.showModal();
+    dlg.querySelector("#olv-pin-in").focus();
+  });
+}
+
+async function olvWithApproval(kind, run) {
+  try {
+    return await run();
+  } catch (err) {
+    const needs = /موافقة مدير|بلّغ المدير|انتهت مدة الإلغاء/.test((err && err.message) || "");
+    if (!needs || window.olvRole === "owner" || window.olvRole === "manager") throw err;
+    const pin = await olvAskManagerPin(kind);
+    if (!pin) throw err;
+    const { data, error } = await window.supabaseClient.rpc("request_approval", { p_pin: pin, p_kind: kind });
+    if (error) {
+      const m = String(error.message || "");
+      if (/request_approval/.test(m) && /function|schema cache/i.test(m)) throw new Error("موافقة المدير لسا ما تفعّلت بقاعدة البيانات");
+      throw error;
+    }
+    if (!data) throw new Error("رمز المدير غلط");
+    return await run();
+  }
 }
 
 // رسالة "Failed to fetch" الخام اللي بيرميها المتصفح لما ينقطع النت ما

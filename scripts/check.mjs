@@ -63,6 +63,24 @@ for (const f of files) {
   else checkJs(f);
 }
 
+// print-bridge/update.bat بيحدّث ملفات src من النت على كمبيوتر المحل: لازم قائمته تغطي كل ملفات src (ملف ناقص = تحديث ناقص بصمت)
+if (!args.length) {
+  try {
+    const bat = readFileSync("print-bridge/update.bat", "utf8");
+    const lists = [...bat.matchAll(/for %%F in \(([^)]*)\)/g)].map((m) => new Set(m[1].trim().split(/\s+/)));
+    for (const [dir, list] of [["print-bridge/src", lists[0]], ["local-server/src", lists[1]]]) {
+      const missing = readdirSync(dir).filter((f) => f.endsWith(".js") && !(list && list.has(f.slice(0, -3))));
+      if (missing.length) {
+        failures++;
+        console.error(`✗ print-bridge/update.bat ما فيه: ${missing.join(", ")} (من ${dir})`);
+      }
+    }
+  } catch (e) {
+    failures++;
+    console.error(`✗ فحص update.bat: ${e.message}`);
+  }
+}
+
 if (failures) {
   console.error(`${failures} syntax error(s) found.`);
   process.exit(1);

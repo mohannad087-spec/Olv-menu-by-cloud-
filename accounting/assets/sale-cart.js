@@ -22,6 +22,7 @@ const OlvCart = (function () {
     items.push({
       productId: product.id,
       name: product.name,
+      noKitchen: !!product.no_kitchen_print, // ما بينطبع بأي طابعة قسم (بس بالفاتورة)
       category: product.category || null, // لشاشة المطبخ المحلية وقت انقطاع النت (أي محطة بتحضّره)
       unitBase: Number(product.price),
       hallPrice: Number(product.hall_price) > 0 ? Number(product.hall_price) : null,
@@ -104,7 +105,7 @@ const OlvCart = (function () {
     const args = {
       p_entry_date: entryDate,
       p_cash: paymentMethod === "cash" ? grand : 0,
-      p_card: paymentMethod === "card" ? grand : 0,
+      p_card: paymentMethod === "card" || paymentMethod === "cliq" ? grand : 0, // كليك بيتحسب مع الشبكة (مش كاش)، وبيتعلّم بالملاحظات
       p_delivery: paymentMethod === "delivery" ? grand : 0,
       p_notes: notes,
       p_items: rpcItems,
@@ -148,6 +149,7 @@ const OlvCart = (function () {
               addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
               note: item.note || null,
               category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+              no_kitchen: !!item.noKitchen,
             })),
           },
           items: sentItems.map((item) => ({
@@ -170,5 +172,75 @@ const OlvCart = (function () {
   // آخر بيع: انحفظ بدون نت؟ ووصل للمطبخ عن طريق كمبيوتر المحل؟ (بتقرأها شاشة الكاشير)
   let lastOffline = { queued: false, sentToKitchen: false, orderNo: null };
 
-  return { setMode, unitPrice: unit, add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout, lastOffline: () => lastOffline };
+  // إرسال الأصناف لحساب الطاولة المفتوح بدون دفع (place_table_order): أول إرسال بيفتح الحساب وبعده بتنضاف عليه،
+  // وبينطبع للأقسام الأصناف المرسلة بس. الفاتورة بتنطبع لما الكاشير يحاسب من صفحة الطاولات.
+  async function sendToTab({ tableNumber, entryDate, customerPhone, customerName }) {
+    if (!items.length) throw new Error("السلة فاضية");
+    if (!tableNumber) throw new Error("اكتب رقم الطاولة");
+    setMode("صالة");
+    const grand = total();
+    const rpcItems = items.map((item) => ({
+      product_id: item.productId,
+      qty: item.qty,
+      addon_ids: item.addons.map((a) => a.id),
+      note: item.note || null,
+    }));
+    if (!saleRef) saleRef = newRef();
+    const ref = saleRef;
+    const sentItems = items.slice();
+    const queuedBefore = window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0;
+    const { data, error } = await window.supabaseClient.rpc("place_table_order", {
+      p_entry_date: entryDate,
+      p_total: grand,
+      p_notes: null,
+      p_items: rpcItems,
+      p_client_ref: saleRef,
+      p_table_number: tableNumber,
+      p_customer_phone: customerPhone ?? null,
+      p_customer_name: customerName ?? null,
+    });
+    if (error) throw error;
+    // النت مقطوع: الطلب انحفظ بطابور الكاشير وبيوصل للحساب لما يرجع النت. منبعته لكمبيوتر المحل حتى يوصل
+    // لشاشات المطبخ والبار وينطبع هلق (تذاكر الأقسام بس، الفاتورة بتنطبع عند «حاسب الطاولة»)
+    const queued = !!(window.olvGetOfflineQueueCount && window.olvGetOfflineQueueCount() > queuedBefore);
+    lastOffline = { queued, sentToKitchen: false, orderNo: null };
+    if (queued && window.OlvLocal && window.OlvLocal.enabled) {
+      try {
+        const r = await window.OlvLocal.post("orders", {
+          client_ref: ref,
+          created_at: new Date().toISOString(),
+          order_type: "صالة",
+          table_number: tableNumber,
+          customer_name: customerName ?? null,
+          print: {
+            kitchen_only: true,
+            customer_phone: customerPhone ?? null,
+            items: sentItems.map((item) => ({
+              product_name: item.name,
+              qty: item.qty,
+              unit_price: unit(item),
+              addons_total: item.addons.reduce((s, a) => s + a.price, 0),
+              addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
+              note: item.note || null,
+              category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+              no_kitchen: !!item.noKitchen,
+            })),
+          },
+          items: sentItems.map((item) => ({
+            product_name: item.name,
+            qty: item.qty,
+            addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
+            note: item.note || null,
+            category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+          })),
+        });
+        lastOffline = { queued, sentToKitchen: true, orderNo: r.order_no || null };
+      } catch (e) {
+        console.error("olv-local: الطلب ما وصل لكمبيوتر المحل", e);
+      }
+    }
+    clear();
+    return data;
+  }
+  return { sendToTab, setMode, unitPrice: unit, add, removeAt, updateAt, incrementQtyAt, clear, all, restore, lineTotal, total, checkout, lastOffline: () => lastOffline };
 })();
