@@ -27,7 +27,7 @@
       db.from("products").select("id, name, price, is_active"),
       db.from("product_ingredients").select("product_id, ingredient_id, quantity"),
       db.from("ingredients").select("id, name, unit, unit_price"),
-      db.from("purchases").select("ingredient_id, unit_price, purchase_date, created_at")
+      db.from("purchases").select("ingredient_id, unit_price, purchase_date, created_at, purchase_invoices(status)")
         .not("ingredient_id", "is", null).gte("purchase_date", since)
         .order("purchase_date", { ascending: false }).order("created_at", { ascending: false }).limit(2000),
     ]);
@@ -41,6 +41,7 @@
     if (!b.error) {
       const seen = new Map(); // ingredient_id → { to, date, from }
       (b.data || []).forEach((x) => {
+        if (x.purchase_invoices && x.purchase_invoices.status === "voided") return;  // فاتورة ملغاة/معدّلة
         const v = Number(x.unit_price);
         if (!(v > 0)) return;
         const s = seen.get(x.ingredient_id);
