@@ -1970,10 +1970,10 @@
           });
           let prior = [];
           if (supplierId) {
-            let q = window.supabaseClient.from("purchases").select("ingredient_id,supply_id,quantity,unit_price,invoice_id,purchase_invoices(status)")
+            let q = window.supabaseClient.from("purchases_active").select("ingredient_id,supply_id,quantity,unit_price,invoice_id")
               .eq("supplier_id", supplierId).eq("purchase_date", document.getElementById("pi-date").value || olvToday());
             if (editingId) q = q.neq("invoice_id", editingId);
-            const r = await q; prior = (r.data || []).filter((x) => !x.purchase_invoices || x.purchase_invoices.status !== "voided");
+            const r = await q; prior = r.data || [];
           }
           const priorKeys = new Set(prior.map((x) => keyOf({ ingredient_id: x.ingredient_id, supply_id: x.supply_id, qty: Number(x.quantity), unit_price: Number(x.unit_price) })));
           payloadLines.forEach((o, i) => { if (priorKeys.has(keyOf(o))) dupNames.push(itemOf(active[i]).name); });
