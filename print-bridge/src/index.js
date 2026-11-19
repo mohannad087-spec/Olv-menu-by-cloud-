@@ -216,7 +216,7 @@ async function processJob(job, settings, printers, saleCache) {
     // بطاقة فحم لكل أرجيلة مع فاتورة البيع الحقيقية (مش تجريبي ولا إعادة طباعة)؛ فشلها ما بيفشّل الفاتورة
     if (job.job_type === "receipt" && !job.reprint_no && !job.bill_kind && !isTest && printer && printer.kind === "receipt") {
       try {
-        const sale = saleCache.get(job.sale_id);
+        const sale = saleCache.has(job.sale_id) ? await saleCache.get(job.sale_id) : null; // الكاش بيخزّن وعد (Promise)
         const cards = sale ? buildCharcoalBuffer(sale, settings) : null;
         if (cards) { await sendToPrinter(target.ip, target.port || 9100, cards, retryLog(label)); log(`✓ بطاقات فحم انطبعت على "${label}"`); }
       } catch (e) { log(`⚠ تعذّرت طباعة بطاقة الفحم على "${label}":`, e.message); }
