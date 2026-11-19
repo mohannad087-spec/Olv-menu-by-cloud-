@@ -107,19 +107,31 @@ body.login-neu .nm-eye{
 body.login-neu .nm-eye:focus-visible{outline:2px solid var(--nm-accent);}
 body.login-neu .nm-eye svg{width:20px; height:20px;}
 body.login-neu #login-btn{
-  width:100%; min-height:50px; margin-top:6px; border:0; border-radius:16px; font-size:16px; font-weight:800; cursor:pointer;
-  color:#fff; background:linear-gradient(135deg,var(--nm-accent),var(--nm-accent2));
+  position:relative; overflow:hidden; isolation:isolate; width:100%; min-height:50px; margin-top:6px; border:0; border-radius:16px; font-size:16px; font-weight:800; cursor:pointer;
+  color:var(--nm-accent); background-color:var(--nm-bg);
+  background-image:linear-gradient(135deg,var(--nm-accent),var(--nm-accent2)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
   box-shadow:8px 8px 18px var(--nm-lo), -6px -6px 14px var(--nm-hi);
-  transition:transform .2s ease, box-shadow .25s ease;
+  transition:background-size .45s cubic-bezier(.22,1,.36,1), color .3s ease, box-shadow .35s ease, transform .2s ease;
 }
-:root[data-theme="dark"] body.login-neu #login-btn{color:#1a1307;}
-body.login-neu #login-btn:hover{box-shadow:8px 8px 18px var(--nm-lo), -6px -6px 14px var(--nm-hi), 0 0 22px rgba(66,84,232,.45);}
-body.login-neu #login-btn:active{transform:scale(.98); box-shadow:inset 4px 4px 10px rgba(0,0,0,.25);}
+/* تعبئة اللون بتطلع من تحت لفوق لما الماوس بيمرّ على الزر */
+body.login-neu #login-btn:hover,body.login-neu #login-btn:focus-visible{
+  background-size:100% 100%; color:#fff; box-shadow:8px 8px 18px var(--nm-lo), -6px -6px 14px var(--nm-hi), 0 0 24px rgba(66,84,232,.5);
+}
+:root[data-theme="dark"] body.login-neu #login-btn:hover{color:#1a1307; box-shadow:8px 8px 18px var(--nm-lo), -6px -6px 14px var(--nm-hi), 0 0 24px rgba(201,162,75,.45);}
+body.login-neu #login-btn:active{transform:scale(.98);}
 body.login-neu #login-btn:disabled{opacity:.7; cursor:wait;}
+/* خط ضوء بيمشي تحت الحقل لما تضغط عليه */
+body.login-neu .field{position:relative;}
+body.login-neu .field::after{
+  content:""; position:absolute; inset-inline-start:16px; bottom:0; width:56px; height:3px; border-radius:3px; opacity:0; pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--nm-accent),transparent);
+}
+body.login-neu .field:focus-within::after{opacity:1; animation:nm-slide 2.2s ease-in-out infinite alternate;}
+@keyframes nm-slide{from{transform:translateX(0);}to{transform:translateX(calc(-1 * (min(380px,100vw - 32px) - 56px - 90px)));}}
 body.login-neu .err{border-radius:14px;}
 body.login-neu .olv-footer{position:relative; z-index:1; color:var(--nm-sub);}
 @media (max-width:640px){body.login-neu .nm-c3{display:none;} body.login-neu .nm-c1{width:90px; height:90px; top:3%;} body.login-neu .nm-c2{top:6%;}}
-@media (prefers-reduced-motion:reduce){body.login-neu .nm-circle{animation:none;}}
+@media (prefers-reduced-motion:reduce){body.login-neu .nm-circle,body.login-neu .field::after{animation:none;}}
 </style>
 </head>
 <body class="olv-glass login-neu">
