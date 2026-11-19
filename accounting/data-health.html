@@ -157,7 +157,7 @@
         all(() => db.from("product_ingredients").select("product_id,ingredient_id").order("id")),
         all(() => db.from("products").select("id,name").order("id")),
         all(() => db.from("sale_items").select("id,product_id,product_name,qty,unit_price,status").gte("created_at", since(30) + "T00:00:00Z").order("id")),
-        all(() => db.from("purchases").select("id,ingredient_id,supply_id,item_name,unit,quantity,unit_price,supplier_id,purchase_date,invoice_id,purchase_invoices(status)").gte("purchase_date", since(60)).order("id")),
+        all(() => db.from("purchases_active").select("id,ingredient_id,supply_id,item_name,unit,quantity,unit_price,supplier_id,purchase_date,invoice_id").gte("purchase_date", since(60)).order("id")),
       ]);
       const usedBy = new Map();
       pis.forEach((p) => usedBy.set(p.ingredient_id, (usedBy.get(p.ingredient_id) || 0) + 1));
@@ -203,9 +203,9 @@
       list("l-c", c, c.length, (o) => row(o.name, money(o.rev), "انباع " + +o.q.toFixed(2) + " مرة"));
 
       // د) مشتريات مكررة
-      // سطور الفواتير الملغاة (اللي انعدّلت) ما بتنعدّ: القديمة ملغاة والجديدة بنفس السطور
+      // purchases_active = بدون سطور الفواتير الملغاة (اللي انعدّلت)
       const g = new Map();
-      purch.filter((p) => !p.purchase_invoices || p.purchase_invoices.status !== "voided").forEach((p) => {
+      purch.forEach((p) => {
         const k = [p.ingredient_id || p.supply_id || p.item_name, p.supplier_id, p.purchase_date, Number(p.quantity), Number(p.unit_price)].join("|");
         (g.get(k) || g.set(k, []).get(k)).push(p);
       });
