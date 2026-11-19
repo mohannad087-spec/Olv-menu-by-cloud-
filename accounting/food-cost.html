@@ -197,7 +197,7 @@
         const from = fromDate(period);
         const [sold, purch] = await Promise.all([
           all(() => db.from("sale_items").select("id,product_id,product_name,qty,unit_price,status").gte("created_at", from + "T00:00:00Z").order("id")),
-          all(() => db.from("purchases").select("id,ingredient_id,quantity").not("ingredient_id", "is", null).gte("purchase_date", from).order("id")),
+          all(() => db.from("purchases").select("id,ingredient_id,quantity,purchase_invoices(status)").not("ingredient_id", "is", null).gte("purchase_date", from).order("id")),
         ]);
         if (my !== seq) return;
         const byP = new Map();
@@ -228,7 +228,7 @@
         list("l-c", unk, unk.length, (o) => row(o.name, money(o.rev), "انباع " + +o.q.toFixed(2) + " مرة"));
 
         const bought = new Map();
-        purch.forEach((p) => bought.set(p.ingredient_id, (bought.get(p.ingredient_id) || 0) + (Number(p.quantity) || 0)));
+        purch.filter((p) => !p.purchase_invoices || p.purchase_invoices.status !== "voided").forEach((p) => bought.set(p.ingredient_id, (bought.get(p.ingredient_id) || 0) + (Number(p.quantity) || 0)));
         const ids = new Set([...bought.keys(), ...usedQty.keys()]);
         const diff = [...ids].map((id) => {
           const i = base.ing.get(id); if (!i) return null;
