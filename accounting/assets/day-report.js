@@ -56,7 +56,7 @@
     const exp = ok(expR);
     const close = ok(closeR);
 
-    const d = { date, cash: 0, card: 0, delivery: 0, count: sales.length, first: null, last: null, items: [] };
+    const d = { date, cash: 0, card: 0, delivery: 0, count: sales.filter((s) => (Number(s.cash_amount) || 0) + (Number(s.card_amount) || 0) + (Number(s.delivery_amount) || 0) > 0).length, first: null, last: null, items: [] };
     const by = new Map();
     sales.forEach((s) => {
       d.cash += Number(s.cash_amount) || 0;
