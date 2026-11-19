@@ -54,7 +54,7 @@
       const t = total(s);
       if (s.entry_date === prev) { if (s.status !== "voided") d.prevSales += t; return; }
       if (s.status === "voided") { d.voids++; d.voidVal += t; return; }
-      d.sales += t; d.count++; d.disc += Number(s.discount_amount) || 0;
+      d.sales += t; if (t > 0) d.count++; d.disc += Number(s.discount_amount) || 0;
     });
     const exp = ok(eR);
     d.expenses = exp ? exp.reduce((s, r) => s + (Number(r.amount) || 0), 0) : null;

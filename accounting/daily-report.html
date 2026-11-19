@@ -225,10 +225,12 @@
         const byType = new Map(), byItem = new Map(), byCat = new Map();
         sales.forEach((s) => {
           cash += num(s.cash_amount); card += num(s.card_amount); delivery += num(s.delivery_amount);
-          const t = s.order_type || "غير محدد";
-          const o = byType.get(t) || { n: 0, m: 0 };
-          o.n++; o.m += num(s.cash_amount) + num(s.card_amount) + num(s.delivery_amount);
-          byType.set(t, o);
+          if (num(s.cash_amount) + num(s.card_amount) + num(s.delivery_amount) > 0) { // طلبات الموظفين (مبلغها صفر) ما بتنعدّ
+            const t = s.order_type || "غير محدد";
+            const o = byType.get(t) || { n: 0, m: 0 };
+            o.n++; o.m += num(s.cash_amount) + num(s.card_amount) + num(s.delivery_amount);
+            byType.set(t, o);
+          }
           (s.sale_items || []).filter((x) => x.status !== "voided").forEach((x) => {
             const q = num(x.qty), m = q * num(x.unit_price);
             const a = byItem.get(x.product_name) || { q: 0, m: 0 }; a.q += q; a.m += m; byItem.set(x.product_name, a);
@@ -237,18 +239,19 @@
           });
         });
         const total = cash + card + delivery;
+        const paidN = sales.filter((s) => num(s.cash_amount) + num(s.card_amount) + num(s.delivery_amount) > 0).length;
         const totalExp = exps ? exps.reduce((s, r) => s + num(r.amount), 0) : null;
         const net = totalExp == null ? null : total - totalExp;
 
         $("k-sales").textContent = money(total);
-        $("k-count").textContent = sales.length.toLocaleString("en");
+        $("k-count").textContent = paidN.toLocaleString("en");
         $("k-exp").textContent = totalExp == null ? "—" : money(totalExp);
         const netEl = $("k-net");
         netEl.textContent = net == null ? "—" : money(net);
         netEl.className = "value " + (net == null ? "" : net >= 0 ? "good" : "bad");
         $("k-note").textContent = totalExp == null
           ? "ما عندك صلاحية تشوف المصروفات، فصافي اليوم مش معروض."
-          : sales.length ? `متوسط الفاتورة ${money(total / sales.length)}.` : "ما في مبيعات مسجّلة بهاد اليوم.";
+          : paidN ? `متوسط الفاتورة ${money(total / paidN)}.` : "ما في مبيعات مسجّلة بهاد اليوم.";
 
         $("pay-body").innerHTML = [["كاش", cash], ["شبكة / فيزا", card], ["توصيل / تطبيقات", delivery]]
           .map(([l, v]) => `<tr><td>${l}</td><td class="n">${money(v)}</td><td class="n">${pct(v, total)}</td></tr>`).join("");
