@@ -227,7 +227,7 @@
         db.from("sales_entries")
           .select("id, created_at, status, void_reason, voided_at, voided_by, created_by, discount_amount, cash_amount, card_amount, delivery_amount, table_number")
           .gte("entry_date", from).limit(5000),
-        db.from("stock_movements").select("item_kind, item_id, item_name, delta, reason, created_at")
+        db.from("stock_movements").select("item_kind, item_id, item_name, delta, reason, note, created_at")
           .gte("created_at", from + "T00:00:00Z").in("reason", ["count", "waste"]).lt("delta", 0).limit(5000),
         db.from("profiles").select("id, full_name"),
         db.from("ingredients").select("id, unit, unit_price"),
@@ -283,6 +283,7 @@
         const q = Math.abs(Number(m.delta) || 0), v = q * pr.p;
         const o = loss.get(key) || { name: m.item_name || "مادة", unit: pr.unit, q: 0, v: 0, waste: 0, count: 0 };
         o.q += q; o.v += v;
+        if (m.note) o.note = m.note;
         if (m.reason === "waste") { o.waste += q; wasteVal += v; wasteN++; } else { o.count += q; countVal += v; countN++; }
         loss.set(key, o);
       });
@@ -374,7 +375,7 @@
       const top = [...d.loss.values()].sort((a, b) => b.v - a.v || b.q - a.q).slice(0, 8);
       $("losses").innerHTML = top.length ? top.map((o) => `<div class="lk-loss">
           <span class="nm">${esc(o.name)}</span><span class="v" dir="ltr">${o.v > 0 ? "−" + money(o.v) : "—"}</span>
-          <small>${o.waste ? `هدر ${+o.waste.toFixed(2)} ${esc(o.unit)}` : ""}${o.waste && o.count ? " · " : ""}${o.count ? `نقص جرد ${+o.count.toFixed(2)} ${esc(o.unit)}` : ""}</small>
+          <small>${o.waste ? `هدر ${+o.waste.toFixed(2)} ${esc(o.unit)}` : ""}${o.waste && o.count ? " · " : ""}${o.count ? `نقص جرد ${+o.count.toFixed(2)} ${esc(o.unit)}` : ""}${o.note ? ` · «${esc(o.note)}»` : ""}</small>
         </div>`).join("")
         : `<div class="lk-empty">${d.movesErr ? "ما عندك صلاحية تشوف حركات المخزون." : "ما في هدر ولا نقص جرد مسجّل بهالفترة."}</div>`;
 

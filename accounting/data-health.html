@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>صحة البيانات — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .wrap.dh-wrap{max-width:var(--page-max);}
+  .dh-head h1{font-size:clamp(24px,4vw,34px);font-weight:800;line-height:1.15;margin:4px 0 0;}
+  .dh-sub{color:var(--muted);font-size:13.5px;margin:4px 0 14px;line-height:1.6;}
+  .stats.dh-stats{grid-template-columns:repeat(4,1fr);margin-bottom:14px;}
+  @media (max-width:900px){.stats.dh-stats{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:560px){.dh-stats .stat{padding:13px;} .dh-stats .stat .stat-icon{display:none;} .olv-glass .dh-stats .stat .value{font-size:21px;overflow-wrap:anywhere;}}
+  .dh-stats .stat .sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .dh-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px;}
+  @media (max-width:900px){.dh-grid{grid-template-columns:1fr;}}
+  .dh-grid>.group{margin-bottom:0;min-width:0;}
+  .dh-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 0;border-bottom:1px solid var(--hair-soft);}
+  .dh-row:last-child{border-bottom:0;}
+  .dh-row .nm{font-weight:700;font-size:14.5px;overflow-wrap:anywhere;}
+  .dh-row .v{font-weight:800;font-variant-numeric:tabular-nums;}
+  .dh-row .v.bad{color:var(--danger-hi);}
+  .dh-row small{grid-column:1/-1;color:var(--muted);font-size:12.5px;line-height:1.5;}
+  .dh-ok{color:var(--ok);font-weight:700;padding:10px 0;}
+  .dh-more{color:var(--muted);font-size:12.5px;padding-top:8px;}
+  .dh-note{color:var(--muted);font-size:12.5px;line-height:1.6;margin:10px 0 0;}
+  .dh-link{color:var(--gold-hi);font-weight:700;text-decoration:none;}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#fbf9ff">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap dh-wrap">
+    <div class="err" id="err"></div>
+    <header class="dh-head">
+      <h1>صحة البيانات</h1>
+      <div class="dh-sub">بتفحص المخزون والوصفات والمشتريات وبتوريك وين الأرقام ناقصة أو غلط، لأن الأرباح والمواد بتنحسب منها. للمالك والمدير بس.</div>
+    </header>
+    <div class="stats dh-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-a"></div><div class="stat-body"><div class="label">مواد بلا سعر (بوصفات)</div><div class="value" id="k-a">—</div><div class="sub" id="k-a-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-b"></div><div class="stat-body"><div class="label">مواد رصيدها بالسالب</div><div class="value" id="k-b">—</div><div class="sub" id="k-b-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-c"></div><div class="stat-body"><div class="label">مبيعات بلا وصفة (30 يوم)</div><div class="value" id="k-c">—</div><div class="sub" id="k-c-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-d"></div><div class="stat-body"><div class="label">مشتريات يمكن مكررة</div><div class="value" id="k-d">—</div><div class="sub" id="k-d-s"></div></div></div></div>
+    </div>
+    <div class="dh-grid">
+      <section class="group"><h2 id="t-a"></h2><div id="l-a"></div>
+        <p class="dh-note">مواد داخلة بوصفات بس سعرها صفر، فتكلفة المنتجات اللي بتستعملها ناقصة. حطّ السعر من <a class="dh-link" href="inventory.html">المخزون</a>.</p></section>
+      <section class="group"><h2 id="t-b"></h2><div id="l-b"></div>
+        <p class="dh-note">الرصيد السالب معناه مشتريات مش مسجّلة أو وصفة بتخصم زيادة. سجّل الشراء الناقص أو اعمل جرد من <a class="dh-link" href="inventory.html">المخزون</a>.</p></section>
+      <section class="group"><h2 id="t-c"></h2><div id="l-c"></div>
+        <p class="dh-note">منتجات انباعت ومالها وصفة، فما بتنخصم مواد وما بتنحسب تكلفتها. أضف الوصفة من <a class="dh-link" href="product-recipes.html">وصفات المنتجات</a>.</p></section>
+      <section class="group"><h2 id="t-d"></h2><div id="l-d"></div>
+        <p class="dh-note">نفس المادة ونفس المورد والتاريخ والكمية والسعر مسجّلين أكتر من مرة (آخر 60 يوم). إذا كان مكرر فعلاً، عدّل الفاتورة من <a class="dh-link" href="purchase-invoices.html">فواتير المشتريات</a>.</p></section>
+    </div>
+  </div>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+  document.addEventListener("DOMContentLoaded", async () => {
+    olvRenderNav("data-health");
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => olvEsc(v);
+    const money = (n) => olvFormatMoney(n);
+    const db = window.supabaseClient;
+    const LIMIT = 15;
+    $("ic-a").innerHTML = olvIcon("tag"); $("ic-b").innerHTML = olvIcon("box");
+    $("ic-c").innerHTML = olvIcon("clipboard"); $("ic-d").innerHTML = olvIcon("warning");
+    $("t-a").innerHTML = olvIcon("tag") + " مواد بلا سعر";
+    $("t-b").innerHTML = olvIcon("box") + " رصيد سالب";
+    $("t-c").innerHTML = olvIcon("clipboard") + " منتجات مباعة بلا وصفة";
+    $("t-d").innerHTML = olvIcon("warning") + " مشتريات يمكن مكررة";
+
+    async function all(q) {  // تجاوز حد 1000 صف
+      let out = [], from = 0;
+      for (;;) {
+        const { data, error } = await q().range(from, from + 999);
+        if (error) throw error;
+        out = out.concat(data || []);
+        if (!data || data.length < 1000) return out;
+        from += 1000;
+      }
+    }
+    const since = (d) => { const t = new Date(); t.setDate(t.getDate() - d); return t.toISOString().slice(0, 10); };
+    const list = (id, rows, total, render) => {
+      $(id).innerHTML = rows.length
+        ? rows.slice(0, LIMIT).map(render).join("") + (total > LIMIT ? `<div class="dh-more">و${total - LIMIT} غيرهم…</div>` : "")
+        : `<div class="dh-ok">✓ ما في مشكلة</div>`;
+    };
+    const row = (nm, v, small, bad) => `<div class="dh-row"><span class="nm">${esc(nm)}</span><span class="v${bad ? " bad" : ""}" dir="ltr">${v}</span>${small ? `<small>${small}</small>` : ""}</div>`;
+
+    try {
+      const [ings, pis, prods, sold, purch] = await Promise.all([
+        all(() => db.from("ingredients").select("id,name,unit,current_stock,unit_price").order("id")),
+        all(() => db.from("product_ingredients").select("product_id,ingredient_id").order("id")),
+        all(() => db.from("products").select("id,name").order("id")),
+        all(() => db.from("sale_items").select("id,product_id,product_name,qty,unit_price,status").gte("created_at", since(30) + "T00:00:00Z").order("id")),
+        all(() => db.from("purchases").select("id,ingredient_id,supply_id,item_name,unit,quantity,unit_price,supplier_id,purchase_date,invoice_id,purchase_invoices(status)").gte("purchase_date", since(60)).order("id")),
+      ]);
+      const usedBy = new Map();
+      pis.forEach((p) => usedBy.set(p.ingredient_id, (usedBy.get(p.ingredient_id) || 0) + 1));
+      const hasRecipe = new Set(pis.map((p) => p.product_id));
+
+      // أ) مواد بلا سعر داخلة بوصفات
+      const a = ings.filter((i) => !(Number(i.unit_price) > 0) && usedBy.has(i.id))
+        .sort((x, y) => usedBy.get(y.id) - usedBy.get(x.id));
+      $("k-a").textContent = a.length; $("k-a-s").textContent = "من " + ings.filter((i) => usedBy.has(i.id)).length + " مادة بوصفات";
+      // إدخال سريع للسعر من نفس القائمة
+      $("l-a").innerHTML = a.length ? a.slice(0, 40).map((i) => `<div class="dh-row"><span class="nm">${esc(i.name)}</span><span class="v" dir="ltr">${usedBy.get(i.id)} وصفة</span>
+        <small style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">سعر ${esc(i.unit || "الوحدة")} (دينار):
+        <input class="dh-price" data-id="${esc(i.id)}" type="number" inputmode="decimal" min="0" step="any" style="width:110px;min-height:40px;" aria-label="سعر ${esc(i.name)}">
+        <button class="btn small gold" type="button" data-save="${esc(i.id)}">حفظ</button></small></div>`).join("") + (a.length > 40 ? `<div class="dh-more">و${a.length - 40} غيرهم…</div>` : "")
+        : `<div class="dh-ok">✓ ما في مشكلة</div>`;
+      $("l-a").onclick = async (e) => {
+        const b = e.target.closest("[data-save]"); if (!b) return;
+        const id = b.dataset.save, inp = document.querySelector(`.dh-price[data-id="${CSS.escape(id)}"]`);
+        const v = Number(inp.value);
+        if (!(v > 0)) { $("err").textContent = "اكتب سعر أكبر من صفر"; $("err").style.display = "block"; return; }
+        b.disabled = true;
+        const { error } = await db.from("ingredients").update({ unit_price: v }).eq("id", id);
+        if (error) { b.disabled = false; $("err").textContent = error.message; $("err").style.display = "block"; return; }
+        $("err").style.display = "none";
+        b.closest(".dh-row").remove();
+        olvToast("انحفظ السعر");
+      };
+
+      // ب) رصيد سالب
+      const b = ings.filter((i) => Number(i.current_stock) < 0).sort((x, y) => Number(x.current_stock) - Number(y.current_stock));
+      $("k-b").textContent = b.length; $("k-b-s").textContent = "من " + ings.length + " مادة";
+      list("l-b", b, b.length, (i) => row(i.name, +Number(i.current_stock).toFixed(2) + " " + esc(i.unit || ""), "", true));
+
+      // ج) مبيعات بلا وصفة
+      const byP = new Map();
+      sold.filter((s) => s.status !== "void" && s.product_id && !hasRecipe.has(s.product_id)).forEach((s) => {
+        const o = byP.get(s.product_id) || { name: s.product_name, q: 0, rev: 0 };
+        o.q += Number(s.qty) || 0; o.rev += (Number(s.qty) || 0) * (Number(s.unit_price) || 0); byP.set(s.product_id, o);
+      });
+      const c = [...byP.values()].sort((x, y) => y.rev - x.rev);
+      const cRev = c.reduce((t, o) => t + o.rev, 0);
+      $("k-c").textContent = money(cRev); $("k-c-s").textContent = c.length + " منتج بلا وصفة";
+      list("l-c", c, c.length, (o) => row(o.name, money(o.rev), "انباع " + +o.q.toFixed(2) + " مرة"));
+
+      // د) مشتريات مكررة
+      // سطور الفواتير الملغاة (اللي انعدّلت) ما بتنعدّ: القديمة ملغاة والجديدة بنفس السطور
+      const g = new Map();
+      purch.filter((p) => !p.purchase_invoices || p.purchase_invoices.status !== "voided").forEach((p) => {
+        const k = [p.ingredient_id || p.supply_id || p.item_name, p.supplier_id, p.purchase_date, Number(p.quantity), Number(p.unit_price)].join("|");
+        (g.get(k) || g.set(k, []).get(k)).push(p);
+      });
+      const d = [...g.values()].filter((x) => x.length > 1).sort((x, y) => y[0].purchase_date.localeCompare(x[0].purchase_date));
+      $("k-d").textContent = d.length; $("k-d-s").textContent = "آخر 60 يوم";
+      list("l-d", d, d.length, (x) => row(x[0].item_name, "×" + x.length, esc(x[0].purchase_date) + " · " + +Number(x[0].quantity).toFixed(2) + " " + esc(x[0].unit || "") + " × " + money(x[0].unit_price), true));
+    } catch (e) {
+      $("err").textContent = "ما قدرت أحمّل الفحص: " + (e.message || e);
+      $("err").style.display = "block";
+    }
+  });
+  </script>
+</body>
+</html>

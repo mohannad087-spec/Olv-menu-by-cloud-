@@ -263,6 +263,16 @@
       <h3 style="margin-top:18px;">نكهات الأرجيلة (احتياطي)</h3>
       <p class="hint">النكهات بتنسحب تلقائيًا من المخزون (كل صنف اسمه بيبدأ بـ «معسل»)؛ هالقائمة بتنستعمل بس إذا ما في معسل بالمخزون. اكتب كل نكهة بسطر. بالبيع السريع، صنف الأرجيلة بيفتح اختيار النكهة (بدل الإضافات) والنكهة بتوصل لتذكرة الأرجيلة.</p>
       <textarea id="hookah-flavors" rows="6" style="width:100%; min-height:120px;" placeholder="تفاحتين&#10;علكة&#10;نعنع"></textarea>
+      <h3 style="margin-top:18px;">بطاقة فحم الأرجيلة</h3>
+      <p class="hint">مع كل أرجيلة بالطلب، بتنطبع بعد الفاتورة على طابعة الكاش بطاقة فحم (تبديل مرة وحدة)، وبتنقص عن الفاتورة. بتنطبع بس بالأيام والساعات اللي تحددها (بتوقيت عمّان، حسب وقت الطلب). لازم تحدّث برنامج الطباعة على جهاز المحل.</p>
+      <label class="row" style="gap:8px; align-items:center; min-height:44px;"><input type="checkbox" id="cc-enabled"> تفعيل طباعة بطاقة الفحم</label>
+      <div id="cc-days" class="row" style="gap:12px; flex-wrap:wrap; margin:8px 0;"></div>
+      <div class="row" style="gap:12px; align-items:center; flex-wrap:wrap;">
+        <label>من <input type="time" id="cc-from" value="08:00" style="min-height:44px;"></label>
+        <label>إلى <input type="time" id="cc-to" value="17:00" style="min-height:44px;"></label>
+        <button class="btn" id="cc-save" type="button" style="min-height:44px;">حفظ</button>
+      </div>
+      <div class="hint" id="cc-card-msg" aria-live="polite"></div>
     </div>
 
     </div>
@@ -887,6 +897,32 @@
           if (error) olvShowError(document.getElementById("err"), error);
         });
       } catch (err) { /* القسم اختياري */ }
+    }
+
+    // بطاقة فحم الأرجيلة (app_settings.charcoal_card = JSON) — برنامج الطباعة بيقرأها
+    async function loadCharcoalCard() {
+      const names = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+      let cfg = { enabled: true, days: [0, 1, 2, 3, 4], from: "08:00", to: "17:00" };
+      try {
+        const r = await window.supabaseClient.from("app_settings").select("value").eq("key", "charcoal_card").maybeSingle();
+        if (r.data && r.data.value) cfg = Object.assign(cfg, JSON.parse(r.data.value));
+      } catch (err) { /* افتراضي */ }
+      document.getElementById("cc-enabled").checked = cfg.enabled !== false;
+      document.getElementById("cc-from").value = cfg.from;
+      document.getElementById("cc-to").value = cfg.to;
+      document.getElementById("cc-days").innerHTML = names.map((n, i) =>
+        `<label style="display:flex; gap:6px; align-items:center; min-height:44px;"><input type="checkbox" data-d="${i}" ${cfg.days.includes(i) ? "checked" : ""}> ${n}</label>`).join("");
+      document.getElementById("cc-save").addEventListener("click", async () => {
+        const val = JSON.stringify({
+          enabled: document.getElementById("cc-enabled").checked,
+          days: [...document.querySelectorAll("#cc-days input:checked")].map((x) => Number(x.dataset.d)),
+          from: document.getElementById("cc-from").value || "08:00",
+          to: document.getElementById("cc-to").value || "17:00",
+        });
+        const { error } = await window.supabaseClient.from("app_settings").upsert({ key: "charcoal_card", value: val });
+        if (error) { olvShowError(document.getElementById("err"), error); return; }
+        document.getElementById("cc-card-msg").textContent = "انحفظ. بتنطبق على الطلبات الجديدة.";
+      });
     }
 
     // عدد تقفيلات الخزينة باليوم (app_settings.cash_closings_per_day = 1 أو 2)
@@ -1579,6 +1615,7 @@
         loadAddons(),
         loadMealCats(),
         loadCashClosings(),
+        loadCharcoalCard(),
         loadPrinterSettings(),
         loadPrinters().then(loadPrintJobs),
         loadSecurity(),

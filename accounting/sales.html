@@ -61,6 +61,21 @@
 <style>
   /* صفحة المبيعات (2026-10): فترة ← أرقام ← رسم ← طرق الدفع والأكثر مبيعًا ← قائمة الطلبات.
      القواعد بـ design-system/olv/pages/sales.md */
+
+  /* بحث متقدم بالفواتير السابقة */
+  body.finding .s-stats, body.finding #cmp, body.finding .s-grid, body.finding #period-chips, body.finding #custom-range{display:none !important;}
+  body.finding .s-orders .s-search, body.finding #share-day{display:none !important;}
+  .f-box{margin:0 0 14px; display:flex; flex-direction:column; gap:10px;}
+  .f-box .s-search{max-width:none; min-width:0; width:100%;}
+  .f-panel{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; align-items:end;}
+  .f-panel[hidden]{display:none;}
+  .f-panel .field{margin:0;}
+  .f-panel .wide{grid-column:span 2;}
+  .f-actions{display:flex; gap:8px; grid-column:1/-1; justify-content:flex-start;}
+  .f-bar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 14px; margin-bottom:14px; border-radius:14px; background:var(--ink-3); border:1px solid var(--hair);}
+  .f-bar[hidden]{display:none;}
+  .f-bar b{font-variant-numeric:tabular-nums;}
+  @media (max-width:700px){.f-panel{grid-template-columns:repeat(2,minmax(0,1fr));}}
   .wrap.sales-wrap{max-width:var(--page-max);}
   .s-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
   .s-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
@@ -401,6 +416,12 @@
       </div>
     </div>
 
+    <div class="f-box" id="finder"></div>
+    <div class="f-bar" id="find-bar" hidden>
+      <span id="find-sum"></span>
+      <button class="btn small" type="button" id="find-close">إغلاق البحث والرجوع للمبيعات</button>
+    </div>
+
     <div class="s-chips" id="period-chips" role="group" aria-label="الفترة">
       <button class="s-chip" type="button" data-period="today" aria-pressed="true">اليوم</button>
       <button class="s-chip" type="button" data-period="yesterday" aria-pressed="false">أمس</button>
@@ -441,6 +462,18 @@
       <p class="cmp-note" id="cmp-note"></p>
     </section>
 
+    <section class="group s-cmp" id="meal-sec" hidden>
+      <h2>وجبات الموظفين <small style="font-weight:500;color:var(--muted)">(بالتكلفة، مش من المبيعات)</small></h2>
+      <ul class="cmp-rows" id="meal-rows"></ul>
+      <div><a class="btn" href="staff-meals.html" id="meal-report-link">تقرير وجبات الموظفين</a></div>
+    </section>
+
+    <section class="group s-cmp" id="staff-sec" hidden>
+      <h2>على حساب الموظفين <small style="font-weight:500;color:var(--muted)">(بالتكلفة، بتنخصم من الراتب، مش من المبيعات)</small></h2>
+      <ul class="cmp-rows" id="staff-rows"></ul>
+      <div><button class="btn" type="button" id="staff-copy">نسخ الكشف</button></div>
+    </section>
+
     <div class="s-grid">
       <section class="group">
         <h2 id="chart-title"></h2>
@@ -473,6 +506,8 @@
         <button class="s-chip" type="button" data-filter="cash" aria-pressed="false">كاش <span class="n" data-n="cash"></span></button>
         <button class="s-chip" type="button" data-filter="card" aria-pressed="false">شبكة <span class="n" data-n="card"></span></button>
         <button class="s-chip" type="button" data-filter="delivery" aria-pressed="false">توصيل <span class="n" data-n="delivery"></span></button>
+        <button class="s-chip" type="button" data-filter="staff" aria-pressed="false">على حساب الموظفين <span class="n" data-n="staff"></span></button>
+        <button class="s-chip" type="button" data-filter="meal" aria-pressed="false">وجبات الموظفين <span class="n" data-n="meal"></span></button>
         <button class="s-chip" type="button" data-filter="voided" aria-pressed="false">الملغاة <span class="n" data-n="voided"></span></button>
       </div>
       <div id="orders"><p class="empty-state">جاري التحميل...</p></div>
@@ -554,6 +589,15 @@
     }
     function ampm(r) { return r.created_at ? (new Date(r.created_at).getHours() < 12 ? "ص" : "م") : ""; }
 
+    // طلب «على حساب موظف»: مبلغه صفر بالمبيعات، والذمة (بالتكلفة) مكتوبة بالملاحظات: «على حساب الموظف <اسم> — <مبلغ>»
+    const STAFF_RE = /على حساب الموظف\s+(.+?)\s+—\s+([\d.]+)/;
+    const staffAcct = (r) => {
+      if (Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount) !== 0) return null;
+      const m = STAFF_RE.exec(r.notes || "");
+      return m ? { name: m[1], amount: Number(m[2]) } : null;
+    };
+    // وجبة موظف: بيعة صفرية بنوع «وجبة موظف» (بتنطبع للمطبخ بدون فاتورة)، إلها قسم لحاله وما بتنعدّ بالطلبات
+    const isMeal = (r) => r.order_type === "وجبة موظف" && Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount) === 0;
     const saleTotal = (r) => Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
     function payOf(r) {
       const parts = ["cash", "card", "delivery"].filter((k) => Number(r[k + "_amount"]) > 0);
@@ -611,6 +655,7 @@
     let rows = [];
     let loadSeq = 0;
     async function load() {
+      if (find.active) return runFind();
       const seq = ++loadSeq;
       range = rangeFor(period);
       const prev = prevRange(range, period);
@@ -635,8 +680,13 @@
     }
 
     function renderAll(prevTotal, prev) {
-      const done = rows.filter((r) => r.status !== "voided");
+      // طلبات الموظفين بنفصلها: ما بتنعدّ بعدد الطلبات ولا بمتوسط الفاتورة، وإلها قسم لحاله
+      const staffRows = rows.filter((r) => r.status !== "voided" && staffAcct(r));
+      const mealRows = rows.filter((r) => r.status !== "voided" && isMeal(r));
+      const done = rows.filter((r) => r.status !== "voided" && !staffAcct(r) && !isMeal(r));
       const voided = rows.filter((r) => r.status === "voided");
+      renderStaff(staffRows);
+      renderMeals(mealRows);
       const total = done.reduce((s, r) => s + saleTotal(r), 0);
       const single = range.from === range.to;
       // صورة تقرير اليوم (نفس زر الرئيسية والخزينة) بتطلع بس لما الفترة يوم واحد
@@ -672,6 +722,44 @@
       renderTopItems(done);
       renderOrders(true);
     }
+
+    // ---------------------------------------------------------------
+    // قسم «على حساب الموظفين»: مجموع كل موظف + نسخ كشف مفصّل (للفترة المختارة)
+    // ---------------------------------------------------------------
+    let staffList = [];
+    function renderStaff(list) {
+      staffList = list;
+      const box = $("staff-sec");
+      if (!list.length) { box.hidden = true; return; }
+      const by = {};
+      list.forEach((r) => { const a = staffAcct(r); const e = by[a.name] = by[a.name] || { n: 0, sum: 0 }; e.n++; e.sum += a.amount; });
+      const all = Object.values(by).reduce((x, e) => x + e.sum, 0);
+      box.hidden = false;
+      $("staff-rows").innerHTML = Object.entries(by).sort((a, b) => b[1].sum - a[1].sum).map(([nm, e]) =>
+        `<li><i class="dot"></i><span class="nm">${olvEsc(nm)} <small style="color:var(--muted)">(${e.n} طلب)</small></span><span class="now">${olvFormatMoney(e.sum)}</span></li>`).join("")
+        + `<li><i class="dot net"></i><span class="nm"><b>المجموع</b> <small style="color:var(--muted)">(${list.length} طلب)</small></span><span class="now"><b>${olvFormatMoney(all)}</b></span></li>`;
+    }
+    function renderMeals(list) {
+      const box = $("meal-sec");
+      if (!list.length) { box.hidden = true; return; }
+      const by = {};
+      list.forEach((r) => { const nm = r.customer_name || "—"; by[nm] = (by[nm] || 0) + 1; });
+      box.hidden = false;
+      $("meal-rows").innerHTML = Object.entries(by).sort((a, b) => b[1] - a[1]).map(([nm, n]) =>
+        `<li><i class="dot"></i><span class="nm">${olvEsc(nm)}</span><span class="now">${n} ${n === 1 ? "وجبة" : "وجبات"}</span></li>`).join("")
+        + `<li><i class="dot net"></i><span class="nm"><b>المجموع</b></span><span class="now"><b>${list.length} ${list.length === 1 ? "وجبة" : "وجبات"}</b></span></li>`;
+    }
+    $("staff-copy").addEventListener("click", async () => {
+      const by = {};
+      staffList.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).forEach((r) => { (by[staffAcct(r).name] = by[staffAcct(r).name] || []).push(r); });
+      const out = [`كشف حساب الموظفين — ${range.label} (${shortDate(range.from)} – ${shortDate(range.to)})`];
+      Object.entries(by).forEach(([nm, rs]) => {
+        out.push("", `${nm}: ${olvFormatMoney(rs.reduce((x, r) => x + staffAcct(r).amount, 0))}`);
+        rs.forEach((r) => out.push(`  ${shortDate(r.entry_date)} — ${itemsText(r)} — ${olvFormatMoney(staffAcct(r).amount)}`));
+      });
+      try { await navigator.clipboard.writeText(out.join("\n")); olvToast("انسخ الكشف، الصقه بالواتساب", { icon: "check" }); }
+      catch (e) { olvToast("ما قدرت أنسخ", { icon: "x" }); }
+    });
 
     // ---------------------------------------------------------------
     // الرسم: يوم واحد ← ساعة بساعة، أكتر ← يوم بيوم (أعمدة، لأن القيم منفصلة)
@@ -768,7 +856,7 @@
       const [sales, inv, loose] = await Promise.all([
         db.from("sales_entries").select("entry_date, cash_amount, card_amount, delivery_amount, status")
           .gte("entry_date", y).lte("entry_date", t).limit(5000),
-        db.from("purchase_invoices").select("invoice_date, total_amount, status")
+        db.from("purchase_invoices").select("invoice_date, total_amount, paid_amount, payment_type, status")
           .gte("invoice_date", y).lte("invoice_date", t).limit(2000),
         db.from("purchases").select("purchase_date, total_amount").is("invoice_id", null)
           .gte("purchase_date", y).lte("purchase_date", t).limit(5000),
@@ -777,13 +865,18 @@
       if (sales.error) { $("cmp").hidden = true; return; }
       const sum = (list, dk, day, val) => (list || []).filter((r) => r[dk] === day).reduce((a, r) => a + val(r), 0);
       const buyOk = !inv.error && !loose.error;
-      const buy = (day) => sum((inv.data || []).filter((r) => r.status !== "voided"), "invoice_date", day, (r) => Number(r.total_amount))
+      // الآجل (ذمة) مش مدفوع لسا، فما بنخصمه من المبيعات: المشتريات هون = المدفوع بس، والآجل بسطر لحاله
+      const okInv = (inv.data || []).filter((r) => r.status !== "voided");
+      const owedOf = (r) => r.payment_type === "credit" ? Number(r.total_amount) : Math.max(Number(r.total_amount) - Number(r.paid_amount || 0), 0);
+      const buy = (day) => sum(okInv, "invoice_date", day, (r) => Number(r.total_amount) - owedOf(r))
         + sum(loose.data, "purchase_date", day, (r) => Number(r.total_amount));
+      const owe = (day) => sum(okInv, "invoice_date", day, owedOf);
       const done = (sales.data || []).filter((r) => r.status !== "voided");
       cmpData = {
         t, y, buyOk,
         sales: { now: sum(done, "entry_date", t, saleTotal), was: sum(done, "entry_date", y, saleTotal) },
         buy: buyOk ? { now: buy(t), was: buy(y) } : null,
+        owe: buyOk ? { now: owe(t), was: owe(y) } : null,
       };
       renderCmp();
     }
@@ -813,10 +906,12 @@
         ${d.buy ? `
         <li><i class="dot buy"></i><span class="nm">المشتريات</span><span class="now">${m(d.buy.now)}</span>
           <div class="was"><span>أمس ${m(d.buy.was)}</span>${chgBuy(d.buy.now, d.buy.was)}</div></li>
-        <li><i class="dot net"></i><span class="nm">الفرق (مبيعات − مشتريات)</span><span class="now">${m(net.now)}</span>
-          <div class="was"><span>أمس ${m(net.was)}</span>${chg(net.now, net.was, ["أحسن", "أسوأ"])}</div></li>` : ""}`;
+        <li><i class="dot net"></i><span class="nm">الفرق (مبيعات − مشتريات مدفوعة)</span><span class="now">${m(net.now)}</span>
+          <div class="was"><span>أمس ${m(net.was)}</span>${chg(net.now, net.was, ["أحسن", "أسوأ"])}</div></li>
+        ${d.owe && (d.owe.now || d.owe.was) ? `<li><i class="dot buy"></i><span class="nm">فواتير آجلة (ذمم موردين) — ما انخصمت</span><span class="now">${m(d.owe.now)}</span>
+          <div class="was"><span>أمس ${m(d.owe.was)}</span></div></li>` : ""}` : ""}`;
       $("cmp-note").textContent = d.buy
-        ? "المشتريات = فواتير الموردين + المشتريات المسجّلة لحالها، كلها بتاريخها. اليوم لسا ما خلص، فالمقارنة بتتغير مع الوقت."
+        ? "المشتريات = المدفوع من فواتير الموردين + المشتريات المسجّلة لحالها. الجزء الآجل (ذمة) بيظهر بسطر لحاله ولا بينخصم من المبيعات. اليوم لسا ما خلص، فالمقارنة بتتغير مع الوقت."
         : "ما قدرنا نجيب المشتريات هلأ، فهون المبيعات بس.";
 
       // الرسم: مجموعتين (مبيعات، مشتريات)، بكل وحدة عمود أمس وعمود اليوم.
@@ -906,6 +1001,9 @@
     }
     function matches(r) {
       if (filter === "voided" && r.status !== "voided") return false;
+      if (filter === "staff") { if (r.status === "voided" || !staffAcct(r)) return false; }
+      else if (filter === "meal") { if (r.status === "voided" || !isMeal(r)) return false; }
+      else if (filter === "all" && (staffAcct(r) || isMeal(r)) && !query) return false; // طلبات الموظفين مخفية من القائمة العامة (إلها قسمها وحبّتها)
       if (["cash", "card", "delivery"].includes(filter) && (r.status === "voided" || Number(r[filter + "_amount"]) <= 0)) return false;
       if (!query) return true;
       const q = query.replace(/^#/, "");
@@ -946,7 +1044,7 @@
         <button class="order-row" type="button" aria-expanded="${openId === r.id}" aria-controls="od-${r.id}">
           <span class="tm">${timeOf(r)} <small style="font-weight:500; color:var(--muted); font-size:11px;">${ampm(r)}</small>${r.doc_no || r.order_no ? `<span class="no">${r.doc_no ? olvEsc(olvDocNo("sale", r.doc_no)) : ""}${r.doc_no && r.order_no ? " · " : ""}${r.order_no ? "#" + olvEsc(r.order_no) : ""}</span>` : ""}</span>
           <span class="it"><span class="it-names" title="${olvEsc(itemsText(r))}">${olvEsc(itemsText(r))}</span>${meta.length ? `<span class="it-meta">${meta.join("")}</span>` : ""}</span>
-          <span class="am"><b>${olvFormatMoney(saleTotal(r))}</b>${payHtml}</span>
+          <span class="am">${isMeal(r) ? `<b>وجبة موظف</b><span class="pm">${olvEsc(r.customer_name || "")}</span>` : staffAcct(r) ? `<b>${olvFormatMoney(staffAcct(r).amount)}</b><span class="pm">${olvEsc(staffAcct(r).name)}</span>` : `<b>${olvFormatMoney(saleTotal(r))}</b>${payHtml}`}</span>
           ${olvIcon("chevronDown", "chev")}
         </button>
         <div class="order-detail" id="od-${r.id}" ${openId === r.id ? "" : "hidden"}>${openId === r.id ? detailHtml(r) : ""}</div>
@@ -956,9 +1054,11 @@
     function renderOrders(reset) {
       if (reset) shown = LIST_STEP;
       // عدّادات حبوب التصفية
-      const cnt = { cash: 0, card: 0, delivery: 0, voided: 0 };
+      const cnt = { cash: 0, card: 0, delivery: 0, voided: 0, staff: 0, meal: 0 };
       rows.forEach((r) => {
         if (r.status === "voided") { cnt.voided++; return; }
+        if (staffAcct(r)) { cnt.staff++; return; }
+        if (isMeal(r)) { cnt.meal++; return; }
         ["cash", "card", "delivery"].forEach((k) => { if (Number(r[k + "_amount"]) > 0) cnt[k]++; });
       });
       document.querySelectorAll("#filter-chips [data-n]").forEach((el) => { el.textContent = cnt[el.dataset.n] || ""; });
@@ -976,7 +1076,7 @@
       const dayTotals = {};
       list.forEach((r) => {
         const d = dayTotals[r.entry_date] = dayTotals[r.entry_date] || { sum: 0, n: 0 };
-        if (r.status !== "voided") { d.sum += saleTotal(r); d.n++; }
+        if (r.status !== "voided" && !((staffAcct(r) || isMeal(r)) && filter !== "staff" && filter !== "meal")) { d.sum += saleTotal(r); d.n++; }
       });
       const sorted = list.slice().sort((a, b) => (a.entry_date === b.entry_date
         ? String(b.created_at).localeCompare(String(a.created_at)) : b.entry_date.localeCompare(a.entry_date)));
@@ -997,6 +1097,87 @@
       $("list-more-btn").textContent = `عرض المزيد (${sorted.length - shown} باقي)`;
       if (openId) { const r = rows.find((x) => x.id === openId); if (r) wireDetail(r); }
     }
+
+
+    // ---------------------------------------------------------------
+    // بحث الفواتير السابقة: بيعرض بس الفواتير المطابقة (مهما كان يومها)
+    // ---------------------------------------------------------------
+    const find = { active: false, q: "", from: "", to: "", min: "", max: "", pay: "", type: "" };
+    const fbox = $("finder");
+    const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return Number.isFinite(n) ? n : null; };
+    const hasCriteria = () => Object.entries(find).some(([k, v]) => k !== "active" && v !== "");
+    function findMatch(r) {
+      const t = saleTotal(r);
+      if (find.from && r.entry_date < find.from) return false;
+      if (find.to && r.entry_date > find.to) return false;
+      const mn = num(find.min), mx = num(find.max);
+      if (mn !== null && t < mn - 0.004) return false;
+      if (mx !== null && t > mx + 0.004) return false;
+      if (find.pay && !(Number(r[find.pay + "_amount"]) > 0)) return false;
+      if (find.type && r.order_type !== find.type) return false;
+      if (find.q) {
+        const q = find.q.replace(/^#/, "").toLowerCase();
+        const n = num(q);
+        const byNo = /^\d+$/.test(q) && String(r.order_no || "") === q;
+        const dq = q.replace(/^ب-?/, "");
+        const byDoc = r.doc_no && /^\d+$/.test(dq) && Number(dq) === Number(r.doc_no);
+        const byAmt = n !== null && Math.abs(t - n) < 0.005;
+        const byText = [itemsText(r), r.customer_name, r.table_number, r.customer_phone, r.notes].some((v) => v && String(v).toLowerCase().includes(q));
+        if (!(byNo || byDoc || byAmt || byText)) return false;
+      }
+      return true;
+    }
+    let findSeq = 0;
+    async function runFind() {
+      if (!hasCriteria()) return exitFind();
+      const seq = ++findSeq;
+      find.active = true;
+      document.body.classList.add("finding");
+      let qy = window.supabaseClient.from("sales_entries").select("*, sale_items(*)").order("created_at", { ascending: false }).limit(5000);
+      if (find.from) qy = qy.gte("entry_date", find.from);
+      if (find.to) qy = qy.lte("entry_date", find.to);
+      const res = await qy;
+      if (seq !== findSeq) return;
+      if (res.error) return olvShowError(errBox, res.error);
+      rows = (res.data || []).filter(findMatch);
+      range = { from: "", to: "~", label: "نتائج البحث" };
+      filter = "all"; setPressed("filter-chips", "filter", "all");
+      const ok = rows.filter((r) => r.status !== "voided");
+      $("find-bar").hidden = false;
+      $("find-sum").innerHTML = `<b>${rows.length}</b> فاتورة مطابقة · مجموعها <b>${olvFormatMoney(ok.reduce((a, r) => a + saleTotal(r), 0))}</b>`;
+      $("s-sub").textContent = "نتائج البحث بكل الأيام";
+      $("share-day").hidden = true;
+      renderOrders(true);
+    }
+    function exitFind() {
+      findSeq++;
+      Object.keys(find).forEach((k) => { find[k] = k === "active" ? false : ""; });
+      document.body.classList.remove("finding");
+      $("find-bar").hidden = true;
+      fbox.querySelectorAll("input,select").forEach((el) => { el.value = ""; });
+      load();
+    }
+    $("find-close").addEventListener("click", exitFind);
+    const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+      // لوحة فلاتر كاملة (تاريخ، مبلغ، دفع، نوع، نص)
+      fbox.innerHTML = `<button class="btn small" type="button" id="f-toggle" aria-expanded="false" style="align-self:flex-start; min-height:44px; display:inline-flex; gap:7px; align-items:center;">${olvIcon("search")}<span>بحث متقدم بالفواتير</span></button>
+        <div class="f-panel" id="f-panel" hidden>
+          <div class="field"><label>من تاريخ</label><input type="date" id="f-from"></div>
+          <div class="field"><label>إلى تاريخ</label><input type="date" id="f-to"></div>
+          <div class="field"><label>المبلغ من</label><input type="number" id="f-min" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>المبلغ إلى</label><input type="number" id="f-max" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>طريقة الدفع</label><select id="f-pay"><option value="">الكل</option><option value="cash">كاش</option><option value="card">شبكة</option><option value="delivery">توصيل</option></select></div>
+          <div class="field"><label>نوع الطلب</label><select id="f-type"><option value="">الكل</option><option value="صالة">صالة</option><option value="سفري">سفري</option><option value="توصيل">توصيل</option></select></div>
+          <div class="field wide"><label>رقم الفاتورة، صنف، زبون، طاولة</label><input type="search" id="f-q" autocomplete="off"></div>
+          <div class="f-actions"><button class="btn gold" type="button" id="f-go">ابحث</button><button class="btn" type="button" id="f-clear">مسح</button></div>
+        </div>`;
+      $("f-toggle").addEventListener("click", () => { const h = $("f-panel").hidden; $("f-panel").hidden = !h; $("f-toggle").setAttribute("aria-expanded", String(h)); });
+      $("f-go").addEventListener("click", () => {
+        Object.assign(find, { from: $("f-from").value, to: $("f-to").value, min: $("f-min").value, max: $("f-max").value, pay: $("f-pay").value, type: $("f-type").value, q: $("f-q").value.trim() });
+        runFind();
+      });
+      $("f-clear").addEventListener("click", exitFind);
 
     // ---------------------------------------------------------------
     // تفاصيل الطلب: الأصناف + إلغاء صنف، معلومات الدفع، إعادات الطباعة، الأزرار

@@ -3,7 +3,7 @@
 //   stats   { days }        ← مبيعات كل صنف بالفترة (كمية، إيراد، آخر بيعة) — بدون ذكاء، بس تجميع بصلاحية السيرفر
 //   review  {}              ← Gemini بيقرأ البطاقات وبيدوّر على أخطاء محتملة (اسم، سعر غريب، ترجمة ناقصة...) ويقترح تصليح
 //   insights { stats }      ← Gemini بيكتب ملاحظات قصيرة من أرقام التقرير
-//   image   { product_id }  ← بيولّد صورة للصنف (موديل صور Gemini، وإذا ما زبط Cloudflare Workers AI المجاني) وبيرفعها على تخزين Supabase (item-images) ويرجّع الرابط
+//   image   { product_id, provider? }  ← provider: google | cloudflare (اختيار صريح) وإلا تلقائي: بيولّد صورة للصنف (موديل صور Gemini، وإذا ما زبط Cloudflare Workers AI المجاني) وبيرفعها على تخزين Supabase (item-images) ويرجّع الرابط
 // ما بينحفظ شي بالبطاقات هون: الصفحة بتعرض الاقتراح وصاحب المطعم بيعتمده.
 // نفس مفتاح باقي دوال الذكاء: GEMINI_API_KEY (واختياري GEMINI_MODEL، و GEMINI_IMAGE_MODEL للصور).
 // بديل الصور المجاني: CF_ACCOUNT_ID + CF_AI_TOKEN (توكن Cloudflare بصلاحية Workers AI) — إذا مش مضبوطين بنضل على جوجل بس.
@@ -338,25 +338,34 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f-]{36}$/i.test(id)) return json({ ok: false, error: "صنف غير صالح" }, 400);
       const { data: p, error: pe } = await admin.from("products").select("id, external_id, name, name_en, description, category").eq("id", id).single();
       if (pe || !p) return json({ ok: false, error: "الصنف مش موجود" }, 404);
-      const prompt = `Professional appetizing food/drink photo for a cafe menu in Jordan. Item: "${clean(p.name_en) || clean(p.name)}" (Arabic name: ${clean(p.name)}; category: ${clean(p.category, 40)}${p.description ? "; description: " + clean(p.description, 160) : ""}).
+      // موديلات الصور بتفهم إنجليزي أحسن بكتير: الذكاء بيترجم الاسم العربي لوصف بصري إنجليزي قصير (شو بالكاسة/الصحن بالضبط)، وإذا فشل منكمل بالاسم.
+      let visual = "";
+      const dg = await callGemini(GEMINI_KEY, [{ text: `Describe in ONE English sentence (max 35 words) exactly what this cafe menu item looks like when served, so an image generator can draw it correctly: the container (glass/cup/plate), the main ingredients and toppings that must be visible, colors. Item (Arabic): "${clean(p.name)}"; English name: "${clean(p.name_en) || "none"}"; category: "${clean(p.category, 40)}"${p.description ? `; description: "${clean(p.description, 160)}"` : ""}. Remember brand words: أوريو = Oreo cookies, نوتيلا = Nutella, لوتس = Lotus Biscoff, كيت كات = KitKat. Output only the sentence.` }],
+        { temperature: 0.2 }, { tag: "item-cards-image-desc", totalMs: 20_000, perCallMs: 15_000 });
+      if (dg.ok) visual = clean(dg.text, 300);
+      const prompt = `Professional appetizing food/drink photo for a cafe menu in Jordan. Item: "${clean(p.name_en) || clean(p.name)}"${visual ? `. What it looks like: ${visual}` : ` (Arabic name: ${clean(p.name)}; category: ${clean(p.category, 40)}${p.description ? "; description: " + clean(p.description, 160) : ""})`}.
 Show exactly this item as it is usually served, single serving, centered, 45-degree angle, soft natural light, warm cream/neutral background, shallow depth of field, realistic, square 1:1.
 No text, no letters, no logos, no watermark, no hands.`;
       // جوجل أول، وإذا ما زبطت (حد، فوترة، تأخير) منجرّب Cloudflare المجاني
       // الأسرار بتنلصق أحيانًا من الموبايل مع أسطر/مسافات/نقاط زيادة: رقم الحساب أحرف hex بس، والتوكن بلا فراغات
       const cfAccount = (Deno.env.get("CF_ACCOUNT_ID") || "").replace(/[^0-9a-f]/gi, ""), cfToken = (Deno.env.get("CF_AI_TOKEN") || "").replace(/\s+/g, "");
+      // اختيار صريح من المستخدم: "google" أو "cloudflare" (بدون بديل تلقائي، حتى يعرف شو اللي اشتغل). بدون اختيار: جوجل أول ثم Cloudflare.
+      const provider = body.provider === "google" || body.provider === "cloudflare" ? body.provider : "auto";
       const errs: string[] = [];
       let img: Img | string | null = null;
-      if (Date.now() >= geminiImageOffUntil) {
+      if (provider === "google" || (provider === "auto" && Date.now() >= geminiImageOffUntil)) {
         img = await geminiImage(GEMINI_KEY, prompt);
         if (typeof img === "string") { errs.push(img); img = null; }
       }
-      if (!img && cfAccount && cfToken) {
-        img = await cloudflareImage(cfAccount, cfToken, prompt);
-        if (typeof img === "string") { errs.push(img); img = null; }
+      if (!img && (provider === "cloudflare" || provider === "auto")) {
+        if (cfAccount && cfToken) {
+          img = await cloudflareImage(cfAccount, cfToken, prompt);
+          if (typeof img === "string") { errs.push(img); img = null; }
+        } else if (provider === "cloudflare") errs.push("Cloudflare لسا مش مضبوط (CF_ACCOUNT_ID و CF_AI_TOKEN)");
       }
       if (!img) {
         if (!errs.length) errs.push("جوجل موقّفة مؤقتًا عن الصور");
-        if (!cfAccount || !cfToken) errs.push("وبديل Cloudflare المجاني لسا مش مضبوط");
+        if (provider === "auto" && (!cfAccount || !cfToken)) errs.push("وبديل Cloudflare المجاني لسا مش مضبوط");
         return json({ ok: false, error: "ما زبط توليد الصورة: " + errs.join(" — ") }, 502);
       }
       const { bytes, mime, source } = img;

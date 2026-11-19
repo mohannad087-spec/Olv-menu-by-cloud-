@@ -262,7 +262,7 @@
 
   .pm-tiles{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:20px;}
   @media (max-width:520px){ .pm-tiles{grid-template-columns:repeat(3,1fr);} }
-  /* «على حساب موظف»: ذمة بتنخصم من الراتب، بسعر التكلفة */
+  /* «على حساب موظف»: ذمة بتنخصم من الراتب، بسعر المنيو ناقص 15% */
   .staff-panel{display:flex; flex-direction:column; gap:12px;}
   .staff-panel label{font-size:12.5px; color:var(--muted); display:block; margin-bottom:5px;}
   .staff-panel select, .staff-panel input{width:100%; min-height:50px; font-size:17px; padding:8px 12px; border-radius:14px; border:1.5px solid var(--hair); background:var(--ink-3); color:var(--paper); font-family:inherit; box-sizing:border-box;}
@@ -317,6 +317,20 @@
   .change-row .value{font-family:'Tajawal',sans-serif; font-weight:800; font-size:24px; font-weight:700; color:var(--ok);}
   .change-row.insufficient .value{color:var(--danger-hi);}
 
+  /* وجبة الموظف: اختيار الموظف (اللي بصم) + ساندويش + مشروب، بدون سعر ودفع */
+  .sm-modal{max-width:560px;}
+  .sm-sec{margin:14px 0 6px; font-size:13px; font-weight:700; color:var(--muted);}
+  .sm-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px;}
+  .sm-chip{
+    min-height:48px; padding:8px 10px; border-radius:14px; border:1px solid var(--hair); background:var(--ink-3);
+    color:var(--paper); font-size:14.5px; font-weight:600; text-align:center; line-height:1.3;
+  }
+  .sm-chip small{display:block; font-size:11.5px; font-weight:500; color:var(--muted); margin-top:2px;}
+  .sm-chip.on{border-color:var(--gold); background:rgba(var(--gold-rgb),.14); color:var(--gold-hi);}
+  .sm-chip.done{opacity:.6;}
+  .sm-chip:active{transform:scale(.96);}
+  .sm-empty{color:var(--muted); font-size:13.5px; padding:8px 0;}
+  .sm-note{margin-top:12px; padding:10px 12px; border-radius:12px; background:rgba(193,88,63,.1); border:1px solid rgba(193,88,63,.35); color:var(--danger-hi); font-size:13.5px;}
   .checkout-confirm{width:100%; min-height:52px; font-size:16px;}
   /* عرض الشاشة: عمودين (الملخص + طرق الدفع | لوحة المبلغ) بدل عمود طويل */
   @media (min-width:700px){
@@ -823,6 +837,7 @@
             <span class="search-icon" id="search-icon"></span>
             <input type="search" id="product-search" aria-label="ابحث عن صنف" placeholder="ابحث عن صنف..." enterkeyhint="done" autocomplete="off">
           </div>
+          <button type="button" class="btn small" id="staff-meal-btn"></button>
           <button type="button" class="btn small" id="reprint-open-btn"></button>
           <button type="button" class="btn small" id="focus-toggle-btn"></button>
         </div>
@@ -939,6 +954,95 @@
     document.getElementById("discount-toggle-btn").innerHTML = olvIcon("tag") + "<span>إضافة خصم</span>";
     document.getElementById("reprint-open-btn").innerHTML = olvIcon("printer") + '<span class="btn-label">إعادة طباعة</span>';
     document.getElementById("reprint-open-btn").addEventListener("click", () => olvOpenReprintList());
+
+    // ---------------------------------------------------------------
+    // وجبة موظف: الكاشير بيختار موظف بصم اليوم + ساندويش + مشروب من القوائم المسموحة (الإعدادات).
+    // بدون سعر ولا دفع؛ بتنطبع للمطبخ/البار بدون فاتورة. وجبة وحدة باليوم، وبعدها بموافقة مدير.
+    // ---------------------------------------------------------------
+    document.getElementById("staff-meal-btn").innerHTML = olvIcon("dish") + '<span class="btn-label">وجبة موظف</span>';
+    document.getElementById("staff-meal-btn").addEventListener("click", () => openStaffMeal());
+    async function openStaffMeal() {
+      if (!navigator.onLine) { showToast("وجبة الموظف بتحتاج اتصال بالإنترنت", "var(--danger)", "warning"); return; }
+      const db = window.supabaseClient;
+      const fmtT = (iso) => new Date(iso).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
+      const backdrop = document.createElement("div");
+      backdrop.className = "checkout-backdrop";
+      backdrop.innerHTML = `<div class="checkout-modal sm-modal" role="dialog" aria-modal="true" aria-label="وجبة موظف">
+        <div class="checkout-head"><h2>وجبة موظف</h2><button type="button" class="checkout-close" aria-label="إغلاق">${olvIcon("x")}</button></div>
+        <div id="sm-body"><p class="sm-empty">جاري التحميل...</p></div></div>`;
+      document.body.appendChild(backdrop);
+      requestAnimationFrame(() => backdrop.classList.add("in"));
+      let busy = false;
+      const close = () => { if (busy) return; backdrop.classList.remove("in"); setTimeout(() => backdrop.remove(), 170); };
+      backdrop.querySelector(".checkout-close").addEventListener("click", close);
+      backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+      const body = backdrop.querySelector("#sm-body");
+      try {
+        const [c, st] = await Promise.all([
+          db.rpc("staff_meal_candidates"),
+          db.from("app_settings").select("key, value").in("key", ["staff_meal_sandwiches", "staff_meal_drinks"]),
+        ]);
+        if (c.error) throw c.error;
+        const cfg = {};
+        (st.data || []).forEach((r) => { cfg[r.key] = String(r.value || "").split(",").filter(Boolean); });
+        const byId = new Map(products.map((p) => [p.id, p]));
+        const pick = (key) => (cfg[key] || []).map((id) => byId.get(id)).filter(Boolean);
+        const sandwiches = pick("staff_meal_sandwiches"), drinks = pick("staff_meal_drinks");
+        const emps = c.data || [];
+        if (!sandwiches.length || !drinks.length) {
+          body.innerHTML = `<p class="sm-empty">قوائم وجبة الموظفين لسا مش محددة. المدير بيحددها من صفحة «وجبات الموظفين».</p>`
+            + (window.olvRole && window.olvRole !== "staff" ? `<a class="btn gold checkout-confirm" href="staff-meals.html#items" style="display:flex;align-items:center;justify-content:center;margin-top:10px;">حدّد الأصناف هلأ</a>` : "");
+          return;
+        }
+        let emp = null, sw = null, dr = null, needOverride = false, note = "";
+        const ref = (crypto.randomUUID && crypto.randomUUID()) || null;
+        const chips = (list, sel, attr, extra) => list.map((x) =>
+          `<button type="button" class="sm-chip${sel === x.id ? " on" : ""}${extra ? extra(x) : ""}" data-${attr}="${x.id}">${olvEsc(x.name || x.full_name)}${x.meal_at ? `<small>استلم ${fmtT(x.meal_at)}</small>` : ""}</button>`).join("");
+        function render() {
+          body.innerHTML = `
+            <div class="sm-sec">الموظف (اللي بصم اليوم)</div>
+            ${emps.length ? `<div class="sm-grid">${chips(emps, emp, "emp", (x) => (x.meal_at ? " done" : ""))}</div>` : `<p class="sm-empty">ما حدا بصم اليوم لسا</p>`}
+            <div class="sm-sec">الساندويش</div><div class="sm-grid">${chips(sandwiches, sw, "sw")}</div>
+            <div class="sm-sec">المشروب</div><div class="sm-grid">${chips(drinks, dr, "dr")}</div>
+            ${note ? `<div class="sm-note">${olvEsc(note)}</div>` : ""}
+            <button type="button" class="btn gold checkout-confirm" id="sm-go" style="margin-top:16px;" ${emp && sw && dr ? "" : "disabled"}>${needOverride ? "وجبة ثانية بموافقة المدير" : "تسجيل الوجبة"}</button>`;
+          body.querySelectorAll("[data-emp]").forEach((b) => b.addEventListener("click", () => { emp = b.dataset.emp; needOverride = false; note = ""; render(); }));
+          body.querySelectorAll("[data-sw]").forEach((b) => b.addEventListener("click", () => { sw = b.dataset.sw; render(); }));
+          body.querySelectorAll("[data-dr]").forEach((b) => b.addEventListener("click", () => { dr = b.dataset.dr; render(); }));
+          body.querySelector("#sm-go").addEventListener("click", submit);
+        }
+        async function submit() {
+          const go = body.querySelector("#sm-go");
+          go.disabled = true; busy = true;
+          try {
+            if (needOverride && window.olvRole === "staff") {
+              const pin = await olvAskManagerPin("discount");
+              if (!pin) { busy = false; render(); return; }
+              const { data: ok, error: ae } = await db.rpc("request_approval", { p_pin: pin, p_kind: "discount" });
+              if (ae) throw ae;
+              if (!ok) throw new Error("رمز المدير غلط");
+            }
+            const { data, error } = await db.rpc("record_staff_meal", { p_profile_id: emp, p_sandwich_id: sw, p_drink_id: dr, p_client_ref: ref, p_override: needOverride });
+            if (error) throw error;
+            const who = emps.find((x) => x.id === emp);
+            if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+            busy = false; close();
+            showToast(`تم تسجيل وجبة ${who ? who.full_name : ""}${data && data.order_no ? " — طلب " + data.order_no : ""}`, "var(--ok)", "check");
+          } catch (err) {
+            busy = false;
+            const m = String((err && err.message) || "");
+            if (/استلم وجبته/.test(m)) { needOverride = true; note = m + " — وجبة ثانية بتحتاج موافقة المدير."; }
+            else if (/record_staff_meal|staff_meal_candidates/.test(m) && /function|schema cache/i.test(m)) note = "وجبة الموظفين لسا ما تفعّلت بقاعدة البيانات";
+            else note = olvIsNetworkError(err) ? "تعذّر الاتصال بالإنترنت — الوجبة ما انسجّلت" : m || "صار خطأ";
+            if (typeof OlvSound !== "undefined") OlvSound.playError();
+            render();
+          }
+        }
+        render();
+      } catch (err) {
+        body.innerHTML = `<div class="sm-note">${olvEsc((err && err.message) || "تعذّر التحميل")}</div>`;
+      }
+    }
     document.getElementById("discount-remove-btn").innerHTML = olvIcon("x");
 
     // يحسب ارتفاع الشريط العلوي فعليًا (يتغيّر حسب حجم الشاشة) ويخزّنه
@@ -1160,6 +1264,8 @@
         return { label, value: label };
       }).sort((a, b) => a.label.localeCompare(b.label, "ar"));
     }
+    // نكهات الأكل (بطاقة المادة → products.flavors مفصولة بـ |): اختيار واحد إجباري
+    const prodFlavors = (p) => (p && p.flavors ? String(p.flavors).split("|").map((x) => x.trim()).filter(Boolean) : []);
     const isHookah = (cat) => /[أا]رجيل/.test(cat || "");
     // الإضافات لازم تنطبق على المنطق: الجبنة مثلًا بس للأكل المالح (مش للمشروبات ولا الحلويات)
     const SAVORY_CAT = /برغر|ساندويش|سناك|بيتزا|معجنات|باستا|عروض/;
@@ -1174,18 +1280,25 @@
     };
     const mealOk = (item) => !isHookah(itemCat(item)) && OlvMeal.eligible(products.find((x) => x.id === item.productId));
     const mealKindOf = (item) => (["double", "meal"].find((k) => { const a = mealAddonFor(item, k); return a && item.addons.some((x) => x.id === a.id); })) || "";
-    // الحجم الكبير: إضافة «كبير» خاصة بالصنف (بتتولّد من المنيو، سعرها = فرق السعر)؛ الصغير = بدونها
-    const sizeAddonFor = (item) => {
+    // الأحجام: إضافة «وسط» وإضافة «كبير» خاصة بالصنف (بتتولّد من المنيو/البطاقة، سعرها = فرق السعر عن الصغير)؛ الصغير = بدونهم.
+    // الوسط والكبير بيستبعدوا بعض (حجم واحد فقط بالسطر)
+    const SIZE_FIELDS = { medium: "medium_addon_id", large: "large_addon_id" };
+    const sizeAddonFor = (item, kind = "large") => {
       const p = products.find((x) => x.id === item.productId);
-      return p && p.large_addon_id ? addons.find((a) => a.id === p.large_addon_id) || null : null;
+      const id = p && p[SIZE_FIELDS[kind]];
+      return id ? addons.find((a) => a.id === id) || null : null;
     };
-    const isLargeItem = (item) => { const a = sizeAddonFor(item); return !!a && item.addons.some((x) => x.id === a.id); };
-    function setSizeKind(idx, large) {
+    const sizeKinds = (item) => ["medium", "large"].filter((k) => sizeAddonFor(item, k));
+    const sizeKindOf = (item) => sizeKinds(item).find((k) => item.addons.some((x) => x.id === sizeAddonFor(item, k).id)) || "";
+    // kind: "" (صغير) | "medium" | "large"
+    function setSizeKind(idx, kind) {
       const item = OlvCart.all()[idx];
-      const a = item && sizeAddonFor(item);
-      if (!a) return;
-      const rest = item.addons.filter((x) => x.id !== a.id);
-      OlvCart.updateAt(idx, { addons: large ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
+      if (!item) return;
+      const sizeIds = sizeKinds(item).map((k) => sizeAddonFor(item, k).id);
+      const a = kind ? sizeAddonFor(item, kind) : null;
+      if (kind && !a) return;
+      const rest = item.addons.filter((x) => !sizeIds.includes(x.id));
+      OlvCart.updateAt(idx, { addons: a ? [...rest, { id: a.id, name: a.name, price: Number(a.price) }] : rest });
       olvHaptic();
       renderCart();
     }
@@ -1552,7 +1665,7 @@
       if (!product) return;
       // لو في إضافات بالنظام: نضيف الصنف كسطر جديد ونفتح نافذة اختيار الإضافات فورًا
       // («إلغاء» بتخليه بدون إضافات، «حذف» بتشيله)
-      if (addons.some((a) => !a.is_meal && !a.is_size && addonFits(a, product.category)) || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length))) {
+      if (addons.some((a) => !a.is_meal && !a.is_size && addonFits(a, product.category)) || (isHookah(product.category) && (hookahStock.length || hookahFlavors.length)) || prodFlavors(product).length) {
         OlvCart.add(product, [], 1, "");
         olvHaptic();
         renderCart();
@@ -1590,7 +1703,8 @@
       const hookah = isHookah(itemCat(item));
       let flavor = (item.note || "").startsWith(flavorPrefix) ? (item.note.split(" - ")[0].slice(flavorPrefix.length)) : "";
       let note = flavor ? (item.note || "").split(" - ").slice(1).join(" - ") : (item.note || "");
-      const flavorList = hookah ? flavorsFor(item) : [];
+      const flavorList = hookah ? flavorsFor(item) : prodFlavors(products.find((x) => x.id === item.productId)).map((f) => ({ label: f, value: f }));
+      const flavorRequired = !hookah && flavorList.length > 0;
       const sheetAddons = hookah ? [] : addons.filter((a) => !a.is_meal && !a.is_size && addonFits(a, itemCat(item)));
       const selectedAddons = new Set(item.addons.map((a) => a.id));
 
@@ -1599,7 +1713,7 @@
           <div class="sheet-grabber" aria-hidden="true"></div>
           <h2 style="margin-bottom:10px;">${olvEsc(item.name)}</h2>
           <div class="hint" style="margin-bottom:10px;">${olvFormatMoney(OlvCart.unitPrice(item))}</div>
-          ${hookah && flavorList.length ? `
+          ${flavorList.length ? `
             <div class="flavor-grid" role="radiogroup" aria-label="النكهة">
               ${flavorList.map((f) => `<button type="button" class="flavor-chip${f.value === flavor ? " on" : ""}" data-flavor="${olvEsc(f.value)}">${olvEsc(f.label)}</button>`).join("")}
             </div>` : ""}
@@ -1642,13 +1756,14 @@
         });
         sheet.querySelector("#qty-minus").addEventListener("click", () => { qty = Math.max(1, qty - 1); note = sheet.querySelector("#item-note").value; render(); });
         sheet.querySelector("#qty-plus").addEventListener("click", () => { qty += 1; note = sheet.querySelector("#item-note").value; render(); });
-        sheet.querySelector("#sheet-cancel").addEventListener("click", close);
+        sheet.querySelector("#sheet-cancel").addEventListener("click", dismiss);
         sheet.querySelector("#sheet-delete").addEventListener("click", () => {
           OlvCart.removeAt(idx);
           renderCart();
           close();
         });
         sheet.querySelector("#sheet-save").addEventListener("click", () => {
+          if (flavorRequired && !flavor) { olvToast("اختار النكهة أول", { type: "gold", icon: "warning" }); return; }
           const chosenAddons = addons.filter((a) => selectedAddons.has(a.id));
           const typed = sheet.querySelector("#item-note").value.trim();
           const finalNote = [flavor ? flavorPrefix + flavor : "", typed].filter(Boolean).join(" - ");
@@ -1670,10 +1785,15 @@
         sheet.addEventListener("animationend", remove, { once: true });
         setTimeout(remove, 400);
       }
-      function onEsc(e) { if (e.key === "Escape") close(); }
+      // صنف بنكهة إجبارية: لو انسكرت النافذة بدون اختيار نكهة بينشال السطر
+      function dismiss() {
+        if (flavorRequired && !(OlvCart.all()[idx] && (OlvCart.all()[idx].note || "").startsWith(flavorPrefix))) { OlvCart.removeAt(idx); renderCart(); }
+        close();
+      }
+      function onEsc(e) { if (e.key === "Escape") dismiss(); }
       document.addEventListener("keydown", onEsc);
-      backdrop.addEventListener("click", close);
-      olvAttachSwipeDismiss(sheet, backdrop, close);
+      backdrop.addEventListener("click", dismiss);
+      olvAttachSwipeDismiss(sheet, backdrop, dismiss);
       render();
       document.body.appendChild(backdrop);
       document.body.appendChild(sheet);
@@ -1840,9 +1960,9 @@
                 ${item.addons.length ? `<div class="meta">+ ${item.addons.map((a) => olvEsc(a.name)).join("، ")}</div>` : ""}
                 ${item.note ? `<div class="meta">${olvIcon("note")} ${olvEsc(item.note)}</div>` : ""}
               </div>
-              ${sizeAddonFor(item) || iceOk(item) ? `
+              ${sizeKinds(item).length || iceOk(item) ? `
               <div class="cart-item-opts">
-                ${sizeAddonFor(item) ? `<button type="button" class="opt-chip${isLargeItem(item) ? " on" : ""}" data-size="${idx}:${isLargeItem(item) ? 0 : 1}" aria-pressed="${isLargeItem(item)}">كبير</button>` : ""}
+                ${sizeKinds(item).map((k) => `<button type="button" class="opt-chip${sizeKindOf(item) === k ? " on" : ""}" data-size="${idx}:${sizeKindOf(item) === k ? "" : k}" aria-pressed="${sizeKindOf(item) === k}">${k === "medium" ? "وسط" : "كبير"}</button>`).join("")}
                 ${iceOk(item) ? `<button type="button" class="opt-chip${hasIce(item) ? " on" : ""}" data-ice="${idx}:${hasIce(item) ? 0 : 1}" aria-pressed="${hasIce(item)}">ثلج</button>` : ""}
               </div>` : ""}
               <div class="cart-item-price">${olvFormatMoney(OlvCart.lineTotal(item))}</div>
@@ -1869,7 +1989,7 @@
           });
         });
         list.querySelectorAll("[data-size]").forEach((btn) => {
-          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k === "1"); });
+          btn.addEventListener("click", () => { const [i, k] = btn.dataset.size.split(":"); setSizeKind(Number(i), k); });
         });
         list.querySelectorAll("[data-ice]").forEach((btn) => {
           btn.addEventListener("click", () => { const [i, k] = btn.dataset.ice.split(":"); setIce(Number(i), k === "1"); });
@@ -1974,8 +2094,11 @@
       let method = "cash";
       let receivedCents = 0;
       let isSubmitting = false;
-      // «على حساب موظف»: الموظف + المبلغ المحمّل عليه (تكلفة الطلب، قابل للتعديل)
-      let staffList = null, staffId = "", staffAmount = "", staffCost = null, staffErr = "";
+      // «على حساب موظف»: الموظف + المبلغ المحمّل عليه = سعر المنيو ناقص 15% (قرار المالك 2026-11-13).
+      // قبل كان بسعر التكلفة، بس تكلفة أصناف كتير مش مسجّلة فكانت تنحسب قروش. المبلغ ثابت وما بيتعدّل بالإيد
+      const STAFF_DISCOUNT = 0.15;
+      let staffList = null, staffId = "", staffErr = "";
+      const staffAmount = (Math.round(exact * (1 - STAFF_DISCOUNT) * 100) / 100).toFixed(2);
       async function loadStaffInfo() {
         if (staffList) return;
         try {
@@ -1986,26 +2109,6 @@
           staffList = [];
           staffErr = /staff_names/.test(String(e && e.message)) ? "ميزة الحساب على الموظف لسا ما تفعّلت بقاعدة البيانات" : ((e && e.message) || "تعذّر تحميل الموظفين");
         }
-        // تكلفة الطلب: التكلفة اليدوية للصنف، وإلا من الوصفة (آخر سعر شراء). الأصناف بدون تكلفة معروفة بتنعد غير معروفة
-        const costOf = new Map();
-        try {
-          const ids = cartSnapshot.map((i) => i.productId);
-          const [ri, ing] = await Promise.all([
-            window.supabaseClient.from("product_ingredients").select("product_id, ingredient_id, quantity").in("product_id", ids),
-            window.supabaseClient.from("ingredients").select("id, unit_price"),
-          ]);
-          const price = new Map((ing.data || []).map((x) => [x.id, Number(x.unit_price || 0)]));
-          (ri.data || []).forEach((r) => costOf.set(r.product_id, (costOf.get(r.product_id) || 0) + Number(r.quantity) * (price.get(r.ingredient_id) || 0)));
-        } catch (_) { /* نكمل بالتكلفة اليدوية */ }
-        let known = 0; const unknown = [];
-        cartSnapshot.forEach((i) => {
-          const pr = products.find((x) => x.id === i.productId);
-          const man = pr ? Number(pr.cost_manual) : 0;
-          const c = man > 0 ? man : (costOf.get(i.productId) || 0);
-          if (c > 0) known += c * i.qty; else unknown.push(i.name);
-        });
-        staffCost = { known: Math.round(known * 100) / 100, unknown };
-        if (!staffAmount && known > 0) staffAmount = staffCost.known.toFixed(2);
       }
 
       const backdrop = document.createElement("div");
@@ -2063,10 +2166,10 @@
                 <select id="staff-sel"><option value="">${staffList ? "اختار الموظف…" : "بنحمّل…"}</option>${(staffList || []).map((u) => `<option value="${olvEsc(u.id)}"${u.id === staffId ? " selected" : ""}>${olvEsc(u.full_name)}</option>`).join("")}</select>
               </div>
               <div>
-                <label for="staff-amt">المبلغ عليه (سعر التكلفة)</label>
-                <input id="staff-amt" type="number" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(staffAmount)}" placeholder="0.00">
+                <label for="staff-amt">المبلغ عليه (سعر المنيو ناقص ${Math.round(STAFF_DISCOUNT * 100)}%)</label>
+                <input id="staff-amt" type="number" dir="ltr" value="${olvEsc(staffAmount)}" readonly aria-readonly="true">
               </div>
-              ${staffErr ? `<div class="staff-hint warn">${olvEsc(staffErr)}</div>` : staffCost && staffCost.unknown.length ? `<div class="staff-hint warn">تكلفة <b>${olvEsc(staffCost.unknown.join("، "))}</b> مش مسجّلة. المبلغ فوق بيشمل المعروف بس (${olvFormatMoney(staffCost.known)})، عدّله إذا لازم.</div>` : `<div class="staff-hint">بينسجّل ذمة على الموظف وبينخصم من راتبه، أو بيسدّد قبلها. ما بينزل بالدرج. بالصالة قد يحتاج رمز المدير.</div>`}
+              ${staffErr ? `<div class="staff-hint warn">${olvEsc(staffErr)}</div>` : `<div class="staff-hint">سعر المنيو ${olvFormatMoney(exact)} ناقص ${Math.round(STAFF_DISCOUNT * 100)}% خصم موظفين. بينسجّل ذمة على الموظف وبينخصم من راتبه، أو بيسدّد قبلها. ما بينزل بالدرج. بالصالة قد يحتاج رمز المدير.</div>`}
             </div>
           ` : ""}
           ${method === "cash" ? `
@@ -2104,7 +2207,6 @@
         });
         if (method === "staff") {
           modal.querySelector("#staff-sel").addEventListener("change", (e) => { staffId = e.target.value; modal.querySelector("#checkout-confirm").disabled = !(staffId && Number(staffAmount) > 0); });
-          modal.querySelector("#staff-amt").addEventListener("input", (e) => { staffAmount = e.target.value; modal.querySelector("#checkout-confirm").disabled = !(staffId && Number(staffAmount) > 0); });
         }
         if (method === "cash") {
           modal.querySelectorAll(".quick-amounts button").forEach((btn) => {
@@ -2145,11 +2247,20 @@
           if (method === "staff") {
             if (!navigator.onLine) throw new Error("الحساب على الموظف بيحتاج اتصال بالإنترنت. اختار كاش أو حاول لما يرجع النت");
             const who = (staffList || []).find((u) => u.id === staffId);
-            if (!who || !(Number(staffAmount) > 0)) throw new Error("اختار الموظف واكتب المبلغ");
+            if (!who || !(Number(staffAmount) > 0)) throw new Error("اختار الموظف");
             extraNotes = `على حساب الموظف ${who.full_name} — ${olvFormatMoney(Number(staffAmount))}`;
           }
           // خصم فوق حد الكاشير: السيرفر بيرفض، فبنسأل عن رمز المدير وبنعيد نفس البيع (client_ref بيمنع التكرار)
           const itemsNote = cartSnapshot.map((i) => `${i.qty}× ${i.name}`).join("، ");
+          if (method === "staff" && window.olvRole === "staff") {
+            // الكاشير بيبيع على حساب موظف بدون رمز المدير: موافقة تلقائية لبيعة وحدة (الذمة بتنسجّل على الموظف)
+            const { error: apErr } = await window.supabaseClient.rpc("staff_account_approval");
+            if (apErr) {
+              const m = String(apErr.message || "");
+              if (/staff_account_approval/.test(m) && /function|schema cache/i.test(m)) throw new Error("البيع على حساب الموظف بدون رمز لسا ما تفعّل بقاعدة البيانات");
+              throw apErr;
+            }
+          }
           staffSaleId = await olvWithApproval("discount", () => OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,

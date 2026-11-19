@@ -4,7 +4,7 @@ cd /d "%~dp0"
 echo Updating print bridge (and the shop server next to it) from the internet...
 set BASE=https://mohannad087-spec.github.io/Olv-menu-by-cloud-
 rem the file lists are checked against the repo by scripts/check.mjs: add any new src file here too
-for %%F in (escpos index printer supabase format ticket-builder ticket-core ticket-extra ticket-kitchen ticket-receipt offline) do (
+for %%F in (escpos index printer supabase format ticket-builder ticket-core ticket-extra ticket-kitchen ticket-receipt offline charcoal ticket-charcoal) do (
   powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%BASE%/print-bridge/src/%%F.js' -OutFile 'src\%%F.js.new'; Move-Item -Force 'src\%%F.js.new' 'src\%%F.js'; Write-Host 'OK  print-bridge %%F.js' } catch { Write-Host 'FAILED print-bridge %%F.js'; Write-Host $_.Exception.Message }"
 )
 if exist "..\local-server\src" (

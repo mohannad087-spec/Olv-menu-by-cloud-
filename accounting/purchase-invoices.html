@@ -65,6 +65,7 @@
   .pi-lines td{padding:5px 4px; vertical-align:top;}
   .pi-lines input,.pi-lines select{width:100%; box-sizing:border-box; padding:10px 8px; font-size:15px; background:var(--ink-2);
     border:1px solid var(--hair); border-radius:8px; color:var(--paper); font-family:'Tajawal',sans-serif;}
+  #pi-supplier.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
   .pi-lines input.bad{border-color:var(--danger); background:rgba(193,88,63,.12);}
   .pi-line-total{font-weight:700; white-space:nowrap; padding-top:12px; display:block;}
   .pi-warn{font-size:11.5px; color:var(--gold-hi); margin-top:3px; line-height:1.4;}
@@ -507,6 +508,7 @@
     let editingId = null;        // لو عم تعدّل فاتورة محفوظة: رقمها (بتنلغى القديمة وبتنحفظ الجديدة مكانها)
     let editingAttach = null;
     let isOwner = false;
+    let aliases = {};            // اسم الصنف بفواتير الموردين (بعد norm) ← kind:id، بيتعلّم لحاله
     let barcodes = new Map();    // الكود → { item_kind, item_id, unit_mode }
     const HISTORY_LIMIT = 60;
 
@@ -581,6 +583,11 @@
         ...(sup || []).map((i) => ({ ...i, kind: "supply" })),
       ];
       await refreshCatalogHints();
+      try {
+        const { data: al } = await window.supabaseClient.from("app_settings").select("value").eq("key", "invoice_item_aliases").maybeSingle();
+        const v = al && al.value; const o = typeof v === "string" ? JSON.parse(v) : v;
+        aliases = o && typeof o === "object" && !Array.isArray(o) ? o : {};
+      } catch (_) { aliases = aliases || {}; }
       // الباركودات (لو الجدول لسا مش موجود بالسيرفر منكمّل بدونها)
       const { data: bc } = await window.supabaseClient.from("item_barcodes").select("code, item_kind, item_id, unit_mode").then((r) => r, () => ({ data: null }));
       barcodes = new Map((bc || []).map((b) => [b.code, b]));
@@ -869,6 +876,7 @@
             ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
             <div data-stock>${stockNote(line, it)}</div>
             <div data-warn>${priceWarning(line, it)}</div>
+            ${it ? `<button type="button" class="pi-newbtn" data-act="editdlg">✏️ تعديل المادة</button>` : ""}
             ${bonusHtml(line, it)}
             ${discHtml(line)}
             ${taxHtml(line)}
@@ -1102,6 +1110,7 @@
         renderLines(); return;
       }
       if (btn.dataset.act === "newdlg") { await addNewItemForLine(line, btn); return; }
+      if (btn.dataset.act === "editdlg") { await editItemForLine(line); return; }
       if (btn.dataset.act === "new") {
         const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
         if (!name) return;
@@ -1171,6 +1180,59 @@
         });
         setTimeout(() => nameEl.focus(), 50);
       });
+    }
+    // نافذة «تعديل المادة» من داخل الفاتورة: الاسم + الوحدة + السعر + وحدة الشراء، بدون ما تطلع من الصفحة
+    function openEditItemDialog(it) {
+      return new Promise((resolve) => {
+        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس", "صندوق"];
+        if (it.unit && !UNITS.includes(it.unit)) UNITS.unshift(it.unit);
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">تعديل المادة</h3>
+          <div class="hint" style="margin-bottom:12px;">${it.kind === "supply" ? "مستلزم" : "مادة خام"} — التعديل بيتحفظ على المادة نفسها وبيضل سطر الفاتورة مربوط فيها.</div>
+          <div class="field"><label>اسم المادة</label><input type="text" id="ei-name" maxlength="120" value="${olvEsc(it.name)}"></div>
+          <div class="field"><label>وحدة المخزون</label>
+            <select id="ei-unit">${UNITS.map((u) => `<option value="${olvEsc(u)}"${u === it.unit ? " selected" : ""}>${olvEsc(u)}</option>`).join("")}</select>
+            <div class="hint">تغيير الوحدة ما بيحوّل الكمية الموجودة بالمخزون (${olvEsc(fmtQ(Number(it.current_stock) || 0))}).</div></div>
+          <div class="field"><label>سعر الوحدة (بوحدة المخزون)</label><input type="number" id="ei-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(it.unit_price || "")}" placeholder="اختياري"></div>
+          <div class="field"><label>وحدة الشراء (مثال: كرتونة) — اختياري</label><input type="text" id="ei-pu" maxlength="30" value="${olvEsc(it.purchase_unit || "")}" placeholder="فاضي = بدون"></div>
+          <div class="field"><label>كم وحدة مخزون بوحدة الشراء الواحدة؟</label><input type="number" id="ei-pf" min="0.001" step="any" dir="ltr" value="${olvEsc(it.purchase_unit_factor || "")}" placeholder="مثال: 12"></div>
+          <div class="pi-warn bad" id="ei-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="ei-save" style="flex:1;">حفظ التعديل</button>
+            <button type="button" class="btn" id="ei-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const err = box.querySelector("#ei-err");
+        box.querySelector("#ei-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        box.querySelector("#ei-save").addEventListener("click", () => {
+          const name = box.querySelector("#ei-name").value.trim().slice(0, 120);
+          if (!name) { err.textContent = "اكتب اسم المادة"; return; }
+          const pu = box.querySelector("#ei-pu").value.trim();
+          const pf = Number(box.querySelector("#ei-pf").value) || 0;
+          if (pu && !(pf > 0)) { err.textContent = "اكتب كم وحدة مخزون بالـ" + pu + " (رقم أكبر من صفر)"; return; }
+          const price = Number(box.querySelector("#ei-price").value) || 0;
+          done({ name, unit: box.querySelector("#ei-unit").value, unit_price: price > 0 ? price : null, purchase_unit: pu || null, purchase_unit_factor: pu ? pf : null });
+        });
+        setTimeout(() => box.querySelector("#ei-name").focus(), 50);
+      });
+    }
+    async function editItemForLine(line) {
+      const it = itemOf(line); if (!it) return;
+      const res = await openEditItemDialog(it);
+      if (!res) return;
+      const { error } = await window.supabaseClient.from(it.kind === "ingredient" ? "ingredients" : "supplies").update(res).eq("id", it.id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      await loadItems();
+      if (line.unitMode === "purchase" && !res.purchase_unit) line.unitMode = "stock";
+      renderLines();
+      if (window.olvToast) olvToast("تم تعديل المادة");
     }
     // يرجّع true إذا انربط السطر بمادة (جديدة أو موجودة بنفس الاسم)
     async function addNewItemForLine(line, btn) {
@@ -1452,6 +1514,19 @@
       document.getElementById("pi-paste-box").hidden = true;
     });
 
+    // بعد حفظ الفاتورة: كل سطر اسمه بالفاتورة غير اسم الصنف اللي انربط فيه، منتذكره ليربطه لحاله بالفواتير الجاية
+    async function learnAliases() {
+      try {
+        const add = {};
+        lines.forEach((l) => {
+          const it = itemOf(l); const src = norm(l.srcName);
+          if (it && src && src !== norm(it.name) && aliases[src] !== it.kind + ":" + it.id) add[src] = it.kind + ":" + it.id;
+        });
+        if (!Object.keys(add).length) return;
+        aliases = Object.assign({}, aliases, add);
+        await window.supabaseClient.from("app_settings").upsert({ key: "invoice_item_aliases", value: JSON.stringify(aliases) }, { onConflict: "key" });
+      } catch (_) { /* التعلّم إضافة، ما بنوقف الحفظ عليه */ }
+    }
     // يضيف أصناف محلّلة ({name, qty, price, unit?}) للجدول ويطابقها مع مواد المخزون؛
     // اللي ما انعرف بيتعلّم بالأحمر. مشترك بين اللصق وقراءة الذكاء الاصطناعي
     function addParsedLines(parsed) {
@@ -1459,6 +1534,8 @@
       lines = existing.concat(parsed.map((p) => {
         let it = findItem(p.name);
         let guess = false;
+        // اسم اتعلّمنا ربطه من فواتير قبل (مثلًا اسم الصنف عند مورّد ثاني): بنربطه بدون تخمين
+        if (!it && aliases[norm(p.name)]) it = items.find((i) => i.kind + ":" + i.id === aliases[norm(p.name)]) || null;
         if (!it) {
           // الأقرب: إذا في صنف واحد متقدم بوضوح على الباقي منربطه وبنعلّمه «تأكد»؛ إذا في تعادل (نكهات كتير) ما منخمّن
           const c = candidatesFor(p.name);
@@ -1467,7 +1544,7 @@
         // لو الوحدة بالفاتورة = وحدة الشراء المضبوطة للصنف (كرتونة)، السعر المقروء هو سعر الكرتونة
         const purchaseUnit = it && p.unit && it.purchase_unit && it.purchase_unit_factor && norm(p.unit) === norm(it.purchase_unit);
         return newLine({
-          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "",
+          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "", srcName: p.name,
           guessFrom: guess ? p.name : "",
           unitMode: purchaseUnit ? "purchase" : "stock",
           qty: p.qty === "" || p.qty == null ? "" : String(p.qty),
@@ -1785,8 +1862,10 @@
     }
 
     document.getElementById("pi-save").addEventListener("click", async () => {
-      const errBox = document.getElementById("err");
-      errBox.style.display = "none";
+      const errBox0 = document.getElementById("err");
+      errBox0.style.display = "none";
+      // زر الحفظ تحت بالصفحة وصندوق الخطأ فوق: كان الخطأ يطلع وما يشوفه أحد ("كبسة حفظ وما صار شي"). هلأ بنطلّع رسالة ظاهرة (توست) وبنوصّل للصندوق.
+      const errBox = { style: errBox0.style, set textContent(v) { errBox0.textContent = v; if (window.olvToast) olvToast(v, { type: "danger" }); try { errBox0.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} } };
       if (!navigator.onLine) { olvShowError(errBox, new Error("فواتير المشتريات بتحتاج اتصال بالإنترنت (بترفع الصورة وبتتحقق من التكرار) — حاول لما يرجع النت")); return; }
       // سطر "شبح": فيه كمية أو سعر بس بدون صنف ولا اسم — منشيله تلقائيًا بدل ما يمنع الحفظ
       const ghosts = lines.filter((l) => !itemOf(l) && !String(l.typed || "").trim() && !String(l.unmatchedName || "").trim() && (Number(l.qty) || Number(l.price)));
@@ -1844,7 +1923,12 @@
       const T = computeTotals();
       const total = T.total;
       const paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Number(document.getElementById("pi-partial").value) || 0;
-      if (payMode !== "cash" && !supplierId) { olvShowError(errBox, new Error("الدفع الآجل أو الجزئي لازم يكون معه مورّد")); return; }
+      if (payMode !== "cash" && !supplierId) {
+        const sel = document.getElementById("pi-supplier");
+        olvShowError(errBox, new Error("الدفع آجل/جزئي: اختر المورّد من فوق (أو غيّر الدفع إلى كاش)"));
+        if (sel) { sel.classList.add("bad"); sel.addEventListener("change", () => sel.classList.remove("bad"), { once: true }); }
+        return;
+      }
       if (payMode === "partial" && !(paid > 0 && paid < total)) { olvShowError(errBox, new Error("الدفعة الجزئية لازم تكون أكبر من صفر وأقل من الإجمالي")); return; }
       const paper = document.getElementById("pi-paper-total").value;
       if (paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
@@ -1876,6 +1960,28 @@
           if (l.tax !== "" && l.tax != null && Number.isFinite(Number(l.tax))) o.tax_rate = lineRate(l, 0);
           return o;
         });
+        // حماية من التكرار: نفس المادة بنفس الكمية والسعر مرتين بنفس الفاتورة، أو مسجّلة قبل عند نفس المورد ونفس التاريخ بفاتورة ثانية
+        {
+          const keyOf = (o) => [o.ingredient_id || o.supply_id, o.qty, Math.round(o.unit_price * 1e4)].join("|");
+          const seen = new Map(), dupNames = [];
+          payloadLines.forEach((o, i) => {
+            const k = keyOf(o);
+            if (seen.has(k)) dupNames.push(itemOf(active[i]).name); else seen.set(k, 1);
+          });
+          let prior = [];
+          if (supplierId) {
+            let q = window.supabaseClient.from("purchases").select("ingredient_id,supply_id,quantity,unit_price,invoice_id,purchase_invoices(status)")
+              .eq("supplier_id", supplierId).eq("purchase_date", document.getElementById("pi-date").value || olvToday());
+            if (editingId) q = q.neq("invoice_id", editingId);
+            const r = await q; prior = (r.data || []).filter((x) => !x.purchase_invoices || x.purchase_invoices.status !== "voided");
+          }
+          const priorKeys = new Set(prior.map((x) => keyOf({ ingredient_id: x.ingredient_id, supply_id: x.supply_id, qty: Number(x.quantity), unit_price: Number(x.unit_price) })));
+          payloadLines.forEach((o, i) => { if (priorKeys.has(keyOf(o))) dupNames.push(itemOf(active[i]).name); });
+          if (dupNames.length) {
+            const u = [...new Set(dupNames)];
+            if (!confirm(`ممكن في تكرار: ${u.slice(0, 6).join("، ")}${u.length > 6 ? "…" : ""}\nنفس المادة بنفس الكمية والسعر مكررة بنفس الفاتورة أو مسجّلة قبل عند نفس المورد بنفس التاريخ. التكرار بيضخّم الرصيد وبيطلع «نقص جرد» وهمي.\nتحفظ رغم هيك؟`)) return;
+          }
+        }
         const fromDrawer = payMode === "cash" && document.getElementById("pi-drawer").checked;
         const { data: savedId, error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
           ...(editingId ? { p_invoice_id: editingId } : {}),
@@ -1906,6 +2012,7 @@
           const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
           if (!poErr) { const b = document.getElementById("pi-from-order"); if (b) b.remove(); fromOrderId = null; if (window.olvToast) olvToast("انعلّمت الطلبية كمستلمة"); }
         }
+        learnAliases();
         const wasEdit = !!editingId;
         endEdit();
         clearDraft();

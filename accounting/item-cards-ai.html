@@ -218,6 +218,8 @@
     <!-- ٥. الصور -->
     <section class="ai-panel" id="p-images" role="tabpanel" hidden>
       <div class="ai-bar">
+        <label for="im-provider">مولّد الصور</label>
+        <select id="im-provider"><option value="google">جوجل (Gemini)</option><option value="cloudflare">Cloudflare</option></select>
         <button class="btn gold ai-btn" type="button" id="im-batch"></button>
         <span class="ai-status grow" id="im-status"></span>
       </div>
@@ -294,7 +296,7 @@
     // ---------- التحميل ----------
     async function load() {
       const [p, a, m, pi, ing] = await Promise.all([
-        db.from("products").select("id, external_id, name, name_en, description, description_en, category, menu_cat, price, hall_price, meal_price, double_meal_price, large_addon_id, image_url, is_active, popular, sort_order").order("sort_order"),
+        db.from("products").select("id, external_id, name, name_en, description, description_en, category, menu_cat, price, hall_price, meal_price, double_meal_price, large_addon_id, medium_addon_id, image_url, is_active, popular, sort_order").order("sort_order"),
         db.from("addons").select("id, price, is_active, is_size"),
         db.from("app_settings").select("value").eq("key", "item_cards_mode").maybeSingle(),
         db.from("product_ingredients").select("product_id"),
@@ -314,6 +316,7 @@
       } catch (_) { menuOk = false; }
     }
     const largePrice = (p) => { const a = p.large_addon_id && addonById.get(p.large_addon_id); return a && a.is_active !== false ? r2(Number(p.price) + Number(a.price)) : null; };
+    const mediumPrice = (p) => { const a = p.medium_addon_id && addonById.get(p.medium_addon_id); return a && a.is_active !== false ? r2(Number(p.price) + Number(a.price)) : null; };
     const catName = (id) => (menuCats.find((c) => c.id === id) || {}).ar || id || "—";
     const active = () => products.filter((p) => p.is_active !== false);
     const editable = () => mode === "cards";
@@ -355,6 +358,7 @@
           if (r2(m.hallPrice || 0) !== r2(hall)) d.push(`الصالة بالمنيو ${m.hallPrice ? money(m.hallPrice) : "بدون"}`);
           if (!stock && r2(m.meal || 0) !== r2(meal)) d.push(`الوجبة بالمنيو ${m.meal ? money(m.meal) : "بدون"}`);
           if (!stock && r2(m.large || 0) !== r2(largePrice(p) || 0)) d.push(`الكبير بالمنيو ${m.large ? money(m.large) : "بدون"}`);
+          if (!stock && r2(m.medium || 0) !== r2(mediumPrice(p) || 0)) d.push(`الوسط بالمنيو ${m.medium ? money(m.medium) : "بدون"}`);
           if (d.length) out.push({ p, sev: "medium", text: `مش مطابق للمنيو: ${d.join("، ")}`, fix: stock ? null : { kind: "push", label: "انشر البطاقة" }, note: stock ? "صنف مخزون: بيتصلّح من «المنيو من المخزون»" : "" });
         } else if (menuOk && !stock) {
           out.push({ p, sev: "medium", text: "مش ظاهر بالمنيو", fix: { kind: "push", label: "انشره" } });
@@ -673,7 +677,7 @@
     function renderImages() {
       const list = active().filter((p) => !p.image_url && !isStock(p));
       $("im-batch").disabled = !editable() || !list.some((p) => !imgState.get(p.id));
-      $("im-status").textContent = !editable() ? "التطبيق بعد اعتماد البطاقات." : list.length ? `${list.length} صنف بدون صورة. الصورة بتتولّد بالذكاء (جوجل، وإذا ما زبط ${cfReady === false ? "فبديل Cloudflare المجاني لسا مش مضبوط" : "Cloudflare المجاني"})، وما بتنحفظ إلا لما تعتمدها.` : "";
+      $("im-status").textContent = !editable() ? "التطبيق بعد اعتماد البطاقات." : list.length ? `${list.length} صنف بدون صورة. الصورة بتتولّد حسب المولّد اللي اخترته فوق (جوجل أو Cloudflare${cfReady === false ? "، وCloudflare لسا مش مضبوط" : ""})، وما بتنحفظ إلا لما تعتمدها. مش عاجبتك؟ بدّل المولّد واضغط «غيرها».` : "";
       $("im-grid").innerHTML = list.length ? list.map((p) => {
         const s = imgState.get(p.id) || {};
         return `<div class="im-card" data-id="${esc(p.id)}">
@@ -685,13 +689,16 @@
         </div>`;
       }).join("") : `<div class="ai-empty">كل الأصناف إلها صور.</div>`;
     }
+    const imProv = $("im-provider");
+    try { const v = localStorage.getItem("olv_img_provider"); if (v === "google" || v === "cloudflare") imProv.value = v; } catch (_) {}
+    imProv.addEventListener("change", () => { try { localStorage.setItem("olv_img_provider", imProv.value); } catch (_) {} });
     async function genImage(p) {
       const old = imgState.get(p.id);
       imgState.set(p.id, { busy: true });
       renderImages();
       try {
         if (old && old.path) ai("discard_image", { path: old.path }).catch(() => {});
-        const out = await ai("image", { product_id: p.id });
+        const out = await ai("image", { product_id: p.id, provider: imProv.value });
         imgState.set(p.id, { url: out.url, path: out.path, source: out.source });
       } catch (e) {
         imgState.delete(p.id);

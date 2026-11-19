@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>تكلفة الطعام والربح — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .wrap.dh-wrap{max-width:var(--page-max);}
+  .dh-head h1{font-size:clamp(24px,4vw,34px);font-weight:800;line-height:1.15;margin:4px 0 0;}
+  .dh-sub{color:var(--muted);font-size:13.5px;margin:4px 0 14px;line-height:1.6;}
+  .stats.dh-stats{grid-template-columns:repeat(4,1fr);margin-bottom:14px;}
+  @media (max-width:900px){.stats.dh-stats{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:560px){.dh-stats .stat{padding:13px;} .dh-stats .stat .stat-icon{display:none;} .olv-glass .dh-stats .stat .value{font-size:21px;overflow-wrap:anywhere;}}
+  .dh-stats .stat .sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .dh-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px;}
+  @media (max-width:900px){.dh-grid{grid-template-columns:1fr;}}
+  .dh-grid>.group{margin-bottom:0;min-width:0;}
+  .dh-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 0;border-bottom:1px solid var(--hair-soft);}
+  .dh-row:last-child{border-bottom:0;}
+  .dh-row .nm{font-weight:700;font-size:14.5px;overflow-wrap:anywhere;}
+  .dh-row .v{font-weight:800;font-variant-numeric:tabular-nums;}
+  .dh-row .v.bad{color:var(--danger-hi);}
+  .dh-row small{grid-column:1/-1;color:var(--muted);font-size:12.5px;line-height:1.5;}
+  .dh-ok{color:var(--ok);font-weight:700;padding:10px 0;}
+  .dh-more{color:var(--muted);font-size:12.5px;padding-top:8px;}
+  .dh-note{color:var(--muted);font-size:12.5px;line-height:1.6;margin:10px 0 0;}
+  .dh-link{color:var(--gold-hi);font-weight:700;text-decoration:none;}
+  .dh-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .dh-chip{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--hair);background:var(--ink-2);color:var(--paper);font:inherit;font-size:14px;font-weight:500;cursor:pointer;}
+  .dh-chip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:700;}
+  .dh-chip:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .dh-row .v.good{color:var(--ok);}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#fbf9ff">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+</head>
+<body>
+  <div id="olv-nav"></div>
+  <div class="wrap dh-wrap">
+    <div class="err" id="err"></div>
+    <header class="dh-head">
+      <h1>تكلفة الطعام والربح</h1>
+      <div class="dh-sub">الربح التقديري = المبيعات − (الكمية المباعة × تكلفة الوصفة). التكلفة من الوصفات وآخر سعر شراء، أو التكلفة اليدوية من بطاقة المادة. الأرقام صحيحة بقدر ما الوصفات والأسعار كاملة، وبتشوف النسبة تحت.</div>
+    </header>
+    <div class="dh-chips" role="group" aria-label="الفترة">
+      <button class="dh-chip" type="button" data-p="7">آخر 7 أيام</button>
+      <button class="dh-chip" type="button" data-p="30">آخر 30 يوم</button>
+      <button class="dh-chip" type="button" data-p="month">هذا الشهر</button>
+    </div>
+    <div class="stats dh-stats">
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-a"></div><div class="stat-body"><div class="label">المبيعات</div><div class="value" id="k-a">—</div><div class="sub" id="k-a-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-b"></div><div class="stat-body"><div class="label">التكلفة النظرية</div><div class="value" id="k-b">—</div><div class="sub" id="k-b-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-c"></div><div class="stat-body"><div class="label">الربح التقديري</div><div class="value" id="k-c">—</div><div class="sub" id="k-c-s"></div></div></div></div>
+      <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-d"></div><div class="stat-body"><div class="label">مبيعات تكلفتها معروفة</div><div class="value" id="k-d">—</div><div class="sub" id="k-d-s"></div></div></div></div>
+    </div>
+    <div class="dh-grid">
+      <section class="group"><h2 id="t-a"></h2><div id="l-a"></div>
+        <p class="dh-note">أعلى 15 منتج ربحاً (فقط اللي تكلفته معروفة).</p></section>
+      <section class="group"><h2 id="t-b"></h2><div id="l-b"></div>
+        <p class="dh-note">منتجات تكلفتها فوق 40% من سعرها، مرتبة بالمبيعات. راجع السعر أو الوصفة.</p></section>
+      <section class="group"><h2 id="t-c"></h2><div id="l-c"></div>
+        <p class="dh-note">مبيعات بدون تكلفة معروفة (بلا وصفة أو مكوّن بلا سعر)، أصلحها من «صحة البيانات».</p></section>
+      <section class="group"><h2 id="t-d"></h2><div id="l-d"></div>
+        <p class="dh-note">المشتريات بالفترة مقابل الاستهلاك النظري حسب الوصفات. «فرق» موجب = اشتريت أكتر من اللي انباع (زاد بالمخزون أو ضاع)، سالب = بعت أكتر من اللي اشتريت (تأكد من تسجيل المشتريات).</p></section>
+    </div>
+  </div>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+  document.addEventListener("DOMContentLoaded", async () => {
+    olvRenderNav("food-cost");
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => olvEsc(v);
+    const money = (n) => olvFormatMoney(n);
+    const db = window.supabaseClient;
+    const LIMIT = 15, LOW_MARGIN_COST = 0.4;
+    $("ic-a").innerHTML = olvIcon("banknote"); $("ic-b").innerHTML = olvIcon("box");
+    $("ic-c").innerHTML = olvIcon("barChart"); $("ic-d").innerHTML = olvIcon("clipboard");
+    $("t-a").innerHTML = olvIcon("barChart") + " أكتر المنتجات ربحاً";
+    $("t-b").innerHTML = olvIcon("warning") + " هامش ضعيف (تكلفة فوق 40%)";
+    $("t-c").innerHTML = olvIcon("clipboard") + " مبيعات بدون تكلفة";
+    $("t-d").innerHTML = olvIcon("box") + " مشتريات مقابل استهلاك نظري";
+
+    async function all(q) {
+      let out = [], from = 0;
+      for (;;) {
+        const { data, error } = await q().range(from, from + 999);
+        if (error) throw error;
+        out = out.concat(data || []);
+        if (!data || data.length < 1000) return out;
+        from += 1000;
+      }
+    }
+    const day = (d) => { const t = new Date(olvToday() + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() - d); return t.toISOString().slice(0, 10); };
+    const fromDate = (p) => (p === "month" ? olvToday().slice(0, 8) + "01" : day(Number(p) - 1));
+    const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+    const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+    const row = (nm, v, small, cls) => `<div class="dh-row"><span class="nm">${esc(nm)}</span><span class="v ${cls || ""}" dir="ltr">${v}</span>${small ? `<small>${small}</small>` : ""}</div>`;
+    const list = (id, items, total, render) => {
+      $(id).innerHTML = items.length
+        ? items.slice(0, LIMIT).map(render).join("") + (total > LIMIT ? `<div class="dh-more">و${total - LIMIT} غيرهم…</div>` : "")
+        : `<div class="dh-ok">✓ ما في شي</div>`;
+    };
+
+    let period = "30", seq = 0, base = null;
+
+    async function loadBase() {
+      const [ings, pis, prods] = await Promise.all([
+        all(() => db.from("ingredients").select("id,name,unit,unit_price").order("id")),
+        all(() => db.from("product_ingredients").select("product_id,ingredient_id,quantity").order("id")),
+        all(() => db.from("products").select("id,name,price,cost_manual").order("id")),
+      ]);
+      const ing = new Map(ings.map((i) => [i.id, i]));
+      const lines = new Map();
+      pis.forEach((l) => (lines.get(l.product_id) || lines.set(l.product_id, []).get(l.product_id)).push(l));
+      // تكلفة الوحدة: اليدوية إذا انكتبت، وإلا من الوصفة (نفس منطق بطاقة المادة). null = غير معروفة
+      const cost = new Map();
+      prods.forEach((p) => {
+        const man = Number(p.cost_manual);
+        if (man > 0) { cost.set(p.id, man); return; }
+        const ls = lines.get(p.id) || [];
+        if (!ls.length) return;
+        let c = 0, complete = true;
+        ls.forEach((l) => { const up = Number((ing.get(l.ingredient_id) || {}).unit_price) || 0; if (!(up > 0)) complete = false; c += (Number(l.quantity) || 0) * up; });
+        if (complete && c > 0) cost.set(p.id, c);
+      });
+      base = { ing, lines, cost };
+    }
+
+    async function load() {
+      const my = ++seq;
+      document.querySelectorAll(".dh-chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === period)));
+      try {
+        if (!base) await loadBase();
+        const from = fromDate(period);
+        const [sold, purch] = await Promise.all([
+          all(() => db.from("sale_items").select("id,product_id,product_name,qty,unit_price,status").gte("created_at", from + "T00:00:00Z").order("id")),
+          all(() => db.from("purchases").select("id,ingredient_id,quantity,purchase_invoices(status)").not("ingredient_id", "is", null).gte("purchase_date", from).order("id")),
+        ]);
+        if (my !== seq) return;
+        const byP = new Map();
+        sold.filter((s) => s.status !== "void" && s.product_id).forEach((s) => {
+          const o = byP.get(s.product_id) || { name: s.product_name, q: 0, rev: 0 };
+          o.q += Number(s.qty) || 0; o.rev += (Number(s.qty) || 0) * (Number(s.unit_price) || 0); byP.set(s.product_id, o);
+        });
+        let rev = 0, revKnown = 0, cogs = 0;
+        const known = [], unknown = [];
+        const usedQty = new Map();   // استهلاك نظري لكل مادة
+        byP.forEach((o, id) => {
+          rev += o.rev;
+          const c = base.cost.get(id);
+          if (c != null) { const cg = c * o.q; revKnown += o.rev; cogs += cg; known.push({ ...o, cogs: cg, profit: o.rev - cg }); }
+          else unknown.push(o);
+          (base.lines.get(id) || []).forEach((l) => usedQty.set(l.ingredient_id, (usedQty.get(l.ingredient_id) || 0) + (Number(l.quantity) || 0) * o.q));
+        });
+        $("k-a").textContent = money(rev); $("k-a-s").textContent = byP.size + " منتج انباع";
+        $("k-b").textContent = money(cogs); $("k-b-s").textContent = revKnown ? pct(cogs, revKnown) + "% من المبيعات المعروفة تكلفتها" : "";
+        $("k-c").textContent = money(revKnown - cogs); $("k-c-s").textContent = revKnown ? "هامش " + pct(revKnown - cogs, revKnown) + "%" : "";
+        $("k-d").textContent = pct(revKnown, rev) + "%"; $("k-d-s").textContent = "الباقي بدون وصفة/سعر، الأرقام فوق جزئية";
+
+        const top = [...known].sort((a, b) => b.profit - a.profit);
+        list("l-a", top, top.length, (o) => row(o.name, money(o.profit), "انباع " + +o.q.toFixed(2) + " · هامش " + pct(o.profit, o.rev) + "%", "good"));
+        const low = known.filter((o) => o.rev > 0 && o.cogs / o.rev > LOW_MARGIN_COST).sort((a, b) => b.rev - a.rev);
+        list("l-b", low, low.length, (o) => row(o.name, pct(o.cogs, o.rev) + "%", "مبيعات " + money(o.rev) + " · تكلفة " + money(o.cogs), "bad"));
+        const unk = [...unknown].sort((a, b) => b.rev - a.rev);
+        list("l-c", unk, unk.length, (o) => row(o.name, money(o.rev), "انباع " + +o.q.toFixed(2) + " مرة"));
+
+        const bought = new Map();
+        purch.filter((p) => !p.purchase_invoices || p.purchase_invoices.status !== "voided").forEach((p) => bought.set(p.ingredient_id, (bought.get(p.ingredient_id) || 0) + (Number(p.quantity) || 0)));
+        const ids = new Set([...bought.keys(), ...usedQty.keys()]);
+        const diff = [...ids].map((id) => {
+          const i = base.ing.get(id); if (!i) return null;
+          const b = bought.get(id) || 0, u = usedQty.get(id) || 0, up = Number(i.unit_price) || 0;
+          return { name: i.name, unit: i.unit || "", b, u, d: b - u, val: Math.abs(b - u) * up };
+        }).filter((x) => x && x.val > 0).sort((x, y) => y.val - x.val);
+        list("l-d", diff, diff.length, (x) => row(x.name, (x.d > 0 ? "+" : "") + +x.d.toFixed(2) + " " + esc(x.unit), "اشتريت " + +x.b.toFixed(2) + " · استهلاك نظري " + +x.u.toFixed(2) + " · ≈ " + money(x.val), x.d < 0 ? "bad" : ""));
+      } catch (e) {
+        $("err").textContent = "ما قدرت أحمّل التقرير: " + (e.message || e);
+        $("err").style.display = "block";
+      }
+    }
+    document.querySelectorAll(".dh-chip").forEach((b) => b.addEventListener("click", () => { period = b.dataset.p; load(); }));
+    load();
+  });
+  </script>
+</body>
+</html>

@@ -7,6 +7,7 @@ const { sendToPrinter } = require("./printer");
 const { buildTicketBuffer, kitchenCopies, receiptCopies } = require("./escpos");
 const { buildKitchenTicket } = require("./ticket-kitchen");
 const { buildReceiptTicket } = require("./ticket-receipt");
+const { buildCharcoalBuffer } = require("./charcoal");
 
 const LOCAL_URL = String(process.env.LOCAL_SERVER_URL || "http://127.0.0.1:8080").replace(/\/+$/, "");
 const CACHE_FILE = path.join(__dirname, "..", "printer-cache.json");
@@ -85,7 +86,7 @@ function route(sale, cfg) {
     out.push({ kind: "receipt", printer: p, label: p.name, ip: p.ip, port: p.port || 9100, items: sale.sale_items, layout: p.ticket_layout, drawer: !!p.open_drawer });
   }
   for (const p of stations) {
-    const items = sale.sale_items.filter((it) => (p.categories || []).includes(it.category || "") || (p.catch_unassigned && !claimed.has(it.category || "")));
+    const items = sale.sale_items.filter((it) => !it.no_kitchen && ((p.categories || []).includes(it.category || "") || (p.catch_unassigned && !claimed.has(it.category || ""))));
     if (items.length) out.push({ kind: "station", printer: p, label: p.name, ip: p.ip, port: p.port || 9100, items, layout: p.ticket_layout });
   }
   return out.filter((t) => t.ip);
@@ -109,6 +110,12 @@ async function printJob(job, cfg, log) {
         ? buildReceiptTicket(sale, cfg.settings, null, t.layout)
         : buildKitchenTicket({ ...sale, sale_items: t.items }, t.printer ? t.printer.name : null, stationCount > 1, t.layout);
       await sendToPrinter(t.ip, t.port, buildTicketBuffer(canvas, !!t.drawer, t.kind === "station" ? kitchenCopies() : receiptCopies()));
+      if (t.kind === "receipt") {
+        try {
+          const cards = buildCharcoalBuffer(sale, cfg.settings);
+          if (cards) await sendToPrinter(t.ip, t.port, cards);
+        } catch (e) { log(`⚠ (بدون نت) تعذّرت بطاقة الفحم على "${t.label}":`, e.message); }
+      }
       doneSet.add(t.label);
       log(`✓ (بدون نت) طُبع على "${t.label}" — طلب ${job.order_no}`);
     } catch (e) {

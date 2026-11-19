@@ -827,7 +827,7 @@
     $("po-save").addEventListener("click", async () => {
       const btn = $("po-save"); btn.disabled = true;
       try { await saveOrder(); olvToast("انحفظت المسودة"); render(); await loadHistory(); }
-      catch (err) { olvShowError($("err"), err); }
+      catch (err) { olvShowError($("err"), err); olvToast((err && err.message) || "فشل الحفظ", { type: "danger" }); }
       finally { btn.disabled = false; }
     });
     $("po-copy").addEventListener("click", async () => {

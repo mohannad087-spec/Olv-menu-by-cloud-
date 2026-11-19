@@ -22,6 +22,7 @@ const OlvCart = (function () {
     items.push({
       productId: product.id,
       name: product.name,
+      noKitchen: !!product.no_kitchen_print, // ما بينطبع بأي طابعة قسم (بس بالفاتورة)
       category: product.category || null, // لشاشة المطبخ المحلية وقت انقطاع النت (أي محطة بتحضّره)
       unitBase: Number(product.price),
       hallPrice: Number(product.hall_price) > 0 ? Number(product.hall_price) : null,
@@ -148,6 +149,7 @@ const OlvCart = (function () {
               addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
               note: item.note || null,
               category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+              no_kitchen: !!item.noKitchen,
             })),
           },
           items: sentItems.map((item) => ({
@@ -221,6 +223,7 @@ const OlvCart = (function () {
               addons_summary: item.addons.length ? item.addons.map((a) => a.name).join("، ") : null,
               note: item.note || null,
               category: item.category || (window.olvCategoryOf ? window.olvCategoryOf(item.productId) : null),
+              no_kitchen: !!item.noKitchen,
             })),
           },
           items: sentItems.map((item) => ({
