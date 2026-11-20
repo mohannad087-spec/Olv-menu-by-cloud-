@@ -941,3 +941,20 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
   background:var(--nm-bg); box-shadow:inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi); color:var(--tc);}
 :root:not([data-theme="dark"]) body.nm-page .bento .t.hero:not(.on),:root:not([data-theme="dark"]) body.nm-page .bento .t.netg:not(.on){
   box-shadow:12px 12px 24px var(--nm-lo), -12px -12px 24px var(--nm-hi);}
+
+/* ---- تعميم Neumorphism على باقي الصفحات (2026-11-20) ----
+   كل صفحة بكلاس nm-page على body (ما عدا البيع السريع والمطبخ وطلبات الموظفين وصفحة الدخول ودليل التصميم). */
+:root:not([data-theme="dark"]) body.nm-page .field input,:root:not([data-theme="dark"]) body.nm-page .field select,:root:not([data-theme="dark"]) body.nm-page .field textarea,
+:root:not([data-theme="dark"]) body.nm-page input.search,:root:not([data-theme="dark"]) body.nm-page .s-search input{
+  background:var(--nm-bg); border:0; border-radius:16px; box-shadow:inset 5px 5px 10px var(--nm-lo), inset -5px -5px 10px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .table-wrap{background:var(--nm-bg); border:0; border-radius:22px; box-shadow:9px 9px 18px var(--nm-lo), -9px -9px 18px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .olv-hub-tab:not(.on){background:var(--nm-bg); border:0; box-shadow:4px 4px 8px var(--nm-lo), -4px -4px 8px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .olv-hub-tab.on{background:var(--nm-bg); color:var(--nm-accent); border:0; box-shadow:inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi);}
+@media (min-width:641px){
+  :root:not([data-theme="dark"]) body.nm-page .olv-hub-tab:not(.on){
+    background-image:linear-gradient(0deg,var(--bfc,var(--life-1)),color-mix(in srgb,var(--bfc,var(--life-1)) 82%,#fff)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
+    transition:background-size .4s cubic-bezier(.22,1,.36,1), color .25s ease, box-shadow .3s ease;}
+  :root:not([data-theme="dark"]) body.nm-page .olv-hub-tab:nth-child(2n):not(.on){--bfc:var(--life-5);}
+  :root:not([data-theme="dark"]) body.nm-page .olv-hub-tab:nth-child(3n):not(.on){--bfc:var(--life-2);}
+  :root:not([data-theme="dark"]) body.nm-page .olv-hub-tab:not(.on):hover{background-size:100% 100%; color:#fff;}
+}
