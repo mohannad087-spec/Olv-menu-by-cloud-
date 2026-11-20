@@ -849,3 +849,32 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
 :root:not([data-theme="dark"]) body.nm-page .group .btn:not(.gold):not(.danger){background:var(--nm-bg); border:0; box-shadow:5px 5px 10px var(--nm-lo), -5px -5px 10px var(--nm-hi);}
 :root:not([data-theme="dark"]) body.nm-page .sub-tab:not(.on){background:var(--nm-bg); border:0; box-shadow:4px 4px 8px var(--nm-lo), -4px -4px 8px var(--nm-hi);}
 :root:not([data-theme="dark"]) body.nm-page .sub-tab.on{background:var(--nm-bg); color:var(--nm-accent); border:0; box-shadow:inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi);}
+
+/* ---- تعبئة اللون عند المرور على أزرار الشريط العلوي (2026-11-20) ----
+   كل زر إله لون من طبقة الحياة، واللون بيتعبّى من تحت لفوق (الوضع الفاتح، ماوس، شاشة عريضة بس). */
+@media (hover:hover) and (pointer:fine) and (min-width:641px){
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:not(.tab-more-btn):not(.on),
+  :root:not([data-theme="dark"]) .top .tab-more-btn:not(.on){
+    background-image:linear-gradient(0deg,var(--tfc,var(--life-1)),color-mix(in srgb,var(--tfc,var(--life-1)) 82%,#fff)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
+    transition:background-size .4s cubic-bezier(.22,1,.36,1), color .25s ease, box-shadow .3s ease, transform .18s var(--ease);
+  }
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:nth-child(2){--tfc:var(--life-4);}
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:nth-child(3){--tfc:var(--life-2);}
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:nth-child(4){--tfc:var(--life-6);}
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:nth-child(5){--tfc:var(--life-3);}
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:nth-child(6){--tfc:var(--life-5);}
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:not(.tab-more-btn):not(.on):hover,
+  :root:not([data-theme="dark"]) .top .tab-more-btn:not(.on):hover{
+    background-size:100% 100%; color:#fff; border-color:transparent;
+    box-shadow:5px 5px 10px var(--nm-lo,#bfc5da), -5px -5px 10px var(--nm-hi,#fff), 0 0 18px color-mix(in srgb,var(--tfc,var(--life-1)) 45%,transparent);
+  }
+  :root:not([data-theme="dark"]) .top .tabs > .tab-link:not(.on):hover .icon,
+  :root:not([data-theme="dark"]) .top .tab-more-btn:not(.on):hover .icon{opacity:1; color:#fff;}
+  /* أزرار قائمة «المزيد»: تتعبّى بلون عمودها */
+  :root:not([data-theme="dark"]) .tab-more-panel .tab-more-link:not(.on){
+    background-image:linear-gradient(0deg,var(--gc),color-mix(in srgb,var(--gc) 82%,#fff)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
+    transition:background-size .4s cubic-bezier(.22,1,.36,1), color .25s ease, border-color .25s ease;
+  }
+  :root:not([data-theme="dark"]) .tab-more-panel .tab-more-link:not(.on):hover{background-size:100% 100%; color:#fff;}
+  :root:not([data-theme="dark"]) .tab-more-panel .tab-more-link:not(.on):hover .icon{color:#fff;}
+}
