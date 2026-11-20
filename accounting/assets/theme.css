@@ -831,3 +831,21 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
   .tab-more-panel .tab-more-link{min-height:48px; font-size:14.5px;}
 }
 :root[data-theme="dark"] .tab-more-panel .tab-more-link.on, :root[data-theme="dark"] .tab-more-panel .tab-more-link.on .icon, :root[data-theme="dark"] .tab-more-chip{color:#17120d;}
+
+/* ---- أسلوب Neumorphism (ناعم بارز) — الوضع الفاتح بس (2026-11-20) ----
+   محصور بالشريط العلوي (كل الصفحات) وصفحة الإعدادات (body.nm-page). المحتوى والرئيسية والبيع السريع ما بيتأثروا. */
+:root:not([data-theme="dark"]){--nm-bg:#e8ebf5; --nm-hi:#fff; --nm-lo:#bfc5da; --nm-accent:#4254e8;}
+:root:not([data-theme="dark"]) .olv-glass .top{border:0; box-shadow:10px 10px 20px var(--nm-lo), -10px -10px 20px var(--nm-hi);}
+:root:not([data-theme="dark"]) .olv-glass .top::before{background:var(--nm-bg); -webkit-backdrop-filter:none; backdrop-filter:none;}
+:root:not([data-theme="dark"]) .top .tab-link:not(.on), :root:not([data-theme="dark"]) .top .tab-more-btn:not(.on){
+  background:var(--nm-bg); border:0; box-shadow:5px 5px 10px var(--nm-lo), -5px -5px 10px var(--nm-hi);}
+:root:not([data-theme="dark"]) .top .tab-link.on{background:var(--nm-bg); color:var(--nm-accent); border:0; box-shadow:inset 4px 4px 9px var(--nm-lo), inset -4px -4px 9px var(--nm-hi);}
+/* الإعدادات */
+:root:not([data-theme="dark"]) body.nm-page{background:var(--nm-bg);}
+:root:not([data-theme="dark"]) body.nm-page.olv-glass::before{background:var(--nm-bg);}
+:root:not([data-theme="dark"]) body.nm-page .group{background:var(--nm-bg); border:0; border-radius:26px; box-shadow:10px 10px 20px var(--nm-lo), -10px -10px 20px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .group .field input,:root:not([data-theme="dark"]) body.nm-page .group .field select,:root:not([data-theme="dark"]) body.nm-page .group .field textarea{
+  background:var(--nm-bg); border:0; border-radius:16px; box-shadow:inset 5px 5px 10px var(--nm-lo), inset -5px -5px 10px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .group .btn:not(.gold):not(.danger){background:var(--nm-bg); border:0; box-shadow:5px 5px 10px var(--nm-lo), -5px -5px 10px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .sub-tab:not(.on){background:var(--nm-bg); border:0; box-shadow:4px 4px 8px var(--nm-lo), -4px -4px 8px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .sub-tab.on{background:var(--nm-bg); color:var(--nm-accent); border:0; box-shadow:inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi);}
