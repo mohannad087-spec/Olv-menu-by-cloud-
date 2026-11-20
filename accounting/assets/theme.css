@@ -905,3 +905,29 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
   :root:not([data-theme="dark"]) .olv-pagehead-actions .btn:hover .icon,
   :root:not([data-theme="dark"]) .top .olv-acct-btn:hover .icon{color:#fff;}
 }
+
+/* ---- صفحة المبيعات بأسلوب Neumorphism + تعبئة اللون عند المرور (2026-11-20) ---- */
+:root:not([data-theme="dark"]) body.nm-page .stat{background:var(--nm-bg); border:0; border-radius:24px; box-shadow:9px 9px 18px var(--nm-lo), -9px -9px 18px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .stat::after{display:none;}
+:root:not([data-theme="dark"]) body.nm-page .s-chip:not([aria-pressed="true"]){background-color:var(--nm-bg); border:0; box-shadow:4px 4px 8px var(--nm-lo), -4px -4px 8px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .s-chip[aria-pressed="true"]{background:var(--nm-bg); color:var(--nm-accent); border:0; box-shadow:inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi);}
+:root:not([data-theme="dark"]) body.nm-page .order-row,:root:not([data-theme="dark"]) body.nm-page .s-search input{background:var(--nm-bg);}
+@media (min-width:641px){
+  :root:not([data-theme="dark"]) body.nm-page .s-chip:not([aria-pressed="true"]),
+  :root:not([data-theme="dark"]) body.nm-page .sub-tab:not(.on),
+  :root:not([data-theme="dark"]) body.nm-page .btn:not(.gold):not(.danger):not(.pay){
+    background-image:linear-gradient(0deg,var(--bfc,var(--life-1)),color-mix(in srgb,var(--bfc,var(--life-1)) 82%,#fff)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
+    transition:background-size .4s cubic-bezier(.22,1,.36,1), color .25s ease, box-shadow .3s ease;
+  }
+  :root:not([data-theme="dark"]) body.nm-page .s-chip:nth-child(2n):not([aria-pressed="true"]),:root:not([data-theme="dark"]) body.nm-page .sub-tab:nth-child(2n):not(.on),:root:not([data-theme="dark"]) body.nm-page .btn:nth-of-type(2n){--bfc:var(--life-5);}
+  :root:not([data-theme="dark"]) body.nm-page .s-chip:nth-child(3n):not([aria-pressed="true"]),:root:not([data-theme="dark"]) body.nm-page .sub-tab:nth-child(3n):not(.on),:root:not([data-theme="dark"]) body.nm-page .btn:nth-of-type(3n){--bfc:var(--life-2);}
+  :root:not([data-theme="dark"]) body.nm-page .s-chip:nth-child(4n):not([aria-pressed="true"]),:root:not([data-theme="dark"]) body.nm-page .sub-tab:nth-child(4n):not(.on),:root:not([data-theme="dark"]) body.nm-page .btn:nth-of-type(4n){--bfc:var(--life-4);}
+  :root:not([data-theme="dark"]) body.nm-page .s-chip:not([aria-pressed="true"]):hover,
+  :root:not([data-theme="dark"]) body.nm-page .sub-tab:not(.on):hover,
+  :root:not([data-theme="dark"]) body.nm-page .btn:not(.gold):not(.danger):not(.pay):hover{
+    background-size:100% 100%; color:#fff; border-color:transparent;
+    box-shadow:4px 4px 8px var(--nm-lo), -4px -4px 8px var(--nm-hi), 0 0 14px color-mix(in srgb,var(--bfc,var(--life-1)) 40%,transparent);
+  }
+  :root:not([data-theme="dark"]) body.nm-page .s-chip:not([aria-pressed="true"]):hover .n{color:#fff;}
+}
+:root:not([data-theme="dark"]) body.nm-page .olv-pagehead-actions .btn:not(.gold):not(.danger):not(.pay),:root:not([data-theme="dark"]) body.nm-page .btn.small:not(.gold):not(.danger):not(.pay){background-color:var(--nm-bg); border:0; box-shadow:5px 5px 10px var(--nm-lo), -5px -5px 10px var(--nm-hi);}
