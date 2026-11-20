@@ -878,3 +878,30 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
   :root:not([data-theme="dark"]) .tab-more-panel .tab-more-link:not(.on):hover{background-size:100% 100%; color:#fff;}
   :root:not([data-theme="dark"]) .tab-more-panel .tab-more-link:not(.on):hover .icon{color:#fff;}
 }
+
+/* ---- تعبئة اللون عند المرور على أزرار رأس الصفحات وزر الحساب (2026-11-20) ----
+   الأزرار بس (.hello-acts و.olv-pagehead-actions وزر الحساب): ما بنلمس التيلات. الوضع الفاتح، ماوس، شاشة عريضة. */
+@media (hover:hover) and (pointer:fine) and (min-width:641px){
+  :root:not([data-theme="dark"]) .hello-acts .btn:not(#share-day-btn):not(.gold),
+  :root:not([data-theme="dark"]) .olv-pagehead-actions .btn:not(.gold):not(.danger),
+  :root:not([data-theme="dark"]) .top .olv-acct-btn{
+    background-image:linear-gradient(0deg,var(--bfc,var(--life-1)),color-mix(in srgb,var(--bfc,var(--life-1)) 82%,#fff)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
+    transition:background-size .4s cubic-bezier(.22,1,.36,1), color .25s ease, border-color .25s ease, box-shadow .3s ease;
+  }
+  :root:not([data-theme="dark"]) .hello-acts .btn:nth-of-type(2n){--bfc:var(--life-5);}
+  :root:not([data-theme="dark"]) .hello-acts .btn:nth-of-type(3n){--bfc:var(--life-2);}
+  :root:not([data-theme="dark"]) .hello-acts .btn:nth-of-type(4n){--bfc:var(--life-4);}
+  :root:not([data-theme="dark"]) .olv-pagehead-actions .btn:nth-child(2n){--bfc:var(--life-5);}
+  :root:not([data-theme="dark"]) .olv-pagehead-actions .btn:nth-child(3n){--bfc:var(--life-2);}
+  :root:not([data-theme="dark"]) .top .olv-acct-btn{--bfc:var(--life-5);}
+  :root:not([data-theme="dark"]) .hello-acts .btn:not(#share-day-btn):not(.gold):hover,
+  :root:not([data-theme="dark"]) .olv-pagehead-actions .btn:not(.gold):not(.danger):hover,
+  :root:not([data-theme="dark"]) .top .olv-acct-btn:hover,
+  :root:not([data-theme="dark"]) .top .olv-acct.open .olv-acct-btn{
+    background-size:100% 100%; color:#fff; border-color:transparent;
+    box-shadow:0 0 16px color-mix(in srgb,var(--bfc,var(--life-1)) 40%,transparent);
+  }
+  :root:not([data-theme="dark"]) .hello-acts .btn:hover .icon,
+  :root:not([data-theme="dark"]) .olv-pagehead-actions .btn:hover .icon,
+  :root:not([data-theme="dark"]) .top .olv-acct-btn:hover .icon{color:#fff;}
+}
