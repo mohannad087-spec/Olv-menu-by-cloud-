@@ -13,6 +13,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
+const OLV_TABLE_REQ_API = "https://olv-menu.pages.dev/api/table-requests";
 const OLV_DRIVER_API = "https://olv-menu.pages.dev/api/driver-order";
 const OLV_CONTROLS_API = "https://olv-menu.pages.dev/api/controls";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
@@ -116,6 +117,40 @@ async function olvFetchJson(url: string, init: RequestInit, retries = 0): Promis
   return last;
 }
 
+// يحوّل طلبات الطاولات المفتوحة (kind=order) لطلبات صالة حقيقية. أي فشل ما بيكسر عرض الطلبات: بنسجّله وبنكمل.
+async function convertTableRequests(adminKey: string) {
+  try {
+    const { status, out } = await olvFetchJson(OLV_TABLE_REQ_API, { headers: { "x-olv-admin-key": adminKey } });
+    if (status >= 400 || !Array.isArray(out.requests)) return;
+    const fresh = Date.now() - 30 * 60 * 1000;
+    for (const r of out.requests as Array<Record<string, unknown>>) {
+      if (r.kind !== "order" || !Array.isArray(r.items) || !r.items.length) continue;
+      if (new Date(String(r.createdAt)).getTime() < fresh) continue;
+      const created = await olvFetchJson(OLV_MENU_API, {
+        method: "POST",
+        headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: "hall", table: r.table, name: r.name || "", notes: r.notes || "",
+          items: (r.items as Array<Record<string, unknown>>).map((i) => ({ id: i.id, qty: i.qty, custom: i.custom })),
+          idempotencyKey: "tr-" + r.id,
+        }),
+      });
+      const order = created.out.order as Record<string, unknown> | undefined;
+      if (created.status < 400 && order?.id) {
+        await olvFetchJson(OLV_TABLE_REQ_API, {
+          method: "PATCH",
+          headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
+          body: JSON.stringify({ id: r.id, status: "done", orderId: order.id }),
+        });
+      } else {
+        console.error(`table-request ${r.id} not converted: ${created.status} ${JSON.stringify(created.out).slice(0, 200)}`);
+      }
+    }
+  } catch (e) {
+    console.error("convertTableRequests failed: " + (e instanceof Error ? e.message : String(e)));
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
@@ -152,6 +187,10 @@ Deno.serve(async (req) => {
 
   try {
     if (body.action === "list") {
+      // طلبات الصالة من الزبون («جهّز لي الطلب») بتنخزّن بجدول table_requests، وكانت تظهر بصفحة الويتر بس.
+      // هون بنحوّل الجديد منها (آخر 30 دقيقة) لطلب صالة حقيقي بحالة «جديد» عشان يظهر بالطلبات الواردة مع التنبيه.
+      // مفتاح التكرار tr-<id> بيمنع ينعمل طلبين لنفس الطلب حتى لو الويتر حمّله بنفس اللحظة.
+      await convertTableRequests(adminKey);
       const { status, out } = await olvFetchJson(OLV_MENU_API, { headers: { "x-olv-admin-key": adminKey } }, 2);
       return json(out, status);
     }
