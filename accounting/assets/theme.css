@@ -851,8 +851,8 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
 :root:not([data-theme="dark"]) body.nm-page .sub-tab.on{background:var(--nm-bg); color:var(--nm-accent); border:0; box-shadow:inset 4px 4px 8px var(--nm-lo), inset -4px -4px 8px var(--nm-hi);}
 
 /* ---- تعبئة اللون عند المرور على أزرار الشريط العلوي (2026-11-20) ----
-   كل زر إله لون من طبقة الحياة، واللون بيتعبّى من تحت لفوق (الوضع الفاتح، ماوس، شاشة عريضة بس). */
-@media (hover:hover) and (pointer:fine) and (min-width:641px){
+   كل زر إله لون من طبقة الحياة، واللون بيتعبّى من تحت لفوق (الوضع الفاتح، شاشة عريضة بس (بدون شرط ماوس لأنو شاشات اللمس بتفشّله)). */
+@media (min-width:641px){
   :root:not([data-theme="dark"]) .top .tabs > .tab-link:not(.tab-more-btn):not(.on),
   :root:not([data-theme="dark"]) .top .tab-more-btn:not(.on){
     background-image:linear-gradient(0deg,var(--tfc,var(--life-1)),color-mix(in srgb,var(--tfc,var(--life-1)) 82%,#fff)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
@@ -881,7 +881,7 @@ body{padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-r
 
 /* ---- تعبئة اللون عند المرور على أزرار رأس الصفحات وزر الحساب (2026-11-20) ----
    الأزرار بس (.hello-acts و.olv-pagehead-actions وزر الحساب): ما بنلمس التيلات. الوضع الفاتح، ماوس، شاشة عريضة. */
-@media (hover:hover) and (pointer:fine) and (min-width:641px){
+@media (min-width:641px){
   :root:not([data-theme="dark"]) .hello-acts .btn:not(#share-day-btn):not(.gold),
   :root:not([data-theme="dark"]) .olv-pagehead-actions .btn:not(.gold):not(.danger),
   :root:not([data-theme="dark"]) .top .olv-acct-btn{
