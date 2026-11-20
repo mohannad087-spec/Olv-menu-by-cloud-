@@ -638,6 +638,7 @@
     // ---------- طلبات الطاولات من الزبائن (من المنيو): «نادِ الويتر» و«جهّز لي الطلب» ----------
     // بتجي من موقع المنيو عبر الوسيط. الرنين والاهتزاز بيتكرروا لحد ما الويتر يضغط على الطلب.
     let treqs = [], treqSig = "";
+    const TREQ_MAX = 6;
     const treqAcked = new Set();
     function strongAlert() { beep(); try { if (navigator.vibrate) navigator.vibrate([700, 120, 700, 120, 700, 120, 900]); } catch (_) {} }
     async function treqProxy(payload) {
@@ -658,7 +659,8 @@
     };
     function paintTreqs() {
       const box = $("treqs");
-      box.innerHTML = treqs.map((r) => `<section class="wt-treq" data-r="${esc(r.id)}">
+      const shown = treqs.slice(-TREQ_MAX).reverse(), more = treqs.length - shown.length;
+      box.innerHTML = (more > 0 ? `<section class="wt-treq"><h3>${olvIcon("bell")} في ${more} طلب أقدم</h3><div class="acts"><button type="button" class="btn" data-all="1">تجاهل كل الطلبات</button></div></section>` : "") + shown.map((r) => `<section class="wt-treq" data-r="${esc(r.id)}">
         <h3>${olvIcon("bell")} ${r.kind === "call" ? "طاولة " + esc(r.table) + " بتناديك" : "طاولة " + esc(r.table) + " بعتت قائمة طلب"}${r.name ? " — " + esc(r.name) : ""}</h3>
         ${(r.items || []).length ? `<ul>${r.items.map((i) => `<li>${esc(i.label)} × ${esc(i.qty)}${itemNote(i) ? `<br><small>${esc(itemNote(i))}</small>` : ""}</li>`).join("")}</ul><div><b>المجموع: ${money(r.total)}</b></div>` : ""}
         ${r.notes ? `<div><small>ملاحظة: ${esc(r.notes)}</small></div>` : ""}
@@ -671,13 +673,20 @@
       let out;
       try { out = await treqProxy({ action: "table_requests" }); } catch (_) { return; }
       const list = Array.isArray(out.requests) ? out.requests : [];
-      const fresh = list.filter((r) => !treqAcked.has(r.id));
+      const fresh = list.slice(-TREQ_MAX).filter((r) => !treqAcked.has(r.id));
       if (fresh.length) strongAlert();
       const sig = list.map((r) => r.id).join(",");
       treqs = list;
       if (sig !== treqSig) { treqSig = sig; paintTreqs(); }
     }
     $("treqs").addEventListener("click", async (e) => {
+      const all = e.target.closest("[data-all]");
+      if (all) {
+        all.disabled = true; const ids = treqs.map((r) => r.id); ids.forEach((i) => treqAcked.add(i));
+        try { for (let k = 0; k < ids.length; k += 8) await Promise.all(ids.slice(k, k + 8).map((id) => treqProxy({ action: "table_request_done", id, status: "dismissed" }))); }
+        catch (err) { olvToast((err && err.message) || "ما انحفظ، جرّب كمان مرة", { icon: "x" }); }
+        loadTreqs(); return;
+      }
       const b = e.target.closest("[data-act]"); const card = e.target.closest(".wt-treq"); if (!b || !card) return;
       const id = card.dataset.r;
       b.disabled = true; treqAcked.add(id);
