@@ -97,6 +97,13 @@
   @media (max-width:700px){ .wt-top .who{display:none;} .wt-top{padding-inline:12px;} }
   @media (max-width:900px){ .wt-order{grid-template-columns:1fr;} .wt-side{position:static; max-height:none;} }
   @media (prefers-reduced-motion:reduce){ .wt-enter,.wt-sheet,.wt-sheet-bg,.wt-prod .q{animation:none;} }
+
+.wt-treq{background:var(--paper);border:2px solid var(--gold);border-radius:14px;padding:12px 14px;margin:8px 12px;box-shadow:0 0 0 4px rgba(var(--gold-rgb),.18)}
+.wt-treq h3{margin:0 0 6px;font-size:17px;display:flex;gap:6px;align-items:center}
+.wt-treq ul{margin:4px 0 8px;padding:0 18px;font-size:15px}
+.wt-treq small{color:var(--muted)}
+.wt-treq .acts{display:flex;gap:8px;margin-top:8px}
+.wt-treq .acts .btn{flex:1;min-height:48px;justify-content:center}
 </style>
 <link rel="manifest" href="waiter.webmanifest">
 <meta name="theme-color" content="#fbf9ff">
@@ -159,6 +166,7 @@
   </header>
   <div class="wt-err" id="err" role="alert"></div>
   <div class="wt-nudges" id="nudges" aria-live="assertive"></div>
+  <div class="wt-nudges" id="treqs" aria-live="assertive"></div>
   <main class="wt-wrap" id="view"><div class="wt-empty">جاري التحميل...</div></main>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -624,6 +632,61 @@
     loadNudges();
     setInterval(() => { if (!document.hidden) loadNudges(); }, 5000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) loadNudges(); });
+
+
+    // ---------- طلبات الطاولات من الزبائن (من المنيو): «نادِ الويتر» و«جهّز لي الطلب» ----------
+    // بتجي من موقع المنيو عبر الوسيط. الرنين والاهتزاز بيتكرروا لحد ما الويتر يضغط على الطلب.
+    let treqs = [], treqSig = "";
+    const treqAcked = new Set();
+    function strongAlert() { beep(); try { if (navigator.vibrate) navigator.vibrate([700, 120, 700, 120, 700, 120, 900]); } catch (_) {} }
+    async function treqProxy(payload) {
+      const { data: s } = await sb().auth.getSession();
+      const tok = s && s.session && s.session.access_token;
+      if (!tok) throw new Error("no session");
+      const base = ((window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "").replace(/\/$/, "");
+      const res = await fetch(base + "/functions/v1/olv-menu-proxy", {
+        method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tok }, body: JSON.stringify(payload),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || out.ok === false) throw new Error(out.error || "فشل الاتصال");
+      return out;
+    }
+    const itemNote = (i) => {
+      const c = i.custom || {};
+      return [].concat(c.meal ? ["وجبة"] : [], c.options || [], (c.remove || []), c.extras || [], c.note ? [c.note] : []).filter(Boolean).join("، ");
+    };
+    function paintTreqs() {
+      const box = $("treqs");
+      box.innerHTML = treqs.map((r) => `<section class="wt-treq" data-r="${esc(r.id)}">
+        <h3>${olvIcon("bell")} ${r.kind === "call" ? "طاولة " + esc(r.table) + " بتناديك" : "طاولة " + esc(r.table) + " بعتت قائمة طلب"}${r.name ? " — " + esc(r.name) : ""}</h3>
+        ${(r.items || []).length ? `<ul>${r.items.map((i) => `<li>${esc(i.label)} × ${esc(i.qty)}${itemNote(i) ? `<br><small>${esc(itemNote(i))}</small>` : ""}</li>`).join("")}</ul><div><b>المجموع: ${money(r.total)}</b></div>` : ""}
+        ${r.notes ? `<div><small>ملاحظة: ${esc(r.notes)}</small></div>` : ""}
+        <div class="acts">
+          <button type="button" class="btn gold" data-act="done">${r.kind === "call" ? "رحت للطاولة" : "استلمت الطلب"}</button>
+          <button type="button" class="btn" data-act="dismissed">تجاهل</button>
+        </div></section>`).join("");
+    }
+    async function loadTreqs() {
+      let out;
+      try { out = await treqProxy({ action: "table_requests" }); } catch (_) { return; }
+      const list = Array.isArray(out.requests) ? out.requests : [];
+      const fresh = list.filter((r) => !treqAcked.has(r.id));
+      if (fresh.length) strongAlert();
+      const sig = list.map((r) => r.id).join(",");
+      treqs = list;
+      if (sig !== treqSig) { treqSig = sig; paintTreqs(); }
+    }
+    $("treqs").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-act]"); const card = e.target.closest(".wt-treq"); if (!b || !card) return;
+      const id = card.dataset.r;
+      b.disabled = true; treqAcked.add(id);
+      try { await treqProxy({ action: "table_request_done", id, status: b.dataset.act }); }
+      catch (err) { treqAcked.delete(id); b.disabled = false; olvToast((err && err.message) || "ما انحفظ، جرّب كمان مرة", { icon: "x" }); return; }
+      treqs = treqs.filter((r) => r.id !== id); treqSig = treqs.map((r) => r.id).join(","); paintTreqs();
+    });
+    loadTreqs();
+    setInterval(() => { if (!document.hidden) loadTreqs(); }, 4000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) loadTreqs(); });
 
     const cm = cachedMenu();
     if (cm) menu = cm;
