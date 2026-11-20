@@ -555,6 +555,7 @@
         if (error) throw error;
         if (navigator.vibrate) navigator.vibrate(12);
         olvToast("انرسل الطلب لطاولة " + table, { type: "gold", icon: "check" });
+        if (pendingReq) { const rid = pendingReq; pendingReq = null; treqAcked.add(rid); treqProxy({ action: "table_request_done", id: rid, status: "done" }).then(() => loadTreqs(), () => {}); }
         cart = []; ref = newRef(); table = null; sending = false;
         await loadTables();
       } catch (e) {
@@ -566,7 +567,7 @@
 
     $("back").addEventListener("click", () => {
       if (cart.length && !confirm("في أصناف ما انرسلت، تتركها؟")) return;
-      table = null; cart = []; ref = newRef(); qMenu = ""; renderTables();
+      table = null; cart = []; ref = newRef(); qMenu = ""; pendingReq = null; renderTables();
     });
     // الخروج مو سهل: ضغط مطوّل ثانيتين (حتى ما يطلع الويتر بالغلط)
     olvHoldConfirm($("logout"), async () => { await sb().auth.signOut(); window.location.href = "login.html"; }, { ms: 2000, hint: "اضغط مطوّلاً ثانيتين للخروج" });
@@ -640,7 +641,19 @@
     let treqs = [], treqSig = "";
     const TREQ_MAX = 6;
     const treqAcked = new Set();
-    function strongAlert() { beep(); try { if (navigator.vibrate) navigator.vibrate([700, 120, 700, 120, 700, 120, 900]); } catch (_) {} }
+    function loudBeep() {
+      try {
+        const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+        const c = new A(); const m = c.createGain(); m.gain.value = 1; const lim = c.createDynamicsCompressor(); m.connect(lim); lim.connect(c.destination);
+        [880, 1175, 880, 1175, 880, 1175].forEach((f, i) => {
+          const o = c.createOscillator(), g = c.createGain(); o.type = "square"; o.frequency.value = f; o.connect(g); g.connect(m);
+          const t = c.currentTime + i * 0.28; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+          o.start(t); o.stop(t + 0.27);
+        }); setTimeout(() => c.close(), 2200);
+      } catch (_) {}
+    }
+    let pendingReq = null;
+    function strongAlert() { loudBeep(); try { if (navigator.vibrate) navigator.vibrate([700, 120, 700, 120, 700, 120, 900]); } catch (_) {} }
     async function treqProxy(payload) {
       const { data: s } = await sb().auth.getSession();
       const tok = s && s.session && s.session.access_token;
@@ -659,7 +672,8 @@
     };
     function paintTreqs() {
       const box = $("treqs");
-      const shown = treqs.slice(-TREQ_MAX).reverse(), more = treqs.length - shown.length;
+      const vis = table ? [] : treqs.filter((r) => r.id !== pendingReq); // بنخبّي الكروت وقت فتح طاولة حتى ما تغطي الشاشة
+      const shown = vis.slice(-TREQ_MAX).reverse(), more = vis.length - shown.length;
       box.innerHTML = (more > 0 ? `<section class="wt-treq"><h3>${olvIcon("bell")} في ${more} طلب أقدم</h3><div class="acts"><button type="button" class="btn" data-all="1">تجاهل كل الطلبات</button></div></section>` : "") + shown.map((r) => `<section class="wt-treq" data-r="${esc(r.id)}">
         <h3>${olvIcon("bell")} ${r.kind === "call" ? "طاولة " + esc(r.table) + " بتناديك" : "طاولة " + esc(r.table) + " بعتت قائمة طلب"}${r.name ? " — " + esc(r.name) : ""}</h3>
         ${(r.items || []).length ? `<ul>${r.items.map((i) => `<li>${esc(i.label)} × ${esc(i.qty)}${itemNote(i) ? `<br><small>${esc(itemNote(i))}</small>` : ""}</li>`).join("")}</ul><div><b>المجموع: ${money(r.total)}</b></div>` : ""}
@@ -675,9 +689,30 @@
       const list = Array.isArray(out.requests) ? out.requests : [];
       const fresh = list.slice(-TREQ_MAX).filter((r) => !treqAcked.has(r.id));
       if (fresh.length) strongAlert();
-      const sig = list.map((r) => r.id).join(",");
+      const sig = list.map((r) => r.id).join(",") + (table ? "|T" : "");
       treqs = list;
       if (sig !== treqSig) { treqSig = sig; paintTreqs(); }
+    }
+    // «استلمت الطلب»: بنحمّل أصناف الزبون على سلة نفس الطاولة، والويتر بيراجع وبيرسل → بينزل على حساب الطاولة
+    function loadReqToCart(r) {
+      const nm = (v) => norm(String(v || "").replace(/\(.*?\)/g, ""));
+      const miss = [];
+      table = String(r.table); cart = []; ref = newRef(); cat = null; qMenu = "";
+      (r.items || []).forEach((i) => {
+        const L = nm(i.label);
+        const p = menu.products.find((x) => nm(x.name) === L) || menu.products.find((x) => L && (nm(x.name).includes(L) || L.includes(nm(x.name))));
+        if (!p) { miss.push(i.label + " × " + i.qty); return; }
+        const note = [itemNote(i), r.name ? "" : ""].filter(Boolean).join("، ").slice(0, 120);
+        cart.push({ p, qty: Number(i.qty) || 1, addons: [], note });
+      });
+      pendingReq = r.id;
+      renderOrder(true);
+      const msgs = [];
+      if (miss.length) msgs.push("ما لقيت بالقائمة: " + miss.join("، ") + " (ضيفها يدوي)");
+      if (cart.length && Math.abs(cartTotal() - Number(r.total || 0)) > 0.01) msgs.push("مجموع الزبون " + money(r.total) + " وعندك " + money(cartTotal()) + ": راجع الإضافات والأسعار");
+      showErr(msgs.join(" — "));
+      paintSide(); if (typeof paintBadges === "function") paintBadges();
+      paintTreqs();
     }
     $("treqs").addEventListener("click", async (e) => {
       const all = e.target.closest("[data-all]");
@@ -689,6 +724,8 @@
       }
       const b = e.target.closest("[data-act]"); const card = e.target.closest(".wt-treq"); if (!b || !card) return;
       const id = card.dataset.r;
+      const req = treqs.find((r) => r.id === id);
+      if (b.dataset.act === "done" && req && req.kind === "order" && (req.items || []).length) { treqAcked.add(id); loadReqToCart(req); return; }
       b.disabled = true; treqAcked.add(id);
       try { await treqProxy({ action: "table_request_done", id, status: b.dataset.act }); }
       catch (err) { treqAcked.delete(id); b.disabled = false; olvToast((err && err.message) || "ما انحفظ، جرّب كمان مرة", { icon: "x" }); return; }
