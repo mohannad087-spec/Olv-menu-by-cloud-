@@ -29,7 +29,8 @@ begin
     select id into v_cat from expense_categories where name = 'رواتب وأجور' limit 1;
     v_src := case p_pay_source when 'drawer' then 'من الدرج' when 'bank' then 'بنك / كليك' else 'نقد خارج الدرج' end;
     insert into expenses (expense_date, category_id, amount, description, payment_type, from_drawer, created_by, payroll_payment_id)
-    values ((now() at time zone 'Asia/Amman')::date, v_cat, p_net,
+    -- نفس يوم التطبيق (olvToday): بيتبدّل الساعة 3 الفجر بتوقيت عمّان، مش منتصف الليل
+    values ((now() at time zone 'UTC')::date, v_cat, p_net,
             'راتب ' || coalesce(v_name, '') || ' (' || p_start || ' لـ ' || p_end || ') · ' || v_src,
             'cash', p_pay_source = 'drawer', auth.uid(), v_id)
     on conflict do nothing;
@@ -42,3 +43,10 @@ revoke all on function public.record_payroll_payment(uuid, uuid, date, date, num
 grant execute on function public.record_payroll_payment(uuid, uuid, date, date, numeric, numeric, numeric, numeric, numeric, text, uuid[], uuid[], date, text) to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- تصحيح الدفعات اللي انسجلت بين 12 و3 الفجر وانكتبت بتاريخ بكرا
+update public.expenses e set expense_date = (p.paid_at at time zone 'UTC')::date
+from public.payroll_payments p
+where p.id = e.payroll_payment_id
+  and e.expense_date = (p.paid_at at time zone 'Asia/Amman')::date
+  and e.expense_date <> (p.paid_at at time zone 'UTC')::date;
