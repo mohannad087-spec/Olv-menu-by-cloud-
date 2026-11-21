@@ -239,13 +239,24 @@ async function localTick() {
   finally { setTimeout(localTick, LOCAL_POLL_MS); }
 }
 
+// تخفيف الطلبات على السحابة: الإعدادات والطابعات والنبضة والمهام العالقة نادرًا بتتغير،
+// فبنجيبها كل دقيقة/نص دقيقة بدل كل دورة (4 ثواني). فحص المهام الجديدة بيضل كل دورة.
+const SLOW_REFRESH_MS = Number(process.env.SETTINGS_REFRESH_MS || 60000);
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 30000);
+let cachedSettings = null, cachedPrinters = null, lastSlowRefresh = 0, lastHeartbeat = 0, lastRecover = 0;
+
 async function tick() {
   try {
-    await sendHeartbeat();
-    await recoverStuckJobs();
-    const settings = await loadPrinterSettings();
-    const printers = await loadPrinters();
-    saveCache(settings, printers); // نسخة للطباعة بدون نت
+    const now = Date.now();
+    if (now - lastHeartbeat >= HEARTBEAT_MS) { lastHeartbeat = now; await sendHeartbeat(); }
+    if (now - lastRecover >= HEARTBEAT_MS) { lastRecover = now; await recoverStuckJobs(); }
+    if (!cachedSettings || now - lastSlowRefresh >= SLOW_REFRESH_MS) {
+      cachedSettings = await loadPrinterSettings();
+      cachedPrinters = await loadPrinters();
+      lastSlowRefresh = now;
+      saveCache(cachedSettings, cachedPrinters); // نسخة للطباعة بدون نت
+    }
+    const settings = cachedSettings, printers = cachedPrinters;
     const { data: jobs, error } = await supabase
       .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(20);
     if (error) throw error;
