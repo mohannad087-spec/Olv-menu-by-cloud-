@@ -143,7 +143,7 @@ const OlvCart = (function () {
           print: {
             customer_phone: customerPhone ?? null,
             cash_amount: args.p_cash, card_amount: args.p_card, delivery_amount: args.p_delivery,
-            discount_amount: discount, cash_received: cashReceived ?? null, change_due: changeDue ?? null,
+            discount_amount: discount, delivery_fee: fee, cash_received: cashReceived ?? null, change_due: changeDue ?? null,
             items: sentItems.map((item) => ({
               product_name: item.name,
               qty: item.qty,
