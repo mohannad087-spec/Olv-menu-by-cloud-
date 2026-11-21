@@ -148,6 +148,7 @@
 </head>
 <body class="nm-page">
   <div id="olv-nav"></div>
+  <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp" hidden>
   <div class="wrap em-wrap">
     <div class="err" id="err"></div>
     <div id="no-access" class="group" hidden>
@@ -355,6 +356,7 @@
       box.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openEdit(b.dataset.edit)));
       box.querySelectorAll("[data-toggle]").forEach((b) => b.addEventListener("click", () => toggleActive(b.dataset.toggle, b.dataset.active === "true")));
       box.querySelectorAll("[data-docs]").forEach((b) => b.addEventListener("click", () => openDocs(b.dataset.docs)));
+      box.querySelectorAll("[data-photo]").forEach((b) => b.addEventListener("click", () => { photoTarget = b.dataset.photo; $("photo-input").value = ""; $("photo-input").click(); }));
       box.querySelectorAll("[data-reset]").forEach((b) => b.addEventListener("click", () => resetPassword(b.dataset.reset)));
     }
 
@@ -370,6 +372,52 @@
         (data || []).forEach((r) => { if (r.signedUrl && r.path) photoUrls[r.path] = r.signedUrl; });
       } catch (err) { console.warn("تعذّر تحميل صور الموظفين", err); }
     }
+
+    // تغيير الصورة: بنقصّها مربّع 512×512 ونضغطها JPEG (صور الموبايل بتكون عدة ميغا والحد 1MB) وبنرفعها على <id>.jpg
+    // (الصورة بتنرفع مع upsert فنفس المسار)، وبنحدّث profiles.photo_path
+    const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+    let photoTarget = null;
+    function squareJpeg(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const side = Math.min(img.naturalWidth, img.naturalHeight);
+          const c = document.createElement("canvas");
+          c.width = c.height = Math.min(512, side);
+          c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, c.width, c.height);
+          c.toBlob((b) => (b ? resolve(b) : reject(new Error("تعذّر تجهيز الصورة"))), "image/jpeg", 0.85);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("تعذّر قراءة الصورة")); };
+        img.src = url;
+      });
+    }
+    $("photo-input").addEventListener("change", async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      const id = photoTarget;
+      photoTarget = null;
+      if (!file || !id) return;
+      if (!PHOTO_TYPES.includes(file.type)) { olvShowError($("err"), new Error("الصورة لازم تكون JPEG أو PNG أو WebP")); return; }
+      try {
+        const blob = await squareJpeg(file);
+        if (blob.size > 1048576) throw new Error("الصورة أكبر من 1MB حتى بعد الضغط، جرّب صورة ثانية");
+        const path = id + ".jpg";
+        const { error: upErr } = await window.supabaseClient.storage.from("employee-photos").upload(path, blob, { upsert: true, contentType: "image/jpeg", cacheControl: "3600" });
+        if (upErr) throw upErr;
+        const emp = employees.find((e) => e.id === id);
+        if (!emp || emp.photo_path !== path) {
+          const { error } = await window.supabaseClient.from("profiles").update({ photo_path: path }).eq("id", id);
+          if (error) throw error;
+          if (emp) emp.photo_path = path;
+        }
+        await loadPhotoUrls();
+        renderEmployees();
+        olvToast("انحفظت الصورة", { type: "ok", icon: "check" });
+      } catch (err) {
+        olvShowError($("err"), err);
+      }
+    });
 
     // ---------------------------------------------------------------
     // ملف أوراق الموظف: الملفات بباكت خاص employee-docs (روابط موقّعة مؤقتة بس)، وسطر لكل ورقة بجدول
@@ -514,6 +562,7 @@
           <div class="em-card-acts">
             <button type="button" class="btn small" data-edit="${e.id}">${olvIcon("note")}<span>تعديل</span></button>
             ${tel ? `<a class="btn small" href="tel:${olvEsc(tel)}" aria-label="اتصال">${olvIcon("phone")}</a>` : ""}
+            <button type="button" class="btn small" data-photo="${e.id}" aria-label="تغيير صورة ${olvEsc(e.full_name || "الموظف")}">${olvIcon("camera")}<span>صورة</span></button>
             <button type="button" class="btn small" data-docs="${e.id}">${olvIcon("clipboard")}<span>الأوراق</span>${docsBadge(e.id)}</button>
             <button type="button" class="btn small" data-reset="${e.id}">كلمة سر جديدة</button>
             ${e.id !== myId ? `<button type="button" class="btn small ${e.is_active ? "danger" : ""}" data-toggle="${e.id}" data-active="${e.is_active}">${e.is_active ? "إيقاف" : "تفعيل"}</button>` : ""}
