@@ -430,7 +430,7 @@
   @media (prefers-reduced-motion:reduce){ .bento .t *, .bento .t::before{animation:none!important; transition:none!important;} }
 </style>
 </head>
-<body class="olv-glass">
+<body class="olv-glass nm-page">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="cmp-g-up" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4254e8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="cmp-g-down" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#e0367a"/></linearGradient><radialGradient id="cmp-gl"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".5"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient><linearGradient id="sc-mtl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a7adf2"/><stop offset="1" stop-color="#5b63d6"/></linearGradient><linearGradient id="sc-bm-up" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4254e8"/></linearGradient><linearGradient id="sc-bm-dn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#e0367a"/></linearGradient><linearGradient id="sc-p-up" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4254e8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="sc-p-dn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e0367a"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="sc-p-y" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c3c7f5"/><stop offset="1" stop-color="#8e94e2"/></linearGradient></defs></svg>
   <div id="olv-nav"></div>
   <div class="wrap">
@@ -890,7 +890,8 @@
         const netEl = document.getElementById("stat-net");
         countUp(netEl, net, money);
         if (net < 0) netEl.classList.add("bad");
-        countUp(document.getElementById("stat-count"), sales.length, whole);
+        const paidSales = sales.filter((r) => r._total > 0); // طلبات «على حساب موظف»/وجبات الموظفين مبلغها صفر وما بتنعدّ
+        countUp(document.getElementById("stat-count"), paidSales.length, whole);
         { const pct = totalSales > 0 ? Math.round(totalExpenses / totalSales * 100) : 0;
           document.getElementById("exp-note").textContent = totalSales > 0 ? pct + "%" : "";
           // سبائك بلاتين: عدد السبائك حسب الصافي من المبيعات (لحد 6)، وبالعجز ما في سبائك
@@ -920,7 +921,7 @@
             et.querySelectorAll(".dleg div, .ly").forEach((n) => { n.addEventListener("mouseenter", () => hi(n.dataset.i)); n.addEventListener("mouseleave", () => hi(null)); });
           } else legG.innerHTML = '<div>ما في مصروفات اليوم</div>';
         }
-        countUp(document.getElementById("stat-avg"), sales.length ? totalSales / sales.length : 0, money);
+        countUp(document.getElementById("stat-avg"), paidSales.length ? totalSales / paidSales.length : 0, money);
         if (sales.length) {
           const firstAt = new Date(Math.min(...sales.map((r) => new Date(r.created_at))));
           document.getElementById("first-sale").textContent = "أول فاتورة الساعة " + firstAt.toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", numberingSystem: "latn" });

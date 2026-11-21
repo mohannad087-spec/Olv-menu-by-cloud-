@@ -58,11 +58,88 @@
   window.olvApplyTheme();
 })();
 </script>
+<style>
+/* صفحة الدخول بأسلوب Neumorphism (ناعم بارز) — محصور بهالصفحة بس، بألوان النيلي */
+body.login-neu{
+  --nm-bg:#e8ebf5; --nm-hi:#ffffff; --nm-lo:#bfc5da; --nm-text:#25223a; --nm-sub:#625d78;
+  --nm-accent:#4254e8; --nm-accent2:#5b47e6;
+  background:var(--nm-bg); min-height:100vh; display:flex; flex-direction:column; justify-content:center; overflow-x:hidden;
+}
+:root[data-theme="dark"] body.login-neu{
+  --nm-bg:#211a13; --nm-hi:#2e251b; --nm-lo:#120e0a; --nm-text:#f3eadb; --nm-sub:#b4a28a;
+  --nm-accent:#c9a24b; --nm-accent2:#e6c983;
+}
+body.login-neu::before{background:var(--nm-bg) !important;}
+/* دوائر الزينة */
+body.login-neu .nm-circle{position:fixed; border-radius:50%; background:var(--nm-bg); pointer-events:none; z-index:0;
+  box-shadow:12px 12px 26px var(--nm-lo), -12px -12px 26px var(--nm-hi); animation:nm-float 9s ease-in-out infinite;}
+body.login-neu .nm-c1{width:150px; height:150px; top:9%; inset-inline-start:7%;}
+body.login-neu .nm-c2{width:70px; height:70px; top:24%; inset-inline-end:14%; animation-delay:-3s;}
+body.login-neu .nm-c3{width:190px; height:190px; bottom:8%; inset-inline-end:8%; animation-delay:-6s;}
+@keyframes nm-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+body.login-neu .center-card{
+  position:relative; z-index:1; width:calc(100% - 32px); max-width:380px; margin:24px auto; padding:34px 28px 30px;
+  background:var(--nm-bg); border:0; border-radius:30px;
+  box-shadow:18px 18px 36px var(--nm-lo), -18px -18px 36px var(--nm-hi);
+  -webkit-backdrop-filter:none; backdrop-filter:none;
+}
+body.login-neu .brand-mark{
+  width:92px; height:92px; max-width:none; margin:0 auto 14px; border-radius:50%; background:#0b0a08; display:grid; place-items:center;
+  box-shadow:8px 8px 16px var(--nm-lo), -8px -8px 16px var(--nm-hi);
+}
+body.login-neu .brand-mark img{width:78%; height:auto;}
+body.login-neu h1{color:var(--nm-text); font-size:24px; font-weight:800; margin-bottom:4px;}
+body.login-neu .nm-sub{text-align:center; color:var(--nm-sub); font-size:13px; margin:0 0 24px;}
+body.login-neu .field{margin-bottom:18px;}
+body.login-neu .field label{color:var(--nm-sub); font-size:12.5px; font-weight:700; margin:0 6px 7px;}
+body.login-neu .field input{
+  width:100%; min-height:48px; background:var(--nm-bg); color:var(--nm-text); border:0; border-radius:16px; padding:0 16px; font-size:16px;
+  box-shadow:inset 6px 6px 12px var(--nm-lo), inset -6px -6px 12px var(--nm-hi);
+  transition:box-shadow .25s ease;
+}
+body.login-neu .field input:focus{outline:none; box-shadow:inset 6px 6px 12px var(--nm-lo), inset -6px -6px 12px var(--nm-hi), 0 0 0 2px var(--nm-accent);}
+body.login-neu .nm-pass{position:relative;}
+body.login-neu .nm-pass input{padding-inline-end:48px;}
+body.login-neu .nm-eye{
+  position:absolute; inset-inline-end:6px; top:50%; transform:translateY(-50%); width:40px; height:40px; border:0; border-radius:50%;
+  background:transparent; color:var(--nm-sub); cursor:pointer; display:grid; place-items:center; padding:0;
+}
+body.login-neu .nm-eye:focus-visible{outline:2px solid var(--nm-accent);}
+body.login-neu .nm-eye svg{width:20px; height:20px;}
+body.login-neu #login-btn{
+  position:relative; overflow:hidden; isolation:isolate; width:100%; min-height:50px; margin-top:6px; border:0; border-radius:16px; font-size:16px; font-weight:800; cursor:pointer;
+  color:var(--nm-accent); background-color:var(--nm-bg);
+  background-image:linear-gradient(135deg,var(--nm-accent),var(--nm-accent2)); background-repeat:no-repeat; background-position:bottom center; background-size:100% 0%;
+  box-shadow:8px 8px 18px var(--nm-lo), -6px -6px 14px var(--nm-hi);
+  transition:background-size .45s cubic-bezier(.22,1,.36,1), color .3s ease, box-shadow .35s ease, transform .2s ease;
+}
+/* تعبئة اللون بتطلع من تحت لفوق لما الماوس بيمرّ على الزر */
+body.login-neu #login-btn:hover,body.login-neu #login-btn:focus-visible{
+  background-size:100% 100%; color:#fff; box-shadow:8px 8px 18px var(--nm-lo), -6px -6px 14px var(--nm-hi), 0 0 24px rgba(66,84,232,.5);
+}
+:root[data-theme="dark"] body.login-neu #login-btn:hover{color:#1a1307; box-shadow:8px 8px 18px var(--nm-lo), -6px -6px 14px var(--nm-hi), 0 0 24px rgba(201,162,75,.45);}
+body.login-neu #login-btn:active{transform:scale(.98);}
+body.login-neu #login-btn:disabled{opacity:.7; cursor:wait;}
+/* خط ضوء بيمشي تحت الحقل لما تضغط عليه */
+body.login-neu .field{position:relative;}
+body.login-neu .field::after{
+  content:""; position:absolute; inset-inline-start:16px; bottom:0; width:56px; height:3px; border-radius:3px; opacity:0; pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--nm-accent),transparent);
+}
+body.login-neu .field:focus-within::after{opacity:1; animation:nm-slide 2.2s ease-in-out infinite alternate;}
+@keyframes nm-slide{from{transform:translateX(0);}to{transform:translateX(calc(-1 * (min(380px,100vw - 32px) - 56px - 90px)));}}
+body.login-neu .err{border-radius:14px;}
+body.login-neu .olv-footer{position:relative; z-index:1; color:var(--nm-sub);}
+@media (max-width:640px){body.login-neu .nm-c3{display:none;} body.login-neu .nm-c1{width:90px; height:90px; top:3%;} body.login-neu .nm-c2{top:6%;}}
+@media (prefers-reduced-motion:reduce){body.login-neu .nm-circle,body.login-neu .field::after{animation:none;}}
+</style>
 </head>
-<body class="olv-glass">
+<body class="olv-glass login-neu">
+  <div class="nm-circle nm-c1"></div><div class="nm-circle nm-c2"></div><div class="nm-circle nm-c3"></div>
   <div class="center-card">
     <div class="brand-mark" id="login-brand-mark"></div>
     <h1>محاسبة OLV</h1>
+    <p class="nm-sub">سجّل دخولك لتكمل شغلك</p>
     <div class="err" id="err"></div>
     <form id="login-form">
       <div class="field">
@@ -71,9 +148,14 @@
       </div>
       <div class="field">
         <label>كلمة المرور</label>
-        <input type="password" id="password" required autocomplete="current-password">
+        <div class="nm-pass">
+          <input type="password" id="password" required autocomplete="current-password">
+          <button type="button" class="nm-eye" id="nm-eye" aria-label="إظهار كلمة المرور" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
       </div>
-      <button type="submit" class="btn gold" id="login-btn" style="width:100%">دخول</button>
+      <button type="submit" id="login-btn">دخول</button>
     </form>
   </div>
 
@@ -88,6 +170,13 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("login-brand-mark").innerHTML = '<img src="assets/brand/olv-logo.png" alt="OLV — Luxury Café &amp; Restaurant">';
+
+    document.getElementById("nm-eye").addEventListener("click", (e) => {
+      const inp = document.getElementById("password");
+      const show = inp.type === "password";
+      inp.type = show ? "text" : "password";
+      e.currentTarget.setAttribute("aria-pressed", show ? "true" : "false");
+    });
 
     if (new URLSearchParams(location.search).get("deactivated") === "1") {
       olvShowError(document.getElementById("err"), new Error("تم إيقاف حسابك — راجع مديرك."));

@@ -86,7 +86,7 @@
 
   // بيع فيه client_ref: السيرفر بيتجاهل التكرار، فآمن نخزّنه ونعيد إرساله حتى لو الطلب الأول وصل فعلًا
   function isIdempotentSale(urlStr, body) {
-    return /\/rpc\/(record_sale|place_table_order)/.test(urlStr) && typeof body === "string" && body.indexOf("p_client_ref") !== -1;
+    return /\/rpc\/(record_sale|place_table_order|waiter_place_order)/.test(urlStr) && typeof body === "string" && body.indexOf("p_client_ref") !== -1;
   }
 
   async function offlineAwareFetch(url, opts) {
@@ -94,8 +94,11 @@
     const method = (opts.method || "GET").toUpperCase();
     const urlStr = String(url && url.url ? url.url : url);
     // إعادة الطباعة ما بتنحفظ أوفلاين: لازم تفشل بوضوح، مش تنطبع فجأة بعد ساعات
+    // كمان طباعة فاتورة الطاولة (staff_print_bill / waiter_print_bill) وردّ تنبيه الكاشير: لحظية، ما بتنفع بعد ساعات
+    // وكمان دوال القراءة (بتنادى بـPOST بس بترجّع بيانات: لو انحفظت بالطابور بترجع «نجاح فاضي» بدل الخطأ) والعمليات اللحظية
+    // (اختبار طباعة، موافقة مدير، منطقة الخطر): ما بتنفع بعد ساعات
     const isSupabaseWrite = WRITE_METHODS.has(method) && /\/rest\/v1\//.test(urlStr)
-      && !/\/rpc\/reprint_receipt/.test(urlStr);
+      && !/\/rpc\/(reprint_receipt|reprint_receipt_to|staff_print_bill|waiter_print_bill|waiter_reply_nudge|dismiss_table_nudge|nudge_table|waiter_tables|waiter_menu|waiter_printers|waiter_nudges|table_nudges_active|attendance_summary|attendance_report|attendance_daily|staff_meals_report|staff_meal_candidates|staff_names|has_manager_pin|request_approval|staff_account_approval|danger_zone_action|staff_test_print|test_print|test_drawer)(\?|$|\/)/.test(urlStr);
     // النت مقطوع ومعروف (الفحص الدوري أو فشل قريب): ما منحاول نوصل أصلًا — البيع بينحفظ محليًا فورًا
     if (knownOffline() && isRestUrl(urlStr)) {
       if (isSupabaseWrite) {

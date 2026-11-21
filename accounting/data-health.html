@@ -23,6 +23,9 @@
   .dh-row .nm{font-weight:700;font-size:14.5px;overflow-wrap:anywhere;}
   .dh-row .v{font-weight:800;font-variant-numeric:tabular-nums;}
   .dh-row .v.bad{color:var(--danger-hi);}
+  .dh-acts{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .dh-form{grid-column:1/-1;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+  .dh-form[hidden]{display:none;}
   .dh-row small{grid-column:1/-1;color:var(--muted);font-size:12.5px;line-height:1.5;}
   .dh-ok{color:var(--ok);font-weight:700;padding:10px 0;}
   .dh-more{color:var(--muted);font-size:12.5px;padding-top:8px;}
@@ -81,7 +84,7 @@
 })();
 </script>
 </head>
-<body>
+<body class="nm-page">
   <div id="olv-nav"></div>
   <div class="wrap dh-wrap">
     <div class="err" id="err"></div>
@@ -101,7 +104,7 @@
       <section class="group"><h2 id="t-b"></h2><div id="l-b"></div>
         <p class="dh-note">الرصيد السالب معناه مشتريات مش مسجّلة أو وصفة بتخصم زيادة. سجّل الشراء الناقص أو اعمل جرد من <a class="dh-link" href="inventory.html">المخزون</a>.</p></section>
       <section class="group"><h2 id="t-c"></h2><div id="l-c"></div>
-        <p class="dh-note">منتجات انباعت ومالها وصفة، فما بتنخصم مواد وما بتنحسب تكلفتها. أضف الوصفة من <a class="dh-link" href="product-recipes.html">وصفات المنتجات</a>.</p></section>
+        <p class="dh-note">منتجات انباعت ومالها وصفة، فما بتنخصم مواد وما بتنحسب تكلفتها. اختر من أزرار السطر: «كلفة يدوية» للمنتج الجاهز، «ربط بمادة مخزون» (مثل علبة سفن أب)، «وصفة كاملة» للمنتج المركّب، أو «تجاهل» إذا ما بدك يظهر هون.</p></section>
       <section class="group"><h2 id="t-d"></h2><div id="l-d"></div>
         <p class="dh-note">نفس المادة ونفس المورد والتاريخ والكمية والسعر مسجّلين أكتر من مرة (آخر 60 يوم). إذا كان مكرر فعلاً، عدّل الفاتورة من <a class="dh-link" href="purchase-invoices.html">فواتير المشتريات</a>.</p></section>
     </div>
@@ -157,7 +160,7 @@
         all(() => db.from("product_ingredients").select("product_id,ingredient_id").order("id")),
         all(() => db.from("products").select("id,name").order("id")),
         all(() => db.from("sale_items").select("id,product_id,product_name,qty,unit_price,status").gte("created_at", since(30) + "T00:00:00Z").order("id")),
-        all(() => db.from("purchases").select("id,ingredient_id,supply_id,item_name,unit,quantity,unit_price,supplier_id,purchase_date,invoice_id,purchase_invoices(status)").gte("purchase_date", since(60)).order("id")),
+        all(() => db.from("purchases_active").select("id,ingredient_id,supply_id,item_name,unit,quantity,unit_price,supplier_id,purchase_date,invoice_id").gte("purchase_date", since(60)).order("id")),
       ]);
       const usedBy = new Map();
       pis.forEach((p) => usedBy.set(p.ingredient_id, (usedBy.get(p.ingredient_id) || 0) + 1));
@@ -191,21 +194,84 @@
       $("k-b").textContent = b.length; $("k-b-s").textContent = "من " + ings.length + " مادة";
       list("l-b", b, b.length, (i) => row(i.name, +Number(i.current_stock).toFixed(2) + " " + esc(i.unit || ""), "", true));
 
-      // ج) مبيعات بلا وصفة
+      // ج) مبيعات بلا وصفة — مع خيارات مباشرة بكل سطر
+      let ignored = new Set();
+      try {
+        const { data: ig } = await db.from("app_settings").select("value").eq("key", "data_health_ignored_products").maybeSingle();
+        ignored = new Set(JSON.parse((ig && ig.value) || "[]"));
+      } catch (_) {}
+      const costed = new Map();
+      try {
+        const { data: cm } = await db.from("products").select("id,cost_manual").gt("cost_manual", 0);
+        (cm || []).forEach((r) => costed.set(r.id, Number(r.cost_manual)));
+      } catch (_) {}
       const byP = new Map();
-      sold.filter((s) => s.status !== "void" && s.product_id && !hasRecipe.has(s.product_id)).forEach((s) => {
-        const o = byP.get(s.product_id) || { name: s.product_name, q: 0, rev: 0 };
+      sold.filter((s) => s.status !== "void" && s.product_id && !hasRecipe.has(s.product_id) && !ignored.has(s.product_id) && !costed.has(s.product_id)).forEach((s) => {
+        const o = byP.get(s.product_id) || { id: s.product_id, name: s.product_name, q: 0, rev: 0 };
         o.q += Number(s.qty) || 0; o.rev += (Number(s.qty) || 0) * (Number(s.unit_price) || 0); byP.set(s.product_id, o);
       });
       const c = [...byP.values()].sort((x, y) => y.rev - x.rev);
       const cRev = c.reduce((t, o) => t + o.rev, 0);
       $("k-c").textContent = money(cRev); $("k-c-s").textContent = c.length + " منتج بلا وصفة";
-      list("l-c", c, c.length, (o) => row(o.name, money(o.rev), "انباع " + +o.q.toFixed(2) + " مرة"));
+      const ingOpts = ings.slice().sort((x, y) => String(x.name).localeCompare(String(y.name), "ar"))
+        .map((i) => `<option value="${esc(i.id)}">${esc(i.name)}${i.unit ? " (" + esc(i.unit) + ")" : ""}</option>`).join("");
+      const showErr = (m) => { $("err").textContent = m; $("err").style.display = m ? "block" : "none"; };
+      const renderC = () => {
+        $("l-c").innerHTML = c.length ? c.slice(0, 40).map((o) => `<div class="dh-row" data-pid="${esc(o.id)}"><span class="nm">${esc(o.name)}</span><span class="v" dir="ltr">${money(o.rev)}</span>
+          <small>انباع ${+o.q.toFixed(2)} مرة</small>
+          <div class="dh-acts">
+            <button class="btn small" type="button" data-act="cost">كلفة يدوية</button>
+            <button class="btn small" type="button" data-act="link">ربط بمادة مخزون</button>
+            <a class="btn small" href="product-recipes.html">وصفة كاملة</a>
+            <a class="btn small" href="item-cards.html">بطاقة المادة</a>
+            <button class="btn small" type="button" data-act="ignore">تجاهل</button>
+          </div>
+          <div class="dh-form" hidden></div></div>`).join("") + (c.length > 40 ? `<div class="dh-more">و${c.length - 40} غيرهم…</div>` : "")
+          : `<div class="dh-ok">✓ ما في مشكلة</div>`;
+      };
+      renderC();
+      const doneRow = (row, msg) => { row.remove(); const i = c.findIndex((x) => x.id === row.dataset.pid); if (i >= 0) c.splice(i, 1); $("k-c").textContent = money(c.reduce((t, o) => t + o.rev, 0)); $("k-c-s").textContent = c.length + " منتج بلا وصفة"; if (!c.length) renderC(); olvToast(msg); };
+      $("l-c").onclick = async (e) => {
+        const b = e.target.closest("button"); if (!b) return;
+        const row = b.closest(".dh-row"); if (!row) return;
+        const pid = row.dataset.pid, form = row.querySelector(".dh-form"), act = b.dataset.act;
+        if (act === "cost") {
+          form.hidden = false;
+          form.innerHTML = `<label>كلفة القطعة الواحدة (دينار): <input class="dh-in" type="number" inputmode="decimal" min="0" step="any" dir="ltr" style="width:110px;min-height:40px;"></label> <button class="btn small gold" type="button" data-act="cost-save">حفظ</button>`;
+        } else if (act === "link") {
+          form.hidden = false;
+          form.innerHTML = `<label>المادة: <select class="dh-sel" style="min-height:40px;max-width:100%;"><option value="">اختر…</option>${ingOpts}</select></label>
+            <label>الكمية لكل بيعة: <input class="dh-in" type="number" inputmode="decimal" min="0" step="any" value="1" dir="ltr" style="width:90px;min-height:40px;"></label>
+            <button class="btn small gold" type="button" data-act="link-save">حفظ</button>
+            <small>مثال: سفن أب = مادة «سفن أب» بالمخزون (علبة)، الكمية 1. بتنخصم من المخزون وبتنحسب كلفتها من سعر الشراء.</small>`;
+        } else if (act === "cost-save") {
+          const v = Number(form.querySelector(".dh-in").value);
+          if (!(v > 0)) return showErr("اكتب كلفة أكبر من صفر");
+          b.disabled = true;
+          const { error } = await db.from("products").update({ cost_manual: v, cost_source: "manual" }).eq("id", pid);
+          if (error) { b.disabled = false; return showErr(error.message); }
+          showErr(""); doneRow(row, "انحفظت الكلفة");
+        } else if (act === "link-save") {
+          const ing = form.querySelector(".dh-sel").value, q = Number(form.querySelector(".dh-in").value);
+          if (!ing) return showErr("اختر المادة من المخزون");
+          if (!(q > 0)) return showErr("اكتب كمية أكبر من صفر");
+          b.disabled = true;
+          const { error } = await db.from("product_ingredients").upsert({ product_id: pid, ingredient_id: ing, quantity: q }, { onConflict: "product_id,ingredient_id" });
+          if (error) { b.disabled = false; return showErr(error.message); }
+          showErr(""); doneRow(row, "انربطت المادة بالمنتج");
+        } else if (act === "ignore") {
+          b.disabled = true;
+          ignored.add(pid);
+          const { error } = await db.from("app_settings").upsert({ key: "data_health_ignored_products", value: JSON.stringify([...ignored]) }, { onConflict: "key" });
+          if (error) { ignored.delete(pid); b.disabled = false; return showErr(error.message); }
+          showErr(""); doneRow(row, "انخفى من القائمة");
+        }
+      };
 
       // د) مشتريات مكررة
-      // سطور الفواتير الملغاة (اللي انعدّلت) ما بتنعدّ: القديمة ملغاة والجديدة بنفس السطور
+      // purchases_active = بدون سطور الفواتير الملغاة (اللي انعدّلت)
       const g = new Map();
-      purch.filter((p) => !p.purchase_invoices || p.purchase_invoices.status !== "voided").forEach((p) => {
+      purch.forEach((p) => {
         const k = [p.ingredient_id || p.supply_id || p.item_name, p.supplier_id, p.purchase_date, Number(p.quantity), Number(p.unit_price)].join("|");
         (g.get(k) || g.set(k, []).get(k)).push(p);
       });

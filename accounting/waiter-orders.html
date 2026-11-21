@@ -97,6 +97,14 @@
   @media (max-width:700px){ .wt-top .who{display:none;} .wt-top{padding-inline:12px;} }
   @media (max-width:900px){ .wt-order{grid-template-columns:1fr;} .wt-side{position:static; max-height:none;} }
   @media (prefers-reduced-motion:reduce){ .wt-enter,.wt-sheet,.wt-sheet-bg,.wt-prod .q{animation:none;} }
+
+.wt-treq{pointer-events:auto;background:#fffdf6;color:#1d1a14;border:2px solid var(--gold);border-radius:14px;padding:12px 14px;margin:8px 12px;box-shadow:0 0 0 4px rgba(var(--gold-rgb),.18)}
+.wt-treq h3{margin:0 0 6px;font-size:17px;display:flex;gap:6px;align-items:center}
+.wt-treq ul{margin:4px 0 8px;padding:0 18px;font-size:15px}
+.wt-treq small{color:#5b5648}
+.wt-treq h3,.wt-treq li,.wt-treq b,.wt-treq div{color:#1d1a14}
+.wt-treq .acts{display:flex;gap:8px;margin-top:8px}
+.wt-treq .acts .btn{flex:1;min-height:48px;justify-content:center}
 </style>
 <link rel="manifest" href="waiter.webmanifest">
 <meta name="theme-color" content="#fbf9ff">
@@ -159,13 +167,17 @@
   </header>
   <div class="wt-err" id="err" role="alert"></div>
   <div class="wt-nudges" id="nudges" aria-live="assertive"></div>
+  <div class="wt-nudges" id="treqs" aria-live="assertive"></div>
   <main class="wt-wrap" id="view"><div class="wt-empty">جاري التحميل...</div></main>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/local-server.js"></script>
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="assets/connection-status.js"></script>
   <script>
   document.addEventListener("DOMContentLoaded", async () => {
     const $ = (id) => document.getElementById(id);
@@ -209,13 +221,81 @@
     const mins = (ts) => Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000));
     const dur = (m) => (m < 60 ? `${m} د` : `${Math.floor(m / 60)}س ${String(m % 60).padStart(2, "0")}د`);
 
+    // ---------- وضع بدون نت ----------
+    // الطاولات والحسابات بتنحفظ نسخة عالتابلت بعد كل قراءة ناجحة. لما ينقطع النت بنعرضها، وطلبات الويتر بتنحفظ بطابور
+    // offline-queue.js وبتنرفع لحالها لما يرجع النت. نفس الطلب بينبعت كمان لكمبيوتر المحل (local-server) حتى يوصل للمطبخ والبار.
+    const TABLES_KEY = "olv_waiter_tables_v1", PENDING_KEY = "olv_waiter_pending_v1", VOIDS_KEY = "olv_waiter_voids_v1";
+    const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; } catch (_) { return d; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* خزنة ممتلئة */ } };
+    const queueCount = () => (window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0);
+    const isNetErr = (e) => !!e && /failed to fetch|networkerror|load failed|abort|timeout/i.test(String(e.message || "") + " " + String(e.name || ""));
+    let offlineSince = 0;
+    // لما الطابور يفضى كل اللي كان محفوظ انرفع، فبننسى الطلبات والشطب المحلية
+    function pruneLocal() {
+      if (queueCount() === 0) { lsSet(PENDING_KEY, []); lsSet(VOIDS_KEY, []); }
+    }
+    // نسخة الحسابات + الطلبات المحفوظة بالطابور (ما وصلت للسحابة لسا) + طلبات ويترية تانية من كمبيوتر المحل
+    function withLocalOverlay(base, localSales) {
+      const d = JSON.parse(JSON.stringify(base || { tables: [], tabs: [] }));
+      // بنعرض بس اللي لسا بالطابور: اللي انرفع صار موجود بقراءة السحابة وما لازم ينعرض مرتين
+      const queued = lsGet("olv_offline_queue_v1", []).map((q) => String(q.body || ""));
+      const inQueue = (id) => queued.some((b) => b.indexOf(id) !== -1);
+      const voids = new Set(lsGet(VOIDS_KEY, []).filter(inQueue));
+      d.tabs.forEach((t) => t.items.forEach((i) => { if (voids.has(i.id)) { i.voided = true; i.void_reason = i.void_reason || "شُطب بدون نت"; } }));
+      const pend = lsGet(PENDING_KEY, []).filter((p) => inQueue(p.ref));
+      const known = new Set(pend.map((p) => p.ref));
+      const orders = pend.map((p) => ({ ref: p.ref, table_number: p.table, at: p.at, items: p.items }))
+        .concat((localSales || []).filter((s) => !known.has(s.client_ref)).map((s) => ({
+          ref: s.client_ref, table_number: s.table_number, at: s.created_at,
+          items: (s.sale_items || []).map((i) => ({ name: i.product_name, qty: i.qty, note: null, addons: i.addons_summary, unit_price: i.unit_price, addons_total: i.addons_total })),
+        })));
+      orders.forEach((o) => {
+        const tn = o.table_number || o.table;
+        let tab = d.tabs.find((t) => key(t.table_number) === key(tn));
+        if (!tab) { tab = { sale_id: "local-" + o.ref, table_number: tn, opened_at: o.at, items: [] }; d.tabs.push(tab); }
+        o.items.forEach((i, n) => tab.items.push(Object.assign({ id: "local-" + o.ref + "-" + n, voided: false }, i)));
+        if (!d.tables.some((n) => key(n) === key(tn))) d.tables.push(tn);
+      });
+      return d;
+    }
     async function loadTables() {
       const { data: d, error } = await sb().rpc("waiter_tables");
-      if (error) { showErr(error.message || "تعذّر تحميل الطاولات"); return; }
+      if (error) {
+        if (isNetErr(error)) {
+          const cached = lsGet(TABLES_KEY, null);
+          if (cached) {
+            let localSales = [];
+            if (window.OlvLocal && OlvLocal.enabled) { try { localSales = (await OlvLocal.get("tables")).sales || []; } catch (_) { /* كمبيوتر المحل مش شغّال */ } }
+            offlineSince = offlineSince || cached.at;
+            data = withLocalOverlay(cached.data, localSales);
+            showErr("");
+            showOffline(true);
+            if (!table) { if ($("tbl-body")) paintTables(false); else renderTables(); } else paintSide();
+            return;
+          }
+        }
+        showErr(error.message || "تعذّر تحميل الطاولات"); return;
+      }
+      if (!d || !Array.isArray(d.tabs) || !Array.isArray(d.tables)) { showErr("تعذّر تحميل الطاولات"); return; }
       showErr("");
-      data = d;
+      lsSet(TABLES_KEY, { at: Date.now(), data: d });
+      offlineSince = 0;
+      pruneLocal();
+      showOffline(false);
+      data = (queueCount() ? withLocalOverlay(d, []) : d);
       if (!table) { if ($("tbl-body")) paintTables(false); else renderTables(); } else paintSide();
     }
+    function showOffline(on) {
+      let b = $("off-banner");
+      if (!b) {
+        b = document.createElement("div"); b.id = "off-banner";
+        b.style.cssText = "margin:8px 12px;padding:10px 14px;border-radius:12px;background:#fff4d6;color:#7a5a00;font-weight:700";
+        $("view").parentNode.insertBefore(b, $("view"));
+      }
+      b.hidden = !on;
+      if (on) b.textContent = `بدون نت — الطلبات بتنحفظ وبتنرفع لحالها${queueCount() ? ` (${queueCount()} محفوظة)` : ""}`;
+    }
+    window.addEventListener("online", () => loadTables());
     // القائمة بتنعرض فورًا من آخر نسخة محفوظة على التابلت وبتتحدّث بالخلفية
     const MENU_KEY = "olv_waiter_menu_v1";
     function cachedMenu() {
@@ -524,8 +604,14 @@
         box.querySelector("#vx").addEventListener("click", () => bg.remove());
         olvHoldConfirm(ok, async () => {
           ok.disabled = true;
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(itemId))) {
+            olvToast("هالصنف انرسل بدون نت ولسا ما وصل للسحابة. اشطبه لما يرجع النت", { type: "danger", icon: "warning", ms: 6000 });
+            ok.disabled = false; bg.remove(); return;
+          }
+          const qBefore = queueCount();
           const { error } = await sb().rpc("waiter_void_item", { p_item_id: itemId, p_reason: reason.trim() });
           if (error) { showErr(error.message || "ما انشطب الصنف"); ok.disabled = false; bg.remove(); return; }
+          if (queueCount() > qBefore) lsSet(VOIDS_KEY, lsGet(VOIDS_KEY, []).concat([itemId])); // بدون نت: بيظهر مشطوب لحد ما ينرفع
           showErr("");
           bg.remove();
           olvToast(reason === "تبديل بصنف ثاني" ? "انشطب، اختار الصنف البديل" : "انشطب الصنف", { type: "info", icon: "check" });
@@ -540,12 +626,44 @@
       sending = true; showErr(""); paintSide();
       try {
         const items = cart.map((l) => ({ product_id: l.p.id, qty: l.qty, addon_ids: l.addons.map((a) => a.id), note: l.note.trim() || null }));
+        const queuedBefore = queueCount();
+        const sentRef = ref, sentTable = olvNormTable(table), sentCart = cart.slice();
         const { error } = await sb().rpc("waiter_place_order", {
           p_entry_date: olvToday(), p_total: cartTotal(), p_items: items, p_client_ref: ref, p_table_number: olvNormTable(table),
         });
         if (error) throw error;
         if (navigator.vibrate) navigator.vibrate(12);
-        olvToast("انرسل الطلب لطاولة " + table, { type: "gold", icon: "check" });
+        // النت مقطوع: الطلب انحفظ بطابور التابلت. بنخزّنه محليًا حتى يظهر عالحساب، وبنبعته لكمبيوتر المحل حتى يوصل للمطبخ والبار وينطبع هلق
+        let offlineMsg = "";
+        if (queueCount() > queuedBefore) {
+          const pItems = sentCart.map((l) => ({
+            name: l.p.name, qty: l.qty, note: l.note.trim() || null,
+            addons: l.addons.length ? l.addons.map((a) => a.name).join("، ") : null,
+            unit_price: unit(l.p), addons_total: l.addons.reduce((s, a) => s + Number(a.price), 0),
+          }));
+          lsSet(PENDING_KEY, lsGet(PENDING_KEY, []).concat([{ ref: sentRef, table: sentTable, at: new Date().toISOString(), items: pItems }]));
+          offlineMsg = "انحفظ الطلب لطاولة " + table + " وبينرسل لما يرجع النت";
+          if (window.OlvLocal && OlvLocal.enabled) {
+            try {
+              const r = await OlvLocal.post("orders", {
+                client_ref: sentRef, created_at: new Date().toISOString(), order_type: "صالة", table_number: sentTable,
+                print: { kitchen_only: true, items: sentCart.map((l) => ({
+                  product_name: l.p.name, qty: l.qty, unit_price: unit(l.p), addons_total: l.addons.reduce((s, a) => s + Number(a.price), 0),
+                  addons_summary: l.addons.length ? l.addons.map((a) => a.name).join("، ") : null, note: l.note.trim() || null, category: l.p.category || null,
+                })) },
+                items: sentCart.map((l) => ({
+                  product_name: l.p.name, qty: l.qty, addons_summary: l.addons.length ? l.addons.map((a) => a.name).join("، ") : null,
+                  note: l.note.trim() || null, category: l.p.category || null,
+                })),
+              });
+              offlineMsg = "انحفظ الطلب لطاولة " + table + " ووصل للمطبخ والبار (" + (r.order_no || "") + ")";
+            } catch (e) { offlineMsg += " — بس ما وصل للمطبخ: افتح البرنامج من رابط كمبيوتر المحل"; }
+          } else {
+            offlineMsg += " — بس ما وصل للمطبخ: افتح البرنامج من رابط كمبيوتر المحل";
+          }
+        }
+        olvToast(offlineMsg || "انرسل الطلب لطاولة " + table, offlineMsg ? { type: "gold", icon: "check", ms: 6000 } : { type: "gold", icon: "check" });
+        if (pendingReq) { const rid = pendingReq; pendingReq = null; treqAcked.add(rid); treqProxy({ action: "table_request_done", id: rid, status: "done" }).then(() => loadTreqs(), () => {}); }
         cart = []; ref = newRef(); table = null; sending = false;
         await loadTables();
       } catch (e) {
@@ -557,7 +675,7 @@
 
     $("back").addEventListener("click", () => {
       if (cart.length && !confirm("في أصناف ما انرسلت، تتركها؟")) return;
-      table = null; cart = []; ref = newRef(); qMenu = ""; renderTables();
+      table = null; cart = []; ref = newRef(); qMenu = ""; pendingReq = null; renderTables();
     });
     // الخروج مو سهل: ضغط مطوّل ثانيتين (حتى ما يطلع الويتر بالغلط)
     olvHoldConfirm($("logout"), async () => { await sb().auth.signOut(); window.location.href = "login.html"; }, { ms: 2000, hint: "اضغط مطوّلاً ثانيتين للخروج" });
@@ -624,6 +742,106 @@
     loadNudges();
     setInterval(() => { if (!document.hidden) loadNudges(); }, 5000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) loadNudges(); });
+
+
+    // ---------- طلبات الطاولات من الزبائن (من المنيو): «نادِ الويتر» و«جهّز لي الطلب» ----------
+    // بتجي من موقع المنيو عبر الوسيط. الرنين والاهتزاز بيتكرروا لحد ما الويتر يضغط على الطلب.
+    let treqs = [], treqSig = "";
+    const TREQ_MAX = 6;
+    const treqAcked = new Set();
+    function loudBeep() {
+      try {
+        const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+        const c = new A(); const m = c.createGain(); m.gain.value = 1; const lim = c.createDynamicsCompressor(); m.connect(lim); lim.connect(c.destination);
+        [880, 1175, 880, 1175, 880, 1175].forEach((f, i) => {
+          const o = c.createOscillator(), g = c.createGain(); o.type = "square"; o.frequency.value = f; o.connect(g); g.connect(m);
+          const t = c.currentTime + i * 0.28; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+          o.start(t); o.stop(t + 0.27);
+        }); setTimeout(() => c.close(), 2200);
+      } catch (_) {}
+    }
+    let pendingReq = null;
+    function strongAlert() { loudBeep(); try { if (navigator.vibrate) navigator.vibrate([700, 120, 700, 120, 700, 120, 900]); } catch (_) {} }
+    async function treqProxy(payload) {
+      const { data: s } = await sb().auth.getSession();
+      const tok = s && s.session && s.session.access_token;
+      if (!tok) throw new Error("no session");
+      const base = ((window.OLV_ACCOUNTING_CONFIG || {}).SUPABASE_URL || "").replace(/\/$/, "");
+      const res = await fetch(base + "/functions/v1/olv-menu-proxy", {
+        method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tok }, body: JSON.stringify(payload),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || out.ok === false) throw new Error(out.error || "فشل الاتصال");
+      return out;
+    }
+    const itemNote = (i) => {
+      const c = i.custom || {};
+      return [].concat(c.meal ? ["وجبة"] : [], c.options || [], (c.remove || []), c.extras || [], c.note ? [c.note] : []).filter(Boolean).join("، ");
+    };
+    function paintTreqs() {
+      const box = $("treqs");
+      const vis = table ? [] : treqs.filter((r) => r.id !== pendingReq); // بنخبّي الكروت وقت فتح طاولة حتى ما تغطي الشاشة
+      const shown = vis.slice(-TREQ_MAX).reverse(), more = vis.length - shown.length;
+      box.innerHTML = (more > 0 ? `<section class="wt-treq"><h3>${olvIcon("bell")} في ${more} طلب أقدم</h3><div class="acts"><button type="button" class="btn" data-all="1">تجاهل كل الطلبات</button></div></section>` : "") + shown.map((r) => `<section class="wt-treq" data-r="${esc(r.id)}">
+        <h3>${olvIcon("bell")} ${r.kind === "call" ? "طاولة " + esc(r.table) + " بتناديك" : "طاولة " + esc(r.table) + " بعتت قائمة طلب"}${r.name ? " — " + esc(r.name) : ""}</h3>
+        ${(r.items || []).length ? `<ul>${r.items.map((i) => `<li>${esc(i.label)} × ${esc(i.qty)}${itemNote(i) ? `<br><small>${esc(itemNote(i))}</small>` : ""}</li>`).join("")}</ul><div><b>المجموع: ${money(r.total)}</b></div>` : ""}
+        ${r.notes ? `<div><small>ملاحظة: ${esc(r.notes)}</small></div>` : ""}
+        <div class="acts">
+          <button type="button" class="btn gold" data-act="done">${r.kind === "call" ? "رحت للطاولة" : "استلمت الطلب"}</button>
+          <button type="button" class="btn" data-act="dismissed">تجاهل</button>
+        </div></section>`).join("");
+    }
+    async function loadTreqs() {
+      let out;
+      try { out = await treqProxy({ action: "table_requests" }); } catch (_) { return; }
+      const list = Array.isArray(out.requests) ? out.requests : [];
+      const fresh = list.slice(-TREQ_MAX).filter((r) => !treqAcked.has(r.id));
+      if (fresh.length) strongAlert();
+      const sig = list.map((r) => r.id).join(",") + (table ? "|T" : "");
+      treqs = list;
+      if (sig !== treqSig) { treqSig = sig; paintTreqs(); }
+    }
+    // «استلمت الطلب»: بنحمّل أصناف الزبون على سلة نفس الطاولة، والويتر بيراجع وبيرسل → بينزل على حساب الطاولة
+    function loadReqToCart(r) {
+      const nm = (v) => norm(String(v || "").replace(/\(.*?\)/g, ""));
+      const miss = [];
+      table = String(r.table); cart = []; ref = newRef(); cat = null; qMenu = "";
+      (r.items || []).forEach((i) => {
+        const L = nm(i.label);
+        const p = menu.products.find((x) => nm(x.name) === L) || menu.products.find((x) => L && (nm(x.name).includes(L) || L.includes(nm(x.name))));
+        if (!p) { miss.push(i.label + " × " + i.qty); return; }
+        const note = [itemNote(i), r.name ? "" : ""].filter(Boolean).join("، ").slice(0, 120);
+        cart.push({ p, qty: Number(i.qty) || 1, addons: [], note });
+      });
+      pendingReq = r.id;
+      renderOrder(true);
+      const msgs = [];
+      if (miss.length) msgs.push("ما لقيت بالقائمة: " + miss.join("، ") + " (ضيفها يدوي)");
+      if (cart.length && Math.abs(cartTotal() - Number(r.total || 0)) > 0.01) msgs.push("مجموع الزبون " + money(r.total) + " وعندك " + money(cartTotal()) + ": راجع الإضافات والأسعار");
+      showErr(msgs.join(" — "));
+      paintSide(); if (typeof paintBadges === "function") paintBadges();
+      paintTreqs();
+    }
+    $("treqs").addEventListener("click", async (e) => {
+      const all = e.target.closest("[data-all]");
+      if (all) {
+        all.disabled = true; const ids = treqs.map((r) => r.id); ids.forEach((i) => treqAcked.add(i));
+        try { for (let k = 0; k < ids.length; k += 8) await Promise.all(ids.slice(k, k + 8).map((id) => treqProxy({ action: "table_request_done", id, status: "dismissed" }))); }
+        catch (err) { olvToast((err && err.message) || "ما انحفظ، جرّب كمان مرة", { icon: "x" }); }
+        loadTreqs(); return;
+      }
+      const b = e.target.closest("[data-act]"); const card = e.target.closest(".wt-treq"); if (!b || !card) return;
+      const id = card.dataset.r;
+      const req = treqs.find((r) => r.id === id);
+      if (b.dataset.act === "done" && req && req.kind === "order" && (req.items || []).length) { treqAcked.add(id); loadReqToCart(req); return; }
+      b.disabled = true; treqAcked.add(id);
+      try { await treqProxy({ action: "table_request_done", id, status: b.dataset.act }); }
+      catch (err) { treqAcked.delete(id); b.disabled = false; olvToast((err && err.message) || "ما انحفظ، جرّب كمان مرة", { icon: "x" }); return; }
+      treqs = treqs.filter((r) => r.id !== id); treqSig = treqs.map((r) => r.id).join(","); paintTreqs();
+    });
+    loadTreqs();
+    setInterval(() => { if (!document.hidden) loadTreqs(); }, 4000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) loadTreqs(); });
 
     const cm = cachedMenu();
     if (cm) menu = cm;

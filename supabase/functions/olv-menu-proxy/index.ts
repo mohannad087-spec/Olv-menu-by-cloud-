@@ -13,6 +13,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OLV_MENU_API = "https://olv-menu.pages.dev/api/orders";
+const OLV_TABLE_REQ_API = "https://olv-menu.pages.dev/api/table-requests";
 const OLV_DRIVER_API = "https://olv-menu.pages.dev/api/driver-order";
 const OLV_CONTROLS_API = "https://olv-menu.pages.dev/api/controls";
 const OLV_STOCK_SYNC_API = "https://olv-menu.pages.dev/api/stock-sync";
@@ -153,6 +154,21 @@ Deno.serve(async (req) => {
   try {
     if (body.action === "list") {
       const { status, out } = await olvFetchJson(OLV_MENU_API, { headers: { "x-olv-admin-key": adminKey } }, 2);
+      return json(out, status);
+    }
+
+    // طلبات الطاولات من الزبائن («نادِ الويتر» و«جهّز لي الطلب») لتابلت الويتر: قراءة المفتوح منها وإغلاقها
+    if (body.action === "table_requests") {
+      const { status, out } = await olvFetchJson(OLV_TABLE_REQ_API, { headers: { "x-olv-admin-key": adminKey } }, 1);
+      return json(out, status);
+    }
+    if (body.action === "table_request_done") {
+      if (!body.id) return json({ ok: false, error: "id مطلوب" }, 400);
+      const { status, out } = await olvFetchJson(OLV_TABLE_REQ_API, {
+        method: "PATCH",
+        headers: { "x-olv-admin-key": adminKey, "content-type": "application/json" },
+        body: JSON.stringify({ id: body.id, status: body.status === "dismissed" ? "dismissed" : "done" }),
+      });
       return json(out, status);
     }
 

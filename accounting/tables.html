@@ -301,10 +301,11 @@
   .sh-res b{font-variant-numeric:tabular-nums;}
 </style>
 </head>
-<body>
+<body class="nm-page">
   <div id="olv-nav"></div>
   <div class="wrap t-wrap">
     <div class="err" id="err"></div>
+    <div id="off-banner" hidden style="margin:8px 0;padding:10px 14px;border-radius:12px;background:#fff4d6;color:#7a5a00;font-weight:700"></div>
 
     <header class="t-head">
       <div>
@@ -418,6 +419,7 @@
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
   <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/local-server.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/notify-sound.js"></script>
@@ -1105,11 +1107,16 @@
       go.addEventListener("click", async () => {
         go.disabled = true;
         let error = null;
+        // حساب انفتح بدون نت (لسا ما وصل للسحابة) إلو رقم محلي "local-<client_ref>": بنسدّده بالـ client_ref
+        const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const cloudIds = ids.filter((x) => UUID.test(String(x)));
+        const refs = ids.map((x) => String(x).replace(/^local-/, "")).filter((x, i) => !UUID.test(String(ids[i])) && UUID.test(x));
         try {
           await olvWithApproval("discount", async () => {
-            const r = await db.rpc("settle_table_tab", {
-              p_sale_ids: ids, p_cash: num(cash), p_card: num(card), p_discount: num(disc), p_entry_date: olvToday(),
-            });
+            const base = { p_cash: num(cash), p_card: num(card), p_discount: num(disc), p_entry_date: olvToday() };
+            const r = refs.length
+              ? await db.rpc("settle_table_tab_by_ref", { ...base, p_sale_ids: cloudIds, p_client_refs: refs })
+              : await db.rpc("settle_table_tab", { ...base, p_sale_ids: cloudIds });
             if (r.error) throw r.error;
           });
         } catch (e) { error = e; }
@@ -1120,7 +1127,10 @@
         }
         payKey = null; payIds = null;
         sheet.close();
-        olvToast(`طاولة ${t.label}: انسدّد الحساب ${olvFormatMoney(total - num(disc))}`, { type: "ok", icon: "check", ms: 5000 });
+        const savedOffline = markSettledLocally(ids); // ids محلية ("local-...") بتنخبّى كمان لحد ما يرجع النت
+        olvToast(savedOffline
+          ? `طاولة ${t.label}: انحفظ الحساب ${olvFormatMoney(total - num(disc))} وبينرفع لما يرجع النت`
+          : `طاولة ${t.label}: انسدّد الحساب ${olvFormatMoney(total - num(disc))}`, { type: "ok", icon: "check", ms: 5000 });
         load();
       });
       check();
@@ -1485,6 +1495,55 @@
     });
 
     // ---------- البيانات ----------
+    // ---------- وضع بدون نت ----------
+    // بعد كل قراءة ناجحة بنحفظ نسخة محلية. لما ينقطع النت بنعرضها (مع طلبات كمبيوتر المحل)، والصفحة بتضل شغّالة.
+    // «حاسب الطاولة» بينحفظ بطابور offline-queue.js وبينشال الحساب من الشاشة محليًا لحد ما يرجع النت.
+    const CACHE_KEY = "olv_tables_cache_v1", SETTLED_KEY = "olv_tables_settled_v1";
+    const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; } catch (_) { return d; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* خزنة ممتلئة */ } };
+    const banner = document.getElementById("off-banner");
+    const queueCount = () => (window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0);
+    function showBanner(text) { banner.textContent = text || ""; banner.hidden = !text; }
+    function saveTablesCache() {
+      lsSet(CACHE_KEY, { at: Date.now(), regTables, occ: Array.from(occ.entries()), sales, reservations });
+    }
+    // حسابات انسدّدت بدون نت: بنخبّيها لحد ما الطابور يرفعها للسحابة
+    function hideSettledLocally() {
+      let ids = lsGet(SETTLED_KEY, []);
+      if (ids.length && queueCount() === 0) { lsSet(SETTLED_KEY, []); ids = []; }
+      if (ids.length) { const s = new Set(ids); sales = sales.filter((x) => !s.has(x.id)); }
+    }
+    function markSettledLocally(ids) {
+      if (queueCount() === 0) return false; // انسدّد فعليًا على السحابة
+      lsSet(SETTLED_KEY, Array.from(new Set(lsGet(SETTLED_KEY, []).concat(ids))));
+      return true;
+    }
+    async function loadFromCache(err) {
+      const c = lsGet(CACHE_KEY, null);
+      if (!c) { showBanner(""); olvShowError(errBox, err); return; }
+      regTables = c.regTables || [];
+      occ = new Map(c.occ || []);
+      sales = c.sales || [];
+      reservations = c.reservations || [];
+      resReady = true;
+      let localNote = "";
+      if (window.OlvLocal && OlvLocal.enabled) {
+        try {
+          const r = await OlvLocal.get("tables");
+          const have = new Set(sales.map((x) => x.id));
+          const extra = (r.sales || []).filter((x) => !have.has(x.id));
+          sales = sales.concat(extra);
+          if (extra.length) localNote = ` — فيه ${extra.length} طلب جديد من الكاشير`;
+        } catch (_) { /* كمبيوتر المحل مش شغّال */ }
+      }
+      hideSettledLocally();
+      errBox.style.display = "none";
+      showBanner(`بدون نت — البيانات من آخر تحديث ${clock(c.at)}${localNote}`);
+      render();
+    }
+    window.addEventListener("online", () => load());
+    window.addEventListener("olv-offline-queue-change", () => { if (!loading) load(); });
+
     let loading = false, again = false;
     async function load() {
       if (loading) { again = true; return; }
@@ -1531,11 +1590,15 @@
         reservations = rRes.error ? [] : (rRes.data || []);
         lastPollAt = Date.now();
         errBox.style.display = "none";
+        saveTablesCache();
+        hideSettledLocally();
+        showBanner(queueCount() ? `في ${queueCount()} عملية محفوظة بانتظار رجوع النت` : "");
         render();
         renderLive();
         loadNudges();
       } catch (err) {
-        olvShowError(errBox, err);
+        if (typeof olvIsNetworkError === "function" && (olvIsNetworkError(err) || err.name === "AbortError")) await loadFromCache(err);
+        else olvShowError(errBox, err);
       } finally {
         loading = false;
         if (again) load();

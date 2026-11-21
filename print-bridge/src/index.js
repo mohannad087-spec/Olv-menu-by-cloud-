@@ -13,10 +13,11 @@ const { buildReceiptTicket } = require("./ticket-receipt");
 const { buildCharcoalBuffer } = require("./charcoal");
 const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
 
-// فحص المهام الجديدة: استعلام واحد خفيف كل ثانية ونص (كان ٥ استعلامات كل ٤ ثواني)، والباقي (نبضة الحياة،
-// إعدادات الطابعات، المهام العالقة) كل SETTINGS_REFRESH_MS
-const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_MS || 1500);
-const SETTINGS_REFRESH_MS = Number(process.env.SETTINGS_REFRESH_MS || 10000);
+// فحص المهام الجديدة: استعلام واحد خفيف كل JOB_POLL_MS (كان ٥ استعلامات كل ٤ ثواني)، والباقي نادرًا بيتغيّر فبنجيبه أقل:
+// نبضة الحياة والمهام العالقة كل HEARTBEAT_MS، وإعدادات الطابعات كل SETTINGS_REFRESH_MS (تغيير IP أو إعداد بيوصل خلال دقيقة)
+const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_MS || 2000);
+const SETTINGS_REFRESH_MS = Number(process.env.SETTINGS_REFRESH_MS || 60000);
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 30000);
 // مهمة تحضير/إلغاء أقدم من هالمدة (مثلاً بعد انقطاع طويل) ما بتنطبع تلقائيًا —
 // بتنتظر قرار الكاشير من صفحة الإعدادات، بدل ما تنطبع طلبات قديمة دفعة وحدة
 const STALE_MINUTES = Number(process.env.STALE_MINUTES || 15);
@@ -245,18 +246,20 @@ async function localTick() {
   finally { setTimeout(localTick, LOCAL_POLL_MS); }
 }
 
-// إعدادات الطابعات بتنحمّل كل SETTINGS_REFRESH_MS (مش مع كل فحص) — تغيير IP أو إعداد بيوصل خلال ثواني
+// إعدادات الطابعات بتنحمّل كل SETTINGS_REFRESH_MS (مش مع كل فحص) — تغيير IP أو إعداد بيوصل خلال دقيقة
 let cfg = null;
-let cfgLoadedAt = 0;
+let cfgLoadedAt = 0, lastHeartbeat = 0, lastRecover = 0;
 async function refreshConfig() {
-  if (cfg && Date.now() - cfgLoadedAt < SETTINGS_REFRESH_MS) return cfg;
-  await sendHeartbeat();
-  await recoverStuckJobs();
-  const settings = await loadPrinterSettings();
-  const printers = await loadPrinters();
-  saveCache(settings, printers); // نسخة للطباعة بدون نت
-  cfg = { settings, printers };
-  cfgLoadedAt = Date.now();
+  const now = Date.now();
+  if (now - lastHeartbeat >= HEARTBEAT_MS) { lastHeartbeat = now; await sendHeartbeat(); }
+  if (now - lastRecover >= HEARTBEAT_MS) { lastRecover = now; await recoverStuckJobs(); }
+  if (!cfg || now - cfgLoadedAt >= SETTINGS_REFRESH_MS) {
+    const settings = await loadPrinterSettings();
+    const printers = await loadPrinters();
+    saveCache(settings, printers); // نسخة للطباعة بدون نت
+    cfg = { settings, printers };
+    cfgLoadedAt = now;
+  }
   return cfg;
 }
 

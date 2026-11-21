@@ -62,7 +62,7 @@ function toSale(job) {
     table_number: s.table_number, customer_name: s.customer_name, customer_phone: s.customer_phone,
     created_by_profile: s.cashier_name ? { full_name: s.cashier_name } : null,
     cash_amount: s.cash_amount, card_amount: s.card_amount, delivery_amount: s.delivery_amount,
-    discount_amount: s.discount_amount, cash_received: s.cash_received, change_due: s.change_due,
+    discount_amount: s.discount_amount, delivery_fee: s.delivery_fee, cash_received: s.cash_received, change_due: s.change_due,
     kitchen_only: !!s.kitchen_only,
     sale_items: s.items.map((it) => ({ ...it, status: "completed" })),
   };

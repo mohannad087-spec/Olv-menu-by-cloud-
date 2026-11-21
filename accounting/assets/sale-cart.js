@@ -77,20 +77,23 @@ const OlvCart = (function () {
     return items.reduce((s, item) => s + lineTotal(item), 0);
   }
 
-  async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue, tableNumber, customerPhone, customerName, discountAmount }) {
+  async function checkout({ paymentMethod, entryDate, extraNotes, orderType, cashReceived, changeDue, tableNumber, customerPhone, customerName, discountAmount, deliveryFee }) {
     if (!items.length) throw new Error("السلة فاضية");
     setMode(orderType);
     const subtotal = total();
     // الخصم يُطبّق هون قبل التوزيع على كاش/شبكة/توصيل — لا يوجد عمود خصم مخصص
     // بجدول المبيعات حاليًا، فبنسجّله كملاحظة بس المبلغ الفعلي المحصّل هو الصافي بعد الخصم
     const discount = Math.min(Math.max(Number(discountAmount) || 0, 0), subtotal);
-    const grand = subtotal - discount;
+    // بدل التوصيل: بيتضاف على المبلغ المحصّل (السيرفر بيقبل المدفوع الأعلى من الأصناف)، وبيتسجّل بالملاحظات
+    const fee = Math.min(Math.max(Number(deliveryFee) || 0, 0), 50);
+    const grand = subtotal - discount + fee;
     const notesParts = items.map((item) => {
       const addonsTxt = item.addons.length ? ` (${item.addons.map((a) => a.name).join("، ")})` : "";
       const noteTxt = item.note ? ` [${item.note}]` : "";
       return `${item.qty}x ${item.name}${addonsTxt}${noteTxt}`;
     });
     if (discount > 0) notesParts.push(`خصم ${olvFormatMoney(discount)}`);
+    if (fee > 0) notesParts.push(`بدل توصيل ${olvFormatMoney(fee)}`);
     if (extraNotes) notesParts.push(extraNotes);
     const notes = notesParts.join("، ");
 
@@ -140,7 +143,7 @@ const OlvCart = (function () {
           print: {
             customer_phone: customerPhone ?? null,
             cash_amount: args.p_cash, card_amount: args.p_card, delivery_amount: args.p_delivery,
-            discount_amount: discount, cash_received: cashReceived ?? null, change_due: changeDue ?? null,
+            discount_amount: discount, delivery_fee: fee, cash_received: cashReceived ?? null, change_due: changeDue ?? null,
             items: sentItems.map((item) => ({
               product_name: item.name,
               qty: item.qty,
