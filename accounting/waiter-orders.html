@@ -172,9 +172,12 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/local-server.js"></script>
   <script defer src="assets/supabase-client.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
+  <script defer src="assets/connection-status.js"></script>
   <script>
   document.addEventListener("DOMContentLoaded", async () => {
     const $ = (id) => document.getElementById(id);
@@ -218,13 +221,81 @@
     const mins = (ts) => Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000));
     const dur = (m) => (m < 60 ? `${m} د` : `${Math.floor(m / 60)}س ${String(m % 60).padStart(2, "0")}د`);
 
+    // ---------- وضع بدون نت ----------
+    // الطاولات والحسابات بتنحفظ نسخة عالتابلت بعد كل قراءة ناجحة. لما ينقطع النت بنعرضها، وطلبات الويتر بتنحفظ بطابور
+    // offline-queue.js وبتنرفع لحالها لما يرجع النت. نفس الطلب بينبعت كمان لكمبيوتر المحل (local-server) حتى يوصل للمطبخ والبار.
+    const TABLES_KEY = "olv_waiter_tables_v1", PENDING_KEY = "olv_waiter_pending_v1", VOIDS_KEY = "olv_waiter_voids_v1";
+    const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; } catch (_) { return d; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* خزنة ممتلئة */ } };
+    const queueCount = () => (window.olvGetOfflineQueueCount ? window.olvGetOfflineQueueCount() : 0);
+    const isNetErr = (e) => !!e && /failed to fetch|networkerror|load failed|abort|timeout/i.test(String(e.message || "") + " " + String(e.name || ""));
+    let offlineSince = 0;
+    // لما الطابور يفضى كل اللي كان محفوظ انرفع، فبننسى الطلبات والشطب المحلية
+    function pruneLocal() {
+      if (queueCount() === 0) { lsSet(PENDING_KEY, []); lsSet(VOIDS_KEY, []); }
+    }
+    // نسخة الحسابات + الطلبات المحفوظة بالطابور (ما وصلت للسحابة لسا) + طلبات ويترية تانية من كمبيوتر المحل
+    function withLocalOverlay(base, localSales) {
+      const d = JSON.parse(JSON.stringify(base || { tables: [], tabs: [] }));
+      // بنعرض بس اللي لسا بالطابور: اللي انرفع صار موجود بقراءة السحابة وما لازم ينعرض مرتين
+      const queued = lsGet("olv_offline_queue_v1", []).map((q) => String(q.body || ""));
+      const inQueue = (id) => queued.some((b) => b.indexOf(id) !== -1);
+      const voids = new Set(lsGet(VOIDS_KEY, []).filter(inQueue));
+      d.tabs.forEach((t) => t.items.forEach((i) => { if (voids.has(i.id)) { i.voided = true; i.void_reason = i.void_reason || "شُطب بدون نت"; } }));
+      const pend = lsGet(PENDING_KEY, []).filter((p) => inQueue(p.ref));
+      const known = new Set(pend.map((p) => p.ref));
+      const orders = pend.map((p) => ({ ref: p.ref, table_number: p.table, at: p.at, items: p.items }))
+        .concat((localSales || []).filter((s) => !known.has(s.client_ref)).map((s) => ({
+          ref: s.client_ref, table_number: s.table_number, at: s.created_at,
+          items: (s.sale_items || []).map((i) => ({ name: i.product_name, qty: i.qty, note: null, addons: i.addons_summary, unit_price: i.unit_price, addons_total: i.addons_total })),
+        })));
+      orders.forEach((o) => {
+        const tn = o.table_number || o.table;
+        let tab = d.tabs.find((t) => key(t.table_number) === key(tn));
+        if (!tab) { tab = { sale_id: "local-" + o.ref, table_number: tn, opened_at: o.at, items: [] }; d.tabs.push(tab); }
+        o.items.forEach((i, n) => tab.items.push(Object.assign({ id: "local-" + o.ref + "-" + n, voided: false }, i)));
+        if (!d.tables.some((n) => key(n) === key(tn))) d.tables.push(tn);
+      });
+      return d;
+    }
     async function loadTables() {
       const { data: d, error } = await sb().rpc("waiter_tables");
-      if (error) { showErr(error.message || "تعذّر تحميل الطاولات"); return; }
+      if (error) {
+        if (isNetErr(error)) {
+          const cached = lsGet(TABLES_KEY, null);
+          if (cached) {
+            let localSales = [];
+            if (window.OlvLocal && OlvLocal.enabled) { try { localSales = (await OlvLocal.get("tables")).sales || []; } catch (_) { /* كمبيوتر المحل مش شغّال */ } }
+            offlineSince = offlineSince || cached.at;
+            data = withLocalOverlay(cached.data, localSales);
+            showErr("");
+            showOffline(true);
+            if (!table) { if ($("tbl-body")) paintTables(false); else renderTables(); } else paintSide();
+            return;
+          }
+        }
+        showErr(error.message || "تعذّر تحميل الطاولات"); return;
+      }
+      if (!d || !Array.isArray(d.tabs) || !Array.isArray(d.tables)) { showErr("تعذّر تحميل الطاولات"); return; }
       showErr("");
-      data = d;
+      lsSet(TABLES_KEY, { at: Date.now(), data: d });
+      offlineSince = 0;
+      pruneLocal();
+      showOffline(false);
+      data = (queueCount() ? withLocalOverlay(d, []) : d);
       if (!table) { if ($("tbl-body")) paintTables(false); else renderTables(); } else paintSide();
     }
+    function showOffline(on) {
+      let b = $("off-banner");
+      if (!b) {
+        b = document.createElement("div"); b.id = "off-banner";
+        b.style.cssText = "margin:8px 12px;padding:10px 14px;border-radius:12px;background:#fff4d6;color:#7a5a00;font-weight:700";
+        $("view").parentNode.insertBefore(b, $("view"));
+      }
+      b.hidden = !on;
+      if (on) b.textContent = `بدون نت — الطلبات بتنحفظ وبتنرفع لحالها${queueCount() ? ` (${queueCount()} محفوظة)` : ""}`;
+    }
+    window.addEventListener("online", () => loadTables());
     // القائمة بتنعرض فورًا من آخر نسخة محفوظة على التابلت وبتتحدّث بالخلفية
     const MENU_KEY = "olv_waiter_menu_v1";
     function cachedMenu() {
@@ -533,8 +604,14 @@
         box.querySelector("#vx").addEventListener("click", () => bg.remove());
         olvHoldConfirm(ok, async () => {
           ok.disabled = true;
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(itemId))) {
+            olvToast("هالصنف انرسل بدون نت ولسا ما وصل للسحابة. اشطبه لما يرجع النت", { type: "danger", icon: "warning", ms: 6000 });
+            ok.disabled = false; bg.remove(); return;
+          }
+          const qBefore = queueCount();
           const { error } = await sb().rpc("waiter_void_item", { p_item_id: itemId, p_reason: reason.trim() });
           if (error) { showErr(error.message || "ما انشطب الصنف"); ok.disabled = false; bg.remove(); return; }
+          if (queueCount() > qBefore) lsSet(VOIDS_KEY, lsGet(VOIDS_KEY, []).concat([itemId])); // بدون نت: بيظهر مشطوب لحد ما ينرفع
           showErr("");
           bg.remove();
           olvToast(reason === "تبديل بصنف ثاني" ? "انشطب، اختار الصنف البديل" : "انشطب الصنف", { type: "info", icon: "check" });
@@ -549,12 +626,43 @@
       sending = true; showErr(""); paintSide();
       try {
         const items = cart.map((l) => ({ product_id: l.p.id, qty: l.qty, addon_ids: l.addons.map((a) => a.id), note: l.note.trim() || null }));
+        const queuedBefore = queueCount();
+        const sentRef = ref, sentTable = olvNormTable(table), sentCart = cart.slice();
         const { error } = await sb().rpc("waiter_place_order", {
           p_entry_date: olvToday(), p_total: cartTotal(), p_items: items, p_client_ref: ref, p_table_number: olvNormTable(table),
         });
         if (error) throw error;
         if (navigator.vibrate) navigator.vibrate(12);
-        olvToast("انرسل الطلب لطاولة " + table, { type: "gold", icon: "check" });
+        // النت مقطوع: الطلب انحفظ بطابور التابلت. بنخزّنه محليًا حتى يظهر عالحساب، وبنبعته لكمبيوتر المحل حتى يوصل للمطبخ والبار وينطبع هلق
+        let offlineMsg = "";
+        if (queueCount() > queuedBefore) {
+          const pItems = sentCart.map((l) => ({
+            name: l.p.name, qty: l.qty, note: l.note.trim() || null,
+            addons: l.addons.length ? l.addons.map((a) => a.name).join("، ") : null,
+            unit_price: unit(l.p), addons_total: l.addons.reduce((s, a) => s + Number(a.price), 0),
+          }));
+          lsSet(PENDING_KEY, lsGet(PENDING_KEY, []).concat([{ ref: sentRef, table: sentTable, at: new Date().toISOString(), items: pItems }]));
+          offlineMsg = "انحفظ الطلب لطاولة " + table + " وبينرسل لما يرجع النت";
+          if (window.OlvLocal && OlvLocal.enabled) {
+            try {
+              const r = await OlvLocal.post("orders", {
+                client_ref: sentRef, created_at: new Date().toISOString(), order_type: "صالة", table_number: sentTable,
+                print: { kitchen_only: true, items: sentCart.map((l) => ({
+                  product_name: l.p.name, qty: l.qty, unit_price: unit(l.p), addons_total: l.addons.reduce((s, a) => s + Number(a.price), 0),
+                  addons_summary: l.addons.length ? l.addons.map((a) => a.name).join("، ") : null, note: l.note.trim() || null, category: l.p.category || null,
+                })) },
+                items: sentCart.map((l) => ({
+                  product_name: l.p.name, qty: l.qty, addons_summary: l.addons.length ? l.addons.map((a) => a.name).join("، ") : null,
+                  note: l.note.trim() || null, category: l.p.category || null,
+                })),
+              });
+              offlineMsg = "انحفظ الطلب لطاولة " + table + " ووصل للمطبخ والبار (" + (r.order_no || "") + ")";
+            } catch (e) { offlineMsg += " — بس ما وصل للمطبخ: افتح البرنامج من رابط كمبيوتر المحل"; }
+          } else {
+            offlineMsg += " — بس ما وصل للمطبخ: افتح البرنامج من رابط كمبيوتر المحل";
+          }
+        }
+        olvToast(offlineMsg || "انرسل الطلب لطاولة " + table, offlineMsg ? { type: "gold", icon: "check", ms: 6000 } : { type: "gold", icon: "check" });
         if (pendingReq) { const rid = pendingReq; pendingReq = null; treqAcked.add(rid); treqProxy({ action: "table_request_done", id: rid, status: "done" }).then(() => loadTreqs(), () => {}); }
         cart = []; ref = newRef(); table = null; sending = false;
         await loadTables();
