@@ -191,6 +191,7 @@ async function handleLocal(req, res, url) {
   if (!paired(req)) return json(res, 401, { error: "هالجهاز مش مربوط بكمبيوتر المحل. افتح رابط الربط مرة وحدة." });
 
   if (req.method === "GET" && route === "kitchen") return json(res, 200, store.kitchenView());
+  if (req.method === "GET" && route === "tables") return json(res, 200, { sales: store.tablesView() });
   if (req.method === "GET" && route === "dirty") return json(res, 200, { orders: store.dirtyList() });
   if (req.method !== "POST") return json(res, 404, { error: "مش موجود" });
   const body = await readBody(req);
