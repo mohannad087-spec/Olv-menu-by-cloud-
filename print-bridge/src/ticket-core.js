@@ -322,6 +322,9 @@
     const paid = Number(sale.cash_amount || 0) + Number(sale.card_amount || 0) + Number(sale.delivery_amount || 0);
     const discount = Number(sale.discount_amount || 0);
     const total = paid > 0 ? paid : Math.max(subtotal - discount, 0);
+    // بدل التوصيل (من البيع السريع): بيجي بالملاحظات «بدل توصيل 1.50» أو بحقل delivery_fee بالطباعة بدون نت
+    const feeMatch = /بدل توصيل\s*([0-9]+(?:\.[0-9]+)?)/.exec(String(sale.notes || ""));
+    const deliveryFee = Number(sale.delivery_fee) > 0 ? Number(sale.delivery_fee) : (feeMatch ? Number(feeMatch[1]) : 0);
 
     const it = scaled(26, 36, L.items_size / 26);
     const itSub = scaled(20, 28, L.items_size / 26);
@@ -341,10 +344,11 @@
     const row24 = scaled(24, 34, tk);
     const tot = scaled(32, 44, tk);
     const chg = scaled(26, 38, tk);
-    if (L.discount_show && discount > 0) {
+    if (L.discount_show && (discount > 0 || deliveryFee > 0)) {
       t.row("المجموع", formatMoney(subtotal), `${row24.px}px ${REG}`, row24.lh);
-      t.row("الخصم", `- ${formatMoney(discount)}`, `${row24.px}px ${REG}`, row24.lh);
+      if (discount > 0) t.row("الخصم", `- ${formatMoney(discount)}`, `${row24.px}px ${REG}`, row24.lh);
     }
+    if (deliveryFee > 0) t.row("بدل توصيل", `+ ${formatMoney(deliveryFee)}`, `${row24.px}px ${REG}`, row24.lh);
     t.row("الإجمالي", formatMoney(total), `bold ${tot.px}px ${BOLD}`, tot.lh);
 
     const method = paymentMethodOf(sale);
