@@ -215,8 +215,35 @@
   .rs-scroll{overflow-x:auto;}
   .st-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
   .st-head label{display:inline-flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer;}
-  .st-emp{margin:0 0 14px;}
-  .st-emp h3{font-size:14.5px; font-weight:800; margin:0 0 6px;}
+  /* كشف الدوام (2026-11-21): ملخص بالأعلى + بطاقة لكل موظف، سطر مضغوط لكل يوم بدون جدول عريض */
+  .st-sum{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin:0 0 14px;}
+  .st-sum div{background:var(--ink-3); border-radius:14px; padding:10px 14px; min-width:0;}
+  .st-sum small{display:block; color:var(--muted); font-size:12px;}
+  .st-sum b{display:block; font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.3;}
+  .st-sum .warn b{color:var(--danger-hi);}
+  .st-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr)); gap:14px; align-items:start;}
+  .st-card{background:var(--ink-2); border:1px solid var(--hair-soft); border-radius:18px; overflow:hidden;}
+  .st-card>summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; padding:12px 14px; min-height:48px; flex-wrap:wrap;}
+  .st-card>summary::-webkit-details-marker{display:none;}
+  .st-card>summary .nm{font-weight:800; font-size:15.5px; flex:1; min-width:90px;}
+  .st-card>summary .meta{color:var(--muted); font-size:12.5px;}
+  .st-card>summary .tot{font-weight:800; font-size:17px; font-variant-numeric:tabular-nums; color:var(--gold-hi);}
+  .st-card>summary::after{content:"‹"; color:var(--muted); font-size:18px; transition:transform .2s;}
+  .st-card[open]>summary::after{transform:rotate(-90deg);}
+  .st-chip{display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--gold) 14%, transparent); color:var(--gold-hi); font-variant-numeric:tabular-nums;}
+  .st-chip.bad{background:color-mix(in srgb, var(--danger) 14%, transparent); color:var(--danger-hi);}
+  .st-chip.live{background:color-mix(in srgb, var(--ok) 16%, transparent); color:var(--ok);}
+  .st-days{list-style:none; margin:0; padding:0 6px 8px;}
+  .st-day{display:grid; grid-template-columns:minmax(78px,1fr) auto auto; gap:8px 10px; align-items:center; padding:8px 8px; border-top:1px solid var(--hair-soft); font-size:13.5px; font-variant-numeric:tabular-nums;}
+  .st-day .d{font-weight:700;}
+  .st-day .t{color:var(--muted); white-space:nowrap; direction:ltr; text-align:center;}
+  .st-day .t b{color:var(--paper); font-weight:600;}
+  .st-day .h{min-width:64px; text-align:end; font-weight:800; white-space:nowrap;}
+  .st-day .h small{font-weight:500; color:var(--muted);}
+  .st-day.open{background:color-mix(in srgb, var(--danger) 7%, transparent); border-radius:10px;}
+  .st-day.long .h{color:var(--danger-hi);}
+  .st-day.nowrk{background:color-mix(in srgb, var(--ok) 8%, transparent); border-radius:10px;}
+  .st-day .ot{grid-column:1 / -1; font-size:12px; color:var(--gold-hi); margin-top:-4px;}
   .rs-sum tfoot td{font-weight:800; border-top:2px solid var(--hair-soft);}
   .rs-sum td.ot{color:var(--accent-hi, var(--text)); font-weight:700;}
   @media (prefers-reduced-motion: reduce){
@@ -760,21 +787,30 @@
       const list = shifts.filter((s) => !emp || s.profile_id === emp);
       if (!list.length) { box.innerHTML = `<div class="at-empty">ما في دوام بهالفترة.</div>`; return; }
       const ot = otOn();
+      const today = todayIso();
       const by = new Map();
       list.forEach((s) => { if (!by.has(s.profile_id)) by.set(s.profile_id, []); by.get(s.profile_id).push(s); });
       const names = [...by.keys()].sort((a, b) => nameOf(a).localeCompare(nameOf(b), "ar"));
-      box.innerHTML = names.map((id) => {
-        const rows = by.get(id).sort((a, b) => a.clockIn.punched_at.localeCompare(b.clockIn.punched_at));
-        let tot = 0, totOt = 0;
-        const trs = rows.map((s) => {
+      let gTot = 0, gOt = 0, gMiss = 0;
+      const cards = names.map((id, i) => {
+        const rows = by.get(id).sort((a, b) => b.clockIn.punched_at.localeCompare(a.clockIn.punched_at));
+        let tot = 0, totOt = 0, miss = 0;
+        const days = rows.map((s) => {
           const h = hoursOf(s);
           const o = h != null ? Math.max(0, h - OT_AFTER_H) : 0;
           if (h != null) { tot += h; totOt += o; }
-          return `<tr><td>${dayLabel(s.work_date)}</td><td>${fmtTime(s.clockIn.punched_at)}</td><td>${s.clockOut ? fmtTime(s.clockOut.punched_at) : "مفتوحة"}</td><td>${h != null ? fmtHrs(h) : "—"}</td>${ot ? `<td class="${o ? "ot" : ""}">${o ? fmtHrs(o) : "—"}</td>` : ""}</tr>`;
+          const live = h == null && s.work_date === today;
+          if (h == null && !live) miss++;
+          const cls = h == null ? (live ? " nowrk" : " open") : (h > LONG_SHIFT_H ? " long" : "");
+          const out = s.clockOut ? `<b>${fmtTime(s.clockOut.punched_at)}</b>` : `<span class="st-chip ${live ? "live" : "bad"}">${live ? "على الدوام" : "بدون خروج"}</span>`;
+          return `<li class="st-day${cls}"><span class="d">${dayLabel(s.work_date)}</span><span class="t"><b>${fmtTime(s.clockIn.punched_at)}</b> ← ${out}</span><span class="h">${h != null ? `${fmtHrs(h)}<small> س</small>` : "—"}</span>${ot && o ? `<span class="ot">منها ${fmtHrs(o)} س إضافي</span>` : ""}</li>`;
         }).join("");
-        return `<div class="st-emp"><h3>${olvEsc(nameOf(id))}</h3><div class="rs-scroll"><table class="rs-sum"><thead><tr><th>اليوم</th><th>دخول</th><th>خروج</th><th>الساعات</th>${ot ? "<th>إضافي (س)</th>" : ""}</tr></thead><tbody>${trs}</tbody>
-          <tfoot><tr><td>المجموع</td><td></td><td></td><td>${fmtHrs(tot)}</td>${ot ? `<td>${fmtHrs(totOt)}</td>` : ""}</tr></tfoot></table></div></div>`;
+        gTot += tot; gOt += totOt; gMiss += miss;
+        return `<details class="st-card" open><summary><span class="nm">${olvEsc(nameOf(id))}</span>
+          <span class="meta">${rows.length} يوم</span>${miss ? `<span class="st-chip bad">${miss} بدون خروج</span>` : ""}${ot && totOt ? `<span class="st-chip">+${fmtHrs(totOt)} إضافي</span>` : ""}
+          <span class="tot">${fmtHrs(tot)} س</span></summary><ul class="st-days">${days}</ul></details>`;
       }).join("");
+      box.innerHTML = `<div class="st-sum"><div><small>مجموع الساعات</small><b>${fmtHrs(gTot)}</b></div><div><small>الموظفين</small><b>${names.length}</b></div>${ot ? `<div><small>الإضافي (س)</small><b>${fmtHrs(gOt)}</b></div>` : ""}<div class="${gMiss ? "warn" : ""}"><small>أيام بدون خروج</small><b>${gMiss}</b></div></div><div class="st-grid">${cards}</div>`;
     }
     $("ot-toggle").checked = otOn();
     $("ot-toggle").addEventListener("change", (e) => {
