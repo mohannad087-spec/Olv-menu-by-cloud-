@@ -407,6 +407,14 @@
   }
   .discount-toggle-btn.active{border-style:solid; border-color:var(--gold); color:var(--gold-hi);}
   .discount-form[hidden]{display:none;}
+  .fee-row{display:flex; align-items:center; gap:8px; margin:0 0 8px; flex-wrap:wrap;}
+  .fee-row[hidden]{display:none;}
+  .fee-label{font-size:13px; font-weight:700; color:var(--muted);}
+  .fee-chips{display:flex; gap:6px;}
+  .fee-chips button{min-height:44px; min-width:44px; padding:0 12px; border-radius:12px; border:1px solid var(--hair-soft,rgba(var(--gold-rgb),.25)); background:transparent; color:inherit; font:inherit; font-size:14px; cursor:pointer;}
+  .fee-chips button.on{background:var(--gold); border-color:var(--gold); color:var(--on-gold);}
+  .fee-row input{width:72px; min-height:44px; border-radius:12px; border:1px solid var(--hair-soft,rgba(var(--gold-rgb),.25)); background:transparent; color:inherit; padding:0 8px; font-size:14px;}
+  .cart-total-row.fee span:last-child{color:var(--gold-hi);}
   .discount-form{
     display:flex; flex-direction:column; gap:8px; background:var(--ink-3); border:1px solid var(--hair);
     border-radius:10px; padding:10px; margin-top:8px;
@@ -905,9 +913,20 @@
                 <button type="button" class="discount-remove-btn" id="discount-remove-btn" aria-label="إلغاء الخصم"></button>
               </div>
             </div>
+            <div class="fee-row" id="fee-row" hidden>
+              <span class="fee-label">بدل توصيل</span>
+              <div class="fee-chips" id="fee-chips">
+                <button type="button" data-fee="0" class="on">بدون</button>
+                <button type="button" data-fee="1">1</button>
+                <button type="button" data-fee="1.5">1.5</button>
+                <button type="button" data-fee="2">2</button>
+              </div>
+              <input type="number" id="fee-input" inputmode="decimal" min="0" max="50" step="0.05" placeholder="غيره" dir="ltr" aria-label="بدل توصيل">
+            </div>
             <div class="cart-totals">
               <div class="cart-total-row" hidden><span>المجموع الفرعي</span><span id="cart-subtotal">0.00</span></div>
               <div class="cart-total-row discount" id="cart-discount-row" style="display:none;"><span>الخصم</span><span id="cart-discount">0.00</span></div>
+              <div class="cart-total-row fee" id="cart-fee-row" style="display:none;"><span>بدل توصيل</span><span id="cart-fee">0.00</span></div>
               <div class="cart-total-row grand"><span>الإجمالي</span><span class="total" id="cart-total">0.00</span></div>
             </div>
             <div class="actions">
@@ -1378,6 +1397,21 @@
     window.olvAutoReload = () => OlvCart.all().length === 0 && !document.querySelector(".checkout-backdrop, .sheet-backdrop, .olv-modal-backdrop");
     let discountMode = "percent"; // "percent" أو "fixed"
     let discountValue = 0;
+    // بدل التوصيل: مبلغ ثابت بيتضاف على الإجمالي لطلبات سفري/توصيل بس (مش خصم ولا صنف: ما بيأثر على المخزون أو المطبخ)
+    let deliveryFee = 0;
+    function currentFee() {
+      const t = document.getElementById("order-type").value;
+      return (t === "سفري" || t === "توصيل") && deliveryFee > 0 ? Math.round(deliveryFee * 100) / 100 : 0;
+    }
+    function setDeliveryFee(v) {
+      v = Math.round(Math.min(Math.max(Number(v) || 0, 0), 50) * 100) / 100;
+      deliveryFee = v;
+      const inp = document.getElementById("fee-input");
+      const isChip = [0, 1, 1.5, 2].includes(v);
+      document.querySelectorAll("#fee-chips button").forEach((b) => b.classList.toggle("on", Number(b.dataset.fee) === v));
+      if (isChip) inp.value = ""; else inp.value = v;
+      if (typeof renderCart === "function") renderCart();
+    }
 
     // يحسب قيمة الخصم الفعلية بالعملة، مع سقف بحيث ما يتعدى المجموع الفرعي
     // (يمنع رقم خصم سالب أو إجمالي سالب بأي حال)
@@ -1416,6 +1450,9 @@
     }
 
     function resetDiscount() {
+      deliveryFee = 0;
+      document.getElementById("fee-input").value = "";
+      document.querySelectorAll("#fee-chips button").forEach((b) => b.classList.toggle("on", b.dataset.fee === "0"));
       discountMode = "percent";
       discountValue = 0;
       document.getElementById("discount-value-input").value = "";
@@ -1814,6 +1851,7 @@
       tableField.hidden = type !== "صالة";
       nameField.hidden = type === "توصيل";
       if (type !== "صالة") document.getElementById("table-number").value = "";
+      document.getElementById("fee-row").hidden = !(type === "سفري" || type === "توصيل");
       updateTabBtn();
       if (type === "توصيل") document.getElementById("customer-name").value = "";
       // حقل رقم الهاتف ظاهر دايمًا الآن (مش بس لطلبات التوصيل) — إجباري
@@ -1833,6 +1871,7 @@
         customerName: document.getElementById("customer-name").value,
         discountMode,
         discountValue,
+        deliveryFee,
       }));
       const btn = document.getElementById("save-draft-btn");
       const original = btn.innerHTML;
@@ -1852,6 +1891,7 @@
           if (draft.tableNumber) document.getElementById("table-number").value = draft.tableNumber;
           if (draft.customerPhone) document.getElementById("customer-phone").value = draft.customerPhone;
           if (draft.customerName) document.getElementById("customer-name").value = draft.customerName;
+          if (draft.deliveryFee > 0) setDeliveryFee(draft.deliveryFee);
           if (draft.discountValue > 0) {
             discountMode = draft.discountMode === "fixed" ? "fixed" : "percent";
             discountValue = Number(draft.discountValue) || 0;
@@ -2025,7 +2065,11 @@
       } else {
         discountRow.style.display = "none";
       }
-      document.getElementById("cart-total").textContent = olvFormatMoney(subtotal - discountAmount);
+      const fee = currentFee();
+      const feeRow = document.getElementById("cart-fee-row");
+      feeRow.style.display = fee > 0 ? "" : "none";
+      if (fee > 0) document.getElementById("cart-fee").textContent = "+ " + olvFormatMoney(fee);
+      document.getElementById("cart-total").textContent = olvFormatMoney(subtotal - discountAmount + fee);
     }
 
     // «أرسل للطاولة»: صالة + رقم طاولة = الطلب بينضاف على حساب الطاولة المفتوح وبينطبع للأقسام بدون دفع،
@@ -2088,7 +2132,8 @@
 
       const subtotal = OlvCart.total();
       const discountAmount = computeDiscountAmount(subtotal);
-      const total = subtotal - discountAmount;
+      const deliveryFeeNow = currentFee();
+      const total = subtotal - discountAmount + deliveryFeeNow;
       const cartSnapshot = OlvCart.all().slice();
       const exact = Math.round(total * 100) / 100;
       let method = "cash";
@@ -2264,7 +2309,7 @@
           staffSaleId = await olvWithApproval("discount", () => OlvCart.checkout({
             paymentMethod: method, entryDate: olvToday(), extraNotes, orderType, cashReceived, changeDue,
             tableNumber: tableNumber || null, customerPhone: customerPhone || null, customerName: customerName || null,
-            discountAmount,
+            discountAmount, deliveryFee: deliveryFeeNow,
           }));
           if (method === "staff") {
             // البيعة انحفظت؛ هلأ منسجّل الذمة على الموظف. لو فشلت لازم الكاشير يعرف حتى ما تضيع
@@ -2474,6 +2519,15 @@
         const sel = document.getElementById("order-type");
         sel.value = b.dataset.type;
         sel.dispatchEvent(new Event("change"));
+      });
+      document.getElementById("fee-chips").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-fee]");
+        if (b) setDeliveryFee(b.dataset.fee);
+      });
+      document.getElementById("fee-input").addEventListener("input", (e) => {
+        deliveryFee = Math.round(Math.min(Math.max(Number(e.target.value) || 0, 0), 50) * 100) / 100;
+        document.querySelectorAll("#fee-chips button").forEach((b) => b.classList.remove("on"));
+        renderCart();
       });
       document.getElementById("checkout-btn").addEventListener("click", openCheckoutSheet);
       document.getElementById("send-tab-btn").addEventListener("click", sendToTable);
