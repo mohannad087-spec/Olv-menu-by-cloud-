@@ -80,6 +80,20 @@ function createStore(dataDir) {
       })),
       dirty: {},
     };
+    // أسعار الأصناف ومبالغ الدفع: بتلزم صفحة الطاولات وقت الانقطاع (الحساب المفتوح مجموعه من أصنافه)
+    const pr = t.print && typeof t.print === "object" ? t.print : null;
+    if (pr) {
+      const pItems = Array.isArray(pr.items) ? pr.items : [];
+      o.items.forEach((it, i) => {
+        const p = pItems[i] || {};
+        it.unit_price = Number.isFinite(Number(p.unit_price)) ? Number(p.unit_price) : 0;
+        it.addons_total = Number.isFinite(Number(p.addons_total)) ? Number(p.addons_total) : 0;
+      });
+      o.tab_open = !!pr.kitchen_only; // إرسال لحساب طاولة مفتوح بدون دفع
+      o.cash_amount = Number(pr.cash_amount) || 0;
+      o.card_amount = Number(pr.card_amount) || 0;
+      o.delivery_amount = Number(pr.delivery_amount) || 0;
+    }
     o.order_no = "م" + o.local_no;
     state.orders[key] = o;
     if (t.print && typeof t.print === "object") {
@@ -211,6 +225,23 @@ function createStore(dataDir) {
     return { pending: pending.map(toRow), ready: ready.map(toRow) };
   }
 
+  // الطلبات المحلية اللي إلها طاولة، بنفس شكل sales_entries اللي بتقرأه صفحة الطاولات (tables.html)
+  function tablesView() {
+    return Object.values(state.orders)
+      .filter((o) => o.source === "local" && o.table_number)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((o) => ({
+        id: o.id, order_no: o.order_no, created_at: o.created_at, table_number: o.table_number,
+        customer_name: o.customer_name, kitchen_status: o.kitchen_ready_at ? "ready" : "pending",
+        cash_amount: o.cash_amount || 0, card_amount: o.card_amount || 0, delivery_amount: o.delivery_amount || 0,
+        tab_open: !!o.tab_open, local: true, client_ref: o.client_ref,
+        sale_items: o.items.map((it) => ({
+          id: it.id, qty: it.qty, product_name: it.product_name, addons_summary: it.addons_summary,
+          status: "active", unit_price: it.unit_price || 0, addons_total: it.addons_total || 0,
+        })),
+      }));
+  }
+
   // شطب لسا ما ارتفع للسحابة، وكل طلب محلي (لازم الشاشة تتأكد إنو وصل للسحابة حتى ننساه)
   function dirtyList() {
     return Object.values(state.orders).filter((o) => isDirty(o) || o.source === "local").map((o) => ({
@@ -231,7 +262,7 @@ function createStore(dataDir) {
     save();
   }
 
-  return { addLocalOrder, applySnapshot, setDone, kitchenView, dirtyList, markSynced, prune, flush, printPending, printDone };
+  return { addLocalOrder, applySnapshot, setDone, kitchenView, tablesView, dirtyList, markSynced, prune, flush, printPending, printDone };
 }
 
 module.exports = { createStore };
