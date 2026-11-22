@@ -254,6 +254,7 @@
         <div class="po-sum"><span><b id="po-count">0</b> صنف</span><span class="big" id="po-total">0.00</span></div>
         <div class="po-bar-btns">
           <a class="btn gold" id="po-wa" href="#" target="_blank" rel="noopener"></a>
+          <button type="button" class="btn" id="po-print"></button>
           <button type="button" class="btn" id="po-save"></button>
           <button type="button" class="btn" id="po-copy"></button>
         </div>
@@ -281,6 +282,7 @@
   <script defer src="assets/low-stock-poll.js"></script>
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/po-print.js"></script>
   <script defer src="assets/catalog.js"></script>
   <script defer src="assets/search.js"></script>
   <script>
@@ -290,6 +292,7 @@
     $("po-autolink").textContent = "جيب مواده من مشترياتي السابقة منه";
     $("po-save").textContent = "حفظ مسودة";
     $("po-copy").textContent = "نسخ";
+    $("po-print").textContent = "طباعة / PDF";
     $("po-wa").innerHTML = olvIcon("phone") + "<span>إرسال واتساب</span>";
     $("ai-toggle").addEventListener("click", () => {
       const open = $("ai-box").hidden;
@@ -829,6 +832,16 @@
       try { await saveOrder(); olvToast("انحفظت المسودة"); render(); await loadHistory(); }
       catch (err) { olvShowError($("err"), err); olvToast((err && err.message) || "فشل الحفظ", { type: "danger" }); }
       finally { btn.disabled = false; }
+    });
+    // طباعة طلب الشراء (A4 بهوية OLV): السعر اختياري، إذا فاضي بتضل الخانة فاضية
+    $("po-print").addEventListener("click", () => {
+      const act = activeRows();
+      if (!act.length) { olvToast("حدد كمية لصنف واحد على الأقل", { type: "danger" }); return; }
+      olvPrintPurchaseOrder({
+        supplier: supplier ? { name: supplier.name, phone: supplier.phone } : {},
+        lines: act.map((r) => { const it = itemByKey(r.key); return { name: it.name, unit: unitLabel(r, it), qty: r.qty, price: r.price }; }),
+        notes: $("po-notes").value.trim(),
+      });
     });
     $("po-copy").addEventListener("click", async () => {
       if (!activeRows().length) { olvToast("حدد كمية لصنف واحد على الأقل", { type: "danger" }); return; }
