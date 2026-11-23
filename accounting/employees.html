@@ -202,6 +202,9 @@
             <div class="field"><label for="e-device-id">رقم الموظف على جهاز البصمة (اختياري)</label>
               <input type="text" id="e-device-id" dir="ltr" placeholder="مثال: 3"></div>
           </div>
+          <div class="field"><label for="e-shift">الشفت (قاعدة الدوام)</label>
+            <select id="e-shift"><option value="">بدون تحديد</option></select>
+            <small class="hint">بيتحسب التأخر على بداية الشفت: الصباحي من 7، المسائي من 4 العصر. الجدول الأسبوعي إله الأولوية إذا كان مسجّل ليوم معيّن.</small></div>
           <div class="field"><label for="e-job">المسمّى الوظيفي</label><input type="text" id="e-job" list="job-titles" placeholder="اختار أو اكتب"></div>
           <span class="em-label" id="e-role-label">الدور</span>
           <div class="em-roles" id="e-roles" role="radiogroup" aria-labelledby="e-role-label"></div>
@@ -264,7 +267,7 @@
 
     const $ = (id) => document.getElementById(id);
     const ROLE_LABELS = { owner: "صاحب المطعم", manager: "مدير", staff: "موظف", waiter: "ويتر (تابلت الطاولات)" };
-    let employees = [];
+    let employees = [], shifts = [];
     let myRole = null;
     let myId = null;
 
@@ -510,6 +513,7 @@
             <div><span>الأجر/ساعة</span><b>${e.hourly_wage != null ? olvFormatMoney(e.hourly_wage) : "—"}</b></div>
             <div><span>الهاتف</span><b>${olvEsc(e.phone) || "—"}</b></div>
             <div><span>رقم البصمة</span><b>${olvEsc(e.device_user_id) || "—"}</b></div>
+            <div><span>الشفت</span><b>${olvEsc((shifts.find((x) => x.id === e.default_shift_id) || {}).label || "—")}</b></div>
           </div>
           <div class="em-card-acts">
             <button type="button" class="btn small" data-edit="${e.id}">${olvIcon("note")}<span>تعديل</span></button>
@@ -523,6 +527,11 @@
 
     async function loadEmployees() {
       try {
+        if (!shifts.length) {
+          const { data: sh } = await window.supabaseClient.from("work_shifts").select("id, name, start_time").eq("is_active", true).order("sort_order");
+          shifts = (sh || []).map((x) => ({ id: x.id, label: `${x.name} (${Number(String(x.start_time).slice(0, 2))}${Number(String(x.start_time).slice(0, 2)) >= 12 ? " العصر" : " الصبح"})` }));
+          $("e-shift").innerHTML = '<option value="">بدون تحديد</option>' + shifts.map((x) => `<option value="${x.id}">${olvEsc(x.label)}</option>`).join("");
+        }
         const { data, error } = await window.supabaseClient.from("profiles").select("*").order("full_name");
         if (error) throw error;
         employees = data || [];
@@ -578,6 +587,7 @@
       $("e-wage").value = emp.hourly_wage != null ? emp.hourly_wage : "";
       $("e-device-id").value = emp.device_user_id || "";
       $("e-job").value = emp.job_title || "";
+      $("e-shift").value = emp.default_shift_id || "";
       rolesFor($("e-roles"), emp.role);
       $("edit-group").hidden = false;
       $("edit-group").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -599,6 +609,7 @@
           role: $("e-roles").dataset.value,
           device_user_id: $("e-device-id").value.trim() || null,
           job_title: $("e-job").value.trim() || null,
+          default_shift_id: $("e-shift").value || null,
         }).eq("id", editingId);
         if (error) throw error;
         closeEdit();
