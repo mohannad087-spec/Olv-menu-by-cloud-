@@ -175,7 +175,7 @@
         const off = r.status === "cancelled";
         const amt = r.amount > 0 ? `<span class="amt ${r.kind === "bonus" ? "pos" : "neg"}">${r.kind === "bonus" ? "+" : "−"} ${olvFormatMoney(r.amount)} د.أ</span>` : "";
         return `<li class="${off ? "off" : ""}"><div class="row1">${H.kindTag(r.kind, off)}<b>${olvEsc(nameOf(r.profile_id))}</b>${off ? '<span class="hr-tag cancelled">ملغي</span>' : ""}${amt}<span class="d">${olvEsc(H.fmtDate(r.record_date))}</span></div>
-          <div class="why">${olvEsc(H.reasonLabel(r.reason_code))}${r.reason_text ? " — " + olvEsc(r.reason_text) : ""}</div></li>`;
+          <div class="why">${olvEsc(H.reasonLabel(r.reason_code))}${r.reason_text ? " — " + olvEsc(r.reason_text) : ""}${r.evidence && r.evidence.length ? ` · <span class="hr-tag adj">${r.evidence.length} بصمات مرفقة</span>` : ""}</div></li>`;
       }).join("") : `<li class="hr-empty">ما في تسجيلات لسا. اكبس «تسجيل جديد» لأول إنذار أو مكافأة.</li>`;
     }
 
@@ -184,6 +184,7 @@
       try { list = await H.loadSuggestions(employees, records); } catch (e) { console.warn(e); }
       $("sug-group").hidden = !list.length;
       $("sug-list").innerHTML = list.map((s, i) => `<li class="${s.esc ? "esc" : ""}"><span class="t"><b>${olvEsc(s.title)}</b><small>${olvEsc(s.hint)}</small></span>
+        ${s.evidence && s.evidence.length ? `<details class="hr-evwrap" open><summary>بصمات ${s.type === "absent" ? "الغياب" : "التأخر"} (${s.evidence.length})</summary>${H.evidenceHtml(s.evidence)}</details>` : ""}
         <button type="button" class="btn gold" data-ok="${i}">${s.esc ? "سجّل خصم" : "اعتمد إنذار"}</button>
         <button type="button" class="btn" data-no="${i}">تجاهل</button></li>`).join("");
       $("sug-list").querySelectorAll("[data-ok]").forEach((b) => b.addEventListener("click", async () => {
@@ -194,11 +195,12 @@
         }
         b.disabled = true;
         try {
-          const { error } = await window.supabaseClient.rpc("hr_create_record", {
+          const { data: newId, error } = await window.supabaseClient.rpc("hr_create_record", {
             p_profile: s.pid, p_kind: "warning", p_reason_code: s.reason, p_reason_text: s.text, p_fixed: 0, p_days: 0, p_day_value: 0,
             p_date: s.date, p_notes: null, p_source: "auto", p_suggest_key: s.key,
           });
           if (error) throw error;
+          await H.saveEvidence(newId, s.evidence);
           olvToast("انسجّل الإنذار", { type: "ok", icon: "check" });
           await reload();
         } catch (err) { olvShowError($("err"), err); b.disabled = false; }
