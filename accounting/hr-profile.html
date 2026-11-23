@@ -251,7 +251,7 @@
         const shown = rows.filter((r) => r.first_punch || r.status === "absent" || r.sched_start);
         $("att-list").innerHTML = shown.length ? `<div class="hr-ev-h"><span>اليوم</span><span>الدوام</span><span>دخول → خروج</span><span>الحالة</span></div>${shown.map((r) => {
           const l = H.isLateRow(r), a = r.status === "absent" && r.work_date < H.todayIso();
-          return `<div class="hr-ev-r${a ? " abs" : l ? " late" : ""}"><span>${olvEsc(H.dayLabel(String(r.work_date).slice(0, 10)))}</span><span>${H.fmtT(r.sched_start)}</span><span>${H.fmtT(r.first_punch)} → ${r.last_punch && r.last_punch !== r.first_punch ? H.fmtT(r.last_punch) : "—"}</span><span>${a ? "غياب" : l ? "تأخر " + Math.round(r.late_min) + " د" : r.first_punch ? "بالوقت" : "—"}</span></div>`;
+          return `<div class="hr-ev-r${a ? " abs" : l ? " late" : ""}"><span>${olvEsc(H.dayLabel(String(r.work_date).slice(0, 10)))}</span><span>${H.fmtT(r.sched_start)}</span><span>${H.fmtT(r.first_punch)} → ${r.last_punch && r.last_punch !== r.first_punch ? H.fmtT(r.last_punch) : "—"}</span><span>${a ? "غياب" : l ? "تأخر " + Math.round(r.late_min) + " د" : H.isBigLate(r) ? "غالباً مجاز / نسي البصمة" : r.first_punch ? "بالوقت" : "—"}</span></div>`;
         }).join("")}` : `<div class="hr-empty">ما في بصمات أو جدول دوام لهالموظف آخر 30 يوم.</div>`;
       } catch (err) { $("att-list").innerHTML = `<div class="hr-empty">تعذّر تحميل البصمات.</div>`; }
     }
