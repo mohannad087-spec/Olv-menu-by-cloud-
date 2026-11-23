@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>الإنذارات والمكافآت — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#fbf9ff">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<link rel="stylesheet" href="assets/hr.css">
+</head>
+<body class="nm-page">
+  <div id="olv-nav"></div>
+  <div class="wrap hr-wrap">
+    <div class="err" id="err"></div>
+    <div id="no-access" class="group" hidden><div class="hr-empty">هذه الصفحة لصاحب المطعم والمدير فقط.</div></div>
+    <div id="hr-content" hidden>
+      <header class="hr-head">
+        <div>
+          <h1>الإنذارات والمكافآت</h1>
+          <div class="sub">سجل المخالفات والخصومات والمكافآت لكل موظف. الخصم والمكافأة بينحسبوا تلقائياً بالراتب.</div>
+        </div>
+        <div class="acts"><button class="btn gold" type="button" id="new-btn"></button></div>
+      </header>
+
+      <div class="stats hr-stats">
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-1"></div>
+          <div class="stat-body"><div class="label">عليهم إنذارات</div><div class="value" id="k-warned">—</div><span class="note">آخر 12 شهر</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-2"></div>
+          <div class="stat-body"><div class="label">إنذارين أو أكتر</div><div class="value" id="k-hot">—</div><span class="note">بحاجة متابعة</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-3"></div>
+          <div class="stat-body"><div class="label">خصومات هالشهر</div><div class="value" id="k-ded">—</div><span class="note">د.أ</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-4"></div>
+          <div class="stat-body"><div class="label">مكافآت هالشهر</div><div class="value" id="k-bon">—</div><span class="note">د.أ</span></div></div></div>
+      </div>
+
+      <section class="group" id="sug-group" hidden>
+        <h2 id="sug-title"></h2>
+        <ul class="hr-sug" id="sug-list"></ul>
+      </section>
+
+      <section class="group">
+        <h2 id="emp-title"></h2>
+        <div id="emp-box"><div class="hr-empty">جاري التحميل...</div></div>
+      </section>
+
+      <section class="group">
+        <h2 id="log-title"></h2>
+        <ul class="hr-tl" id="log-box"></ul>
+      </section>
+    </div>
+  </div>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/hr-common.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("hr");
+    const $ = (id) => document.getElementById(id);
+    const H = window.OLV_HR;
+    let employees = [], records = [], photoUrls = {};
+
+    $("new-btn").innerHTML = olvIcon("plus") + "<span>تسجيل جديد</span>";
+    $("ic-1").innerHTML = olvIcon("warning"); $("ic-2").innerHTML = olvIcon("bell");
+    $("ic-3").innerHTML = olvIcon("minusCircle"); $("ic-4").innerHTML = olvIcon("star");
+    $("sug-title").innerHTML = olvIcon("sparkle") + " اقتراحات تنتظر قرارك";
+    $("emp-title").innerHTML = olvIcon("people") + " الفريق";
+    $("log-title").innerHTML = olvIcon("clipboard") + " آخر التسجيلات";
+
+    const monthPrefix = () => H.todayIso().slice(0, 7);
+    const nameOf = (id) => (employees.find((e) => e.id === id) || {}).full_name || "—";
+
+    async function loadPhotos() {
+      const paths = [...new Set(employees.map((e) => e.photo_path).filter(Boolean))];
+      photoUrls = {};
+      if (!paths.length) return;
+      try {
+        const { data } = await window.supabaseClient.storage.from("employee-photos").createSignedUrls(paths, 3600);
+        (data || []).forEach((r) => { if (r.signedUrl && r.path) photoUrls[r.path] = r.signedUrl; });
+      } catch (_) {}
+    }
+
+    function render() {
+      const active = records.filter((r) => r.status === "active");
+      const warnedMap = new Map();
+      H.activeWarnings(records).forEach((r) => warnedMap.set(r.profile_id, (warnedMap.get(r.profile_id) || 0) + 1));
+      $("k-warned").textContent = warnedMap.size;
+      $("k-hot").textContent = [...warnedMap.values()].filter((n) => n >= 2).length;
+      const mp = monthPrefix();
+      const sum = (k) => active.filter((r) => r.kind === k && String(r.record_date).startsWith(mp)).reduce((s, r) => s + Number(r.amount), 0);
+      $("k-ded").textContent = olvFormatMoney(sum("deduction"));
+      $("k-bon").textContent = olvFormatMoney(sum("bonus"));
+
+      const yearAgo = H.addDays(H.todayIso(), -365);
+      const staff = employees.filter((e) => e.is_active !== false && e.role !== "owner")
+        .sort((a, b) => (warnedMap.get(b.id) || 0) - (warnedMap.get(a.id) || 0) || String(a.full_name).localeCompare(String(b.full_name), "ar"));
+      $("emp-box").innerHTML = staff.length ? `<ul class="hr-list">${staff.map((e) => {
+        const mine = active.filter((r) => r.profile_id === e.id && r.record_date > yearAgo);
+        const w = warnedMap.get(e.id) || 0;
+        const ded = mine.filter((r) => r.kind === "deduction").reduce((s, r) => s + Number(r.amount), 0);
+        const bon = mine.filter((r) => r.kind === "bonus").reduce((s, r) => s + Number(r.amount), 0);
+        const ini = (e.full_name || "").trim().charAt(0);
+        const ph = photoUrls[e.photo_path];
+        return `<li><a class="hr-card${w >= 2 ? " hot" : ""}" href="hr-profile.html?id=${e.id}">
+          <div class="ctop"><span class="hr-av${ph ? " has-photo" : ""}"${ph ? ` style="background-image:url('${olvEsc(ph)}')"` : ""}>${ini ? olvEsc(ini) : ""}</span>
+            <span class="t"><b>${olvEsc(e.full_name) || "بدون اسم"}</b><small>${olvEsc(e.job_title || "") || "—"}</small></span>
+            ${w >= 2 ? `<span class="hr-warn-pill">${olvIcon("warning")}${w} إنذارات</span>` : ""}</div>
+          <div class="nums"><div><span>إنذارات</span><b>${w}</b></div><div><span>خصومات</span><b>${olvFormatMoney(ded)}</b></div><div><span>مكافآت</span><b>${olvFormatMoney(bon)}</b></div></div>
+        </a></li>`;
+      }).join("")}</ul>` : `<div class="hr-empty">ما في موظفين فعّالين.</div>`;
+
+      const recent = records.slice(0, 12);
+      $("log-box").innerHTML = recent.length ? recent.map((r) => {
+        const off = r.status === "cancelled";
+        const amt = r.amount > 0 ? `<span class="amt ${r.kind === "bonus" ? "pos" : "neg"}">${r.kind === "bonus" ? "+" : "−"} ${olvFormatMoney(r.amount)} د.أ</span>` : "";
+        return `<li class="${off ? "off" : ""}"><div class="row1">${H.kindTag(r.kind, off)}<b>${olvEsc(nameOf(r.profile_id))}</b>${off ? '<span class="hr-tag cancelled">ملغي</span>' : ""}${amt}<span class="d">${olvEsc(H.fmtDate(r.record_date))}</span></div>
+          <div class="why">${olvEsc(H.reasonLabel(r.reason_code))}${r.reason_text ? " — " + olvEsc(r.reason_text) : ""}</div></li>`;
+      }).join("") : `<li class="hr-empty">ما في تسجيلات لسا. اكبس «تسجيل جديد» لأول إنذار أو مكافأة.</li>`;
+    }
+
+    async function renderSuggestions() {
+      let list = [];
+      try { list = await H.loadSuggestions(employees, records); } catch (e) { console.warn(e); }
+      $("sug-group").hidden = !list.length;
+      $("sug-list").innerHTML = list.map((s, i) => `<li class="${s.esc ? "esc" : ""}"><span class="t"><b>${olvEsc(s.title)}</b><small>${olvEsc(s.hint)}</small></span>
+        <button type="button" class="btn gold" data-ok="${i}">${s.esc ? "سجّل خصم" : "اعتمد إنذار"}</button>
+        <button type="button" class="btn" data-no="${i}">تجاهل</button></li>`).join("");
+      $("sug-list").querySelectorAll("[data-ok]").forEach((b) => b.addEventListener("click", async () => {
+        const s = list[Number(b.dataset.ok)];
+        if (s.esc) {
+          H.openRecordDialog({ employees, records, profileId: s.pid, kind: "deduction", reason: s.reason, text: s.text, key: s.key, source: "auto", onDone: reload });
+          return;
+        }
+        b.disabled = true;
+        try {
+          const { error } = await window.supabaseClient.rpc("hr_create_record", {
+            p_profile: s.pid, p_kind: "warning", p_reason_code: s.reason, p_reason_text: s.text, p_fixed: 0, p_days: 0, p_day_value: 0,
+            p_date: s.date, p_notes: null, p_source: "auto", p_suggest_key: s.key,
+          });
+          if (error) throw error;
+          olvToast("انسجّل الإنذار", { type: "ok", icon: "check" });
+          await reload();
+        } catch (err) { olvShowError($("err"), err); b.disabled = false; }
+      }));
+      $("sug-list").querySelectorAll("[data-no]").forEach((b) => b.addEventListener("click", async () => {
+        try { await H.dismissSuggestion(list[Number(b.dataset.no)]); await renderSuggestions(); } catch (err) { olvShowError($("err"), err); }
+      }));
+    }
+
+    async function reload() {
+      try {
+        records = await H.loadRecords();
+        render();
+        await renderSuggestions();
+      } catch (err) { olvShowError($("err"), err); }
+    }
+
+    $("new-btn").addEventListener("click", () => H.openRecordDialog({ employees: employees.filter((e) => e.role !== "owner"), records, onDone: reload }));
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      const { data: me } = await window.supabaseClient.from("profiles").select("role").eq("id", session.user.id).single();
+      if (!me || !["owner", "manager"].includes(me.role)) { $("no-access").hidden = false; return; }
+      $("hr-content").hidden = false;
+      try {
+        const { data, error } = await window.supabaseClient.from("profiles").select("id, full_name, role, job_title, hourly_wage, is_active, photo_path").order("full_name");
+        if (error) throw error;
+        employees = data || [];
+        await loadPhotos();
+      } catch (err) { olvShowError($("err"), err); }
+      await reload();
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>

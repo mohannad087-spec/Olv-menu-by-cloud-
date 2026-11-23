@@ -267,6 +267,16 @@ function olvIcon(name, cls) {
 // أقسام بتجمع أكتر من صفحة تحت رابط واحد بالقائمة، وبتطلع كتبويبات بأعلى كل صفحة منها
 const OLV_HUBS = [
   {
+    // الموارد البشرية (2026-11-23): الموظفين + الإنذارات والمكافآت + الحضور + الرواتب والسلف. adminOnly = ما بيظهر للكاشير
+    navId: "employees",
+    tabs: [
+      { id: "employees", href: "employees.html", label: "الموظفون", icon: "person", adminOnly: true },
+      { id: "hr", href: "hr.html", label: "الإنذارات والمكافآت", short: "الإنذارات", icon: "warning", adminOnly: true },
+      { id: "attendance", href: "attendance.html", label: "الحضور", icon: "clock" },
+      { id: "payroll", href: "payroll.html", label: "الرواتب والسلف", short: "الرواتب", icon: "banknote", adminOnly: true },
+    ],
+  },
+  {
     navId: "settings",
     tabs: [
       { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
@@ -354,9 +364,10 @@ function olvRenderNav(active) {
       ],
     },
     {
-      label: "الموظفون", icon: "people", hue: 5,
+      label: "الموارد البشرية", icon: "people", hue: 5,
       links: [
         { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
+        { id: "hr", href: "hr.html", label: "الإنذارات والمكافآت", icon: "warning" },
         { id: "attendance", href: "attendance.html", label: "الحضور", icon: "clock" },
         { id: "payroll", href: "payroll.html", label: "الرواتب", icon: "banknote" },
         { id: "staff-meals", href: "staff-meals.html", label: "وجبات الموظفين", icon: "dish" },
@@ -383,7 +394,7 @@ function olvRenderNav(active) {
   // شريط تبويبات القسم (مثلًا: المواد الخام | المستلزمات | الجرد) تحت القائمة
   const hubHtml = hub
     ? `<nav class="olv-hub-tabs" aria-label="أقسام">${hub.tabs.map((t) =>
-        `<a class="olv-hub-tab${t.id === active ? " on" : ""}" href="${t.href}"${t.id === active ? ' aria-current="page"' : ""}>${olvIcon(t.icon)}<span>${t.label}</span></a>`).join("")}</nav>`
+        `<a class="olv-hub-tab${t.id === active ? " on" : ""}" href="${t.href}"${t.adminOnly ? " data-staff-hide" : ""}${t.id === active ? ' aria-current="page"' : ""}>${olvIcon(t.icon)}<span>${t.label}</span></a>`).join("")}</nav>`
     : "";
 
   const nav = document.getElementById("olv-nav");
