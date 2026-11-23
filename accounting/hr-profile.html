@@ -90,6 +90,12 @@
           <div class="stat-body"><div class="label">سلف غير مسوّاة</div><div class="value" id="k-adv">—</div><span class="note">د.أ</span></div></div></div>
       </div>
 
+      <section class="group" id="att-group">
+        <h2 id="att-title"></h2>
+        <div class="hr-attsum" id="att-sum"></div>
+        <div class="hr-ev att" id="att-list"></div>
+      </section>
+
       <section class="group">
         <h2 id="tl-title"></h2>
         <div class="hr-chips" id="filters" role="group" aria-label="فلتر السجل"></div>
@@ -115,6 +121,7 @@
   <script defer src="assets/menu-stock-sync.js"></script>
   <script defer src="assets/print-health.js"></script>
   <script defer src="assets/hr-common.js"></script>
+  <script defer src="assets/hr-notice.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
     olvRenderNav("hr");
@@ -130,6 +137,7 @@
     $("add-bon").innerHTML = olvIcon("star") + "<span>مكافأة</span>";
     $("ic-1").innerHTML = olvIcon("warning"); $("ic-2").innerHTML = olvIcon("minusCircle");
     $("ic-3").innerHTML = olvIcon("star"); $("ic-4").innerHTML = olvIcon("wallet");
+    $("att-title").innerHTML = olvIcon("clock") + " بصمات الدوام (آخر 30 يوم)";
     $("tl-title").innerHTML = olvIcon("clipboard") + " السجل الزمني";
     $("to-pay").innerHTML = olvIcon("banknote") + "<span>الرواتب</span>";
     $("to-att").innerHTML = olvIcon("clock") + "<span>الحضور</span>";
@@ -216,9 +224,11 @@
         const settled = (r.kind === "deduction" || r.kind === "bonus") && (adjs.find((a) => a.id === r.adjustment_id) || {}).settled_payroll_id;
         return `<li class="${off ? "off" : ""}"><div class="row1">${H.kindTag(r.kind, off)}${off ? '<span class="hr-tag cancelled">ملغي</span>' : ""}${r.source === "auto" ? '<span class="hr-tag adj">باقتراح تلقائي</span>' : ""}${amt}<span class="d">${olvEsc(H.fmtDate(r.record_date))}</span></div>
           <div class="why"><b>${olvEsc(H.reasonLabel(r.reason_code))}</b>${r.reason_text ? " — " + olvEsc(r.reason_text) : ""}</div>
+          ${r.evidence && r.evidence.length ? `<details class="hr-evwrap" open><summary>${r.evidence.some((x) => x.a) ? "بصمات الغياب" : "بصمات التأخر"} المرفقة (${r.evidence.length})</summary>${H.evidenceHtml(r.evidence)}</details>` : ""}
           <div class="meta">${[days.replace(" · ", ""), state, r.notes ? "ملاحظة: " + olvEsc(r.notes) : "", off && r.cancel_reason ? "سبب الإلغاء: " + olvEsc(r.cancel_reason) : ""].filter(Boolean).join(" · ")}</div>
           ${auditHtml(r.id)}
           <div class="acts">
+            <button type="button" class="btn small gold" data-notice="${r.id}">${olvIcon("share")}<span>نسخة صورة / واتساب</span></button>
             <button type="button" class="btn small" data-print="${r.id}">${olvIcon("printer")}<span>${warn ? "طباعة نموذج الإنذار" : "طباعة"}</span></button>
             ${off ? "" : `<button type="button" class="btn small" data-edit="${r.id}"${settled ? " disabled" : ""}>${olvIcon("note")}<span>تعديل</span></button>
             <button type="button" class="btn small danger" data-cancel="${r.id}"${settled ? " disabled" : ""}>${olvIcon("x")}<span>إلغاء</span></button>`}
@@ -226,11 +236,28 @@
       }).join("") : `<li class="hr-empty">ما في سجل بهالفلتر.</li>`;
       const byId = (id) => records.find((r) => r.id === id);
       $("tl").querySelectorAll("[data-print]").forEach((b) => b.addEventListener("click", () => H.printForm(byId(b.dataset.print), emp, records)));
+      $("tl").querySelectorAll("[data-notice]").forEach((b) => b.addEventListener("click", () => window.OLV_NOTICE.open(byId(b.dataset.notice), emp, records)));
       $("tl").querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => open(null, { edit: byId(b.dataset.edit) })));
       $("tl").querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () => H.cancelRecord(byId(b.dataset.cancel), reload)));
     }
 
+    async function renderAttendance() {
+      try {
+        const rows = await H.loadAttendance(pid, H.addDays(H.todayIso(), -29), H.todayIso());
+        const late = rows.filter(H.isLateRow), absent = rows.filter((r) => r.status === "absent" && r.work_date < H.todayIso());
+        const worked = rows.filter((r) => r.first_punch);
+        const min = late.reduce((s, r) => s + Number(r.late_min), 0);
+        $("att-sum").innerHTML = `<span><b>${worked.length}</b> يوم دوام</span><span class="${late.length ? "bad" : ""}"><b>${late.length}</b> أيام تأخر${late.length ? ` (${Math.round(min)} دقيقة)` : ""}</span><span class="${absent.length ? "bad" : ""}"><b>${absent.length}</b> غياب</span>`;
+        const shown = rows.filter((r) => r.first_punch || r.status === "absent" || r.sched_start);
+        $("att-list").innerHTML = shown.length ? `<div class="hr-ev-h"><span>اليوم</span><span>الدوام</span><span>دخول → خروج</span><span>الحالة</span></div>${shown.map((r) => {
+          const l = H.isLateRow(r), a = r.status === "absent" && r.work_date < H.todayIso();
+          return `<div class="hr-ev-r${a ? " abs" : l ? " late" : ""}"><span>${olvEsc(H.dayLabel(String(r.work_date).slice(0, 10)))}</span><span>${H.fmtT(r.sched_start)}</span><span>${H.fmtT(r.first_punch)} → ${r.last_punch && r.last_punch !== r.first_punch ? H.fmtT(r.last_punch) : "—"}</span><span>${a ? "غياب" : l ? "تأخر " + Math.round(r.late_min) + " د" : r.first_punch ? "بالوقت" : "—"}</span></div>`;
+        }).join("")}` : `<div class="hr-empty">ما في بصمات أو جدول دوام لهالموظف آخر 30 يوم.</div>`;
+      } catch (err) { $("att-list").innerHTML = `<div class="hr-empty">تعذّر تحميل البصمات.</div>`; }
+    }
+
     async function reload() {
+      renderAttendance();
       try {
         const sb = window.supabaseClient;
         const [recs, au, ad, aj] = await Promise.all([

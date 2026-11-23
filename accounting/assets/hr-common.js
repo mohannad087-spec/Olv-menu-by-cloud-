@@ -33,6 +33,34 @@
   const money = (n) => olvFormatMoney(n);
   const fmtDate = (iso) => { try { return new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString("ar-JO", { day: "numeric", month: "short", year: "numeric" }); } catch (_) { return iso; } };
 
+  // ---------------------------------------------------------------- البصمات كدليل
+  const TZ = "Asia/Amman";
+  const fmtT = (ts) => { try { return ts ? new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ }) : "—"; } catch (_) { return "—"; } };
+  const dayLabel = (iso) => { try { const d = new Date(String(iso).slice(0, 10) + "T12:00:00Z"); return d.toLocaleDateString("ar-JO", { weekday: "long", timeZone: "UTC" }) + " " + String(iso).slice(8, 10) + "/" + String(iso).slice(5, 7); } catch (_) { return iso; } };
+
+  // صف attendance_report ← عنصر دليل مختصر (يتخزّن مع الإنذار)
+  const toEv = (r) => ({ d: String(r.work_date).slice(0, 10), s: r.sched_start || null, p: r.first_punch || null, m: Math.round(Number(r.late_min) || 0), a: r.status === "absent" ? true : undefined });
+  const isLateRow = (r) => ["late", "late_early"].includes(r.status) && Number(r.late_min) > 0;
+  async function loadAttendance(profileId, from, to) {
+    const { data, error } = await db().rpc("attendance_report", { p_from: from, p_to: to });
+    if (error) throw error;
+    return (data || []).filter((r) => r.profile_id === profileId).sort((a, b) => (a.work_date < b.work_date ? 1 : -1));
+  }
+  // جدول أيام التأخر/الغياب: الدوام المجدول مقابل البصمة الفعلية والدقائق
+  function evidenceHtml(ev, cls) {
+    if (!ev || !ev.length) return "";
+    const list = ev.slice().sort((a, b) => (a.d < b.d ? -1 : 1));
+    const total = list.reduce((s, x) => s + (x.a ? 0 : Number(x.m) || 0), 0);
+    return `<div class="hr-ev ${cls || ""}"><div class="hr-ev-h"><span>اليوم</span><span>الدوام</span><span>البصمة</span><span>التأخير</span></div>${list.map((x) =>
+      `<div class="hr-ev-r${x.a ? " abs" : " late"}"><span>${esc(dayLabel(x.d))}</span><span>${fmtT(x.s)}</span><span>${x.a ? "بدون بصمة" : fmtT(x.p)}</span><span>${x.a ? "غياب" : esc(String(Math.round(x.m))) + " د"}</span></div>`).join("")}
+      ${total > 0 ? `<div class="hr-ev-t">مجموع التأخير: <b>${Math.round(total)} دقيقة</b> بـ ${list.filter((x) => !x.a).length} أيام</div>` : ""}</div>`;
+  }
+  async function saveEvidence(id, ev) {
+    if (!id || !ev || !ev.length) return;
+    try { const { error } = await db().rpc("hr_set_evidence", { p_id: id, p_evidence: ev }); if (error) throw error; }
+    catch (e) { console.warn("تعذّر حفظ أدلة البصمة", e); }
+  }
+
   // الإنذارات الفعّالة آخر 12 شهر (بتحدد المستوى التالي)
   function activeWarnings(records, profileId) {
     const from = addDays(todayIso(), -365);
@@ -71,8 +99,8 @@
         if (["late", "late_early"].includes(r.status) && Number(r.late_min) > 0) {
           const k = r.work_date.slice(0, 7);
           const key = r.profile_id + "|" + k;
-          const a = lateBy.get(key) || { pid: r.profile_id, month: k, n: 0, min: 0 };
-          a.n++; a.min += Number(r.late_min);
+          const a = lateBy.get(key) || { pid: r.profile_id, month: k, n: 0, min: 0, ev: [] };
+          a.n++; a.min += Number(r.late_min); a.ev.push(toEv(r));
           lateBy.set(key, a);
         }
         if (r.status === "absent" && r.work_date < today && r.work_date >= addDays(today, -14)) {
@@ -81,7 +109,7 @@
             type: "absent", pid: r.profile_id, key, reason: "absence", date: r.work_date,
             title: `${nameOf(r.profile_id)}: غياب بدون بصمة بتاريخ ${fmtDate(r.work_date)}`,
             hint: "كان مجدول دوام وما في أي بصمة. اعتمد إنذار إذا الغياب بدون عذر، أو تجاهل إذا في عذر.",
-            text: `غياب بدون عذر بتاريخ ${r.work_date}`,
+            text: `غياب بدون عذر بتاريخ ${r.work_date}`, evidence: [toEv(r)],
           });
         }
       });
@@ -91,7 +119,7 @@
           type: "late", pid: a.pid, key, reason: "late", date: today,
           title: `${nameOf(a.pid)}: تأخر ${a.n} أيام بشهر ${a.month} (مجموع ${Math.round(a.min)} دقيقة)`,
           hint: "اقتراح إنذار بسبب التكرار. بتعتمده بضغطة وحدة.",
-          text: `تأخر عن الدوام ${a.n} أيام خلال ${a.month} (مجموع ${Math.round(a.min)} دقيقة) حسب بصمة الحضور`,
+          text: `تأخر عن الدوام ${a.n} أيام خلال ${a.month} (مجموع ${Math.round(a.min)} دقيقة) حسب بصمة الحضور`, evidence: a.ev,
         });
       });
     } catch (err) { console.warn("تعذّر حساب اقتراحات الحضور", err); }
@@ -143,6 +171,28 @@
     let reason = edit ? edit.reason_code : (opts.reason || (kind === "bonus" ? "bonus_month" : "late"));
     let pid = edit ? edit.profile_id : (opts.profileId || (emps[0] && emps[0].id) || "");
     const records = opts.records || [];
+    // أيام التأخر/الغياب المرفقة كدليل بصمة: مختارة مسبقاً من الاقتراح، أو آخر 30 يوم
+    const evCache = {};
+    let evSel = opts.evidence ? new Set(opts.evidence.map((x) => x.d)) : null;
+    async function fillEvBox() {
+      const box = d.querySelector("#hr-evbox");
+      if (!box) return;
+      const want = reason === "absence" ? "absent" : "late";
+      box.innerHTML = '<div class="hint">جاري تحميل بصمات الموظف...</div>';
+      try {
+        if (!evCache[pid]) evCache[pid] = await loadAttendance(pid, addDays(todayIso(), -59), todayIso());
+        const rows = evCache[pid].filter((r) => (want === "absent" ? r.status === "absent" && r.work_date < todayIso() : isLateRow(r)));
+        if (!d.contains(box) || d.querySelector("#hr-evbox") !== box) return;
+        if (!rows.length) { box.innerHTML = `<div class="hint">ما في ${want === "absent" ? "أيام غياب" : "أيام تأخر"} مسجّلة بالبصمة آخر شهرين.</div>`; return; }
+        if (!evSel) evSel = new Set(rows.filter((r) => String(r.work_date) > addDays(todayIso(), -30)).map((r) => String(r.work_date).slice(0, 10)));
+        box.innerHTML = `<span class="lbl">أرفق بصمات ${want === "absent" ? "الغياب" : "التأخر"} مع الإنذار</span><div class="hr-evpick">${rows.map((r) => {
+          const dd = String(r.work_date).slice(0, 10);
+          return `<label><input type="checkbox" data-d="${dd}"${evSel.has(dd) ? " checked" : ""}><span>${esc(dayLabel(dd))}</span><small>${want === "absent" ? "بدون بصمة" : `الدوام ${fmtT(r.sched_start)} · البصمة ${fmtT(r.first_punch)} · ${Math.round(r.late_min)} د`}</small></label>`;
+        }).join("")}</div>`;
+        box.querySelectorAll("[data-d]").forEach((c) => c.addEventListener("change", () => { c.checked ? evSel.add(c.dataset.d) : evSel.delete(c.dataset.d); }));
+        d._evRows = rows;
+      } catch (e) { box.innerHTML = '<div class="hint">تعذّر تحميل البصمات.</div>'; }
+    }
 
     function draw() {
       const emp = emps.find((e) => e.id === pid) || (opts.employees || []).find((e) => e.id === pid) || {};
@@ -174,6 +224,7 @@
           ${chipsHtml("reason", Object.entries(reasons), reason)}
           <label class="lbl" for="hr-text">التفاصيل (بتظهر بكشف الراتب وبنموذج الإنذار)</label>
           <input id="hr-text" name="text" maxlength="200" value="${esc(v.text)}" placeholder="مثال: تأخر نص ساعة ثلاث مرات هالأسبوع">
+          ${!edit && kind !== "bonus" && ["late", "absence"].includes(reason) ? '<div id="hr-evbox"></div>' : ""}
           ${kind === "deduction" ? `
           <div class="g3">
             <div><label class="lbl" for="hr-fixed">مبلغ ثابت (د.أ)</label><input id="hr-fixed" name="fixed" type="number" step="0.01" min="0" inputmode="decimal" value="${esc(v.fixed)}"></div>
@@ -207,11 +258,11 @@
         kind = b.dataset.v; reason = kind === "bonus" ? "bonus_month" : "late"; draw();
       }));
       d.querySelectorAll("[data-group=reason] [data-v]").forEach((b) => b.addEventListener("click", () => {
-        reason = b.dataset.v;
-        d.querySelectorAll("[data-group=reason] [data-v]").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+        reason = b.dataset.v; evSel = null; draw();
       }));
       ["fixed", "days", "dayv"].forEach((n) => { const el = d.querySelector(`[name=${n}]`); if (el) el.addEventListener("input", recalc); });
       recalc();
+      fillEvBox();
       d.querySelector("form").addEventListener("submit", async (e) => {
         e.preventDefault();
         const btn = d.querySelector("#hr-save"), err = d.querySelector("#hr-derr");
@@ -229,11 +280,13 @@
             });
             if (error) throw error;
           } else {
-            const { error } = await db().rpc("hr_create_record", {
+            const { data: newId, error } = await db().rpc("hr_create_record", {
               p_profile: pid, p_kind: kind, p_reason_code: reason, p_reason_text: g("text"), p_fixed: fixed, p_days: days, p_day_value: dayv,
               p_date: g("date") || todayIso(), p_notes: g("notes"), p_source: opts.source || "manual", p_suggest_key: opts.key || null,
             });
             if (error) throw error;
+            const picked = d.querySelector("#hr-evbox") && d._evRows ? d._evRows.filter((r) => evSel && evSel.has(String(r.work_date).slice(0, 10))).map(toEv) : [];
+            await saveEvidence(newId, picked.length ? picked : (opts.evidence || []));
           }
           d.close();
           olvToast(edit ? "انحفظ التعديل" : "انسجّل", { type: "ok", icon: "check" });
@@ -260,7 +313,11 @@
   }
 
   // ---------------------------------------------------------------- نموذج الإنذار للطباعة
-  function printForm(rec, emp, records) {
+  async function printForm(rec, emp, records) {
+    let ev = rec.evidence || [];
+    if (!ev.length && rec.reason_code === "late" && rec.kind !== "bonus") {
+      try { ev = (await loadAttendance(rec.profile_id, rec.record_date.slice(0, 7) + "-01", rec.record_date)).filter(isLateRow).map(toEv); } catch (_) {}
+    }
     const k = KINDS[rec.kind] || { label: "قرار" };
     const nth = isWarning(rec.kind)
       ? records.filter((r) => r.profile_id === rec.profile_id && r.status === "active" && isWarning(r.kind) && (r.record_date < rec.record_date || (r.record_date === rec.record_date && r.created_at <= rec.created_at))).length
@@ -290,6 +347,7 @@ h1{font-size:26px; margin:0; color:#4254e8}.sub{color:#625d78; font-size:14px; m
 .sig{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:54px}
 .sig div{border-top:1.5px solid #1f1d2b; padding-top:8px; text-align:center; font-size:14px}
 .sig small{display:block; color:#625d78; margin-top:30px}
+.evt{width:100%; border-collapse:collapse; font-size:14px}.evt th,.evt td{border:1px solid #cfd0e6; padding:5px 8px; text-align:center}.evt th{background:#f1f1fa}
 .ack{margin-top:30px; font-size:14px; color:#3b3850}
 .ft{margin-top:26px; font-size:12px; color:#8a86a0; text-align:center}
 </style></head><body>
@@ -304,6 +362,7 @@ h1{font-size:26px; margin:0; color:#4254e8}.sub{color:#625d78; font-size:14px; m
 </div>
 <div class="box"><div class="sub" style="margin:0 0 6px">التفاصيل</div>
 <div class="body">${esc(rec.reason_text || "—")}${lines.length ? "<br><br>" + lines.join("<br>") : ""}</div></div>
+${ev.length ? `<div class="box"><div class="sub" style="margin:0 0 6px">بصمات الدوام المرفقة</div><table class="evt"><tr><th>اليوم</th><th>الدوام</th><th>البصمة</th><th>${ev.some((x) => x.a) ? "الحالة" : "التأخير"}</th></tr>${ev.slice().sort((a, b) => (a.d < b.d ? -1 : 1)).map((x) => `<tr><td>${esc(dayLabel(x.d))}</td><td>${fmtT(x.s)}</td><td>${x.a ? "بدون بصمة" : fmtT(x.p)}</td><td>${x.a ? "غياب" : Math.round(x.m) + " د"}</td></tr>`).join("")}</table></div>` : ""}
 <div class="ack">أقرّ أنا الموقّع أدناه بأني اطّلعت على هذا القرار واستلمت نسخة منه.</div>
 <div class="sig"><div>توقيع الموظف<small>التاريخ: ____ / ____ / ________</small></div><div>توقيع المدير<small>التاريخ: ____ / ____ / ________</small></div><div>توقيع صاحب المطعم<small>التاريخ: ____ / ____ / ________</small></div></div>
 <div class="ft">OLV Café — نسخة للموظف ونسخة لملفه</div>
@@ -314,6 +373,6 @@ h1{font-size:26px; margin:0; color:#4254e8}.sub{color:#625d78; font-size:14px; m
 
   window.OLV_HR = {
     KINDS, REASONS, BONUS_REASONS, reasonLabel, isWarning, kindTag, activeWarnings, nextWarningKind,
-    loadRecords, loadSuggestions, dismissSuggestion, openRecordDialog, cancelRecord, printForm, fmtDate, addDays, todayIso,
+    loadRecords, loadSuggestions, fmtT, dayLabel, toEv, isLateRow, loadAttendance, evidenceHtml, saveEvidence, dismissSuggestion, openRecordDialog, cancelRecord, printForm, fmtDate, addDays, todayIso,
   };
 })();

@@ -108,3 +108,34 @@ dialog.hr-dlg form{display:flex; flex-direction:column; max-height:92vh;}
 .hr-home-alert .icon{width:22px; height:22px; color:var(--danger-hi); flex:none;}
 .hr-home-alert b{font-weight:800;}
 .hr-home-alert span{font-size:14px; line-height:1.7;}
+
+/* بصمات الدوام كدليل: جدول الدوام المجدول مقابل البصمة الفعلية */
+.hr-ev{border-radius:14px; background:var(--ink-3); overflow:hidden; font-size:13.5px; margin-top:8px;}
+.hr-ev-h,.hr-ev-r{display:grid; grid-template-columns:1.5fr 1fr 1.2fr 1fr; gap:6px; padding:8px 12px; align-items:center;}
+.hr-ev-h{color:var(--muted); font-weight:800; font-size:12.5px; border-bottom:1px solid var(--hair-soft);}
+.hr-ev-r{border-top:1px solid var(--hair-soft); font-variant-numeric:tabular-nums;}
+.hr-ev-r:first-of-type{border-top:0;}
+.hr-ev-r span:last-child{font-weight:800;}
+.hr-ev-r.late{background:color-mix(in srgb,var(--life-4) 10%,transparent);} .hr-ev-r.late span:last-child{color:var(--life-4);}
+.hr-ev-r.abs{background:color-mix(in srgb,var(--danger-hi) 10%,transparent);} .hr-ev-r.abs span:last-child{color:var(--danger-hi);}
+.hr-ev-t{padding:8px 12px; border-top:1px solid var(--hair-soft); color:var(--muted);}
+.hr-evwrap{flex:0 0 100%; order:3; margin-top:6px;}
+.hr-evwrap summary{cursor:pointer; font-weight:800; font-size:13px; color:var(--muted); padding:4px 0;}
+.hr-sug li .t{order:1;} .hr-sug li .btn{order:2;}
+.hr-ev.att{max-height:420px; overflow:auto;}
+.hr-attsum{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+.hr-attsum span{background:var(--ink-3); border-radius:999px; padding:5px 14px; font-size:13.5px;}
+.hr-attsum span.bad{color:var(--danger-hi); background:color-mix(in srgb,var(--danger-hi) 10%,transparent);}
+@media (max-width:520px){ .hr-ev-h,.hr-ev-r{grid-template-columns:1.4fr .8fr 1.3fr 1fr; padding:8px 8px; font-size:12.5px;} }
+
+/* اختيار أيام البصمة بنافذة التسجيل */
+.hr-evpick{display:grid; gap:4px; max-height:190px; overflow:auto; border-radius:12px; background:var(--ink-3); padding:6px;}
+.hr-evpick label{display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; cursor:pointer; min-height:40px;}
+.hr-evpick label small{color:var(--muted); margin-inline-start:auto; font-size:12.5px;}
+.hr-evpick input{width:18px; height:18px;}
+
+/* معاينة إشعار OLV */
+.hr-ntdlg{max-width:min(720px,96vw);}
+.hr-ntprev{display:grid; place-items:center; min-height:200px;}
+.hr-ntprev img{width:100%; max-width:640px; height:auto; border-radius:14px; box-shadow:0 8px 28px rgb(0 0 0 / .18);}
+.hr-ntacts{flex-wrap:wrap;}
