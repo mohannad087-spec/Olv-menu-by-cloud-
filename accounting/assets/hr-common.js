@@ -40,7 +40,11 @@
 
   // صف attendance_report ← عنصر دليل مختصر (يتخزّن مع الإنذار)
   const toEv = (r) => ({ d: String(r.work_date).slice(0, 10), s: r.sched_start || null, p: r.first_punch || null, m: Math.round(Number(r.late_min) || 0), a: r.status === "absent" ? true : undefined });
-  const isLateRow = (r) => ["late", "late_early"].includes(r.status) && Number(r.late_min) > 0;
+  // تأخير أكتر من ساعتين (120 دقيقة) غالباً يوم مجاز أو نسي يبصم دخول (أول بصمة هي الخروج): ما بنقترح عليه إنذار
+  const LATE_MAX_MIN = 120;
+  const isLateRaw = (r) => ["late", "late_early"].includes(r.status) && Number(r.late_min) > 0;
+  const isBigLate = (r) => isLateRaw(r) && Number(r.late_min) > LATE_MAX_MIN;
+  const isLateRow = (r) => isLateRaw(r) && Number(r.late_min) <= LATE_MAX_MIN;
   async function loadAttendance(profileId, from, to) {
     const { data, error } = await db().rpc("attendance_report", { p_from: from, p_to: to });
     if (error) throw error;
@@ -96,7 +100,7 @@
       const lateBy = new Map();
       (att || []).forEach((r) => {
         if (!r.profile_id) return;
-        if (["late", "late_early"].includes(r.status) && Number(r.late_min) > 0) {
+        if (isLateRow(r)) {
           const k = r.work_date.slice(0, 7);
           const key = r.profile_id + "|" + k;
           const a = lateBy.get(key) || { pid: r.profile_id, month: k, n: 0, min: 0, ev: [] };
@@ -373,6 +377,6 @@ ${ev.length ? `<div class="box"><div class="sub" style="margin:0 0 6px">بصما
 
   window.OLV_HR = {
     KINDS, REASONS, BONUS_REASONS, reasonLabel, isWarning, kindTag, activeWarnings, nextWarningKind,
-    loadRecords, loadSuggestions, fmtT, dayLabel, toEv, isLateRow, loadAttendance, evidenceHtml, saveEvidence, dismissSuggestion, openRecordDialog, cancelRecord, printForm, fmtDate, addDays, todayIso,
+    loadRecords, loadSuggestions, fmtT, dayLabel, toEv, isLateRow, isBigLate, LATE_MAX_MIN, loadAttendance, evidenceHtml, saveEvidence, dismissSuggestion, openRecordDialog, cancelRecord, printForm, fmtDate, addDays, todayIso,
   };
 })();
