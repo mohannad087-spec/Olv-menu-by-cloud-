@@ -71,3 +71,6 @@ as $function$
   where p.device_user_id is not null
   order by c.d, p.device_user_id::int;
 $function$;
+
+-- سماح التأخر 15 دقيقة لكل الورديات. إذا تجاوزه الموظف بيتحسب التأخر كامل من بداية الشفت (مش من نهاية السماح).
+update public.work_shifts set grace_late_min = 15 where is_active;
