@@ -1,0 +1,203 @@
+  .cat-tab{border-radius:16px; background:var(--ink-2); border-color:var(--hair-soft);}
+  .card{border-radius:22px; border-color:var(--hair-soft);}
+  .card .thumb-fallback{border-radius:16px;}
+  .cart-item.is-new{animation:olv-line-in .3s var(--spring) backwards;}
+  @keyframes olv-line-in{from{opacity:0; transform:translateX(-10px);}}
+  .btn.gold.pay, .btn.gold.checkout-confirm{color:var(--on-olive); border-radius:16px;}
+  /* رقم الكمية فوق الصنف: بيطلع بنطّة أول مرة، وبيرتدّ مع كل إضافة */
+  .card .q{
+    position:absolute; top:12px; inset-inline-end:12px; z-index:2; min-width:30px; height:30px; padding:0 7px;
+    border-radius:999px; background:var(--olive); color:var(--on-olive); font-weight:800; font-size:14.5px;
+    display:grid; place-items:center; box-shadow:0 6px 14px -6px rgba(47,36,22,.6);
+    transform:scale(0); transition:transform .35s var(--spring-bounce); pointer-events:none;
+  }
+  .card .q.show{transform:scale(1);}
+  .card .q.bump{animation:olv-q-bump .32s var(--spring-bounce);}
+  @keyframes olv-q-bump{40%{transform:scale(1.28);}}
+  .checkout-success .check .icon{stroke-dasharray:24; stroke-dashoffset:24;}
+  .checkout-success.show .check .icon{animation:olv-check .4s .08s var(--spring) forwards;}
+  @keyframes olv-check{to{stroke-dashoffset:0;}}
+  .olv-leaf{
+    position:fixed; z-index:70; width:12px; height:20px; border-radius:12px 0; pointer-events:none;
+    animation:olv-leaf-fall 1.3s cubic-bezier(.3,.6,.4,1) forwards;
+  }
+  @keyframes olv-leaf-fall{
+    0%{transform:translate(0,0) rotate(0); opacity:1;}
+    100%{transform:translate(var(--dx),70vh) rotate(var(--rot)); opacity:0;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .card .q{transition:none;} .card .q.bump, .cart-item.is-new{animation:none;}
+    .checkout-success .check .icon{stroke-dasharray:none; animation:none;}
+  }
+  @media (prefers-reduced-transparency: reduce){
+    .pos-cat-sidebar, .pos-status-bar{background:var(--ink-2) !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;}
+  }
+
+  /* ---- وضع ملء الشاشة + تخفيف الثقل (2026-10) ----
+     الثقل كان من: هالة الخلفية المتحركة (بتعيد رسم الشاشة كل لحظة تحت الزجاج) وكل بطاقات
+     الأصناف بصورها بتنرسم دفعة وحدة. هلأ: الهالة ثابتة هون، والبطاقة برّا الشاشة ما بتنرسم
+     (content-visibility)، والصور بتنحمّل لما توصلها. وبالوضع الكامل: الشريط العلوي/السفلي
+     بيختفوا (بيطلعوا بسحبة من الحافة أو بزر)، والتصنيفات بتصير شريط شرائح فوق الأصناف */
+  body.pos-page::before{animation:none;}
+  .card{content-visibility:auto; contain-intrinsic-size:auto 190px;}
+  .pos-edge-handle, .pos-nav-backdrop{display:none;}
+  body.pos-focus .pos-edge-handle{
+    display:flex; position:fixed; top:0; inset-inline-start:50%; transform:translateX(-50%); z-index:46;
+    width:84px; height:26px; align-items:center; justify-content:center; padding:0;
+    border:1px solid var(--glass-line); border-top:0; border-radius:0 0 16px 16px;
+    background:var(--glass); color:var(--muted); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    box-shadow:0 6px 16px -10px rgba(47,36,22,.5);
+  }
+  body.pos-focus .pos-edge-handle .icon{width:18px; height:18px;}
+  body.pos-focus.pos-nav-open .pos-edge-handle{display:none;}
+  body.pos-focus #olv-nav{display:none;}
+  body.pos-focus.pos-nav-open #olv-nav{display:block; position:fixed; inset:0 0 auto 0; z-index:48;}
+  body.pos-focus.pos-nav-open .pos-nav-backdrop{display:block; position:fixed; inset:0; z-index:47; background:rgba(30,22,12,.3); animation:olv-fade-in .2s var(--ease) both;}
+  body.pos-focus.pos-nav-open #olv-nav .top{animation:olv-nav-drop .28s var(--spring) both;}
+  @keyframes olv-nav-drop{from{transform:translateY(-24px); opacity:0;}}
+  body.pos-focus .olv-footer{display:none;}
+  body.pos-focus .pos-layout{min-height:calc(100vh - var(--status-h, 0px));}
+  body.pos-focus .pos-toolbar{margin-bottom:8px;}
+  body.pos-focus .kbd-hint{display:none;}
+  /* التصنيفات: شريط شرائح أفقي فوق الأصناف (ولا صنف بيضيع، وكل تصنيف بلمسة) */
+  body.pos-focus .pos-cat-sidebar{
+    flex:none; width:auto; min-width:0; padding:0 0 8px; border:0; border-radius:0; background:transparent;
+    box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none; position:static; max-height:none;
+    overflow:visible; align-self:stretch;
+  }
+  body.pos-focus .cat-tabs{flex-direction:row; overflow-x:auto; gap:6px; padding-bottom:2px; scrollbar-width:none;}
+  body.pos-focus .cat-tabs::-webkit-scrollbar{display:none;}
+  body.pos-focus .cat-tab{
+    flex:none; width:auto; min-height:40px; flex-direction:row; gap:6px; padding:6px 14px; border-radius:999px;
+    font-size:13px;
+  }
+  body.pos-focus .cat-tab .cat-tab-icon .icon{width:17px; height:17px;}
+  body.pos-focus .cat-tab .cat-tab-label{display:block; -webkit-line-clamp:unset; white-space:nowrap;}
+  /* بطاقات أصغر: أصناف أكتر بالشاشة بدون ما نخسر شي */
+  body.pos-focus .grid{gap:10px;}
+  body.pos-focus .card{border-radius:18px;}
+  body.pos-focus .card .thumb{aspect-ratio:2/1;}
+  body.pos-focus .card .thumb-fallback{aspect-ratio:2/1; margin:6px 6px 0; border-radius:12px;}
+  body.pos-focus .card .thumb-fallback .icon{width:28px; height:28px;}
+  body.pos-focus .card .desc{display:none;}
+  body.pos-focus .card .info{padding:7px 8px 9px;}
+  body.pos-focus .card .name{font-size:14px; -webkit-line-clamp:2; line-clamp:2;}
+  body.pos-focus .card .add-btn{min-width:30px; min-height:30px; padding:0; justify-content:center; font-size:0;}
+  body.pos-focus .card .add-btn::before{content:"+"; font-size:20px; font-weight:700; line-height:1;}
+  /* التذكرة على أقصى الشمال (آخر عنصر بالـ RTL) — الكاشير متعوّد عليها هناك */
+  @media (min-width:901px){
+    body.pos-focus .pos-layout{padding:8px 12px 0; height:var(--pos-h, calc(100vh - 60px));}
+    body.pos-focus .pos-main{padding-top:30px;}
+  }
+  @media (max-width:900px){
+    body.pos-focus .pos-main{padding:6px 14px 12px;}
+    body.pos-focus .pos-cat-sidebar{padding:34px 14px 6px;}
+  }
+  @media (min-width:641px){
+    body.pos-focus.pos-nav-open #olv-nav{
+      background:var(--material); -webkit-backdrop-filter:blur(24px) saturate(170%); backdrop-filter:blur(24px) saturate(170%);
+      border-radius:0 0 24px 24px; padding-bottom:8px; box-shadow:0 18px 40px -20px rgba(30,22,12,.5);
+    }
+  }
+  @media (max-width:640px){
+    body.pos-focus .pos-toolbar .btn-label, body.pos-focus .pos-clock{display:none;}
+    body.pos-focus{padding-bottom:0;}
+    body.pos-focus .pos-cart-panel{bottom:0;}
+    body.pos-focus.pos-nav-open #olv-nav .tabs{animation:olv-nav-rise .28s var(--spring) both;}
+    @keyframes olv-nav-rise{from{transform:translateY(100%);}}
+  }
+  @media (prefers-reduced-motion: reduce){
+    body.pos-focus.pos-nav-open #olv-nav .top, body.pos-focus.pos-nav-open #olv-nav .tabs{animation:none;}
+  }
+
+  /* ---- راحة اللمس (2026-10-20، شاشة الكاشير باللمس) ----
+     كل هدف ضغط 44px على الأقل (الأفضل 48+)، والأزرار الصغيرة (+ / ± / حذف / شرائح التصنيف)
+     أكبر، ونوع الطلب أزرار بدل قائمة منسدلة، وزرّا حفظ/الدفع دايمًا ظاهرين تحت التذكرة */
+  .seg{display:flex; gap:6px; background:var(--ink-3); border:1px solid var(--hair); border-radius:14px; padding:4px;}
+  .seg button{
+    flex:1; min-height:48px; border:0; border-radius:10px; background:transparent; color:var(--muted);
+    font-size:16px; font-weight:700; font-family:'Tajawal',sans-serif; -webkit-tap-highlight-color:transparent;
+    transition:background .18s var(--spring), color .18s var(--spring), transform .12s var(--spring);
+  }
+  .seg button:active{transform:scale(.96);}
+  .seg button.on{background:var(--olive); color:var(--on-olive);}
+  .field input:not([type=checkbox]):not([type=radio]), .field select{min-height:48px;}
+  .qty-stepper button{width:44px; height:44px; font-size:22px;}
+  .qty-stepper .qty-value{min-width:30px; font-size:16px;}
+  .discount-toggle-btn{min-height:44px; font-size:14px;}
+  .discount-remove-btn{width:44px; height:44px;}
+  .discount-input-wrap input{min-height:44px;}
+  .discount-mode-tab{min-height:44px;}
+  .cart-bar .actions .btn{min-height:56px; font-size:17px;}
+  .cart-bar .total{font-size:26px;}
+  .card .add-btn{min-height:44px; min-width:44px; padding:8px 14px; font-size:14px;}
+  .card .name{font-size:16px;}
+  .card .price{font-size:16px;}
+  .pos-pagination button{width:52px; height:52px;}
+  @media (min-width:901px){
+    /* التذكرة ثلث الشاشة تقريبًا (2026-10-28، كانت 26% وضيقة: صنف أو صنفين بس كانوا يبينوا) */
+    .pos-cart-panel{flex-basis:32%; min-width:340px; max-width:440px; display:flex; flex-direction:column; overflow:hidden;}
+    .cart-panel-inner{flex:1 1 auto; min-height:0; padding:14px 14px 0; overflow-y:auto; overscroll-behavior:contain;}
+    .cart-panel-inner .field{margin-bottom:8px !important;}
+    /* الطاولة + الاسم + التلفون بسطر واحد (بيوفّروا ارتفاع)، والباقي بعرض كامل.
+       سفري: الاسم بياخد مكان الطاولة؛ توصيل: التلفون بالعرض كله */
+    .cart-panel-inner{display:grid; grid-template-columns:76px minmax(0,1fr) minmax(0,1fr); column-gap:6px; align-content:start; grid-auto-rows:min-content;}
+    .cart-panel-inner > *{grid-column:1 / -1;}
+    .cart-panel-inner > #table-number-field{grid-column:1;}
+    .cart-panel-inner > #customer-name-field{grid-column:2;}
+    .cart-panel-inner > #customer-phone-field{grid-column:3;}
+    .cart-panel-inner > #table-number-field[hidden] + #customer-name-field{grid-column:1 / 3;}
+    .cart-panel-inner > #customer-name-field[hidden] + #customer-phone-field{grid-column:1 / -1;}
+    .cart-panel-inner .field input:not([type=checkbox]):not([type=radio]){min-height:44px; padding-inline:10px; font-size:14.5px;}
+    .cart-panel-inner > .field:first-of-type .seg button{min-height:44px;}
+    .cart-list{border-top:1px solid var(--hair-soft,rgba(var(--gold-rgb),.14));}
+    .cart-bar .actions .btn.pay{flex:2;}
+    .cart-panel-inner .field label{display:none;}
+    .cart-list{min-height:60px;}
+    /* حفظ/الدفع والإجمالي ثابتين تحت التذكرة حتى لو الحقول والأصناف طوّلت */
+    .cart-bar{position:sticky; bottom:0; z-index:2; margin-top:8px; padding:10px 0 14px; gap:8px; background:var(--ink-2);}
+    .cart-bar .actions .btn{min-height:52px;}
+    .pos-toolbar{gap:10px;}
+    .pos-toolbar .btn, .pos-toolbar input[type=search]{min-height:52px;}
+    .pos-clock{min-height:52px;}
+    .cat-tab{min-height:64px; font-size:13.5px; padding:10px 6px;}
+    .cat-tab .cat-tab-icon .icon{width:26px; height:26px;}
+    .pos-cat-sidebar{flex-basis:150px; min-width:150px;}
+    body.pos-focus .cat-tab{min-height:52px; padding:8px 18px; font-size:15px; gap:8px;}
+    body.pos-focus .cat-tab .cat-tab-icon .icon{width:20px; height:20px;}
+    body.pos-focus .cat-tabs{gap:8px; padding-bottom:4px;}
+    body.pos-focus .card .name{font-size:15.5px;}
+    body.pos-focus .card .add-btn{min-width:44px; min-height:44px;}
+    body.pos-focus .card .add-btn::before{font-size:26px;}
+    body.pos-focus .card .info{padding:8px 10px 10px;}
+  }
+  /* شاشة كاش قصيرة: نختصر صف المجموع الفرعي (الإجمالي يكفي) ونضيّق الفراغات */
+  @media (min-width:901px) and (max-height:700px){
+    .cart-bar .cart-total-row:not(.grand):not(.discount){display:none;}
+    .cart-bar .cart-total-row.grand{padding-top:0; border-top:0;}
+    .cart-bar{padding:8px 0 10px;}
+    .cart-bar .total{font-size:24px;}
+  }
+
+  /* ---- تجديد 2026-11-01: ألوان وتمييز بدون ما نأخّر الكاشير ----
+     لا blur ولا حركة دخول ولا hover يتحرك: الضغطة بس بتصغّر البطاقة 80ms، والباقي ألوان ثابتة */
+  .h0{--tc:#4254e8; --tb:#e9ecff;} .h1{--tc:#0b86c9; --tb:#dff2fd;} .h2{--tc:#e0367a; --tb:#fde4ef;}
+  .h3{--tc:#d97a00; --tb:#fff0cf;} .h4{--tc:#8b3fe0; --tb:#f0e5fd;} .h5{--tc:#0f9d83; --tb:#d9f6ef;}
+  :root[data-theme="dark"] .h0{--tc:#8f9cff; --tb:rgba(143,156,255,.14);} :root[data-theme="dark"] .h1{--tc:#5cc0f2; --tb:rgba(92,192,242,.14);}
+  :root[data-theme="dark"] .h2{--tc:#f07aa8; --tb:rgba(240,122,168,.14);} :root[data-theme="dark"] .h3{--tc:#f2b33d; --tb:rgba(242,179,61,.14);}
+  :root[data-theme="dark"] .h4{--tc:#c096f5; --tb:rgba(192,150,245,.14);} :root[data-theme="dark"] .h5{--tc:#4fd1b6; --tb:rgba(79,209,182,.14);}
+  .card{transition:transform .08s linear; border-color:transparent; box-shadow:0 1px 2px rgba(40,40,100,.06), 0 8px 16px -10px rgba(60,70,170,.28);}
+  :root:not([data-theme="dark"]) .card{background:linear-gradient(180deg,#fff 40%,var(--tb,#fff));}
+  .card:nth-child(n){--tile:var(--tb);}
+  :root[data-theme="dark"] .card{--tile:var(--tb) !important;}
+  .card .thumb-fallback .icon, :root[data-theme="dark"] .card .thumb-fallback .icon{color:var(--tc); opacity:1;}
+  .card .price{color:var(--tc);}
+  .card .add-btn{background:var(--tc); color:#fff;}
+  :root[data-theme="dark"] .card .add-btn{color:#0e0e1a;}
+  @media (hover:hover) and (pointer:fine){ .card:hover{transform:none; border-color:var(--tc); box-shadow:0 1px 2px rgba(40,40,100,.06), 0 8px 16px -10px rgba(60,70,170,.28);} }
+  .cat-tab{transition:none; background:#fff; border-color:transparent; box-shadow:0 1px 2px rgba(40,40,100,.06), 0 6px 12px -8px rgba(60,70,170,.25);}
+  :root[data-theme="dark"] .cat-tab{background:var(--ink-2);}
+  .cat-tab .cat-tab-icon{color:var(--tc);}
+  .cat-tab.on{background:linear-gradient(135deg,var(--tc),color-mix(in srgb,var(--tc) 70%,#b04fe0)); color:#fff; border-color:transparent; box-shadow:0 8px 16px -8px var(--tc);}
+  .cat-tab.on .cat-tab-icon{color:#fff;}
+  .cat-chip.on{background:var(--gold); color:#fff;}
