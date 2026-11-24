@@ -105,12 +105,42 @@ function olvCappedHours(totalHours, dayHours, cap) {
   return Math.max(0, totalHours - olvCapCut(dayHours, cap));
 }
 
-// صف الراتب: المكتسب = ساعات×أجر + مكافأة + تسويات (إضافات/خصومات HR)، والصافي = المكتسب + الباقي من دفعة سابقة − السلف.
-// hourlyWage = null (ما إله أجر) بيعني الساعات ما بتنحسب مصاري.
-function olvPayrollRow({ hours, hourlyWage, weeks, adjTotal = 0, carry = 0, advancesTotal = 0 }) {
+// تقريب لقرشين (بنقرّب كل رقم مالي مرة وحدة حتى ما يتراكم فرق القروش بين الصفحات والدفعات)
+function olvRound2(v) {
+  return Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+}
+
+// تصحيح الساعات بعد الدفع: الدفعات من هالتاريخ وطالع بتتراجع تلقائياً مع البصمات الحالية.
+// قبله انراجعت يدوي وفروقها متعوّضة ببنود «تسوية» (ما بنرجع نعدّها حتى ما تنحسب مرتين).
+const OLV_RECON_FROM = "2026-11-13";
+
+// بصمة انضافت/انعدلت/انحذفت بعد ما انحسبت الدفعة (مثال: خروج منسي انكتب بعد الدفع) بتغيّر ساعات الفترة المدفوعة.
+// الفرق = ساعات البصمات الحالية بين أول دفعة بعد التاريخ وآخر يوم مدفوع − مجموع الساعات اللي انسجلت بالدفعات.
+// بيتحسب تراكمياً: لما الفرق ينندفع بدفعة (hours_worked بتشمله) بيرجع صفر لحاله، فما في تسوية يدوية ولا حساب مرتين.
+// pays: دفعات الموظف (paid_at, period_start, period_end, hours_worked) | days: [{ date, hours, status }] من attendance_daily
+function olvReconcileHours({ pays, days, cap = null, fromPaid = OLV_RECON_FROM }) {
+  const list = (pays || []).filter((p) => String(p.paid_at).slice(0, 10) >= fromPaid);
+  if (!list.length) return { hours: 0, from: null, to: null };
+  const day = (v) => String(v).slice(0, 10);
+  const from = list.reduce((m, p) => (day(p.period_start) < m ? day(p.period_start) : m), day(list[0].period_start));
+  const to = list.reduce((m, p) => (day(p.period_end) > m ? day(p.period_end) : m), day(list[0].period_end));
+  const paid = list.reduce((t, p) => t + (Number(p.hours_worked) || 0), 0);
+  const now = (days || []).reduce((t, d) => {
+    const wd = day(d.date), h = Number(d.hours) || 0;
+    return d.status === "ok" && wd >= from && wd <= to ? t + (cap && h > cap ? cap : h) : t;
+  }, 0);
+  const diff = olvRound2(now - paid);
+  return { hours: Math.abs(diff) < 0.02 ? 0 : diff, from, to };
+}
+
+// صف الراتب: المكتسب = ساعات×أجر + تصحيح ساعات سابقة + مكافأة + تسويات (إضافات/خصومات HR)، والصافي = المكتسب + الباقي من دفعة سابقة − السلف.
+// hourlyWage = null (ما إله أجر) بيعني الساعات ما بتنحسب مصاري. كل الأرقام مقرّبة لقرشين.
+function olvPayrollRow({ hours, hourlyWage, weeks, adjTotal = 0, carry = 0, advancesTotal = 0, reconHours = 0 }) {
   const bonus = olvWeeklyBonus(hours, weeks);
-  const earned = (hourlyWage != null ? hours * hourlyWage : 0) + bonus + adjTotal;
-  return { bonus, earned, net: earned + carry - advancesTotal };
+  const w = hourlyWage != null ? hourlyWage : 0;
+  const reconAmt = olvRound2(reconHours * w);
+  const earned = olvRound2(olvRound2(hours * w) + reconAmt + bonus + adjTotal);
+  return { bonus, reconAmt, earned, net: olvRound2(earned + carry - advancesTotal) };
 }
 
 // الباقي (له/عليه) بعد دفعة: الإجمالي المسجّل − السلف − المدفوع، مقرّب لقرشين
@@ -121,6 +151,6 @@ function olvPayrollCarry(p) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     olvSaleTotal, olvStaffAcct, olvIsMeal, olvSummarizeSales, olvDayNet, olvCombineExpensesPaid,
-    OLV_WEEKLY_BONUS, olvCountFridays, olvBonusWeeks, olvWeeklyBonus, olvCapCut, olvCappedHours, olvPayrollRow, olvPayrollCarry,
+    OLV_WEEKLY_BONUS, olvCountFridays, olvBonusWeeks, olvWeeklyBonus, olvCapCut, olvCappedHours, olvPayrollRow, olvPayrollCarry, olvRound2, olvReconcileHours, OLV_RECON_FROM,
   };
 }
