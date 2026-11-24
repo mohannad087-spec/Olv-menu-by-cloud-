@@ -65,6 +65,54 @@ function olvPrimeCost({ sales, cogs, labor }) {
   return { laborPct: ((Number(labor) || 0) / s) * 100, primePct: (prime / s) * 100, prime };
 }
 
+// ---------------------------------------------------------------
+// تقارير الأرباح (reports.html) — حسابات نقية عليها اختبارات
+// ---------------------------------------------------------------
+
+// هامش كل صنف: الإيراد الحقيقي (سعر البيع وقت العملية + الإضافات) − تكلفة الوصفة التقديرية. الأصناف الملغاة فرادى بتنتجاهل.
+// costById: Map(product_id -> {cost}) . صنف بدون وصفة تكلفته صفر وhasRecipe=false.
+function olvProfitability(sales, costById) {
+  const byProduct = new Map();
+  (sales || []).forEach((sale) => {
+    (sale.sale_items || []).forEach((item) => {
+      if (item.status === "voided" || !item.product_id) return;
+      if (!byProduct.has(item.product_id)) byProduct.set(item.product_id, { name: item.product_name, qty: 0, revenue: 0 });
+      const e = byProduct.get(item.product_id);
+      e.qty += Number(item.qty);
+      e.revenue += Number(item.qty) * (Number(item.unit_price) + Number(item.addons_total || 0));
+    });
+  });
+  return [...byProduct.entries()].map(([id, e]) => {
+    const info = costById.get(id);
+    const cost = (info ? info.cost : 0) * e.qty;
+    const margin = e.revenue - cost;
+    return { name: e.name, qty: e.qty, revenue: e.revenue, cost, margin, marginPct: e.revenue > 0 ? (margin / e.revenue) * 100 : null, hasRecipe: !!info };
+  }).sort((a, b) => b.margin - a.margin);
+}
+
+// الربح التقديري = المبيعات − تكلفة المواد − المصروفات غير المخزنية (مشتريات المخزون ما بتنطرح مرتين).
+// الأصناف بدون وصفة بتاخد نفس نسبة التكلفة للأصناف المعروفة.
+function olvEstimateProfit({ prof, totalSales, totalExpenses, stockBuys }) {
+  const cogsKnown = prof.reduce((s, r) => s + r.cost, 0);
+  const itemsRev = prof.reduce((s, r) => s + r.revenue, 0);
+  const covRev = prof.filter((r) => r.hasRecipe).reduce((s, r) => s + r.revenue, 0);
+  const covPct = itemsRev > 0 ? Math.round((covRev / itemsRev) * 100) : 0;
+  const cogs = covRev > 0 ? cogsKnown * (itemsRev / covRev) : 0;
+  return { cogs, covPct, est: totalSales - cogs - (totalExpenses - stockBuys) };
+}
+
+// حركة الدرج: مصروفات الكاش المسجلة «من الدرج». فواتير الشراء (invIds = مجموعة id المصروفات المرتبطة بفاتورة غير ملغاة) لحالها.
+// exp = مصروفات الدرج الحقيقية، buy = مشتريات طلعت من الدرج، invAll = كل الفواتير الكاش
+function olvDrawerSplit(rows, invIds) {
+  let exp = 0, buy = 0, invAll = 0;
+  (rows || []).forEach((r) => {
+    const a = Number(r.amount) || 0;
+    if (invIds.has(r.id)) { if (r.from_drawer) buy += a; else invAll += a; }
+    else if (r.from_drawer) exp += a;
+  });
+  return { exp, buy, invAll, total: exp + buy };
+}
+
 // «صافي اليوم» = المبيعات − المصروفات المنحسبة (الذمم بس لما تنسدّد، شوف olvCombineExpensesPaid)
 function olvDayNet(totalSales, totalExpenses) {
   return totalSales - totalExpenses;
