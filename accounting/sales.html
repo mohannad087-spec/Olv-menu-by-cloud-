@@ -659,11 +659,11 @@
       errBox.style.display = "none";
       try {
         const [cur, old] = await Promise.all([
-          window.supabaseClient.from("sales_entries").select("*, sale_items(*)")
+          olvFetchAll(() => window.supabaseClient.from("sales_entries").select("*, sale_items(*)")
             .gte("entry_date", range.from).lte("entry_date", range.to)
-            .order("created_at", { ascending: false }).limit(3000),
-          window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, status")
-            .gte("entry_date", prev.from).lte("entry_date", prev.to).limit(5000),
+            .order("created_at", { ascending: false }).order("id")),
+          olvFetchAll(() => window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, status")
+            .gte("entry_date", prev.from).lte("entry_date", prev.to).order("id")),
         ]);
         if (cur.error) throw cur.error;
         if (seq !== loadSeq) return;
@@ -1125,10 +1125,12 @@
       const seq = ++findSeq;
       find.active = true;
       document.body.classList.add("finding");
-      let qy = window.supabaseClient.from("sales_entries").select("*, sale_items(*)").order("created_at", { ascending: false }).limit(5000);
-      if (find.from) qy = qy.gte("entry_date", find.from);
-      if (find.to) qy = qy.lte("entry_date", find.to);
-      const res = await qy;
+      const res = await olvFetchAll(() => {
+        let qy = window.supabaseClient.from("sales_entries").select("*, sale_items(*)").order("created_at", { ascending: false }).order("id");
+        if (find.from) qy = qy.gte("entry_date", find.from);
+        if (find.to) qy = qy.lte("entry_date", find.to);
+        return qy;
+      });
       if (seq !== findSeq) return;
       if (res.error) return olvShowError(errBox, res.error);
       rows = (res.data || []).filter(findMatch);

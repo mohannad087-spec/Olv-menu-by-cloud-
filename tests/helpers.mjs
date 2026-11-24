@@ -26,7 +26,7 @@ export function fakeDb(tables) {
     from(table) {
       const q = { table, filters: [] };
       const chain = {};
-      for (const m of ["select", "eq", "neq", "is", "not", "gte", "lte", "lt", "in", "order", "limit"]) {
+      for (const m of ["select", "eq", "neq", "is", "not", "gte", "lte", "lt", "in", "order", "limit", "range"]) {
         chain[m] = (...a) => { q.filters.push([m, ...a]); return chain; };
       }
       chain.then = (res, rej) => Promise.resolve(typeof tables[table] === "function" ? tables[table](q) : (tables[table] || { data: [], error: null })).then(res, rej);
