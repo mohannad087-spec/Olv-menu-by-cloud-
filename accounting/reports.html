@@ -733,33 +733,7 @@
     // كل عملية، مو السعر الحالي) مطروح منه تكلفة المكوّنات التقديرية —
     // بيستثني الأصناف الملغاة فرادى (status voided)، وبيتجاهل تكلفة
     // الإضافات (غير محسوبة أصلًا، راجع تعليق قسم الربحية بالصفحة)
-    function computeProfitability(sales) {
-      const byProduct = new Map(); // product_id -> { name, qty, revenue }
-      (sales || []).forEach((sale) => {
-        (sale.sale_items || []).forEach((item) => {
-          if (item.status === "voided" || !item.product_id) return;
-          if (!byProduct.has(item.product_id)) {
-            byProduct.set(item.product_id, { name: item.product_name, qty: 0, revenue: 0 });
-          }
-          const entry = byProduct.get(item.product_id);
-          entry.qty += Number(item.qty);
-          entry.revenue += Number(item.qty) * (Number(item.unit_price) + Number(item.addons_total || 0));
-        });
-      });
-      return [...byProduct.entries()]
-        .map(([productId, e]) => {
-          const costInfo = productCostById.get(productId);
-          const costPerUnit = costInfo ? costInfo.cost : 0;
-          const cost = costPerUnit * e.qty;
-          const margin = e.revenue - cost;
-          return {
-            name: e.name, qty: e.qty, revenue: e.revenue, cost, margin,
-            marginPct: e.revenue > 0 ? (margin / e.revenue) * 100 : null,
-            hasRecipe: !!costInfo,
-          };
-        })
-        .sort((a, b) => b.margin - a.margin);
-    }
+    function computeProfitability(sales) { return olvProfitability(sales, productCostById); }
 
     function renderProfitability(sales) {
       const body = document.getElementById("profitability-body");
@@ -790,12 +764,10 @@
         const { data } = await db.from("purchase_invoices").select("expense_id, status, payment_type").in("expense_id", rows.slice(i, i + 150).map((r) => r.id)).limit(150);
         (data || []).forEach((x) => { if (x.status !== "voided") inv.add(x.expense_id); });
       }
-      let exp = 0, buy = 0, invAll = 0; const who = {};
+      const { exp, buy, invAll } = olvDrawerSplit(rows, inv); const who = {};
       rows.forEach((r) => {
-        const a = Number(r.amount) || 0;
-        if (inv.has(r.id)) { if (r.from_drawer) buy += a; else invAll += a; }
-        else if (r.from_drawer) { exp += a; const k = r.created_by || "?"; (who[k] = who[k] || { sum: 0, n: 0 }); who[k].sum += a; who[k].n++; }
-        if (inv.has(r.id) && r.from_drawer) { const k = r.created_by || "?"; (who[k] = who[k] || { sum: 0, n: 0 }); who[k].sum += a; who[k].n++; }
+        if (!r.from_drawer) return;
+        const k = r.created_by || "?"; (who[k] = who[k] || { sum: 0, n: 0 }); who[k].sum += Number(r.amount) || 0; who[k].n++;
       });
       const ids = Object.keys(who).filter((k) => k !== "?"), names = {};
       if (ids.length) { const { data } = await db.from("profiles").select("id, full_name").in("id", ids); (data || []).forEach((p) => { names[p.id] = p.full_name; }); }
@@ -843,15 +815,9 @@
         // وبما إن مشتريات المخزون الكاش داخلة بالمصروفات، لازم ما نطرح التكلفة
         // من المصروفات مرتين: الربح التقديري = المبيعات − التكلفة − المصروفات غير المخزنية.
         const prof = computeProfitability(sales);
-        const cogsKnown = prof.reduce((s, r) => s + r.cost, 0);
-        const itemsRev = prof.reduce((s, r) => s + r.revenue, 0);
-        const covRev = prof.filter((r) => r.hasRecipe).reduce((s, r) => s + r.revenue, 0);
-        const covPct = itemsRev > 0 ? Math.round((covRev / itemsRev) * 100) : 0;
         const stockBuys = (expenses || []).filter((r) => r.expense_categories && r.expense_categories.name === "مشتريات ومخزون")
           .reduce((s, r) => s + Number(r.amount), 0);
-        // الأصناف بدون وصفة تكلفتها مجهولة: بنفترض إلها نفس نسبة التكلفة للأصناف المعروفة
-        const cogs = covRev > 0 ? cogsKnown * (itemsRev / covRev) : 0;
-        const est = totalSales - cogs - (totalExpenses - stockBuys);
+        const { cogs, covPct, est } = olvEstimateProfit({ prof, totalSales, totalExpenses, stockBuys });
         const covNote = `الوصفات تغطي ${covPct}% من المبيعات، والباقي مقدّر بنفس نسبة التكلفة. كل ما كملت الوصفات صار الرقم أدق. مشتريات المخزون ما انطرحت مرتين.`;
         document.getElementById("r-cogs").textContent = olvFormatMoney(cogs);
         const estEl = document.getElementById("r-est");
