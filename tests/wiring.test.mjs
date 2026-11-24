@@ -33,3 +33,12 @@ test("payroll.html بتستعمل الدوال المختبرة", () => {
 test("index.html بتستعمل olvDayNet لصافي اليوم", () => {
   assert.match(read("index.html"), /olvDayNet\(/);
 });
+
+test("payroll.html: تصحيح الساعات بيمر من الدالة المختبرة، والدفعة بتسجّل الساعات مع الفرق المكتشف، وفي تنبيه بدل الخصم التلقائي", () => {
+  const s = read("payroll.html");
+  assert.match(s, /olvReconcileHours\(/);
+  assert.match(s, /data-recon=/); // مربع «طبّق التصحيح»
+  assert.match(s, /r2\(row\.hours \+ row\.reconDet\)/); // الساعات المسجّلة بالدفعة تشمل الفرق (تطبيق أو تجاهل)
+  assert.match(s, /تجاهل تصحيح ساعات/);
+  assert.doesNotMatch(s, /reconH: recon\.hours/); // ما بيتطبّق لحاله بدون موافقة
+});
