@@ -168,26 +168,23 @@ async function olvExpensesPaid(db, select, from, to) {
   ]);
   const error = cashR.error || settledR.error;
   if (error) return { data: null, error };
-  const settled = (settledR.data || []).map((r) => ({ ...r, expense_date: String(r.settled_at).slice(0, 10) }));
   const cash = cashR.data || [];
-  const extra = [];
-  // الذمة ما بتنحسب يوم الفاتورة، بتنحسب يوم ما اندفعت:
+  // الذمة ما بتنحسب يوم الفاتورة، بتنحسب يوم ما اندفعت (الحساب بـ olvCombineExpensesPaid بملف finance-calc.js):
   // 1) فاتورة آجلة/جزئية: بتنحسب بتاريخها بس اللي اندفع عند الفاتورة (paid_amount)
   // 2) دفعات المورّد اللاحقة (من صفحة الموردين أو زر «سدّد») بتنحسب بتاريخ الدفعة
   // لو الاستعلام فشل (مثلًا صلاحيات) منكمل بدون تعديل.
+  let invoices = [], payments = [];
   try {
     const ids = cash.map((r) => r.id);
-    const paidAt = {};
     for (let i = 0; i < ids.length; i += 150) {
       const inv = await db.from("purchase_invoices").select("expense_id, status, payment_type, paid_amount").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash");
-      (inv.data || []).forEach((x) => { paidAt[x.expense_id] = x.status === "voided" ? null : Number(x.paid_amount) || 0; });
+      invoices.push(...(inv.data || []));
     }
-    cash.forEach((r) => { if (r.id in paidAt && paidAt[r.id] !== null) r.amount = Math.min(Number(r.amount), paidAt[r.id]); });
     const pay = await db.from("supplier_transactions").select("id, amount, transaction_date, description")
       .eq("type", "payment").is("invoice_id", null).gte("transaction_date", from).lte("transaction_date", to);
-    (pay.data || []).forEach((x) => extra.push({ id: "sp-" + x.id, amount: Number(x.amount), expense_date: x.transaction_date, description: x.description || "دفعة مورّد", expense_categories: { name: "مشتريات ومخزون" } }));
-  } catch (e) { /* بدون تعديل */ }
-  return { data: [...cash, ...settled, ...extra], error: null };
+    payments = pay.data || [];
+  } catch (e) { invoices = []; payments = []; /* بدون تعديل */ }
+  return { data: olvCombineExpensesPaid({ cash, settled: settledR.data, invoices, payments }), error: null };
 }
 
 // موافقة المدير برمز: لو عملية الكاشير انرفضت لأنها تحتاج مدير (إلغاء بعد المهلة أو خصم فوق حدّه)،
