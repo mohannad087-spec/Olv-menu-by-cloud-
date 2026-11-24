@@ -134,3 +134,13 @@ test("التقريب: مجموع بدون قروش عائمة (0.1+0.2)", () => 
   const r = c.olvPayrollRow({ hours: 0.1, hourlyWage: 1, weeks: 0, adjTotal: 0.2 });
   assert.equal(r.earned, 0.3);
 });
+
+test("تجاهل التصحيح: الساعات بتنسجل بالدفعة (hours_worked) بدون مصاري، فما بينبّه مرة ثانية", () => {
+  const days = [day("2026-11-14", 5), day("2026-11-15", 7.5)];
+  const first = [pay("2026-11-20T10:00:00Z", "2026-11-14", "2026-11-15", 10)];
+  const d = c.olvReconcileHours({ pays: first, days }).hours; // 2.5 مكتشف
+  const row = c.olvPayrollRow({ hours: 0, hourlyWage: 1, weeks: 0, reconHours: 0 }); // ما طُبّق: ما إله مصاري
+  assert.equal(row.earned, 0);
+  const afterIgnore = [...first, pay("2026-11-21T10:00:00Z", "2026-11-15", "2026-11-15", 0 + d)];
+  assert.equal(c.olvReconcileHours({ pays: afterIgnore, days }).hours, 0);
+});

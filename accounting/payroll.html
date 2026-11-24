@@ -424,6 +424,7 @@
     let canManage = false;
     let profilesById = new Map();
     const paySrcById = new Map(); // profileId -> drawer | cash | bank (من وين بدفع الراتب)
+    const reconApply = new Set(); // موظفين طبّق المالك تصحيح ساعاتهم (بالصفحة بس، بيتصفّر بعد دفعهم)
     let capSupported = false; // هل عمود max_daily_hours موجود بالقاعدة
     const capOf = (id) => { const p = profilesById.get(id); return p && p.max_daily_hours != null ? Number(p.max_daily_hours) : null; };
     let employees = [];
@@ -717,11 +718,13 @@
             const advancesTotal = advancesTotalFor(profileId);
             // تصحيح تلقائي: بصمات اتغيّرت بعد دفع فترات سابقة (فرق الساعات بيضاف/بينخصم بدون تسوية يدوية)
             const recon = olvReconcileHours({ pays: paidRows(profileId), days: allDayRowsBy(profileId), cap });
-            const { bonus, reconAmt, earned, net } = olvPayrollRow({ hours: h.hours, hourlyWage, weeks, adjTotal, carry, advancesTotal, reconHours: recon.hours });
+            // قرار المالك (2026-11-24): الفرق ما بينخصم/بينضاف لحاله. بيطلع تنبيه، والمالك بيطبّق التصحيح أو بيتجاهله لكل موظف
+            const reconApplied = reconApply.has(profileId);
+            const { bonus, reconAmt, earned, net } = olvPayrollRow({ hours: h.hours, hourlyWage, weeks, adjTotal, carry, advancesTotal, reconHours: reconApplied ? recon.hours : 0 });
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
-            return { profileId, from, weeks, cap, capCut, reconH: recon.hours, reconAmt, reconFrom: recon.from, reconTo: recon.to, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net };
+            return { profileId, from, weeks, cap, capCut, reconH: reconApplied ? recon.hours : 0, reconDet: recon.hours, reconDetAmt: olvRound2(recon.hours * (hourlyWage || 0)), reconAmt, reconFrom: recon.from, reconTo: recon.to, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net };
           })
-          .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || Math.abs(r.reconH) >= 0.02 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
+          .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || Math.abs(r.reconDet) >= 0.02 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         // حضور آخر 31 يوم لملف كل موظف (إذا فشل ما بنوقف الصفحة)
         try { await loadPunchDays(previewRows.map((x) => x.profileId), addDays(range.to, -48), range.to); } catch (e) { punchDays = new Map(); }
@@ -870,6 +873,8 @@
     const isBonusAdj = (a) => /مكافأة|إجازة/.test(a.note || "");
     const payBonus = (p) => { if (p.bonus_amount != null) return Number(p.bonus_amount) || 0; const m = /مكافأة\s*([\d.]+)/.exec(p.note || ""); return m ? Number(m[1]) : 0; };
     const r2 = (v) => Math.round(v * 100) / 100;
+    // ساعات تصحيح تجاهلها المالك (ملاحظة الدفعة «تجاهل تصحيح ساعات X»): محسوبة بالساعات المسجلة بس ما انحسبت مصاري
+    const ignoredRecon = (p) => { const m = /تجاهل تصحيح ساعات\s*(-?[\d.]+)/.exec(p.note || ""); return m ? Number(m[1]) : 0; };
     const sumAmt = (l) => l.reduce((t, a) => t + Number(a.amount || 0), 0);
     // بنعيد تمشية الدفعات من الأول: كل دفعة بتزيد رصيد الساعات ورصيد المكافآت كل واحد لحاله،
     // والمبلغ المدفوع (مع السلف) بيسدد الساعات أول، وبعدها المكافآت، وأي زيادة بتنحسب «مدفوع زيادة».
@@ -878,7 +883,7 @@
       let h = 0, b = 0, pre = 0;
       paidRows(r.profileId).forEach((p) => {
         const adjs = allAdj.filter((a) => a.settled_payroll_id === p.id);
-        h += Number(p.hours_worked || 0) * Number(p.hourly_wage || 0) + sumAmt(adjs.filter((a) => !isBonusAdj(a)));
+        h += (Number(p.hours_worked || 0) - ignoredRecon(p)) * Number(p.hourly_wage || 0) + sumAmt(adjs.filter((a) => !isBonusAdj(a)));
         b += payBonus(p) + sumAmt(adjs.filter(isBonusAdj));
         let avail = Number(p.net_amount || 0) + Number(p.advances_deducted || 0) + pre;
         if (h < 0) { avail += -h; h = 0; }
@@ -955,6 +960,7 @@
       if (ig.length) w.push(`بصمات متقاربة بدون خروج يوم ${ig.map(shortDate).join("، ")}: النظام أهملها وما حسب ساعاتها. إذا داوم فعلاً، صحّحها من الحضور قبل الدفع.`);
       if (r.capCut > 0.005) w.push(`حد أقصى ${r.cap} ساعة باليوم: ${fmtHrs(r.capCut)} ساعة فوق الحد ما انحسبت.`);
       if (r.hourlyWage != null && r.hours <= 0) w.push("ما في ساعات دوام بهالفترة.");
+      if (Math.abs(r.reconDet) >= 0.02 && !r.reconH) w.push(`تصحيح ساعات ${fmtHrs(Math.abs(r.reconDet))} (دفعات سابقة) غير مطبّق: بيتسجّل «تجاهل» وما بتنحسب مصاري.`);
       if (r.carry < -0.005) w.push(`مدفوع له زيادة ${olvFormatMoney(-r.carry)} من دفعة سابقة (انخصم من هالدفعة).`);
       if (r.carry > 0.005) w.push(`باقي له ${olvFormatMoney(r.carry)} من دفعة سابقة (انضاف لهالدفعة).`);
       if (r.payAmount != null && Math.abs(r.payAmount - r.net) >= 0.005) w.push(`المبلغ اللي بدفعه ${olvFormatMoney(r.payAmount)} غير الصافي ${olvFormatMoney(r.net)}، والفرق بينتقل للدفعة الجاية.`);
@@ -998,6 +1004,7 @@
               return `
             <div class="sec"><h5>${olvIcon("clock")} ساعات العمل</h5>
               <div class="ln"><span>ساعات هالفترة<small>${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${r.capCut > 0.005 ? ` · ${fmtHrs(r.capCut)} ساعة فوق الحد (${r.cap}) ما انحسبت` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(sp.hoursMoney)}</b></div>
+              ${Math.abs(r.reconDet) >= 0.02 ? `<div class="pay-warn">${olvIcon("warning")}<span><b>تنبيه: ساعات دفعات سابقة تغيّرت بعد الدفع</b><br>${r.reconDet > 0 ? "انضافت" : "انحذفت أو اتعدّلت"} بصمات عن ${shortDate(r.reconFrom)} لـ ${shortDate(r.reconTo)}: ${r.reconDet > 0 ? "له" : "عليه"} ${fmtHrs(Math.abs(r.reconDet))} ساعة = ${olvFormatMoney(Math.abs(r.reconDetAmt))}.<br><label><input type="checkbox" data-recon="${r.profileId}"${r.reconH ? " checked" : ""}> طبّق التصحيح على هالدفعة</label> <small>(إذا ما طبّقته بيتسجّل «تجاهل» وما بيرجع ينبّه)</small></span></div>` : ""}
               ${Math.abs(r.reconH) >= 0.02 ? `<div class="ln${r.reconH < 0 ? " minus" : ""}"><span>تصحيح ساعات دفعات سابقة<small>${r.reconH > 0 ? "بصمة انضافت" : "بصمة انحذفت/اتعدّلت"} بعد الدفع: ${r.reconH > 0 ? "+" : "−"} ${fmtHrs(Math.abs(r.reconH))} ساعة (من ${shortDate(r.reconFrom)} لـ ${shortDate(r.reconTo)})</small></span><b>${r.reconH > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(sp.reconMoney))}</b></div>` : ""}
               ${sp.hPrev >= 0.005 ? `<div class="ln"><span>باقي ساعات من قبل<small>ساعات انحسبت وما اندفعت كلها</small></span><b>+ ${olvFormatMoney(sp.hPrev)}</b></div>` : ""}
               ${sp.hAdj.map(adjLn).join("")}
@@ -1067,6 +1074,7 @@
         const v = Number(inp.value);
         if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else setTimeout(renderPreview, 0);
       }));
+      box.querySelectorAll("input[data-recon]").forEach((cb) => cb.addEventListener("change", () => { if (cb.checked) reconApply.add(cb.dataset.recon); else reconApply.delete(cb.dataset.recon); runCompute(); }));
       const allBtn = box.querySelector("#stmt-all");
       if (allBtn) allBtn.addEventListener("click", () => openAllStatements());
       box.querySelectorAll("input[data-wage]").forEach((inp) => inp.addEventListener("change", async () => {
@@ -1450,10 +1458,10 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
         const lastEnd = ledger.has(profileId) ? ledger.get(profileId).lastEnd : null;
         const pEnd = row.from > range.to && lastEnd ? lastEnd : range.to;
         const pStart = row.from > pEnd ? pEnd : row.from;
-        const payNote = [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.reconH) >= 0.02 ? `تصحيح ساعات ${row.reconH.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null;
+        const payNote = [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.reconDet) >= 0.02 ? `${row.reconH ? "تصحيح" : "تجاهل تصحيح"} ساعات ${row.reconDet.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null;
         // تسجيل الدفعة وتسكير الإضافات والسلف بعملية وحدة بالقاعدة (record_payroll_payment): إما كلها أو ولا شي، ومع فحص إنه ما انسجلت دفعة من جهاز ثاني
         const rpcArgs = {
-          p_id: paymentId, p_profile: profileId, p_start: pStart, p_end: pEnd, p_hours: r2(row.hours + row.reconH), p_wage: row.hourlyWage || 0,
+          p_id: paymentId, p_profile: profileId, p_start: pStart, p_end: pEnd, p_hours: r2(row.hours + row.reconDet), p_wage: row.hourlyWage || 0,
           p_gross: totalOwed, p_advances: row.advancesTotal, p_net: pay, p_note: payNote,
           p_adj_ids: row.adjIds, p_advance_ids: row.advanceIds, p_expected_last_end: lastEnd,
         };
@@ -1473,7 +1481,7 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
           profile_id: profileId,
           period_start: pStart,
           period_end: pEnd,
-          hours_worked: r2(row.hours + row.reconH),
+          hours_worked: r2(row.hours + row.reconDet),
           hourly_wage: row.hourlyWage || 0,
           gross_amount: totalOwed,
           advances_deducted: row.advancesTotal,
@@ -1495,6 +1503,7 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
         } else if (rpc.error) {
           throw rpc.error;
         }
+        reconApply.delete(profileId);
         await Promise.all([loadUnsettledAdvances(), loadHistory()]);
         await runCompute();
         olvToast("انسجل دفع الراتب", { type: "ok", icon: "check" });
