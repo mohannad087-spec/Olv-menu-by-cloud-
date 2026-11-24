@@ -1,0 +1,2140 @@
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("purchase-invoices");
+
+    // الفاتورة الجديدة مخفية لحد ما تكبس الزر (أو لحد ما تمسح باركود أو تستلم طلبية)
+    function openForm(open) {
+      const g = document.getElementById("pi-form-group");
+      if (!g) return;
+      const wasHidden = g.hidden;
+      g.hidden = !open;
+      document.getElementById("pv-new").setAttribute("aria-expanded", String(open));
+      if (open && wasHidden) g.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    document.getElementById("pv-new").innerHTML = olvIcon("plus") + "<span>فاتورة جديدة</span>";
+    document.getElementById("pv-new").addEventListener("click", () => openForm(document.getElementById("pi-form-group").hidden));
+    document.getElementById("pv-close").addEventListener("click", () => openForm(false));
+    document.getElementById("ic-month").innerHTML = olvIcon("cart");
+    document.getElementById("ic-debt").innerHTML = olvIcon("truck");
+    document.getElementById("ic-tax").innerHTML = olvIcon("receipt");
+    document.getElementById("pv-search-wrap").insertAdjacentHTML("afterbegin", olvIcon("search"));
+
+    let items = [];              // مواد خام + مستلزمات
+    let catalogOnly = [];        // أصناف الكتالوج اللي لسا مش عندك (بتنضاف تلقائيًا أول ما تنختار)
+    let lines = [];              // سطور الفاتورة الحالية
+    let payMode = ""; // فاضي = لسا ما اختار (إلزامي قبل الحفظ)
+    let editingId = null;        // لو عم تعدّل فاتورة محفوظة: رقمها (بتنلغى القديمة وبتنحفظ الجديدة مكانها)
+    let editingAttach = null;
+    let isOwner = false;
+    let aliases = {};            // اسم الصنف بفواتير الموردين (بعد norm) ← kind:id، بيتعلّم لحاله
+    let barcodes = new Map();    // الكود → { item_kind, item_id, unit_mode }
+    const HISTORY_LIMIT = 60;
+
+    // ---------- أدوات ----------
+    // توحيد الحروف العربية للمطابقة (تشكيل، ألف، تاء مربوطة، ياء)
+    const norm = (s) => String(s || "")
+      .replace(/[\u064B-\u0652\u0640]/g, "")
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+      .toLowerCase().replace(/\s+/g, " ").trim();
+    const itemLabel = (it) => `${it.name} — ${it.unit} · ${it.kind === "ingredient" ? "مادة خام" : "مستلزم"}`;
+    const labelToItem = () => new Map(items.map((it) => [itemLabel(it), it]));
+    const factorOf = (line, it) => (line.unitMode === "purchase" && it && it.purchase_unit_factor) ? Number(it.purchase_unit_factor) : 1;
+    const money = (n) => olvFormatMoney(n);
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    function newLine(over) {
+      return Object.assign({ itemKey: null, typed: "", unitMode: "stock", qty: "", price: "", bonus: "", bonusOpen: false, tax: "", taxOpen: false, disc: "", discOpen: false, bMode: "total", bPct: "", bGet: "", bPer: "", bGetUnit: "", bFactor: "", bOther: "", unmatchedName: "" }, over || {});
+    }
+    const itemOf = (line) => line.itemKey ? items.find((i) => i.kind + ":" + i.id === line.itemKey) : null;
+    // نوع السطر: مادة خام ولا مستلزم. الصنف المربوط هو المرجع، وغير هيك اللي اختاره المستخدم (أو تخمين من الاسم للسطور المقروءة من الصورة)
+    const kindOf = (line) => { const it = itemOf(line); return it ? it.kind : (line.kind || (line.unmatchedName ? guessKind(line.unmatchedName) : "ingredient")); };
+    // المبلغ قبل خصم السطر، وخصم السطر (نسبة %)، والصافي (هو اللي بنجمعه ونحسب عليه الضريبة)
+    const lineGross = (line) => round2((Number(line.qty) || 0) * (Number(line.price) || 0));
+    const lineDiscOf = (line) => round2(lineGross(line) * Math.min(Math.max(Number(line.disc) || 0, 0), 100) / 100);
+    const lineTotal = (line) => round2(lineGross(line) - lineDiscOf(line));
+    const lineDiscSum = () => round2(lines.reduce((s, l) => s + lineDiscOf(l), 0));
+    // كل سطر فيه كمية وسعر بينحسب، حتى لو لسا مش مربوط بصنف — هيك الإجمالي بيطابق الورقة من أول ما تنقرا
+    const subtotalOf = () => round2(lines.reduce((s, l) => s + lineTotal(l), 0));
+    // نفس حساب السيرفر بالضبط (record_purchase_invoice): الخصم ثم الضريبة، والسيرفر هو المرجع
+    function discountInputs() {
+      const v = Number(document.getElementById("pi-discount").value) || 0;
+      const pct = document.getElementById("pi-discount-mode").value === "pct";
+      return { pct: pct ? Math.min(Math.max(v, 0), 100) : null, amount: pct ? 0 : Math.max(v, 0) };
+    }
+    const lineRate = (l, def) => (l.tax === "" || l.tax == null || !Number.isFinite(Number(l.tax))) ? def : Math.min(Math.max(Number(l.tax), 0), 100);
+    function computeTotals() {
+      const subtotal = subtotalOf();
+      const d = discountInputs();
+      const discount = d.pct ? round2(subtotal * d.pct / 100) : Math.min(d.amount, subtotal);
+      const net = round2(subtotal - discount);
+      const rate = Math.min(Math.max(Number(document.getElementById("pi-tax-rate").value) || 0, 0), 100);
+      const inclusive = document.getElementById("pi-tax-mode").value === "incl";
+      // ضريبة كل سطر: نسبته الخاصة لو انكتبت، وإلا نسبة الفاتورة (نفس حساب السيرفر؛ الخصم موزّع بالتناسب)
+      let taxRaw = 0;
+      if (subtotal > 0) {
+        const share = net / subtotal;
+        lines.forEach((l) => {
+          const r = lineRate(l, rate);
+          const base = lineTotal(l) * share;
+          taxRaw += inclusive ? base - base / (1 + r / 100) : base * r / 100;
+        });
+      } else taxRaw = 0;
+      const tax = round2(taxRaw);
+      const total = inclusive ? net : round2(net + tax);
+      return { subtotal, discount, net, rate, inclusive, tax, total, pct: d.pct, lineDisc: lineDiscSum() };
+    }
+    const invoiceTotal = () => computeTotals().total;
+    const ROUND_TOL = 0.1; // أكبر فرق تقريب مقبول بين الورقة والمدخل (دينار)
+
+    // ---------- تحميل ----------
+    async function loadItems() {
+      const [{ data: ing, error: e1 }, { data: sup, error: e2 }] = await Promise.all([
+        window.supabaseClient.from("ingredients").select("id, name, unit, unit_price, current_stock, purchase_unit, purchase_unit_factor, menu_enabled, menu_price, menu_price_auto, menu_cat").order("name"),
+        window.supabaseClient.from("supplies").select("id, name, unit, unit_price, current_stock, purchase_unit, purchase_unit_factor").order("name"),
+        window.supabaseClient.from("app_settings").select("value").eq("key", "menu_markup_pct").maybeSingle().then((r) => { const v = r.data && Number(r.data.value); if (Number.isFinite(v)) menuMarkup = v; }, () => {}),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+      items = [
+        ...(ing || []).map((i) => ({ ...i, kind: "ingredient" })),
+        ...(sup || []).map((i) => ({ ...i, kind: "supply" })),
+      ];
+      await refreshCatalogHints();
+      try {
+        const { data: al } = await window.supabaseClient.from("app_settings").select("value").eq("key", "invoice_item_aliases").maybeSingle();
+        const v = al && al.value; const o = typeof v === "string" ? JSON.parse(v) : v;
+        aliases = o && typeof o === "object" && !Array.isArray(o) ? o : {};
+      } catch (_) { aliases = aliases || {}; }
+      // الباركودات (لو الجدول لسا مش موجود بالسيرفر منكمّل بدونها)
+      const { data: bc } = await window.supabaseClient.from("item_barcodes").select("code, item_kind, item_id, unit_mode").then((r) => r, () => ({ data: null }));
+      barcodes = new Map((bc || []).map((b) => [b.code, b]));
+    }
+    const catLabel = (e) => `${e.name} — ${e.unit} · من الكتالوج`;
+    async function refreshCatalogHints() {
+      try {
+        const cat = await olvCatalogFind();
+        const have = new Set(items.map((it) => olvCatNorm(it.name)));
+        catalogOnly = cat.filter((e) => !have.has(e.key));
+      } catch (_) { catalogOnly = []; }
+      document.getElementById("pi-items-list").innerHTML =
+        items.map((it) => `<option value="${olvEsc(itemLabel(it))}"></option>`).join("")
+        + catalogOnly.map((e) => `<option value="${olvEsc(catLabel(e))}"></option>`).join("");
+    }
+
+    // اسم المورّد بدون « · م-001» اللي بنزيدها بالقائمة
+    const supOptName = (o) => o.textContent.replace(/ · م-\d+$/, "");
+
+    async function loadSuppliers() {
+      const { data, error } = await window.supabaseClient.from("suppliers").select("id, name, supplier_no").order("name");
+      if (error) throw error;
+      document.getElementById("pi-supplier").innerHTML =
+        `<option value="">— بدون مورّد (كاش من السوق) —</option>` + (data || []).map((s) => `<option value="${s.id}">${olvEsc(s.name)}${s.supplier_no ? " · " + olvSupNo(s.supplier_no) : ""}</option>`).join("");
+    }
+
+    // ---------- رسم السطور ----------
+    // التسعير الذكي بالمنيو بيلحق تكلفة آخر فاتورة لحاله، فغلطة بالسعر هون بتغيّر سعر البيع
+    let menuMarkup = 50;
+    const smartPrice = (cost) => (Number(cost) > 0 ? Math.round(Math.ceil((Number(cost) * (1 + menuMarkup / 100)) / 0.05 - 1e-9) * 0.05 * 100) / 100 : null);
+    const followsMenu = (it) => it && it.kind === "ingredient" && it.menu_enabled && it.menu_price_auto && it.menu_cat !== "shisha-flavor";
+    // البونص (حبات مجانية): المخزون بيزيد فيها، والمدفوع ما بيتغير، فتكلفة الحبة = المدفوع ÷ (المشتراة + البونص)
+    const r3 = (n) => Math.round(n * 1000) / 1000;
+    const fmtQ = (n) => r3(Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 3 });
+    // البونص بوحدة المخزون. إما رقم إجمالي مباشرة، أو نسبة «كمية بونص لكل كمية مشتراة»: بنحسب المجموعات الكاملة بس (٢٥ كيلو مع «نص لكل ١٠» = مجموعتين)
+    function bonusInfo(line) {
+      const it = itemOf(line);
+      if (line.bMode === "percent") {
+        // نسبة مئوية من الكمية المشتراة (١٠٪ من ٢٠ كيلو = ٢ كيلو مجانًا)
+        const pct = Math.max(Number(line.bPct) || 0, 0), sq = it ? stockQtyOf(line, it) : 0;
+        return { total: r3(sq * pct / 100), groups: null };
+      }
+      if (line.bMode !== "ratio") {
+        const b = Math.max(Number(line.bonus) || 0, 0);
+        return { total: b, groups: null };
+      }
+      const get = Math.max(Number(line.bGet) || 0, 0), per = Number(line.bPer) || 0, q = Number(line.qty) || 0;
+      if (!(get > 0) || !(per > 0) || !(q > 0)) return { total: 0, groups: 0 };
+      const groups = Math.floor(q / per + 1e-9);
+      const gu = line.bGetUnit || (line.unitMode === "purchase" ? "purchase" : "stock");
+      let inStock = get;
+      if (gu === "purchase" && it && it.purchase_unit_factor) inStock = get * Number(it.purchase_unit_factor);
+      else if (gu !== "stock" && gu !== "purchase") inStock = get * (Number(line.bFactor) || 0); // وحدة تانية: لازم نعرف كم بتساوي بوحدة المخزون
+      return { total: r3(groups * inStock), groups };
+    }
+    const bonusOf = (line) => bonusInfo(line).total;
+    const stockQtyOf = (line, it) => (Number(line.qty) || 0) * factorOf(line, it);
+    const stockPriceOf = (line, it) => {
+      const b = bonusOf(line), q = stockQtyOf(line, it);
+      if (b > 0 && q > 0) return lineTotal(line) / (q + b);
+      if (lineDiscOf(line) > 0 && q > 0) return lineTotal(line) / q;
+      return Number(line.price) / factorOf(line, it);
+    };
+    // كمية المخزون الحالية تحت اسم الصنف، ومعها الكمية بعد الفاتورة (المشتراة + البونص)
+    function stockNote(line, it) {
+      if (!it) return "";
+      const cur = Number(it.current_stock) || 0;
+      const add = stockQtyOf(line, it) + bonusOf(line);
+      const after = add > 0 ? ` ← بعد هالفاتورة <b>${fmtQ(cur + add)}</b>` : "";
+      return `<div class="pi-stock">📦 بالمخزن هسا: <b>${fmtQ(cur)}</b> ${olvEsc(it.unit)}${after}</div>`;
+    }
+    function bonusHtml(line, it) {
+      if (!it) return "";
+      if (!line.bonusOpen && !bonusOf(line) && line.bMode !== "ratio" && line.bMode !== "percent") return `<button type="button" class="pi-newbtn" data-act="bonus-open">🎁 في بونص (مجاني)؟</button>`;
+      const hasPU = it.purchase_unit && it.purchase_unit_factor;
+      const ratio = line.bMode === "ratio";
+      const buyUnit = line.unitMode === "purchase" && hasPU ? it.purchase_unit : it.unit;
+      const gu = line.bGetUnit || (line.unitMode === "purchase" ? "purchase" : "stock");
+      const extra = ["قطعة", "صندوق", "كيلو", "عدد"].filter((u) => u !== it.unit && u !== it.purchase_unit);
+      const opt = (v, label) => `<option value="${olvEsc(v)}"${gu === v ? " selected" : ""}>${olvEsc(label)}</option>`;
+      const getUnitHtml = `<select data-f="bGetUnit" aria-label="وحدة البونص">${opt("stock", it.unit)}${hasPU ? opt("purchase", it.purchase_unit) : ""}${extra.map((u) => opt(u, u)).join("")}${opt("other", "أخرى...")}</select>`;
+      const foreign = gu !== "stock" && gu !== "purchase";
+      const unitName = gu === "other" ? (line.bOther || "وحدة") : gu;
+      const factorHtml = foreign ? `<div class="pi-bonus-row"><span>${gu === "other" ? `<input type="text" data-f="bOther" value="${olvEsc(line.bOther)}" placeholder="اسم الوحدة" aria-label="اسم الوحدة" style="max-width:110px;">` : ""} 1 ${olvEsc(unitName)} =</span><input type="number" data-f="bFactor" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bFactor)}" placeholder="كم" aria-label="كم بتساوي"><span>${olvEsc(it.unit)}</span></div>` : "";
+      const pctMode = line.bMode === "percent";
+      const body = pctMode
+        ? `<div class="pi-bonus-row"><span>بونص</span>
+            <input type="number" data-f="bPct" min="0" max="1000" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.bPct)}" placeholder="مثلًا 10" aria-label="نسبة البونص">
+            <span>% من الكمية المشتراة</span></div>`
+        : ratio
+        ? `<div class="pi-bonus-row"><span>بونص</span>
+            <input type="number" data-f="bGet" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bGet)}" placeholder="مثلًا 0.5" aria-label="كمية البونص">
+            ${getUnitHtml}
+            <span>لكل</span>
+            <input type="number" data-f="bPer" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bPer)}" placeholder="مثلًا 10" aria-label="لكل كم مشتراة">
+            <span>${olvEsc(buyUnit)} مشتراة</span></div>${factorHtml}`
+        : `<div class="pi-bonus-row"><span>كم ${olvEsc(it.unit)} مجانًا بالمجموع؟</span>
+            <input type="number" data-f="bonus" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.bonus)}" placeholder="مثال: 7" aria-label="البونص"></div>`;
+      return `<div class="pi-bonus" style="margin-top:6px;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <b style="font-size:13px;">🎁 بونص</b>
+          ${line.bMode !== "total" ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="total">أدخل الرقم الإجمالي</button>` : ""}
+          ${!ratio ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="ratio">نسبة (نص كيلو لكل 10)</button>` : ""}
+          ${!pctMode ? `<button type="button" class="pi-mini" data-act="bonus-mode" data-to="percent">نسبة مئوية %</button>` : ""}
+        </div>
+        ${body}
+        <div data-bonus-sum>${bonusSum(line, it)}</div>
+      </div>`;
+    }
+    function bonusSum(line, it) {
+      const info = bonusInfo(line), b = info.total, q = stockQtyOf(line, it);
+      if (!(b > 0) || !(q > 0)) return `<div class="hint" style="font-size:12px;">${line.bMode === "ratio" && info.groups === 0 && Number(line.qty) > 0 && Number(line.bPer) > Number(line.qty) ? "الكمية أقل من المطلوب للبونص." : "البونص ما بيزيد الفاتورة، بس بيزيد المخزون وبينزّل تكلفة الوحدة."}</div>`;
+      const how = info.groups != null ? ` (${info.groups} مرة)` : "";
+      return `<div class="pi-warn">المخزون رح يزيد ${fmtQ(q + b)} ${olvEsc(it.unit)} (${fmtQ(q)} مشتراة + ${fmtQ(b)} مجانًا${how}) — تكلفة الواحدة ${money(stockPriceOf(line, it))}</div>`;
+    }
+    // تغيّر كبير: أغلى من مرة ونص أو أرخص من النص (غالبًا غلطة بالفاصلة أو بالوحدة)
+    const isJump = (line, it) => {
+      if (!it || !(Number(it.unit_price) > 0) || !(Number(line.price) > 0)) return false;
+      const r = stockPriceOf(line, it) / Number(it.unit_price);
+      return r > 1.5 || r < 0.5;
+    };
+    function priceWarning(line, it) {
+      if (!it || !it.unit_price || !(Number(line.price) > 0)) return "";
+      const stockPrice = stockPriceOf(line, it);
+      const last = Number(it.unit_price);
+      const diff = (stockPrice - last) / last * 100;
+      if (Math.abs(diff) < 10) return "";
+      const menu = followsMenu(it) ? ` — سعر المنيو رح يصير تقريبًا ${money(smartPrice(stockPrice))} بدل ${money(it.menu_price)}` : "";
+      return `<div class="pi-warn ${diff > 0 || isJump(line, it) ? "bad" : ""}">${diff > 0 ? "⚠ أغلى" : (isJump(line, it) ? "⚠ أرخص" : "أرخص")} ${Math.abs(Math.round(diff))}% من آخر سعر (${money(last)} / ${olvEsc(it.unit)})${menu}</div>`;
+    }
+
+    // ---------- سطر ما انعرف: اقتراحات بضغطة، أو إضافته كصنف جديد بضغطة ----------
+    // تشابه بالكلمات (نفس فكرة مطابقة السيرفر): "حمالة فحم" بتلاقي "حمالة فحم ستانلس"، والوحدات والأرقام ما بتحسب
+    const STOP = new Set(["من", "مع", "و", "في", "على", "عدد", "حبه", "قطعه", "قطع", "كيلو", "كغ", "كغم", "غرام", "غم", "لتر", "مل", "كرتونه", "علبه", "كيس", "باكيت", "صندوق", "kg", "g", "x"]);
+    const toks = (s) => norm(s).replace(/[^\p{L}\p{N}.]+/gu, " ").split(" ")
+      .map((t) => (t.length > 3 && t.startsWith("ال") ? t.slice(2) : t))
+      .filter((t) => t && !STOP.has(t) && !/^\d+([.]\d+)?$/.test(t));
+    // خطأ بحرف واحد (نعنع ↔ نعناع) بينحسب نفس الكلمة
+    function oneEdit(a, b) {
+      if (Math.abs(a.length - b.length) > 1) return false;
+      let i = 0; while (i < a.length && a[i] === b[i]) i++;
+      return a.slice(i + (a.length >= b.length ? 1 : 0)) === b.slice(i + (b.length >= a.length ? 1 : 0));
+    }
+    const sameTok = (a, b) => a === b || (Math.min(a.length, b.length) >= 3 && (a.startsWith(b) || b.startsWith(a)) && Math.abs(a.length - b.length) <= 2)
+      || (Math.min(a.length, b.length) >= 4 && oneEdit(a, b));
+    function simScore(text, name) {
+      const q = toks(text), n = toks(name);
+      if (!q.length || !n.length) return 0;
+      const nHit = n.filter((w) => q.some((x) => sameTok(w, x))).length;
+      const qHit = q.filter((w) => n.some((x) => sameTok(w, x))).length;
+      if (!nHit || !qHit) return 0;
+      const r = nHit / n.length, pr = qHit / q.length;
+      return (2 * pr * r) / (pr + r);
+    }
+    function candidatesFor(name) {
+      return items.map((it) => ({ it, score: simScore(name, it.name) })).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+    }
+    // وحدة الفاتورة → وحدة مخزون معروفة (للصنف الجديد)
+    function unitFromInvoice(u) {
+      const n = norm(u);
+      if (/كيلو|كغ|kg/.test(n)) return "كيلوغرام";
+      if (/غرام|غم|\bg\b/.test(n)) return "غرام";
+      if (/لتر|ليتر/.test(n)) return "لتر";
+      if (/علب/.test(n)) return "علبة";
+      if (/كيس/.test(n)) return "كيس";
+      if (/صندوق|صناديق/.test(n)) return "صندوق";
+      return "قطعة";
+    }
+    function unmatchedHelp(line) {
+      const c = candidatesFor(line.unmatchedName).filter((x) => !line.kind || x.it.kind === line.kind); // لو المستخدم حدد النوع ما منقترح من النوع التاني
+      const top = c.length ? c[0].score : 0;
+      const close = c.filter((x) => x.score >= top - 0.05 && x.score >= 0.4);
+      const unit = unitFromInvoice(line.rawUnit || line.unmatchedName);
+      let sugg = "";
+      if (close.length && close.length <= 4) {
+        sugg = close.map((x) => `<button type="button" data-act="pick" data-key="${x.it.kind}:${x.it.id}">تقصد: ${olvEsc(x.it.name)}؟</button>`).join("");
+      }
+      const many = close.length > 4 ? `<div class="pi-warn">في ${close.length} صنف مشابه بالمخزون (نكهات أو أحجام) والفاتورة ما حددت أي واحد — اكتب النوع بالخانة واختاره</div>` : "";
+      return `<div class="pi-warn bad">ما لقيت "${olvEsc(line.unmatchedName)}" بالمخزون</div>${many}
+        <div class="pi-sugg">${sugg}
+          <button type="button" class="new" data-act="new" data-kind="${kindOf(line)}" data-unit="${olvEsc(unit)}">＋ أضفه ${kindOf(line) === "supply" ? "مستلزم" : "مادة خام"} (${olvEsc(unit)})</button>
+        </div>`;
+    }
+
+    // مستلزم (تغليف، تنظيف، أدوات) ولا مادة خام (أكل وشرب)؟ تخمين من الاسم، والباقي مادة خام
+    const SUPPLY_RE = /كيس|اكياس|أكياس|علبة|علب|كاس|كاسات|كأس|كوب|اكواب|أكواب|غطاء|اغطية|أغطية|شفاط|شلمونة|ملعقة|ملاعق|شوك|سكاكين|صحن|صحون|مناديل|محارم|ورق|نايلون|رول|فويل|قفاز|كفوف|منظف|صابون|سائل جلي|جلي|معقم|كلور|فوط|اسفنج|إسفنج|مكنسة|ممسحة|فحم|قداحة|ولاعة|شمع|بطارية|اكياس|حاوية|كرتونة تغليف|ستيكر|لاصق|حراري|سلة|كيس زبالة|زبالة/;
+    const guessKind = (name) => (SUPPLY_RE.test(norm(name)) ? "supply" : "ingredient");
+    function bulkTargets() {
+      return lines.filter((l) => !itemOf(l) && String(l.unmatchedName || l.typed || "").trim());
+    }
+    function renderBulkBar() {
+      const box = document.getElementById("pi-bulk");
+      const t = bulkTargets();
+      if (t.length < 2) { box.innerHTML = ""; return; }
+      box.innerHTML = `<div class="pi-warn bad" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+        <span style="flex:1; min-width:180px;">${t.length} أصناف مش موجودة بالمخزون</span>
+        <button type="button" class="btn small gold" data-act="bulk">＋ أضفهم كلهم دفعة وحدة</button>
+        <span class="hint" style="flex-basis:100%; margin:0;">البرنامج بيقرر لحاله: مستلزم (أكياس، علب، منظفات...) أو مادة خام. تقدر تعدّل أي صنف بعدين من المخزون.</span>
+      </div>`;
+    }
+    document.getElementById("pi-bulk").addEventListener("click", async (e) => {
+      const btn = e.target.closest('button[data-act="bulk"]'); if (!btn) return;
+      btn.disabled = true;
+      const errBox = document.getElementById("err");
+      try {
+        const targets = bulkTargets();
+        const plan = new Map(); // اسم مطبّع -> { row, kind, lines }
+        const skipped = [];
+        const linked = [];
+        for (const line of targets) {
+          const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
+          const same = items.find((i) => norm(i.name) === norm(name));
+          if (same) { line.itemKey = same.kind + ":" + same.id; line.unmatchedName = ""; line.guessFrom = ""; line.typed = ""; line.unitMode = "stock"; linked.push(name); continue; }
+          const unit = unitFromInvoice(line.rawUnit || name);
+          // الصندوق لازم نعرف كم حبة فيه — بنتركه للإضافة اليدوية
+          if (unit === "صندوق") { skipped.push(name); continue; }
+          const k = norm(name);
+          if (!plan.has(k)) {
+            const row = { name, unit };
+            if (Number(line.price) > 0) row.unit_price = Number(line.price);
+            plan.set(k, { row, kind: kindOf(line), lines: [] });
+          }
+          plan.get(k).lines.push(line);
+        }
+        let nIng = 0, nSup = 0;
+        for (const kind of ["ingredient", "supply"]) {
+          const group = [...plan.values()].filter((g) => g.kind === kind);
+          if (!group.length) continue;
+          const { data, error } = await window.supabaseClient.from(kind === "ingredient" ? "ingredients" : "supplies").insert(group.map((g) => g.row)).select("id, name");
+          if (error) throw error;
+          group.forEach((g) => {
+            const created = (data || []).find((r) => norm(r.name) === norm(g.row.name)); if (!created) return;
+            g.lines.forEach((line) => { line.itemKey = kind + ":" + created.id; line.unmatchedName = ""; line.guessFrom = ""; line.typed = ""; line.unitMode = "stock"; });
+          });
+          if (kind === "ingredient") nIng = group.length; else nSup = group.length;
+        }
+        await loadItems();
+        renderLines();
+        const parts = [];
+        if (nIng) parts.push(`${nIng} مادة خام`);
+        if (nSup) parts.push(`${nSup} مستلزم`);
+        if (linked.length) parts.push(`${linked.length} انربطوا بأصناف موجودة`);
+        let msg = parts.length ? `انضافوا: ${parts.join("، ")}.` : "";
+        if (skipped.length) msg += ` ${skipped.length} بوحدة صندوق تركتهم، أضفهم لحاله لأني بدي أعرف كم حبة بالصندوق.`;
+        if (window.olvToast) olvToast(msg || "ما انضاف شي", { type: skipped.length ? "warn" : "success", ms: 8000 });
+      } catch (err) {
+        olvShowError(errBox, err);
+        btn.disabled = false;
+      }
+    });
+
+    // نسبة الضريبة الفعلية للفاتورة (بتختلف عن النسبة العامة لو في سطور بنسب خاصة)
+    function effTaxRate(i) {
+      const base = i.tax_inclusive ? Number(i.total_amount) - Number(i.tax_amount) : Number(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount) - Number(i.discount_amount || 0);
+      const eff = base > 0 ? Math.round(Number(i.tax_amount) / base * 10000) / 100 : Number(i.tax_rate);
+      return Math.abs(eff - Number(i.tax_rate)) < 0.05 ? Number(i.tax_rate) : eff;
+    }
+    // خصم خاص بالسطر بنسبة % (مثل عروض الموزّع: ٣٧٪ على العلب): الصافي = المبلغ − الخصم، وتكلفة الوحدة من الصافي
+    function discHtml(line) {
+      if (!line.discOpen && line.disc === "") return `<button type="button" class="pi-newbtn" data-act="disc-open">🏷 في خصم % على هالسطر؟</button>`;
+      const d = lineDiscOf(line);
+      return `<div class="pi-bonus-row"><span>خصم السطر %</span><input type="number" data-f="disc" min="0" max="100" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.disc)}" placeholder="مثلًا 37" aria-label="نسبة خصم السطر"><small class="hint" data-disc-sum>${d > 0 ? `المبلغ ${money(lineGross(line))} − خصم ${money(d)} = صافي ${money(lineTotal(line))}` : ""}</small></div>`;
+    }
+    // ضريبة خاصة بالسطر (اختياري): فاضي = نسبة الفاتورة، 0 = معفى
+    function taxHtml(line) {
+      if (!line.taxOpen && line.tax === "") return `<button type="button" class="pi-newbtn" data-act="tax-open">％ ضريبة مختلفة لهالمادة؟</button>`;
+      return `<div class="pi-bonus-row"><span>ضريبة هالمادة %</span><input type="number" data-f="tax" min="0" max="100" step="0.01" inputmode="decimal" dir="ltr" value="${olvEsc(line.tax)}" placeholder="نسبة الفاتورة" aria-label="نسبة ضريبة هالمادة"><small class="hint">فاضي = نسبة الفاتورة، 0 = معفاة</small></div>`;
+    }
+    function renderLines() {
+      renderBulkBar();
+      const body = document.getElementById("pi-lines");
+      body.innerHTML = lines.map((line, idx) => {
+        const it = itemOf(line);
+        const hasPU = it && it.purchase_unit && it.purchase_unit_factor;
+        const unitOpts = it
+          ? `<option value="stock"${line.unitMode === "stock" ? " selected" : ""}>${olvEsc(it.unit)}</option>`
+            + (hasPU ? `<option value="purchase"${line.unitMode === "purchase" ? " selected" : ""}>${olvEsc(it.purchase_unit)} (= ${Number(it.purchase_unit_factor)} ${olvEsc(it.unit)})</option>` : "")
+            + `<option value="__new__">${hasPU ? "✎ تعديل وحدة الشراء..." : "＋ وحدة شراء (كرتونة، كيس، صندوق...)"}</option>`
+          : `<option value="stock">اختر الصنف أولًا</option>`;
+        return `<tr data-idx="${idx}">
+          <td>
+            <div class="pi-kind" role="group" aria-label="نوع البند"><button type="button" data-act="kind" data-kind="ingredient" class="${kindOf(line) === "ingredient" ? "on" : ""}" aria-pressed="${kindOf(line) === "ingredient"}">مادة خام</button><button type="button" data-act="kind" data-kind="supply" class="${kindOf(line) === "supply" ? "on" : ""}" aria-pressed="${kindOf(line) === "supply"}">مستلزم</button></div>
+            <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="pi-ac-list" aria-label="الصنف" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
+            ${line.unmatchedName && !it ? unmatchedHelp(line) : ""}
+            ${!it ? `<button type="button" class="pi-newbtn" data-act="newdlg">＋ إضافة مادة جديدة للمخزون</button>` : ""}
+            ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
+            <div data-stock>${stockNote(line, it)}</div>
+            <div data-warn>${priceWarning(line, it)}</div>
+            ${it ? `<button type="button" class="pi-newbtn" data-act="editdlg">✏️ تعديل المادة</button>` : ""}
+            ${bonusHtml(line, it)}
+            ${discHtml(line)}
+            ${taxHtml(line)}
+          </td>
+          <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
+          <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}" placeholder="الكمية" aria-label="الكمية"></td>
+          <td><input type="number" data-f="price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.price)}" placeholder="السعر" aria-label="سعر الوحدة"></td>
+          <td><span class="pi-line-total" data-total>${money(lineTotal(line))}</span></td>
+          <td><button type="button" class="btn small danger" data-act="del" aria-label="حذف">✕</button></td>
+        </tr>`;
+      }).join("");
+      updateTotals();
+    }
+
+    // مجموع الكميات المكتوبة بالسطور (بوحدة الفاتورة، من غير البونص) — نفس اللي بيطلع عادةً أسفل الفاتورة الورقية
+    const qtyOfLines = () => Math.round(lines.reduce((sum, l) => sum + (Number(l.qty) || 0), 0) * 1000) / 1000;
+    function updateTotals() {
+      const T = computeTotals();
+      const total = T.total;
+      let paid = (payMode === "cash" || !payMode) ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
+      document.getElementById("pi-count").textContent = lines.filter((l) => itemOf(l) || lineTotal(l) > 0).length;
+      const qtySum = qtyOfLines();
+      document.getElementById("pi-qty").textContent = String(qtySum);
+      document.getElementById("pi-subtotal").textContent = money(T.subtotal);
+      // إجمالي الخصم = خصم السطور + خصم الفاتورة (ونسبته من المبلغ قبل الخصم)
+      const allDisc = round2(T.discount + T.lineDisc), grossAll = round2(T.subtotal + T.lineDisc);
+      document.getElementById("pi-row-discount").hidden = !(allDisc > 0);
+      document.getElementById("pi-discount-val").textContent = "- " + money(allDisc) + (grossAll > 0 ? ` (${Math.round(allDisc / grossAll * 10000) / 100}%)` : "");
+      document.getElementById("pi-row-tax").hidden = !(T.tax > 0);
+      document.getElementById("pi-tax-val").textContent = money(T.tax) + (T.inclusive ? " (مضمّنة)" : "");
+      document.getElementById("pi-total").textContent = money(total);
+      document.getElementById("pi-paid").textContent = money(paid);
+      document.getElementById("pi-remaining").textContent = money(total - paid);
+      document.getElementById("pi-row-paid").hidden = payMode === "cash" || !payMode;
+      document.getElementById("pi-row-remaining").hidden = payMode === "cash" || !payMode;
+      // ملخّص القسم المطوي حتى تعرف شو فيه بدون ما تفتحه
+      const more = [];
+      if (document.getElementById("pi-no").value.trim()) more.push("رقم " + document.getElementById("pi-no").value.trim());
+      if (T.discount + T.lineDisc > 0) more.push("خصم " + money(T.discount + T.lineDisc));
+      if (T.rate > 0) more.push("ضريبة " + T.rate + "%");
+      document.getElementById("pi-more-sum").textContent = more.join(" · ");
+      const paper = document.getElementById("pi-paper-total").value;
+      const warn = document.getElementById("pi-match-warn");
+      // فرق التقريب (أقل من 10 قروش، من قسمة الضريبة وتقريب السطور) مش خطأ بالفاتورة: ما بنحذّر عليه
+      if (paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL) {
+        warn.hidden = false;
+        warn.className = "pi-warn bad";
+        warn.textContent = `⚠ فرق ${money(Math.abs(Number(paper) - total))} بين إجمالي الفاتورة الورقية (${money(Number(paper))}) والمدخل (${money(total)}) — راجع الكميات والأسعار`;
+      } else if (paper !== "") {
+        const dif = Math.abs(Number(paper) - total);
+        warn.hidden = false; warn.className = "pi-warn"; warn.textContent = dif > 0.001 ? `✓ الإجمالي مطابق للفاتورة الورقية (فرق تقريب ${money(dif)})` : "✓ الإجمالي مطابق للفاتورة الورقية";
+      } else {
+        warn.hidden = true;
+      }
+      // مطابقة عدد القطع مع الورقة
+      const paperQty = document.getElementById("pi-paper-qty").value;
+      const qtyDiff = paperQty !== "" && Math.abs(Number(paperQty) - qtySum) > 0.0005;
+      if (qtyDiff) {
+        warn.hidden = false; warn.className = "pi-warn bad";
+        warn.textContent = (warn.textContent ? warn.textContent + " | " : "") + `⚠ فرق ${Math.round(Math.abs(Number(paperQty) - qtySum) * 1000) / 1000} بمجموع الكميات: الورقة ${Number(paperQty)} والمدخل ${qtySum}`;
+      } else if (paperQty !== "" && warn.hidden) {
+        warn.hidden = false; warn.className = "pi-warn"; warn.textContent = "✓ مجموع الكميات مطابق للفاتورة الورقية";
+      }
+      const moneyDiff = paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL;
+      const dBtn = document.getElementById("pi-diff-btn");
+      dBtn.hidden = !((moneyDiff || qtyDiff) && pages.length);
+      if (!moneyDiff && !qtyDiff) { const d = document.getElementById("pi-diff"); d.hidden = true; }
+    }
+
+    // ---------- قائمة اقتراحات بحث بالكلمات (بدل datalist اللي بيطابق نص متصل بس) ----------
+    // "معس بطيخ" بتلاقي "معسل مزايا بطيخ". الاختيار بيحط نفس نص الخيار بالخانة وبيطلق نفس حدث الإدخال، فمنطق المطابقة تحته ما اتغيّر
+    const ac = { box: null, input: null, opts: [], idx: -1 };
+    function acClose() {
+      if (ac.input) { ac.input.setAttribute("aria-expanded", "false"); ac.input.removeAttribute("aria-activedescendant"); }
+      if (ac.box) { ac.box.remove(); ac.box = null; } ac.input = null; ac.opts = []; ac.idx = -1;
+    }
+    function acOptions(q, kind) {
+      if (!String(q).trim()) return [];
+      const mine = items.filter((it) => (!kind || it.kind === kind) && olvSearchMatch(itemLabel(it), q)).slice(0, 8).map((it) => ({ label: itemLabel(it), name: it.name, meta: it.kind === "ingredient" ? "مادة خام" : "مستلزم" }));
+      const cat = catalogOnly.filter((e) => (!kind || (e.kind === "s" ? "supply" : "ingredient") === kind) && olvSearchMatch(e.name + " " + (e.hay || ""), q)).slice(0, 6).map((e) => ({ label: catLabel(e), name: e.name, meta: "من الكتالوج (بتنضاف للمخزون)" }));
+      return mine.concat(cat);
+    }
+    function acRender() {
+      if (!ac.input) return;
+      if (!ac.opts.length) { if (ac.box) ac.box.hidden = true; ac.input.setAttribute("aria-expanded", "false"); return; }
+      if (!ac.box) { ac.box = document.createElement("div"); ac.box.className = "pi-ac"; ac.box.id = "pi-ac-list"; ac.box.setAttribute("role", "listbox"); ac.box.setAttribute("aria-label", "أصناف مطابقة"); document.body.appendChild(ac.box); }
+      ac.box.hidden = false;
+      // قارئ الشاشة: القائمة مفتوحة، والخيار المحدد بالأسهم
+      ac.input.setAttribute("aria-expanded", "true");
+      if (ac.idx >= 0) ac.input.setAttribute("aria-activedescendant", "pi-ac-" + ac.idx); else ac.input.removeAttribute("aria-activedescendant");
+      const r = ac.input.getBoundingClientRect();
+      ac.box.style.top = (window.scrollY + r.bottom + 4) + "px";
+      ac.box.style.right = Math.max(8, document.documentElement.clientWidth - r.right - window.scrollX) + "px";
+      ac.box.style.width = Math.max(300, r.width) + "px";
+      ac.box.innerHTML = ac.opts.map((o, i) => `<button type="button" role="option" id="pi-ac-${i}" aria-selected="${i === ac.idx}" tabindex="-1" data-i="${i}" class="${i === ac.idx ? "on" : ""}"><span>${olvEsc(o.name)}</span><span class="m">${olvEsc(o.meta)}</span></button>`).join("");
+    }
+    function acPick(i) {
+      const o = ac.opts[i]; const inp = ac.input; if (!o || !inp) return;
+      inp.value = o.label; acClose();
+      inp.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    document.addEventListener("input", (e) => {
+      const t = e.target; if (!t.matches || !t.matches('#pi-lines input[data-f="item"]')) return;
+      const exact = labelToItem().has(t.value) || catalogOnly.some((c) => catLabel(c) === t.value);
+      ac.input = t; ac.idx = -1; const tl = lines[Number(t.closest("tr").dataset.idx)];
+      ac.opts = exact ? [] : acOptions(t.value, tl ? kindOf(tl) : null); acRender();
+    });
+    document.addEventListener("keydown", (e) => {
+      const t = e.target; if (!ac.box || ac.box.hidden || t !== ac.input) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); ac.idx = Math.min(ac.opts.length - 1, ac.idx + 1); acRender(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); ac.idx = Math.max(0, ac.idx - 1); acRender(); }
+      else if (e.key === "Enter") { e.preventDefault(); acPick(ac.idx >= 0 ? ac.idx : 0); }
+      else if (e.key === "Escape") { acClose(); }
+    });
+    document.addEventListener("mousedown", (e) => {
+      const b = e.target.closest && e.target.closest(".pi-ac button"); if (b) { e.preventDefault(); acPick(Number(b.dataset.i)); return; }
+      if (ac.box && e.target !== ac.input) acClose();
+    });
+    window.addEventListener("scroll", () => { if (ac.box && !ac.box.hidden) acRender(); }, true);
+    document.getElementById("pi-lines").addEventListener("focusout", () => { setTimeout(() => { if (ac.input && document.activeElement !== ac.input) acClose(); }, 150); });
+
+    document.getElementById("pi-lines").addEventListener("input", (e) => {
+      const tr = e.target.closest("tr"); if (!tr) return;
+      const line = lines[Number(tr.dataset.idx)]; const f = e.target.dataset.f;
+      if (f === "item") {
+        line.typed = e.target.value;
+        const catHit = catalogOnly.find((c) => catLabel(c) === e.target.value);
+        if (catHit) {
+          if (line._adding) return; // نداء مزدوج لنفس الاختيار — نتجاهل الثاني
+          line._adding = true;
+          e.target.disabled = true;
+          olvCatalogAddOne(catHit).then(async (res) => {
+            await loadItems();
+            const fresh = items.find((i) => i.kind === res.kind && i.id === res.row.id);
+            if (fresh) { line.itemKey = fresh.kind + ":" + fresh.id; line.unmatchedName = ""; line.unitMode = "stock"; }
+            renderLines();
+            const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus();
+          }).catch((err) => { olvShowError(document.getElementById("err"), err); renderLines(); })
+            .finally(() => { line._adding = false; });
+          return;
+        }
+        const hit = labelToItem().get(e.target.value);
+        if (hit) { line.itemKey = hit.kind + ":" + hit.id; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock"; if (!line.price && hit.unit_price) line.price = String(hit.unit_price); renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="qty"]`); if (q) q.focus(); return; }
+        line.kind = kindOf(line); line.itemKey = null;
+      } else if (f === "qty") line.qty = e.target.value;
+      else if (f === "price") line.price = e.target.value;
+      else if (f === "bonus") line.bonus = e.target.value;
+      else if (f === "tax") line.tax = e.target.value;
+      else if (f === "disc") line.disc = e.target.value;
+      else if (f === "bPct") line.bPct = e.target.value;
+      else if (f === "bGet") line.bGet = e.target.value;
+      else if (f === "bFactor") line.bFactor = e.target.value;
+      else if (f === "bOther") line.bOther = e.target.value;
+      else if (f === "bPer") line.bPer = e.target.value;
+      const it = itemOf(line);
+      const bs = tr.querySelector("[data-bonus-sum]"); if (bs && it) bs.innerHTML = bonusSum(line, it);
+      tr.querySelector("[data-total]").textContent = money(lineTotal(line));
+      const ds = tr.querySelector("[data-disc-sum]"); if (ds) ds.textContent = lineDiscOf(line) > 0 ? `المبلغ ${money(lineGross(line))} − خصم ${money(lineDiscOf(line))} = صافي ${money(lineTotal(line))}` : "";
+      tr.querySelector("[data-warn]").innerHTML = priceWarning(line, it);
+      const sn = tr.querySelector("[data-stock]"); if (sn) sn.innerHTML = stockNote(line, it);
+      updateTotals();
+    });
+    document.getElementById("pi-lines").addEventListener("change", (e) => {
+      const tr = e.target.closest("tr"); if (!tr) return;
+      if (e.target.dataset.f === "unit" && e.target.value === "__new__") {
+        const line = lines[Number(tr.dataset.idx)]; const it = itemOf(line);
+        e.target.value = line.unitMode;
+        if (!it) return;
+        openUnitDialog(it).then(async (res) => {
+          if (!res) return;
+          const before = factorOf(line, it);
+          const table = it.kind === "ingredient" ? "ingredients" : "supplies";
+          const { error } = await window.supabaseClient.from(table)
+            .update({ purchase_unit: res.name, purchase_unit_factor: res.factor }).eq("id", it.id);
+          if (error) { olvShowError(document.getElementById("err"), error); return; }
+          await loadItems();
+          const fresh = itemOf(line);
+          if (res.name) {
+            // نحوّل السعر المعروض لوحدة الشراء الجديدة (سعر الكرتونة = سعر القطعة × المعامل)
+            if (line.price !== "") line.price = String(round2(Number(line.price) / before * res.factor));
+            line.unitMode = "purchase";
+          } else {
+            if (line.price !== "" && fresh) line.price = String(round2(Number(line.price) / before));
+            line.unitMode = "stock";
+          }
+          renderLines();
+        });
+        return;
+      }
+      if (e.target.dataset.f === "bGetUnit") {
+        const line = lines[Number(tr.dataset.idx)]; line.bGetUnit = e.target.value; renderLines(); return;
+      }
+      if (e.target.dataset.f === "unit") {
+        const line = lines[Number(tr.dataset.idx)]; const it = itemOf(line);
+        const before = factorOf(line, it);
+        line.unitMode = e.target.value;
+        // نحوّل السعر المعروض للوحدة الجديدة (سعر الكرتونة = سعر الكيلو × المعامل)
+        if (line.price !== "" && it) line.price = String(round2(Number(line.price) / before * factorOf(line, it)));
+        renderLines();
+      }
+    });
+    document.getElementById("pi-lines").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-act]"); if (!btn) return;
+      const idx = Number(btn.closest("tr").dataset.idx); const line = lines[idx];
+      if (btn.dataset.act === "del") { lines.splice(idx, 1); if (!lines.length) lines.push(newLine()); renderLines(); return; }
+      if (btn.dataset.act === "kind") {
+        const k = btn.dataset.kind; const cur = itemOf(line);
+        if (kindOf(line) === k) return;
+        line.kind = k;
+        if (cur) {
+          // نفس الاسم موجود بالنوع التاني؟ بنربط فيه، وإلا بنفك الربط وبنعرض زر الإضافة بالنوع الجديد
+          const twin = items.find((i) => i.kind === k && norm(i.name) === norm(cur.name));
+          if (twin) { line.itemKey = twin.kind + ":" + twin.id; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock"; }
+          else { line.itemKey = null; line.typed = cur.name; line.unmatchedName = cur.name; line.guessFrom = ""; line.unitMode = "stock"; line.rawUnit = cur.unit; }
+        }
+        renderLines(); return;
+      }
+      if (btn.dataset.act === "tax-open") { line.taxOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="tax"]`); if (q) q.focus(); return; }
+      if (btn.dataset.act === "disc-open") { line.discOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="disc"]`); if (q) q.focus(); return; }
+      if (btn.dataset.act === "bonus-open") { line.bonusOpen = true; renderLines(); const q = document.querySelector(`#pi-lines tr[data-idx="${idx}"] [data-f="bonus"]`); if (q) q.focus(); return; }
+      if (btn.dataset.act === "bonus-mode") {
+        const to = btn.dataset.to || "total";
+        if (to === "total") { const t = bonusOf(line); line.bonus = t > 0 ? String(t) : ""; }
+        line.bMode = to;
+        renderLines(); return;
+      }
+      if (btn.dataset.act === "pick") {
+        const it = items.find((i) => i.kind + ":" + i.id === btn.dataset.key); if (!it) return;
+        line.itemKey = btn.dataset.key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = "stock";
+        if (!line.price && it.unit_price) line.price = String(it.unit_price);
+        renderLines(); return;
+      }
+      if (btn.dataset.act === "newdlg") { await addNewItemForLine(line, btn); return; }
+      if (btn.dataset.act === "editdlg") { await editItemForLine(line); return; }
+      if (btn.dataset.act === "new") {
+        const name = String(line.unmatchedName || line.typed || "").trim().slice(0, 120);
+        if (!name) return;
+        btn.disabled = true;
+        const kind = btn.dataset.kind;
+        const row = { name, unit: btn.dataset.unit || "قطعة" };
+        const { data, error } = await window.supabaseClient.from(kind === "ingredient" ? "ingredients" : "supplies").insert(row).select("id").single();
+        if (error) { btn.disabled = false; olvShowError(document.getElementById("err"), error); return; }
+        await loadItems();
+        line.itemKey = kind + ":" + data.id; line.unmatchedName = ""; line.unitMode = "stock";
+        renderLines(); return;
+      }
+    });
+    document.getElementById("pi-lines").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.dataset.f === "price") {
+        e.preventDefault();
+        const idx = Number(e.target.closest("tr").dataset.idx);
+        if (idx === lines.length - 1) { lines.push(newLine()); renderLines(); }
+        const next = document.querySelector(`#pi-lines tr[data-idx="${idx + 1}"] [data-f="item"]`); if (next) next.focus();
+      }
+    });
+    // نافذة «إضافة مادة جديدة» من داخل الفاتورة: الاسم + النوع + الوحدة + السعر، وبتنربط بالسطر مباشرة
+    function openNewItemDialog(init) {
+      return new Promise((resolve) => {
+        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس", "صندوق"];
+        if (init.unit && !UNITS.includes(init.unit)) UNITS.unshift(init.unit);
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">إضافة مادة جديدة للمخزون</h3>
+          <div class="hint" style="margin-bottom:12px;">بتنضاف للمخزون وبتنربط بسطر الفاتورة مباشرة، وما بتطلع من الفاتورة.</div>
+          <div class="field"><label>اسم المادة</label><input type="text" id="ni-name" maxlength="120" value="${olvEsc(init.name || "")}" placeholder="مثال: جبنة موزاريلا"></div>
+          <div class="field"><label>النوع</label>
+            <select id="ni-kind"><option value="ingredient">مادة خام (بتدخل بالوصفات)</option><option value="supply">مستلزم (أكياس، علب، منظفات...)</option></select></div>
+          <div class="field"><label>الوحدة</label>
+            <select id="ni-unit">${UNITS.map((u) => `<option value="${olvEsc(u)}"${u === init.unit ? " selected" : ""}>${olvEsc(u)}</option>`).join("")}</select></div>
+          <div class="field" id="ni-box-f" style="display:none;"><label>كم حبة بالصندوق الواحد؟</label><input type="number" id="ni-box" min="1" step="any" inputmode="decimal" dir="ltr" placeholder="مثال: 12 أو 24"><div class="hint">المخزون بيتحسب بالحبة، والفاتورة بتدخلها بالصندوق.</div></div>
+          <div class="field"><label id="ni-price-l">سعر الوحدة</label><input type="number" id="ni-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(init.price || "")}" placeholder="اختياري"></div>
+          <div class="pi-warn bad" id="ni-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="ni-save" style="flex:1;">إضافة واستخدامها</button>
+            <button type="button" class="btn" id="ni-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        if (init.kind) box.querySelector("#ni-kind").value = init.kind;
+        const nameEl = box.querySelector("#ni-name");
+        box.querySelector("#ni-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        nameEl.addEventListener("input", () => { box.querySelector("#ni-err").textContent = ""; });
+        const syncBox = () => {
+          const isBox = box.querySelector("#ni-unit").value === "صندوق";
+          box.querySelector("#ni-box-f").style.display = isBox ? "" : "none";
+          box.querySelector("#ni-price-l").textContent = isBox ? "سعر الصندوق" : "سعر الوحدة";
+        };
+        box.querySelector("#ni-unit").addEventListener("change", syncBox); syncBox();
+        box.querySelector("#ni-save").addEventListener("click", () => {
+          const name = nameEl.value.trim().slice(0, 120);
+          if (!name) { box.querySelector("#ni-err").textContent = "اكتب اسم المادة"; nameEl.focus(); return; }
+          const unit = box.querySelector("#ni-unit").value;
+          const perBox = Number(box.querySelector("#ni-box").value) || 0;
+          if (unit === "صندوق" && !(perBox > 0)) { box.querySelector("#ni-err").textContent = "اكتب كم حبة بالصندوق (رقم أكبر من صفر)"; box.querySelector("#ni-box").focus(); return; }
+          done({ name, kind: box.querySelector("#ni-kind").value, unit, perBox: unit === "صندوق" ? perBox : 0, price: Number(box.querySelector("#ni-price").value) || 0 });
+        });
+        setTimeout(() => nameEl.focus(), 50);
+      });
+    }
+    // نافذة «تعديل المادة» من داخل الفاتورة: الاسم + الوحدة + السعر + وحدة الشراء، بدون ما تطلع من الصفحة
+    function openEditItemDialog(it) {
+      return new Promise((resolve) => {
+        const UNITS = ["كيلوغرام", "غرام", "لتر", "قطعة", "علبة", "كيس", "صندوق"];
+        if (it.unit && !UNITS.includes(it.unit)) UNITS.unshift(it.unit);
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">تعديل المادة</h3>
+          <div class="hint" style="margin-bottom:12px;">${it.kind === "supply" ? "مستلزم" : "مادة خام"} — التعديل بيتحفظ على المادة نفسها وبيضل سطر الفاتورة مربوط فيها.</div>
+          <div class="field"><label>اسم المادة</label><input type="text" id="ei-name" maxlength="120" value="${olvEsc(it.name)}"></div>
+          <div class="field"><label>وحدة المخزون</label>
+            <select id="ei-unit">${UNITS.map((u) => `<option value="${olvEsc(u)}"${u === it.unit ? " selected" : ""}>${olvEsc(u)}</option>`).join("")}</select>
+            <div class="hint">تغيير الوحدة ما بيحوّل الكمية الموجودة بالمخزون (${olvEsc(fmtQ(Number(it.current_stock) || 0))}).</div></div>
+          <div class="field"><label>سعر الوحدة (بوحدة المخزون)</label><input type="number" id="ei-price" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(it.unit_price || "")}" placeholder="اختياري"></div>
+          <div class="field"><label>وحدة الشراء (مثال: كرتونة) — اختياري</label><input type="text" id="ei-pu" maxlength="30" value="${olvEsc(it.purchase_unit || "")}" placeholder="فاضي = بدون"></div>
+          <div class="field"><label>كم وحدة مخزون بوحدة الشراء الواحدة؟</label><input type="number" id="ei-pf" min="0.001" step="any" dir="ltr" value="${olvEsc(it.purchase_unit_factor || "")}" placeholder="مثال: 12"></div>
+          <div class="pi-warn bad" id="ei-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="ei-save" style="flex:1;">حفظ التعديل</button>
+            <button type="button" class="btn" id="ei-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const err = box.querySelector("#ei-err");
+        box.querySelector("#ei-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        box.querySelector("#ei-save").addEventListener("click", () => {
+          const name = box.querySelector("#ei-name").value.trim().slice(0, 120);
+          if (!name) { err.textContent = "اكتب اسم المادة"; return; }
+          const pu = box.querySelector("#ei-pu").value.trim();
+          const pf = Number(box.querySelector("#ei-pf").value) || 0;
+          if (pu && !(pf > 0)) { err.textContent = "اكتب كم وحدة مخزون بالـ" + pu + " (رقم أكبر من صفر)"; return; }
+          const price = Number(box.querySelector("#ei-price").value) || 0;
+          done({ name, unit: box.querySelector("#ei-unit").value, unit_price: price > 0 ? price : null, purchase_unit: pu || null, purchase_unit_factor: pu ? pf : null });
+        });
+        setTimeout(() => box.querySelector("#ei-name").focus(), 50);
+      });
+    }
+    async function editItemForLine(line) {
+      const it = itemOf(line); if (!it) return;
+      const res = await openEditItemDialog(it);
+      if (!res) return;
+      const { error } = await window.supabaseClient.from(it.kind === "ingredient" ? "ingredients" : "supplies").update(res).eq("id", it.id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      await loadItems();
+      if (line.unitMode === "purchase" && !res.purchase_unit) line.unitMode = "stock";
+      renderLines();
+      if (window.olvToast) olvToast("تم تعديل المادة");
+    }
+    // يرجّع true إذا انربط السطر بمادة (جديدة أو موجودة بنفس الاسم)
+    async function addNewItemForLine(line, btn) {
+      const name0 = String(line.unmatchedName || line.typed || "").trim();
+      const guess = unitFromInvoice(line.rawUnit || name0);
+      const res = await openNewItemDialog({ kind: kindOf(line), name: name0, unit: guess, price: line.price !== "" && line.unitMode === "stock" ? String(line.price) : "" });
+      if (!res) return false;
+      if (btn) btn.disabled = true;
+      const errBox = document.getElementById("err");
+      // لو في مادة بنفس الاسم أصلًا ما منكرّرها — بنربط السطر فيها
+      const same = items.find((i) => norm(i.name) === norm(res.name));
+      let key;
+      if (same) key = same.kind + ":" + same.id;
+      else {
+        const row = { name: res.name, unit: res.unit };
+        // صندوق: المخزون بالحبة، وبنحفظ «صندوق» كوحدة شراء بعدد الحبات اللي دخّله المستخدم
+        if (res.perBox > 0) { row.unit = "قطعة"; row.purchase_unit = "صندوق"; row.purchase_unit_factor = res.perBox; }
+        if (res.price > 0) row.unit_price = res.perBox > 0 ? Math.round(res.price / res.perBox * 1000) / 1000 : res.price;
+        const { data, error } = await window.supabaseClient.from(res.kind === "ingredient" ? "ingredients" : "supplies").insert(row).select("id").single();
+        if (error) { if (btn) btn.disabled = false; olvShowError(errBox, error); return false; }
+        key = res.kind + ":" + data.id;
+        await loadItems();
+      }
+      line.itemKey = key; line.unmatchedName = ""; line.guessFrom = ""; line.unitMode = (!same && res.perBox > 0) ? "purchase" : "stock"; line.typed = "";
+      if ((line.price === "" || line.price == null) && res.price > 0) line.price = String(res.price);
+      renderLines();
+      const q = document.querySelector(`#pi-lines tr[data-idx="${lines.indexOf(line)}"] [data-f="${line.qty ? "price" : "qty"}"]`); if (q) q.focus();
+      return true;
+    }
+
+    // نافذة تعريف وحدة الشراء لصنف: الاسم (أزرار سريعة) + كم وحدة مخزون بالواحدة
+    function openUnitDialog(it) {
+      return new Promise((resolve) => {
+        const QUICK = [["كرتونة", ""], ["كيس", ""], ["صندوق", ""], ["علبة", ""], ["ربطة", ""], ["دزينة", 12], ["كيلو", 1000], ["لتر", 1000]];
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:420px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        const hasPU = it.purchase_unit && it.purchase_unit_factor;
+        box.innerHTML = `
+          <h3 style="margin:0 0 6px; font-size:17px;">وحدة الشراء لـ"${olvEsc(it.name)}"</h3>
+          <div class="hint" style="margin-bottom:12px;">بتشتريه بوحدة (مثل كرتونة) والمخزون بيتحسب بـ<b>${olvEsc(it.unit)}</b>. حدد كم ${olvEsc(it.unit)} بالوحدة الواحدة، وبعدها بتدخل الفاتورة بالكرتونة وبينحسب المخزون تلقائيًا.</div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;" id="ud-chips">
+            ${QUICK.map((q) => `<button type="button" class="pi-mini" data-name="${olvEsc(q[0])}" data-f="${q[1]}">${olvEsc(q[0])}</button>`).join("")}
+          </div>
+          <div class="field"><label>اسم وحدة الشراء</label><input type="text" id="ud-name" maxlength="30" value="${olvEsc(it.purchase_unit || "")}" placeholder="مثال: كرتونة"></div>
+          <div class="field"><label>كم ${olvEsc(it.unit)} بالـ<span id="ud-name-l">${olvEsc(it.purchase_unit || "وحدة")}</span> الواحدة؟</label><input type="number" id="ud-factor" min="0.001" step="any" dir="ltr" value="${olvEsc(it.purchase_unit_factor || "")}" placeholder="مثال: 12"></div>
+          <div class="pi-warn bad" id="ud-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+            <button type="button" class="btn gold" id="ud-save" style="flex:1;">حفظ واستخدامها</button>
+            ${hasPU ? `<button type="button" class="btn danger" id="ud-clear">حذف وحدة الشراء</button>` : ""}
+            <button type="button" class="btn" id="ud-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const nameEl = box.querySelector("#ud-name"), facEl = box.querySelector("#ud-factor");
+        const clearErr = () => { box.querySelector("#ud-err").textContent = ""; };
+        nameEl.addEventListener("input", () => { clearErr(); box.querySelector("#ud-name-l").textContent = nameEl.value.trim() || "وحدة"; });
+        facEl.addEventListener("input", clearErr);
+        box.querySelectorAll("#ud-chips button").forEach((b) => b.addEventListener("click", () => {
+          clearErr(); nameEl.value = b.dataset.name; box.querySelector("#ud-name-l").textContent = b.dataset.name;
+          if (b.dataset.f) facEl.value = b.dataset.f; facEl.focus();
+        }));
+        box.querySelector("#ud-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        const clr = box.querySelector("#ud-clear"); if (clr) clr.addEventListener("click", () => done({ name: null, factor: null }));
+        box.querySelector("#ud-save").addEventListener("click", () => {
+          const name = nameEl.value.trim(); const factor = Number(facEl.value);
+          if (!name) { box.querySelector("#ud-err").textContent = "اكتب اسم الوحدة (مثال: كرتونة)"; return; }
+          if (!(factor > 0)) { box.querySelector("#ud-err").textContent = "اكتب كم " + it.unit + " بالوحدة (رقم أكبر من صفر)"; return; }
+          done({ name, factor });
+        });
+        setTimeout(() => nameEl.focus(), 50);
+      });
+    }
+
+    // ---------- الباركود ----------
+    // كل مسحة بتزيد حبة على سطر الصنف (أو بتفتح سطر جديد)، والسعر = آخر سعر لحد ما تغيّره
+    function addScanned(it, unitMode) {
+      const key = it.kind + ":" + it.id;
+      const mode = unitMode === "purchase" && it.purchase_unit && it.purchase_unit_factor ? "purchase" : "stock";
+      let idx = lines.findIndex((l) => l.itemKey === key && l.unitMode === mode);
+      if (idx >= 0) {
+        lines[idx].qty = String(round2((Number(lines[idx].qty) || 0) + 1));
+      } else {
+        const price = it.unit_price ? String(round2(Number(it.unit_price) * (mode === "purchase" ? Number(it.purchase_unit_factor) : 1))) : "";
+        const l = newLine({ itemKey: key, unitMode: mode, qty: "1", price });
+        const blank = lines.findIndex((x) => !x.itemKey && !x.typed && !x.qty && !x.price);
+        if (blank >= 0) { lines[blank] = l; idx = blank; } else { lines.push(l); idx = lines.length - 1; }
+      }
+      renderLines();
+      const tr = document.querySelector(`#pi-lines tr[data-idx="${idx}"]`);
+      if (tr) { tr.classList.add("pi-hit"); tr.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+      const unit = mode === "purchase" ? it.purchase_unit : it.unit;
+      return `＋ ${it.name} — صاروا ${lines[idx].qty} ${unit}`;
+    }
+
+    // كود أول مرة: نسأل شو هالصنف ومنحفظ الربط، فالمرة الجاية بينعرف لحاله
+    function openBarcodeLink(code) {
+      return new Promise((resolve) => {
+        const back = document.createElement("div");
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:500; display:flex; align-items:flex-end; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "ربط باركود جديد");
+        box.style.cssText = "width:100%; max-width:460px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:18px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.innerHTML = `
+          <h3 style="margin:0 0 4px; font-size:17px;">باركود جديد</h3>
+          <div class="hint" style="margin-bottom:10px;">الكود <b dir="ltr">${olvEsc(code)}</b> مش مربوط بصنف. اختار شو هو، وبعدها كل ما تمسحه بينعرف لحاله.</div>
+          <input type="search" id="bl-q" placeholder="اكتب اسم الصنف..." autocomplete="off" aria-label="اسم الصنف">
+          <div class="bl-list" id="bl-list"></div>
+          <div id="bl-unit" hidden></div>
+          <div class="pi-warn bad" id="bl-err"></div>
+          <div style="display:flex; gap:8px; margin-top:8px;"><button type="button" class="btn" id="bl-cancel" style="flex:1;">تجاهل هالكود</button></div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const q = box.querySelector("#bl-q"), list = box.querySelector("#bl-list"), err = box.querySelector("#bl-err");
+        const done = (v) => { back.remove(); resolve(v); };
+        async function link(it, mode) {
+          err.textContent = "";
+          const row = { code, item_kind: it.kind, item_id: it.id, unit_mode: mode };
+          const { error } = await window.supabaseClient.from("item_barcodes").upsert(row);
+          if (error) olvToast("انضاف للفاتورة بس الكود ما انحفظ: " + (error.message || error), { type: "danger", icon: "warning", ms: 5000 });
+          else barcodes.set(code, row);
+          done({ it, unitMode: mode });
+        }
+        function choose(it) {
+          if (!(it.purchase_unit && it.purchase_unit_factor)) { link(it, "stock"); return; }
+          list.hidden = true; q.hidden = true;
+          const u = box.querySelector("#bl-unit"); u.hidden = false;
+          u.innerHTML = `<div style="font-weight:700; margin-bottom:8px;">${olvEsc(it.name)}: هاد الكود على شو؟</div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="btn gold" data-m="stock" style="flex:1;">الحبة (${olvEsc(it.unit)})</button>
+              <button type="button" class="btn gold" data-m="purchase" style="flex:1;">${olvEsc(it.purchase_unit)} (${Number(it.purchase_unit_factor)} ${olvEsc(it.unit)})</button>
+            </div>`;
+          u.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => link(it, b.dataset.m)));
+        }
+        function draw() {
+          const t = q.value.trim(), n = norm(t);
+          let found = [];
+          if (n) {
+            const inc = items.filter((i) => norm(i.name).includes(n));
+            const sim = candidatesFor(t).map((x) => x.it).filter((i) => !inc.includes(i));
+            found = inc.concat(sim).slice(0, 8);
+          }
+          list.innerHTML = found.map((it, i) => `<button type="button" data-i="${i}"><span>${olvEsc(it.name)}</span><span class="m">${olvEsc(it.unit)} · ${it.kind === "ingredient" ? "مادة خام" : "مستلزم"}</span></button>`).join("")
+            + (t ? `<div class="pi-sugg"><button type="button" class="new" data-new="ingredient">＋ "${olvEsc(t)}" مادة خام جديدة</button><button type="button" class="new" data-new="supply">＋ "${olvEsc(t)}" مستلزم جديد</button></div>`
+                 : `<div class="hint">اكتب أول حرفين من الاسم</div>`);
+          list.querySelectorAll("[data-i]").forEach((b) => b.addEventListener("click", () => choose(found[Number(b.dataset.i)])));
+          list.querySelectorAll("[data-new]").forEach((b) => b.addEventListener("click", async () => {
+            b.disabled = true; err.textContent = "";
+            const kind = b.dataset.new;
+            const { data, error } = await window.supabaseClient.from(kind === "ingredient" ? "ingredients" : "supplies").insert({ name: t.slice(0, 120), unit: "قطعة" }).select("id").single();
+            if (error) { b.disabled = false; err.textContent = error.message || String(error); return; }
+            await loadItems();
+            const it = items.find((i) => i.kind === kind && i.id === data.id);
+            if (it) link(it, "stock"); else done(null);
+          }));
+        }
+        q.addEventListener("input", draw);
+        box.querySelector("#bl-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        box.addEventListener("keydown", (e) => { if (e.key === "Escape") done(null); });
+        draw();
+        setTimeout(() => q.focus(), 50);
+      });
+    }
+
+    let linking = false;
+    async function handleCode(code) {
+      code = String(code).trim();
+      if (!code || linking) return "";
+      const b = barcodes.get(code);
+      const known = b && items.find((i) => i.kind === b.item_kind && i.id === b.item_id);
+      if (known) return addScanned(known, b.unit_mode);
+      linking = true;
+      try {
+        const r = await openBarcodeLink(code);
+        return r ? addScanned(r.it, r.unitMode) : "تجاهلنا الكود " + code;
+      } finally { linking = false; }
+    }
+    document.getElementById("pi-scan").addEventListener("click", () => olvBarcodeCamera(handleCode));
+    // جهاز الماسح: بيشتغل من أي مكان بالصفحة
+    olvBarcodeListen((code) => {
+      if (document.querySelector(".olv-scan")) return; // الكاميرا مفتوحة، هي بتتعامل
+      openForm(true);
+      handleCode(code).then((m) => { if (m) olvToast(m, { type: "ok", ms: 1800 }); });
+    });
+
+    document.getElementById("pi-catalog").addEventListener("click", () => {
+      olvOpenCatalog({ onDone: async () => { await loadItems(); renderLines(); } });
+    });
+    document.getElementById("pi-add-line").addEventListener("click", () => { lines.push(newLine()); renderLines(); });
+    document.getElementById("pi-add-new-item").addEventListener("click", async () => {
+      // نستخدم آخر سطر فاضي إن وجد، وإلا بنفتح سطر جديد؛ إذا انلغت العملية بنشيل السطر الفاضي اللي فتحناه
+      let line = lines.find((l) => !itemOf(l) && !l.typed && !l.qty && !l.price && !l.unmatchedName);
+      const created = !line;
+      if (created) { line = newLine(); lines.push(line); renderLines(); }
+      const ok = await addNewItemForLine(line, null);
+      if (!ok && created && !itemOf(line)) { lines.splice(lines.indexOf(line), 1); if (!lines.length) lines.push(newLine()); renderLines(); }
+    });
+
+    // ---------- الدفع ----------
+    document.getElementById("pi-pay").addEventListener("change", (e) => {
+      payMode = e.target.value;
+      document.getElementById("pi-pay").classList.remove("need"); document.getElementById("pi-pay-need").hidden = true;
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
+      document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      syncDrawerBox();
+      updateTotals();
+    });
+    function syncDrawerBox() {
+      document.getElementById("pi-drawer-wrap").hidden = payMode !== "cash";
+      if (payMode !== "cash") document.getElementById("pi-drawer").checked = false;
+    }
+    document.getElementById("pi-partial").addEventListener("input", updateTotals);
+    // الخصم والضريبة: نتذكّر آخر ضريبة استخدمتها (نسبة، شاملة/غير شاملة، قابلة للاسترداد) لأنها ثابتة غالبًا
+    const TAX_KEY = "olv_pi_tax_v1";
+    function restoreTaxPrefs() {
+      try {
+        const t = JSON.parse(localStorage.getItem(TAX_KEY) || "null");
+        if (t) {
+          document.getElementById("pi-tax-rate").value = t.rate ?? "";
+          document.getElementById("pi-tax-mode").value = t.mode === "incl" ? "incl" : "excl";
+          document.getElementById("pi-tax-rec").checked = t.rec !== false;
+        }
+      } catch (e) { /* تجاهل */ }
+    }
+    function saveTaxPrefs() {
+      try {
+        localStorage.setItem(TAX_KEY, JSON.stringify({
+          rate: document.getElementById("pi-tax-rate").value,
+          mode: document.getElementById("pi-tax-mode").value,
+          rec: document.getElementById("pi-tax-rec").checked,
+        }));
+      } catch (e) { /* تجاهل */ }
+    }
+    ["pi-discount", "pi-discount-mode", "pi-tax-rate", "pi-tax-mode", "pi-tax-rec"].forEach((id) => {
+      const el = document.getElementById(id);
+      el.addEventListener("input", () => { if (id.startsWith("pi-tax")) saveTaxPrefs(); updateTotals(); });
+      el.addEventListener("change", () => { if (id.startsWith("pi-tax")) saveTaxPrefs(); updateTotals(); });
+    });
+    document.getElementById("pi-paper-total").addEventListener("input", updateTotals);
+    document.getElementById("pi-paper-qty").addEventListener("input", updateTotals);
+
+    // ---------- لصق أصناف ----------
+    document.getElementById("pi-paste-toggle").addEventListener("click", () => { const b = document.getElementById("pi-paste-box"); b.hidden = !b.hidden; });
+    document.getElementById("pi-paste-cancel").addEventListener("click", () => { document.getElementById("pi-paste-box").hidden = true; });
+
+    function findItem(name) {
+      const n = norm(name); if (!n) return null;
+      const exact = items.filter((i) => norm(i.name) === n);
+      if (exact.length === 1) return exact[0];
+      const part = items.filter((i) => norm(i.name).includes(n) || n.includes(norm(i.name)));
+      if (part.length === 1) return part[0];
+      // تطابق بالكلمات: بنقبل بس إذا في صنف واحد واضح (غير هيك بنعرض اقتراحات وما بنخمّن)
+      const c = candidatesFor(name);
+      if (c.length && c[0].score >= 0.85 && (!c[1] || c[0].score - c[1].score >= 0.15)) return c[0].it;
+      return null;
+    }
+    // سطر → { name, qty, price }: الاسم = النص قبل أول رقم، الكمية = أول رقم، السعر = آخر رقم
+    // (لو في 3 أرقام والأول×الثاني = الثالث فالثالث هو الإجمالي ونتجاهله)
+    function parsePasteLine(raw) {
+      const line = norm(raw).replace(/,/g, ".");
+      if (!line) return null;
+      const nums = [...line.matchAll(/\d+(?:\.\d+)?/g)];
+      if (!nums.length) return { name: raw.trim(), qty: "", price: "" };
+      const name = line.slice(0, nums[0].index).replace(/[:\-–|\t]+$/g, "").trim() || raw.trim();
+      const vals = nums.map((m) => Number(m[0]));
+      if (vals.length >= 3 && Math.abs(vals[0] * vals[1] - vals[2]) < 0.02 * Math.max(1, vals[2])) return { name, qty: vals[0], price: vals[1] };
+      if (vals.length === 1) return { name, qty: vals[0], price: "" };
+      return { name, qty: vals[0], price: vals[vals.length - 1] };
+    }
+    document.getElementById("pi-paste-go").addEventListener("click", () => {
+      const text = document.getElementById("pi-paste-text").value;
+      const parsed = text.split(/\r?\n/).map(parsePasteLine).filter(Boolean);
+      if (!parsed.length) return;
+      addParsedLines(parsed);
+      document.getElementById("pi-paste-text").value = "";
+      document.getElementById("pi-paste-box").hidden = true;
+    });
+
+    // بعد حفظ الفاتورة: كل سطر اسمه بالفاتورة غير اسم الصنف اللي انربط فيه، منتذكره ليربطه لحاله بالفواتير الجاية
+    async function learnAliases() {
+      try {
+        const add = {};
+        lines.forEach((l) => {
+          const it = itemOf(l); const src = norm(l.srcName);
+          if (it && src && src !== norm(it.name) && aliases[src] !== it.kind + ":" + it.id) add[src] = it.kind + ":" + it.id;
+        });
+        if (!Object.keys(add).length) return;
+        aliases = Object.assign({}, aliases, add);
+        await window.supabaseClient.from("app_settings").upsert({ key: "invoice_item_aliases", value: JSON.stringify(aliases) }, { onConflict: "key" });
+      } catch (_) { /* التعلّم إضافة، ما بنوقف الحفظ عليه */ }
+    }
+    // يضيف أصناف محلّلة ({name, qty, price, unit?}) للجدول ويطابقها مع مواد المخزون؛
+    // اللي ما انعرف بيتعلّم بالأحمر. مشترك بين اللصق وقراءة الذكاء الاصطناعي
+    function addParsedLines(parsed) {
+      const existing = lines.filter((l) => itemOf(l) || l.qty || l.price);
+      lines = existing.concat(parsed.map((p) => {
+        let it = findItem(p.name);
+        let guess = false;
+        // اسم اتعلّمنا ربطه من فواتير قبل (مثلًا اسم الصنف عند مورّد ثاني): بنربطه بدون تخمين
+        if (!it && aliases[norm(p.name)]) it = items.find((i) => i.kind + ":" + i.id === aliases[norm(p.name)]) || null;
+        if (!it) {
+          // الأقرب: إذا في صنف واحد متقدم بوضوح على الباقي منربطه وبنعلّمه «تأكد»؛ إذا في تعادل (نكهات كتير) ما منخمّن
+          const c = candidatesFor(p.name);
+          if (c.length && c[0].score >= 0.6 && (!c[1] || c[0].score - c[1].score >= 0.1)) { it = c[0].it; guess = true; }
+        }
+        // لو الوحدة بالفاتورة = وحدة الشراء المضبوطة للصنف (كرتونة)، السعر المقروء هو سعر الكرتونة
+        const purchaseUnit = it && p.unit && it.purchase_unit && it.purchase_unit_factor && norm(p.unit) === norm(it.purchase_unit);
+        return newLine({
+          itemKey: it ? it.kind + ":" + it.id : null, typed: it ? "" : p.name, unmatchedName: it ? "" : p.name, rawUnit: p.unit || "", srcName: p.name,
+          guessFrom: guess ? p.name : "",
+          unitMode: purchaseUnit ? "purchase" : "stock",
+          qty: p.qty === "" || p.qty == null ? "" : String(p.qty),
+          price: p.price === "" || p.price == null ? (it && it.unit_price ? String(it.unit_price) : "") : String(p.price),
+          disc: p.disc > 0 && p.disc <= 100 ? String(p.disc) : "", discOpen: p.disc > 0,
+        });
+      }));
+      renderLines();
+    }
+
+    // ---------- قراءة الفاتورة بالذكاء الاصطناعي (Gemini عبر دالة read-invoice) ----------
+    const aiBtn = document.getElementById("pi-ai-btn");
+    const aiStatus = document.getElementById("pi-ai-status");
+    // اختيار الصورة بيقرأها فورًا (بدون زر ثاني)
+    // صفحات الفاتورة (صورة أو أكتر): كل اختيار بينضاف للقائمة، وبعدين زر «اقرأ» بيقرأهم كلهم مع بعض
+    const MAX_PAGES = 6;
+    const pagesBox = document.getElementById("pi-pages");
+    const fileInput = document.getElementById("pi-file");
+    let pages = [];          // { file, url }
+    let lastAiLines = null;  // أسطر القراءة السابقة: بنستبدلها لو قرأ تاني حتى ما تتكرر
+    function renderPages() {
+      pagesBox.hidden = !pages.length;
+      aiBtn.hidden = !pages.length;
+      aiBtn.disabled = !pages.length;
+      aiBtn.textContent = pages.length > 1 ? `اقرأ الفاتورة (${pages.length} صور)` : "اقرأ الفاتورة";
+      pagesBox.innerHTML = pages.map((p, i) => `<div class="pi-page">${p.url ? `<img src="${p.url}" alt="صفحة ${i + 1}">` : "PDF"}<i>${i + 1}</i><button type="button" data-rm="${i}" aria-label="شيل الصورة ${i + 1}">×</button></div>`).join("")
+        + (pages.length < MAX_PAGES ? `<button type="button" class="pi-page-add" id="pi-page-add"><b>+</b>صورة ثانية</button>` : "");
+      if (typeof updateTotals === "function" && typeof lines !== "undefined") updateTotals();
+    }
+    function clearPages() {
+      pages.forEach((p) => p.url && URL.revokeObjectURL(p.url));
+      pages = []; lastAiLines = null; fileInput.value = "";
+      renderPages();
+    }
+    function addPicked(list) {
+      const room = MAX_PAGES - pages.length;
+      const picked = [...list].filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
+      if (!picked.length) return;
+      picked.slice(0, room).forEach((f) => pages.push({ file: f, url: f.type.startsWith("image/") && f.type !== "image/heic" ? URL.createObjectURL(f) : null }));
+      if (picked.length > room) olvShowError(document.getElementById("err"), new Error(`الحد الأقصى ${MAX_PAGES} صور للفاتورة`));
+      renderPages();
+    }
+    fileInput.addEventListener("change", (e) => { addPicked(e.target.files); fileInput.value = ""; });
+    // كمبيوتر: زر اختيار + سحب وإفلات + لصق صورة من الحافظة (لقطة شاشة مثلًا)
+    document.getElementById("pi-pick").addEventListener("click", () => fileInput.click());
+    const dropBox = document.getElementById("pi-drop");
+    const formGroup = document.getElementById("pi-form-group");
+    ["dragenter", "dragover"].forEach((ev) => formGroup.addEventListener(ev, (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); dropBox.classList.add("over"); } }));
+    ["dragleave", "drop"].forEach((ev) => formGroup.addEventListener(ev, () => dropBox.classList.remove("over")));
+    formGroup.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length) { e.preventDefault(); addPicked(e.dataTransfer.files); } });
+    document.addEventListener("paste", (e) => {
+      if (formGroup.hidden) return;
+      const files = [...(e.clipboardData ? e.clipboardData.files : [])];
+      if (files.length) { e.preventDefault(); addPicked(files); }
+    });
+    pagesBox.addEventListener("click", (e) => {
+      if (e.target.closest("#pi-page-add")) { fileInput.click(); return; }
+      const rm = e.target.closest("[data-rm]");
+      if (!rm) return;
+      const [gone] = pages.splice(Number(rm.dataset.rm), 1);
+      if (gone && gone.url) URL.revokeObjectURL(gone.url);
+      renderPages();
+    });
+    document.getElementById("pi-no").addEventListener("input", updateTotals);
+
+    // يصغّر الصورة (أطول ضلع 1800px، JPEG) قبل الإرسال — أسرع وأخف على الحد المجاني
+    function fileToPayload(file) {
+      return new Promise((resolve, reject) => {
+        const readRaw = () => {
+          if (file.size > 5 * 1024 * 1024) { reject(new Error("الملف أكبر من 5 ميغا — صغّره أو صوّره من جديد")); return; }
+          const fr = new FileReader();
+          fr.onload = () => resolve({ mime_type: file.type || "application/octet-stream", data: String(fr.result).split(",")[1] });
+          fr.onerror = () => reject(new Error("تعذّرت قراءة الملف"));
+          fr.readAsDataURL(file);
+        };
+        if (!file.type.startsWith("image/") || file.type === "image/heic") { readRaw(); return; }
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const scale = Math.min(1, 1800 / Math.max(img.width, img.height));
+          const c = document.createElement("canvas");
+          c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          resolve({ mime_type: "image/jpeg", data: c.toDataURL("image/jpeg", 0.85).split(",")[1] });
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); readRaw(); };
+        img.src = url;
+      });
+    }
+
+    aiBtn.addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      if (!pages.length) return;
+      if (!navigator.onLine) { olvShowError(errBox, new Error("قراءة الفاتورة بتحتاج اتصال بالإنترنت")); return; }
+      aiBtn.disabled = true;
+      aiStatus.textContent = pages.length > 1 ? `عم يقرأ ${pages.length} صور... (ممكن ياخد حتى دقيقة)` : "عم يقرأ الفاتورة... (10–30 ثانية)";
+      // السيرفر بيرد دايمًا خلال دقيقتين تقريبًا؛ هاد احتياط إذا النت نفسه علق، حتى ما يضل يلفّ عالفاضي
+      const ctrl = new AbortController();
+      const slowTimer = setTimeout(() => { aiStatus.textContent = "لسا عم يقرأ... الخدمة المجانية بطيئة هلق، استنى شوي"; }, 35000);
+      const abortTimer = setTimeout(() => ctrl.abort(), 140000);
+      try {
+        const images = [];
+        for (const p of pages) images.push(await fileToPayload(p.file));
+        const payload = { images };
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+        const res = await fetch(cfg.SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/read-invoice", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token, apikey: cfg.SUPABASE_ANON_KEY },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.ok) throw new Error(out.error || "فشلت قراءة الفاتورة (" + res.status + ")");
+        applyAiInvoice(out.invoice);
+      } catch (err) {
+        aiStatus.textContent = "";
+        olvShowError(errBox, err && err.name === "AbortError" ? new Error("قراءة الفاتورة طوّلت كتير وما وصل رد — تأكد من النت وجرّب كمان مرة") : err);
+      } finally {
+        clearTimeout(slowTimer); clearTimeout(abortTimer);
+        aiBtn.disabled = !pages.length;
+      }
+    });
+
+    function applyAiInvoice(inv) {
+      // رأس الفاتورة: نعبّي بس الحقول الفاضية، حتى ما نمسح شي كتبه المستخدم
+      if (inv.invoice_no && !document.getElementById("pi-no").value) document.getElementById("pi-no").value = inv.invoice_no;
+      if (inv.invoice_date) document.getElementById("pi-date").value = inv.invoice_date;
+      if (inv.total != null) document.getElementById("pi-paper-total").value = String(inv.total);
+      let supplierNote = "";
+      if (inv.supplier_name && !document.getElementById("pi-supplier").value) {
+        const n = norm(inv.supplier_name);
+        const opt = [...document.getElementById("pi-supplier").options].find((o) => o.value && (norm(supOptName(o)).includes(n) || n.includes(norm(supOptName(o)))));
+        if (opt) document.getElementById("pi-supplier").value = opt.value;
+        else supplierNote = ` — المورّد "${inv.supplier_name}" مو مسجّل عندك، اضغط «+ مورّد جديد» تحت المورّد`;
+      }
+      const parsed = (inv.items || []).map((it) => {
+        const qty = it.qty;
+        let price = it.unit_price;
+        if ((price == null) && it.line_total != null && qty > 0) price = Math.round(it.line_total / qty * 1000) / 1000;
+        return { name: it.name, qty: qty == null ? "" : qty, price: price == null ? "" : price, unit: it.unit, disc: Number(it.discount_pct) || 0 };
+      });
+      // قراءة ثانية (بعد زيادة صورة): منشيل أسطر القراءة السابقة قبل ما نضيف الجديدة، حتى ما تتكرر
+      if (lastAiLines) lines = lines.filter((l) => !lastAiLines.has(l));
+      const before = new Set(lines);
+      addParsedLines(parsed);
+      lastAiLines = new Set(lines.filter((l) => !before.has(l)));
+      const unmatched = lines.filter((l) => !itemOf(l) && l.unmatchedName).length;
+      const guessed = lines.filter((l) => itemOf(l) && l.guessFrom).length;
+      aiStatus.textContent = `تمت القراءة: ${parsed.length} صنف${guessed ? ` (${guessed} انربط بالأقرب — تأكد منه)` : ""}${unmatched ? ` (${unmatched} مش موجود بالمخزون — بالأحمر، اختر أو أضفه بضغطة)` : ""}${supplierNote}. راجع كل سطر قبل الحفظ.`;
+    }
+
+    // ---------- البحث عن سبب الفرق: بنقرا الصورة من جديد بالذكاء الاصطناعي وبنقارنها بالسطور المكتوبة ----------
+    const diffBtn = document.getElementById("pi-diff-btn");
+    const diffBox = document.getElementById("pi-diff");
+    const lineName = (l) => { const it = itemOf(l); return it ? it.name : String(l.typed || l.unmatchedName || "").trim(); };
+    const nz = (n) => Math.round(Number(n) * 1000) / 1000;
+    diffBtn.addEventListener("click", async () => {
+      const errBox = document.getElementById("err");
+      errBox.style.display = "none";
+      if (!pages.length) return;
+      if (!navigator.onLine) { olvShowError(errBox, new Error("البحث بالذكاء الاصطناعي بيحتاج اتصال بالإنترنت")); return; }
+      diffBtn.disabled = true;
+      diffBox.hidden = false;
+      diffBox.textContent = "عم يقرأ الفاتورة ويقارنها بالسطور... (10–60 ثانية)";
+      const ctrl = new AbortController();
+      const abortTimer = setTimeout(() => ctrl.abort(), 140000);
+      try {
+        const images = [];
+        for (const p of pages) images.push(await fileToPayload(p.file));
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const cfg = window.OLV_ACCOUNTING_CONFIG || {};
+        const res = await fetch(cfg.SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/read-invoice", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token, apikey: cfg.SUPABASE_ANON_KEY },
+          body: JSON.stringify({ images }),
+          signal: ctrl.signal,
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.ok) throw new Error(out.error || "فشلت قراءة الفاتورة (" + res.status + ")");
+        renderDiff(out.invoice);
+      } catch (err) {
+        diffBox.hidden = true;
+        olvShowError(errBox, err && err.name === "AbortError" ? new Error("القراءة طوّلت كتير — جرّب كمان مرة") : err);
+      } finally {
+        clearTimeout(abortTimer);
+        diffBtn.disabled = false;
+      }
+    });
+    function renderDiff(inv) {
+      const ai = (inv.items || []).filter((x) => x && x.name);
+      const mine = lines.filter((l) => lineName(l) || Number(l.qty) || Number(l.price));
+      const used = new Set();
+      const notes = [];
+      const missing = [];
+      ai.forEach((a) => {
+        let best = null, bs = 0;
+        mine.forEach((l) => { if (used.has(l)) return; const sc = simScore(a.name, lineName(l)); if (sc > bs) { bs = sc; best = l; } });
+        if (!best || bs < 0.4) { missing.push(a); return; }
+        used.add(best);
+        const aq = a.qty == null ? null : Number(a.qty);
+        const ap = a.unit_price != null ? Number(a.unit_price) : (a.line_total != null && aq > 0 ? a.line_total / aq : null);
+        if (aq != null && Math.abs(aq - (Number(best.qty) || 0)) > 0.0005) notes.push(`«${olvEsc(lineName(best))}»: الكمية بالورقة ${nz(aq)} وأنت كاتب ${nz(best.qty || 0)}`);
+        else if (ap != null && best.price !== "" && Math.abs(ap - Number(best.price)) > 0.01 && Math.abs(ap - Number(best.price)) / Math.max(ap, 0.001) > 0.02) notes.push(`«${olvEsc(lineName(best))}»: السعر بالورقة ${nz(ap)} وأنت كاتب ${nz(best.price)}`);
+      });
+      const extra = mine.filter((l) => !used.has(l) && lineName(l));
+      const items = [];
+      missing.forEach((a) => items.push(`<li>موجود بالورقة وناقص عندك: «${olvEsc(a.name)}»${a.qty != null ? " × " + nz(a.qty) : ""}${a.line_total != null ? " (" + money(a.line_total) + ")" : ""}</li>`));
+      extra.forEach((l) => items.push(`<li>مكتوب عندك وما لقيته بالورقة: «${olvEsc(lineName(l))}»${l.qty ? " × " + nz(l.qty) : ""}</li>`));
+      notes.forEach((n) => items.push(`<li>${n}</li>`));
+      const aiQty = nz(ai.reduce((sum, a) => sum + (Number(a.qty) || 0), 0));
+      const head = `الذكاء الاصطناعي قرأ ${ai.length} صنف بمجموع كميات ${aiQty}، وعندك ${mine.length} سطر بمجموع ${qtyOfLines()}.`;
+      const tail = inv.total != null && Math.abs(Number(inv.total) - computeTotals().total) > ROUND_TOL && !items.length
+        ? "<div>السطور متطابقة، فالفرق غالبًا من الخصم أو الضريبة أو التقريب — راجع خانات «رقم الفاتورة، خصم، ضريبة».</div>" : "";
+      diffBox.innerHTML = `<div><b>نتيجة البحث عن الفرق</b></div><div>${head}</div>`
+        + (items.length ? `<ul>${items.join("")}</ul>` : (tail || "<div>ما لقيت فرق واضح بالسطور.</div>"))
+        + `<div class="hint" style="margin-top:6px;">القراءة بالذكاء الاصطناعي ممكن تغلط، فتأكد من الورقة قبل ما تعدّل.</div>`;
+    }
+
+    // ---------- نسخ من فاتورة سابقة ----------
+    document.getElementById("pi-template").addEventListener("change", async (e) => {
+      const id = e.target.value; if (!id) return;
+      e.target.value = "";
+      const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      const copied = (data || []).map((p) => newLine({
+        itemKey: p.ingredient_id ? "ingredient:" + p.ingredient_id : p.supply_id ? "supply:" + p.supply_id : null,
+        qty: String(p.quantity), price: String(p.unit_price),
+      })).filter((l) => l.itemKey && itemOf(l));
+      if (!copied.length) { olvShowError(document.getElementById("err"), new Error("ما لقيت أصناف صالحة بهالفاتورة")); return; }
+      lines = lines.filter((l) => itemOf(l) || l.qty || l.price).concat(copied);
+      // الأسعار المنسوخة قديمة — نحدّثها لآخر سعر معروف عشان ما تنكتب أسعار قديمة بالغلط
+      lines.forEach((l) => { const it = itemOf(l); if (it && it.unit_price && copied.includes(l)) l.price = String(it.unit_price); });
+      renderLines();
+    });
+
+    // ---------- الحفظ ----------
+    // أكتر من صورة: المسارات بتنحفظ بنفس العمود مفصولة بـ "|" (الحد 6 صور حتى تضل تحت 300 حرف)
+    async function uploadAttachments(files) {
+      const paths = [];
+      for (const f of files) paths.push(await uploadAttachment(f));
+      return paths.length ? paths.join("|") : null;
+    }
+    async function uploadAttachment(file) {
+      if (!file) return null;
+      if (file.size > 8 * 1024 * 1024) throw new Error("حجم الملف أكبر من 8 ميغا — صغّر الصورة أو استخدم PDF أصغر");
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+      const d = new Date();
+      const path = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${(crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2))}.${ext}`;
+      const { error } = await window.supabaseClient.storage.from("purchase-invoices").upload(path, file, { contentType: file.type || undefined });
+      if (error) throw new Error("تعذّر رفع صورة الفاتورة: " + error.message);
+      return path;
+    }
+
+    // ---------- مسودة تلقائية: لو سكّرت الصفحة أو رن التلفون بنص الفاتورة، بترجع زي ما كانت ----------
+    const DRAFT_KEY = "olv_pi_draft_v1";
+    const DRAFT_IDS = ["pi-date", "pi-supplier", "pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount", "pi-discount-mode"];
+    let draftTimer = null;
+    function draftIsEmpty() {
+      return !lines.some((l) => l.itemKey || l.typed || l.unmatchedName || Number(l.qty) || Number(l.price));
+    }
+    function clearDraft() {
+      clearTimeout(draftTimer);
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* تجاهل */ }
+    }
+    function saveDraft() {
+      try {
+        if (editingId) return;
+        if (draftIsEmpty()) { localStorage.removeItem(DRAFT_KEY); return; }
+        const fields = {};
+        DRAFT_IDS.forEach((id) => { fields[id] = document.getElementById(id).value; });
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), payMode, fields, lines }));
+      } catch (e) { /* تجاهل: التخزين ممكن يكون ممنوع */ }
+    }
+    function scheduleDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 600); }
+    ["input", "change", "click"].forEach((ev) => document.getElementById("pi-form-group").addEventListener(ev, scheduleDraft));
+    window.addEventListener("pagehide", saveDraft);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) saveDraft(); });
+
+    function restoreDraft() {
+      let d = null;
+      try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) { /* تجاهل */ }
+      if (!d || !Array.isArray(d.lines) || !d.lines.length || Date.now() - d.at > 3 * 24 * 3600 * 1000) { clearDraft(); return false; }
+      lines = d.lines.map((l) => newLine(l));
+      Object.keys(d.fields || {}).forEach((id) => { if (DRAFT_IDS.includes(id)) document.getElementById(id).value = d.fields[id]; });
+      payMode = ["cash", "credit", "partial"].includes(d.payMode) ? d.payMode : "";
+      const radio = payMode ? document.querySelector('#pi-pay input[value="' + payMode + '"]') : null;
+      if (radio) radio.checked = true;
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
+      document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      syncDrawerBox();
+      const banner = document.createElement("div");
+      banner.className = "pi-warn"; banner.id = "pi-draft-banner";
+      const mins = Math.max(1, Math.round((Date.now() - d.at) / 60000));
+      const ago = mins < 60 ? mins + " دقيقة" : mins < 1440 ? Math.round(mins / 60) + " ساعة" : Math.round(mins / 1440) + " يوم";
+      banner.innerHTML = `رجّعنا لك فاتورة لسا ما انحفظت (من قبل ${ago}). <button type="button" class="btn" id="pi-draft-drop" style="margin-inline-start:8px;">احذف المسودة</button>`;
+      document.getElementById("pi-supplier").closest(".field").before(banner);
+      document.getElementById("pi-draft-drop").addEventListener("click", () => {
+        if (!confirm("تحذف المسودة وتبدأ فاتورة فاضية؟")) return;
+        clearDraft();
+        banner.remove();
+        lines = [newLine()];
+        ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+        document.getElementById("pi-supplier").value = "";
+        document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+        payMode = "";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
+        document.getElementById("pi-partial-wrap").hidden = true;
+        syncDrawerBox();
+        renderLines();
+      });
+      return true;
+    }
+
+    document.getElementById("pi-save").addEventListener("click", async () => {
+      const errBox0 = document.getElementById("err");
+      errBox0.style.display = "none";
+      // زر الحفظ تحت بالصفحة وصندوق الخطأ فوق: كان الخطأ يطلع وما يشوفه أحد ("كبسة حفظ وما صار شي"). هلأ بنطلّع رسالة ظاهرة (توست) وبنوصّل للصندوق.
+      const errBox = { style: errBox0.style, set textContent(v) { errBox0.textContent = v; if (window.olvToast) olvToast(v, { type: "danger" }); try { errBox0.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} } };
+      if (!navigator.onLine) { olvShowError(errBox, new Error("فواتير المشتريات بتحتاج اتصال بالإنترنت (بترفع الصورة وبتتحقق من التكرار) — حاول لما يرجع النت")); return; }
+      // سطر "شبح": فيه كمية أو سعر بس بدون صنف ولا اسم — منشيله تلقائيًا بدل ما يمنع الحفظ
+      const ghosts = lines.filter((l) => !itemOf(l) && !String(l.typed || "").trim() && !String(l.unmatchedName || "").trim() && (Number(l.qty) || Number(l.price)));
+      if (ghosts.length) {
+        lines = lines.filter((l) => !ghosts.includes(l));
+        if (!lines.length) lines = [newLine()];
+        renderLines();
+        if (window.olvToast) olvToast(`انشال ${ghosts.length} سطر بدون اسم صنف`);
+      }
+      const active = lines.filter((l) => itemOf(l) || Number(l.qty) || Number(l.price));
+      if (!active.length) { olvShowError(errBox, new Error("أضف صنف واحد على الأقل")); return; }
+      const bad = active.find((l) => !itemOf(l) || !(Number(l.qty) > 0) || !(Number(l.price) >= 0) || l.price === "");
+      const unlinkedLines = active.filter((l) => !itemOf(l));
+      if (unlinkedLines.length) {
+        // نوصّل المستخدم للسطر بالضبط (ممكن يكون سطر شبه فاضي فيه كمية أو سعر بس) بدل رسالة عامة
+        const first = unlinkedLines[0];
+        const idx = lines.indexOf(first);
+        const nm = String(first.unmatchedName || first.typed || "").trim();
+        const what = nm ? `«${nm}»` : "فيه كمية أو سعر بس وبدون اسم صنف — احذفه بزر ✕ أو اختر الصنف";
+        olvShowError(errBox, new Error(`السطر ${idx + 1} ${what} لسا مش مربوط بصنف من المخزون${unlinkedLines.length > 1 ? ` (و${unlinkedLines.length - 1} غيره)` : ""} — اختر من القائمة أو اضغط «＋ إضافة مادة جديدة للمخزون» تحت السطر`));
+        const tr = document.querySelector(`#pi-lines tr[data-idx="${idx}"]`);
+        if (tr) {
+          const inp = tr.querySelector('[data-f="item"]');
+          if (inp) inp.classList.add("bad");
+          tr.scrollIntoView({ block: "center", behavior: "smooth" });
+          if (inp) inp.focus({ preventScroll: true });
+        }
+        return;
+      }
+      if (bad) {
+        // نحدد أي سطر وشو الناقص بالضبط، ونلوّن الخانة ونروح عليها
+        const idx = lines.indexOf(bad);
+        const noQty = !(Number(bad.qty) > 0);
+        const noPrice = bad.price === "" || !(Number(bad.price) >= 0);
+        const what = [noQty ? "الكمية" : "", noPrice ? "السعر" : ""].filter(Boolean).join(" و");
+        olvShowError(errBox, new Error(`السطر ${idx + 1} («${itemOf(bad).name}») ناقصه ${what}. عبّيها أو احذف السطر بزر ✕`));
+        const tr = document.querySelector(`#pi-lines tr[data-idx="${idx}"]`);
+        if (tr) {
+          const fields = [noQty ? "qty" : "", noPrice ? "price" : ""].filter(Boolean).map((f) => tr.querySelector(`[data-f="${f}"]`)).filter(Boolean);
+          fields.forEach((el) => el.classList.add("bad"));
+          tr.scrollIntoView({ block: "center", behavior: "smooth" });
+          if (fields[0]) fields[0].focus({ preventScroll: true });
+        }
+        return;
+      }
+      if (!payMode) {
+        const box = document.getElementById("pi-pay");
+        box.classList.remove("need"); void box.offsetWidth; box.classList.add("need");
+        document.getElementById("pi-pay-need").hidden = false;
+        box.scrollIntoView({ block: "center", behavior: "smooth" });
+        olvShowError(errBox, new Error("اختار طريقة الدفع: كاش أو ذمة، قبل ما تحفظ الفاتورة"));
+        return;
+      }
+      const supplierId = document.getElementById("pi-supplier").value || null;
+      const T = computeTotals();
+      const total = T.total;
+      const paid = payMode === "cash" ? total : payMode === "credit" ? 0 : Number(document.getElementById("pi-partial").value) || 0;
+      if (payMode !== "cash" && !supplierId) {
+        const sel = document.getElementById("pi-supplier");
+        olvShowError(errBox, new Error("الدفع آجل/جزئي: اختر المورّد من فوق (أو غيّر الدفع إلى كاش)"));
+        if (sel) { sel.classList.add("bad"); sel.addEventListener("change", () => sel.classList.remove("bad"), { once: true }); }
+        return;
+      }
+      if (payMode === "partial" && !(paid > 0 && paid < total)) { olvShowError(errBox, new Error("الدفعة الجزئية لازم تكون أكبر من صفر وأقل من الإجمالي")); return; }
+      const paper = document.getElementById("pi-paper-total").value;
+      if (paper !== "" && Math.abs(Number(paper) - total) > ROUND_TOL && !confirm(`إجمالي الفاتورة الورقية ${money(Number(paper))} مختلف عن المدخل ${money(total)}. تحفظ رغم الفرق؟`)) return;
+
+      // تنبيه تغيّر كبير بالسعر (للأعلى أو للأسفل): تأكيد واحد بدل ما تنسى، مع أثره على سعر المنيو
+      const jumps = active.filter((l) => isJump(l, itemOf(l)));
+      if (jumps.length) {
+        const rows = jumps.slice(0, 6).map((l) => {
+          const it = itemOf(l); const np = stockPriceOf(l, it);
+          const menu = followsMenu(it) ? ` ← سعر المنيو ${money(it.menu_price)} رح يصير ${money(smartPrice(np))}` : "";
+          return `• ${it.name}: ${money(it.unit_price)} ← ${money(np)} / ${it.unit}${menu}`;
+        }).join("\n");
+        const onMenu = jumps.some((l) => followsMenu(itemOf(l)));
+        if (!confirm(`في ${jumps.length} صنف سعره تغيّر كتير عن آخر فاتورة (أغلى من مرة ونص أو أرخص من النص):\n${rows}${jumps.length > 6 ? "\n..." : ""}\n\n${onMenu ? "الأصناف المعروضة بالمنيو بتسعير ذكي سعرها رح يتغير تلقائيًا. " : ""}تأكد إنه ما في غلطة بالفاصلة أو بالوحدة. تكمّل الحفظ؟`)) return;
+      }
+
+      const btn = document.getElementById("pi-save");
+      btn.disabled = true;
+      try {
+        const attachment = (await uploadAttachments(pages.map((p) => p.file))) || (editingId ? editingAttach : null);
+        const payloadLines = active.map((l) => {
+          const it = itemOf(l); const f = factorOf(l, it);
+          const bonus = bonusOf(l);
+          // السعر بدقة عالية (مو 3 خانات) حتى إجمالي السطر على السيرفر يطابق اللي انكتب بالفاتورة (مثال: 3 صناديق × 25 ÷ 24 حبة)
+          const o = { [it.kind === "ingredient" ? "ingredient_id" : "supply_id"]: it.id, qty: round2((Number(l.qty) * f) * 1000) / 1000, unit_price: Math.round(Number(l.price) / f * 1e8) / 1e8 };
+          // بونص: الكمية = المشتراة + المجانية، والسعر = المدفوع ÷ الكمية (بدقة عالية حتى يضل إجمالي السطر نفسه بالضبط)
+          if (bonus <= 0 && lineDiscOf(l) > 0 && o.qty > 0) o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8;
+          if (bonus > 0) { o.qty = Math.round((Number(l.qty) * f + bonus) * 1000) / 1000; o.unit_price = Math.round(lineTotal(l) / o.qty * 1e8) / 1e8; }
+          if (l.tax !== "" && l.tax != null && Number.isFinite(Number(l.tax))) o.tax_rate = lineRate(l, 0);
+          return o;
+        });
+        // حماية من التكرار: نفس المادة بنفس الكمية والسعر مرتين بنفس الفاتورة، أو مسجّلة قبل عند نفس المورد ونفس التاريخ بفاتورة ثانية
+        {
+          const keyOf = (o) => [o.ingredient_id || o.supply_id, o.qty, Math.round(o.unit_price * 1e4)].join("|");
+          const seen = new Map(), dupNames = [];
+          payloadLines.forEach((o, i) => {
+            const k = keyOf(o);
+            if (seen.has(k)) dupNames.push(itemOf(active[i]).name); else seen.set(k, 1);
+          });
+          let prior = [];
+          if (supplierId) {
+            let q = window.supabaseClient.from("purchases_active").select("ingredient_id,supply_id,quantity,unit_price,invoice_id")
+              .eq("supplier_id", supplierId).eq("purchase_date", document.getElementById("pi-date").value || olvToday());
+            if (editingId) q = q.neq("invoice_id", editingId);
+            const r = await q; prior = r.data || [];
+          }
+          const priorKeys = new Set(prior.map((x) => keyOf({ ingredient_id: x.ingredient_id, supply_id: x.supply_id, qty: Number(x.quantity), unit_price: Number(x.unit_price) })));
+          payloadLines.forEach((o, i) => { if (priorKeys.has(keyOf(o))) dupNames.push(itemOf(active[i]).name); });
+          if (dupNames.length) {
+            const u = [...new Set(dupNames)];
+            if (!confirm(`ممكن في تكرار: ${u.slice(0, 6).join("، ")}${u.length > 6 ? "…" : ""}\nنفس المادة بنفس الكمية والسعر مكررة بنفس الفاتورة أو مسجّلة قبل عند نفس المورد بنفس التاريخ. التكرار بيضخّم الرصيد وبيطلع «نقص جرد» وهمي.\nتحفظ رغم هيك؟`)) return;
+          }
+        }
+        const fromDrawer = payMode === "cash" && document.getElementById("pi-drawer").checked;
+        const { data: savedId, error } = await window.supabaseClient.rpc(editingId ? "edit_purchase_invoice" : "record_purchase_invoice", {
+          ...(editingId ? { p_invoice_id: editingId } : {}),
+          p_supplier_id: supplierId,
+          p_invoice_no: document.getElementById("pi-no").value.trim() || null,
+          p_invoice_date: document.getElementById("pi-date").value || olvToday(),
+          p_paid: paid,
+          p_notes: document.getElementById("pi-notes").value.trim() || null,
+          p_attachment: attachment,
+          p_lines: payloadLines,
+          p_discount_amount: T.pct ? 0 : T.discount,
+          p_discount_pct: T.pct || null,
+          p_tax_rate: T.rate,
+          p_tax_inclusive: T.inclusive,
+          p_tax_recoverable: document.getElementById("pi-tax-rec").checked,
+        });
+        if (error) throw error;
+        if (fromDrawer && savedId) {
+          // الفاتورة انحفظت؛ بنعلّم مصروفها «طلع من الدرج» (فشلها ما بيضيّع الفاتورة)
+          const { data: inv2 } = await window.supabaseClient.from("purchase_invoices").select("expense_id").eq("id", savedId).maybeSingle();
+          if (inv2 && inv2.expense_id) {
+            const { error: dErr } = await window.supabaseClient.from("expenses").update({ from_drawer: true }).eq("id", inv2.expense_id);
+            if (dErr && window.olvToast) olvToast("انحفظت الفاتورة بس ما انعلّمت من الدرج، علّمها من السجل", { type: "warn" });
+          }
+        }
+        if (fromOrderId) {
+          // الفاتورة انحفظت: بنعلّم الطلبية مستلمة (لو فشلت ما بنوقف شي، الفاتورة أهم)
+          const { error: poErr } = await window.supabaseClient.rpc("set_purchase_order_status", { p_order_id: fromOrderId, p_status: "received" });
+          if (!poErr) { const b = document.getElementById("pi-from-order"); if (b) b.remove(); fromOrderId = null; if (window.olvToast) olvToast("انعلّمت الطلبية كمستلمة"); }
+        }
+        learnAliases();
+        const wasEdit = !!editingId;
+        endEdit();
+        clearDraft();
+        const dBanner = document.getElementById("pi-draft-banner"); if (dBanner) dBanner.remove();
+        lines = [newLine()];
+        ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+        clearPages();
+        document.getElementById("pi-supplier").value = "";
+        document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+        payMode = "";
+        document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
+        document.getElementById("pi-partial-wrap").hidden = true;
+        syncDrawerBox();
+        await Promise.all([loadItems(), loadHistory()]);
+        renderLines();
+        if (typeof OlvSound !== "undefined") OlvSound.playSuccess();
+        openForm(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        if (window.olvToast) olvToast(wasEdit ? "انعدّلت الفاتورة" : "انحفظت الفاتورة", { type: "ok", icon: "check" });
+      } catch (err) {
+        olvShowError(errBox, err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---------- السجل ----------
+    const PAY_LABELS = { cash: "كاش", credit: "ذمة", partial: "جزء ذمة" };
+    let payable = {}; // الفواتير اللي عليها باقي وبينفع تتسدّد من هون: id → { supplierId, no, remaining }
+    let invRows = [];
+    let invChip = "all";
+    let invQuery = "";
+    let invSup = "";
+    let invFrom = "";
+    let invTo = "";
+    let invShown = 40;
+    const openInv = new Set();
+    const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
+    const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const shortDay = (d) => Number(String(d).slice(8, 10)) + "/" + Number(String(d).slice(5, 7));
+    const dayName = (d) => DAY_NAMES[new Date(d + "T00:00:00").getDay()];
+
+    async function loadHistory() {
+      const errBox = document.getElementById("err");
+      try {
+        let qy = window.supabaseClient.from("purchase_invoices").select("*, suppliers(name)");
+        if (invFrom) qy = qy.gte("invoice_date", invFrom);
+        if (invTo) qy = qy.lte("invoice_date", invTo);
+        // بدون فلتر تاريخ بنعرض آخر 60 فاتورة، ومع الفلتر كل الفواتير بالمدى
+        const { data, error } = await qy.order("created_at", { ascending: false }).limit(invFrom || invTo ? 1000 : HISTORY_LIMIT);
+        if (error) throw error;
+        const tpl = document.getElementById("pi-template");
+        tpl.innerHTML = `<option value="">نسخ من فاتورة سابقة…</option>` + (data || []).filter((i) => i.status === "active").slice(0, 25)
+          .map((i) => `<option value="${i.id}">${olvEsc(i.invoice_date)} — ${olvEsc(i.suppliers ? i.suppliers.name : "بدون مورّد")}${i.invoice_no ? " #" + olvEsc(i.invoice_no) : ""} (${money(i.total_amount)})</option>`).join("");
+        // الدفعات اللاحقة للمورّد (من صفحة الموردين) بتتوزّع على فواتيره من الأقدم — فشلها ما بيوقف السجل
+        const settle = {};
+        const openIds = (data || []).filter((i) => i.status === "active" && i.supplier_id && i.payment_type !== "cash").map((i) => i.id);
+        if (openIds.length) {
+          const st = await window.supabaseClient.from("purchase_invoice_settlement").select("invoice_id, remaining").in("invoice_id", openIds);
+          (st.data || []).forEach((r) => { settle[r.invoice_id] = Number(r.remaining); });
+        }
+        const drawerOf = {};
+        const expIds = (data || []).filter((i) => i.status === "active" && i.payment_type === "cash" && i.expense_id).map((i) => i.expense_id);
+        if (expIds.length) {
+          const ex = await window.supabaseClient.from("expenses").select("id, from_drawer").in("id", expIds);
+          (ex.data || []).forEach((r) => { drawerOf[r.id] = r.from_drawer === true; });
+        }
+        const canPay = ["owner", "manager"].includes(window.olvRole);
+        payable = {};
+        invRows = (data || []).map((i) => {
+          const voided = i.status === "voided";
+          const remaining = i.id in settle ? settle[i.id] : Number(i.total_amount) - Number(i.paid_amount);
+          const showPay = canPay && !voided && i.supplier_id && remaining >= 0.005;
+          if (showPay) payable[i.id] = { supplierId: i.supplier_id, no: i.invoice_no, remaining };
+          const settledLater = i.payment_type !== "cash" && remaining < 0.005;
+          return { ...i, fromDrawer: !!(i.expense_id && drawerOf[i.expense_id]), canDrawer: !voided && i.payment_type === "cash" && !!i.expense_id && i.expense_id in drawerOf, voided, remaining, showPay, settledLater, owing: !voided && i.payment_type !== "cash" && remaining >= 0.005 };
+        });
+        renderHistory();
+      } catch (err) { olvShowError(errBox, err); }
+    }
+
+    function visibleInvoices() {
+      const q = invQuery.toLowerCase();
+      return invRows.filter((i) => {
+        if (invChip === "owing" && !i.owing) return false;
+        if (invChip === "cash" && !(!i.voided && (i.payment_type === "cash" || i.settledLater))) return false;
+        if (invChip === "voided" && !i.voided) return false;
+        if (invSup && (invSup === "__none__" ? i.supplier_id : i.supplier_id !== invSup)) return false;
+        if (!q) return true;
+        return ((i.suppliers && i.suppliers.name) || "").toLowerCase().includes(q) || String(i.invoice_no || "").toLowerCase().includes(q) || olvDocNo("purchase", i.doc_no).includes(invQuery) || (i.doc_no && /^\d+$/.test(q) && Number(q) === Number(i.doc_no));
+      }).sort((a, b) => String(b.invoice_date).localeCompare(String(a.invoice_date)) || String(b.created_at).localeCompare(String(a.created_at)));
+    }
+
+    function renderHistory() {
+      const box = document.getElementById("pi-history");
+      const active = invRows.filter((i) => !i.voided);
+      const monthKey = (typeof olvToday === "function" ? olvToday() : "").slice(0, 7);
+      const month = active.filter((i) => String(i.invoice_date).slice(0, 7) === monthKey);
+      const debt = invRows.filter((i) => i.owing).reduce((s, i) => s + i.remaining, 0);
+      const debtSup = new Set(invRows.filter((i) => i.owing).map((i) => i.supplier_id)).size;
+      const taxSum = active.reduce((s, i) => s + Number(i.tax_amount || 0), 0);
+      document.getElementById("k-month").textContent = money(month.reduce((s, i) => s + Number(i.total_amount), 0));
+      document.getElementById("k-month-note").textContent = month.length ? `${month.length} فاتورة` : "ما في فواتير هالشهر";
+      document.getElementById("k-debt").textContent = money(debt);
+      document.getElementById("k-debt-note").className = "note" + (debt > 0 ? " warn" : "");
+      document.getElementById("k-debt-note").textContent = debt > 0 ? `على ${debtSup} مورّد، سدّد من صفحة الموردين` : "ما في دين معلّق";
+      document.getElementById("k-tax").textContent = money(taxSum);
+
+      const counts = { all: invRows.length, owing: invRows.filter((i) => i.owing).length, cash: invRows.filter((i) => !i.voided && (i.payment_type === "cash" || i.settledLater)).length, voided: invRows.filter((i) => i.voided).length };
+      const chips = [["all", "الكل"], ["owing", "عليها باقي"], ["cash", "مدفوعة"], ["voided", "ملغاة"]];
+      document.getElementById("pv-chips").innerHTML = chips.map(([id, l]) =>
+        `<button class="pv-chip" type="button" data-chip="${id}" aria-pressed="${invChip === id}">${l} <span class="c">${counts[id]}</span></button>`).join("");
+      document.getElementById("pv-chips").querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { invChip = b.dataset.chip; invShown = 40; renderHistory(); }));
+
+      fillSupplierFilter();
+      const list = visibleInvoices();
+      document.getElementById("pv-title").innerHTML = olvIcon("receipt") + ` سجل الفواتير <span class="n">${list.length === invRows.length ? `(${list.length})` : `(${list.length} من ${invRows.length})`}</span>`;
+      if (!list.length) {
+        box.innerHTML = `<div class="pv-empty">${invRows.length ? "ما في فواتير بهالفلتر." : "ما في فواتير مسجّلة لسا. اكبس «فاتورة جديدة» لتسجّل أول وحدة."}</div>`;
+        document.getElementById("pv-more").hidden = true;
+        return;
+      }
+      const shown = list.slice(0, invShown);
+      const months = [];
+      const idx = new Map();
+      shown.forEach((i) => {
+        const k = String(i.invoice_date).slice(0, 7);
+        if (!idx.has(k)) { idx.set(k, months.length); months.push({ k, rows: [] }); }
+        months[idx.get(k)].rows.push(i);
+      });
+      box.innerHTML = months.map(({ k, rows }) => `
+        <div class="pv-month"><b>${MONTHS[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}</b><small>${rows.length} فاتورة · ${money(rows.filter((i) => !i.voided).reduce((s, i) => s + Number(i.total_amount), 0))}</small></div>
+        <ul class="pv-list">${rows.map(invHtml).join("")}</ul>`).join("");
+      document.getElementById("pv-more").hidden = list.length <= invShown;
+      if (list.length > invShown) document.getElementById("pv-more-btn").textContent = `عرض كمان (${list.length - invShown})`;
+      box.querySelectorAll("[data-toggle-inv]").forEach((b) => b.addEventListener("click", () => {
+        const id = b.dataset.toggleInv;
+        const li = b.closest(".pv-inv");
+        const d = document.getElementById("det-" + id);
+        const open = d.hidden;
+        li.classList.toggle("open", open); b.setAttribute("aria-expanded", String(open));
+        if (open) openInv.add(id); else openInv.delete(id);
+        if (open) loadInvoiceDetail(id);
+        else d.hidden = true;
+      }));
+      // رجّع الفواتير اللي كانت مفتوحة (مثلًا بعد تسديد)
+      openInv.forEach((id) => { const b = box.querySelector(`[data-toggle-inv="${id}"]`); if (b) { b.closest(".pv-inv").classList.add("open"); b.setAttribute("aria-expanded", "true"); loadInvoiceDetail(id); } });
+    }
+
+    function invHtml(i) {
+      const payBadge = i.voided ? `<span class="pi-badge credit">ملغاة</span>`
+        : i.settledLater ? `<span class="pi-badge cash">مدفوعة</span>`
+        : `<span class="pi-badge ${i.payment_type}">${PAY_LABELS[i.payment_type]}</span>${i.fromDrawer ? ` <span class="pi-badge partial">من الدرج</span>` : ""}${i.remaining > 0.004 ? ` <span>باقي ${money(i.remaining)}</span>` : ""}`;
+      const tax = Number(i.tax_amount) > 0 && !i.voided ? `<span>شامل ضريبة ${money(i.tax_amount)}</span>` : "";
+      return `
+        <li class="pv-inv${i.voided ? " void" : ""}">
+          <button class="pv-row" type="button" data-toggle-inv="${i.id}" aria-expanded="false">
+            <span class="dt">${shortDay(i.invoice_date)}<small>${dayName(i.invoice_date)}</small></span>
+            <span class="who"><b>${i.suppliers ? olvEsc(i.suppliers.name) : "كاش من السوق"}</b><small>${i.doc_no ? `<span>${olvDocNo("purchase", i.doc_no)}</span>` : ""}${i.invoice_no ? `<span>مورّد #${olvEsc(i.invoice_no)}</span>` : ""}${payBadge}${tax}</small></span>
+            <span class="am">${money(i.total_amount)}</span>
+          </button>
+          <div class="pv-detail" id="det-${i.id}" hidden>
+            ${Number(i.discount_amount) > 0 || Number(i.tax_amount) > 0
+              ? `<div class="hint" style="margin-bottom:6px;">مجموع الأصناف <b>${money(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount)}</b>${Number(i.discount_amount) > 0 ? ` — خصم <b>${money(i.discount_amount)}</b>${i.discount_pct ? ` (${Number(i.discount_pct)}%)` : ""}` : ""}${Number(i.tax_amount) > 0 ? ` — ضريبة ${effTaxRate(i)}% = <b>${money(i.tax_amount)}</b> (${i.tax_inclusive ? "الأسعار كانت شاملة" : "أُضيفت فوق الأسعار"}، ${i.tax_recoverable === false ? "غير قابلة للاسترداد" : "قابلة للاسترداد"})` : ""}</div>` : ""}
+            <div data-det-body>جاري التحميل...</div>
+            ${i.voided && i.replaced_by ? `<div class="pi-warn">انعدّلت، الفاتورة الجديدة مكانها${(invRows.find((x) => x.id === i.replaced_by) || {}).doc_no ? " (" + olvDocNo("purchase", invRows.find((x) => x.id === i.replaced_by).doc_no) + ")" : ""}</div>` : i.voided && i.void_reason ? `<div class="pi-warn bad">سبب الإلغاء: ${olvEsc(i.void_reason)}</div>` : ""}
+            <div class="pv-acts">
+              ${i.showPay ? `<button class="btn go" data-pay="${i.id}">سدّد هالفاتورة</button>` : ""}
+              <button class="btn" data-print="${i.id}">${olvIcon("printer")} طباعة</button>
+              ${i.attachment_path ? i.attachment_path.split("|").map((pth, n, all) => `<button class="btn" data-file="${olvEsc(pth)}">${all.length > 1 ? "صورة " + (n + 1) : "صورة الفاتورة"}</button>`).join("") : ""}
+              ${i.canDrawer && ["owner", "manager"].includes(window.olvRole) ? `<button class="btn" data-drawer="${i.id}">${i.fromDrawer ? "شيلها من الدرج" : "حوّلها لدفع من الدرج"}</button>` : ""}
+              ${!i.voided && isOwner ? `<button class="btn" data-edit="${i.id}">تعديل</button>` : ""}
+              ${!i.voided && isOwner ? `<button class="btn danger" data-void="${i.id}">إلغاء الفاتورة</button>` : ""}
+            </div>
+          </div>
+        </li>`;
+    }
+
+
+    // ---------- طباعة الفاتورة (A4) ----------
+    // بتجيب أصناف الفاتورة وبيانات المحل (printer_settings) وتبني ورقة جاهزة للطباعة، وبعدها بتفتح نافذة الطباعة
+    async function printInvoice(id) {
+      const i = invRows.find((x) => x.id === id);
+      if (!i) throw new Error("الفاتورة مش موجودة");
+      const sb = window.supabaseClient;
+      const [lr, sr, pr] = await Promise.all([
+        sb.from("purchases").select("*").eq("invoice_id", id),
+        sb.from("printer_settings").select("restaurant_name, restaurant_address, restaurant_phone").eq("id", 1).maybeSingle(),
+        i.supplier_id ? sb.from("suppliers").select("name, phone").eq("id", i.supplier_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      if (lr.error) throw lr.error;
+      const shop = (sr && sr.data) || {};
+      const sup = (pr && pr.data) || null;
+      const lines = (lr.data || []).slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+      const hasLineTax = lines.some((l) => Number(l.line_tax_rate) > 0);
+      const r2 = (v) => Math.round(Number(v) * 100) / 100;
+      const qty = (v) => String(Math.round(Number(v) * 1000) / 1000);
+      const rows = lines.map((l, n) => {
+        const lp = l.list_price != null ? Number(l.list_price) : Number(l.unit_price);
+        return `<tr><td class="n">${n + 1}</td><td>${olvEsc(l.item_name)}</td><td class="n">${qty(l.quantity)}</td><td class="n">${olvEsc(l.unit || "")}</td><td class="n">${money(lp)}</td>${hasLineTax ? `<td class="n">${Number(l.line_tax_rate) > 0 ? Number(l.line_tax_rate) + "%" : "—"}</td>` : ""}<td class="n">${money(r2(Number(l.quantity) * lp))}</td></tr>`;
+      }).join("");
+      const subtotal = i.subtotal_amount != null ? Number(i.subtotal_amount) : Number(i.total_amount);
+      const disc = Number(i.discount_amount) || 0, tax = Number(i.tax_amount) || 0, total = Number(i.total_amount) || 0, paid = Number(i.paid_amount) || 0;
+      const remaining = i.voided ? 0 : (i.remaining != null ? Number(i.remaining) : Math.max(total - paid, 0));
+      const payLabel = i.payment_type === "cash" ? "كاش" : i.payment_type === "credit" ? "ذمة" : "جزء ذمة";
+      const dt = new Date();
+      const when = dt.toLocaleDateString("en-GB") + " " + dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const dayStr = (s) => { try { return new Date(s + "T00:00:00").toLocaleDateString("en-GB"); } catch (_) { return s; } };
+      const box = document.getElementById("inv-print");
+      box.innerHTML = `
+        ${i.voided ? `<div class="ip-void">ملغاة</div>` : ""}
+        <div class="ip-head">
+          <div class="ip-brand">
+            <img class="ip-logo" src="assets/brand/olv-logo.png" alt="">
+            <div class="ip-shop"><b>${olvEsc(shop.restaurant_name || "OLV")}</b>${shop.restaurant_address ? `<span>${olvEsc(shop.restaurant_address)}</span>` : ""}${shop.restaurant_phone ? `<span dir="ltr" style="text-align:right;">${olvEsc(shop.restaurant_phone)}</span>` : ""}</div>
+          </div>
+          <div class="ip-title">
+            <h1>فاتورة مشتريات</h1>
+            <div class="no">${olvDocNo("purchase", i.doc_no) || "—"}</div>
+            <div>التاريخ: <b>${dayStr(i.invoice_date)}</b></div>
+          </div>
+        </div>
+        <div class="ip-boxes">
+          <div class="ip-box"><h3>المورّد</h3><b>${olvEsc(sup ? sup.name : (i.suppliers ? i.suppliers.name : "كاش من السوق"))}</b>
+            ${sup && sup.phone ? `<br>هاتف: <span dir="ltr">${olvEsc(sup.phone)}</span>` : ""}
+            ${i.invoice_no ? `<br>رقم فاتورة المورّد: <b dir="ltr">${olvEsc(i.invoice_no)}</b>` : ""}</div>
+          <div class="ip-box"><h3>الدفع</h3>طريقة الدفع: <b>${payLabel}</b>
+            <br>المدفوع: <b>${money(paid)}</b>
+            <br>المتبقي على المحل: <b>${money(remaining)}</b></div>
+        </div>
+        <table>
+          <thead><tr><th class="n">#</th><th>الصنف</th><th class="n">الكمية</th><th class="n">الوحدة</th><th class="n">سعر الوحدة</th>${hasLineTax ? `<th class="n">ضريبة</th>` : ""}<th class="n">الإجمالي</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="${hasLineTax ? 7 : 6}" class="n">ما في أصناف</td></tr>`}</tbody>
+        </table>
+        <div class="ip-tot">
+          <div><span>مجموع الأصناف</span><b>${money(subtotal)}</b></div>
+          ${disc > 0 ? `<div><span>الخصم${Number(i.discount_pct) > 0 ? " (" + Number(i.discount_pct) + "%)" : ""}</span><b>− ${money(disc)}</b></div>` : ""}
+          ${tax > 0 ? `<div><span>الضريبة${Number(i.tax_rate) > 0 ? " (" + Number(i.tax_rate) + "%" + (i.tax_inclusive ? " شاملة" : "") + ")" : ""}</span><b>${money(tax)}</b></div>` : ""}
+          <div class="grand"><span>الإجمالي</span><b>${money(total)}</b></div>
+          <div><span>المدفوع</span><b>${money(paid)}</b></div>
+          ${remaining > 0.004 ? `<div class="due"><span>المتبقي</span><b>${money(remaining)}</b></div>` : ""}
+        </div>
+        ${i.notes ? `<div class="ip-note"><b>ملاحظات:</b> ${olvEsc(i.notes)}</div>` : ""}
+        <div class="ip-sign"><div>المستلم</div><div>المحاسب</div><div>المورّد</div></div>
+        <div class="ip-foot"><span>${olvEsc(shop.restaurant_name || "OLV")} — فاتورة مشتريات ${olvDocNo("purchase", i.doc_no)}</span><span>طُبعت ${when}</span></div>`;
+      const img = box.querySelector(".ip-logo");
+      if (img && !img.complete) await new Promise((res) => { img.onload = img.onerror = res; setTimeout(res, 2500); });
+      window.print();
+    }
+
+    async function loadInvoiceDetail(id) {
+      const row = document.getElementById("det-" + id);
+      if (!row) return;
+      row.hidden = false;
+      if (row.dataset.loaded) return;
+      const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", id);
+      if (error) { olvShowError(document.getElementById("err"), error); return; }
+      row.querySelector("[data-det-body]").innerHTML = (data || []).map((p) => {
+        const lp = p.list_price != null ? Number(p.list_price) : Number(p.unit_price);
+        const costNote = p.list_price != null && Math.abs(Number(p.unit_price) - lp) > 0.00001 ? ` <small style="color:var(--muted);">(تكلفة فعلية ${Number(p.unit_price)} بعد الخصم/الضريبة)</small>` : "";
+        return `• ${olvEsc(p.item_name)} — ${Number(p.quantity)} ${olvEsc(p.unit)} × ${lp} = <b>${money(Math.round(Number(p.quantity) * lp * 100) / 100)}</b>${costNote}`;
+      }).join("<br>") || "لا أصناف";
+      row.dataset.loaded = "1";
+    }
+    document.getElementById("pv-more-btn").addEventListener("click", () => { invShown += 40; renderHistory(); });
+    let invTimer = null;
+    document.getElementById("pv-q").addEventListener("input", (e) => {
+      clearTimeout(invTimer);
+      invTimer = setTimeout(() => { invQuery = e.target.value.trim(); invShown = 40; renderHistory(); }, 120);
+    });
+
+    // ---------- فلتر المورّد/التاريخ + تصدير ----------
+    function fillSupplierFilter() {
+      const sel = document.getElementById("pv-sup");
+      const cur = sel.value;
+      const names = new Map();
+      invRows.forEach((i) => { if (i.supplier_id) names.set(i.supplier_id, i.suppliers ? i.suppliers.name : "—"); });
+      sel.innerHTML = `<option value="">كل الموردين</option><option value="__none__">كاش من السوق (بدون مورّد)</option>`
+        + [...names].sort((a, b) => a[1].localeCompare(b[1], "ar")).map(([id, n]) => `<option value="${olvEsc(id)}">${olvEsc(n)}</option>`).join("");
+      sel.value = [...sel.options].some((o) => o.value === cur) ? cur : "";
+      invSup = sel.value;
+      document.getElementById("pv-clear").hidden = !(invSup || invFrom || invTo);
+    }
+    document.getElementById("pv-sup").addEventListener("change", (e) => { invSup = e.target.value; invShown = 40; document.getElementById("pv-clear").hidden = !(invSup || invFrom || invTo); renderHistory(); });
+    ["pv-from", "pv-to"].forEach((id) => document.getElementById(id).addEventListener("change", async (e) => {
+      if (id === "pv-from") invFrom = e.target.value; else invTo = e.target.value;
+      invShown = 40;
+      await loadHistory();
+      document.getElementById("pv-clear").hidden = !(invSup || invFrom || invTo);
+    }));
+    document.getElementById("pv-clear").addEventListener("click", async () => {
+      invSup = ""; invFrom = ""; invTo = ""; invShown = 40;
+      document.getElementById("pv-from").value = ""; document.getElementById("pv-to").value = ""; document.getElementById("pv-sup").value = "";
+      await loadHistory();
+      document.getElementById("pv-clear").hidden = true;
+    });
+    // تصدير الفواتير المعروضة (بنفس الفلتر) لملف CSV بيفتح بإكسل بالعربي
+    document.getElementById("pv-export").addEventListener("click", () => {
+      const list = visibleInvoices();
+      if (!list.length) { olvShowError(document.getElementById("err"), new Error("ما في فواتير بهالفلتر لتتصدّر")); return; }
+      const cell = (v) => { const t = String(v ?? ""); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+      const head = ["رقم الفاتورة", "رقم فاتورة المورّد", "التاريخ", "المورّد", "المجموع قبل الخصم", "الخصم", "الضريبة", "الإجمالي", "المدفوع", "الباقي", "الدفع", "الحالة", "ملاحظات"];
+      const rows = list.map((i) => [
+        olvDocNo("purchase", i.doc_no), i.invoice_no || "", i.invoice_date, i.suppliers ? i.suppliers.name : "كاش من السوق",
+        Number(i.subtotal_amount != null ? i.subtotal_amount : i.total_amount), Number(i.discount_amount || 0), Number(i.tax_amount || 0),
+        Number(i.total_amount), Number(i.paid_amount), i.voided ? 0 : Math.max(0, Math.round(i.remaining * 100) / 100),
+        PAY_LABELS[i.payment_type] || "", i.voided ? (i.replaced_by ? "انعدّلت" : "ملغاة") : "فعّالة", i.notes || "",
+      ]);
+      const csv = "\ufeff" + [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      a.download = `purchase-invoices-${invFrom || "all"}-${invTo || olvToday()}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      if (window.olvToast) olvToast(`تصدّرت ${list.length} فاتورة`, { type: "ok" });
+    });
+
+
+    // ---------- إضافة مورّد جديد بدون ما نطلع من الفاتورة ----------
+    function openNewSupplierDialog() {
+      const back = document.createElement("div");
+      back.className = "olv-modal-backdrop";
+      back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+      const box = document.createElement("div");
+      box.style.cssText = "width:100%; max-width:380px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+      box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true");
+      box.innerHTML = `
+        <h3 style="margin:0 0 4px; font-size:17px;">مورّد جديد</h3>
+        <div class="hint" style="margin-bottom:12px;">بينحفظ وبينختار بالفاتورة تلقائيًا، وما بتضيع البيانات اللي كتبتها.</div>
+        <div class="field"><label for="nsp-name">الاسم</label><input type="text" id="nsp-name" maxlength="120" placeholder="اسم المورّد أو الشركة"></div>
+        <div class="field"><label for="nsp-phone">الهاتف (اختياري)</label><input type="tel" id="nsp-phone" dir="ltr" inputmode="tel" placeholder="07XXXXXXXX"></div>
+        <div class="pi-warn bad" id="nsp-err" style="min-height:16px;"></div>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <button type="button" class="btn gold" id="nsp-go" style="flex:1;">إضافة واختياره</button>
+          <button type="button" class="btn" id="nsp-cancel">إلغاء</button>
+        </div>`;
+      back.appendChild(box); document.body.appendChild(back);
+      const close = () => (window.olvDismiss ? olvDismiss(back) : back.remove());
+      const err = box.querySelector("#nsp-err"), go = box.querySelector("#nsp-go");
+      box.querySelector("#nsp-cancel").addEventListener("click", close);
+      back.addEventListener("click", (e) => { if (e.target === back) close(); });
+      const save = async () => {
+        const name = box.querySelector("#nsp-name").value.trim(), phone = box.querySelector("#nsp-phone").value.trim();
+        if (name.length < 2) { err.textContent = "اكتب اسم المورّد"; return; }
+        const bad = typeof olvPhoneProblem === "function" ? olvPhoneProblem(phone) : null;
+        if (bad) { err.textContent = bad; return; }
+        const sel = document.getElementById("pi-supplier");
+        const dup = [...sel.options].find((o) => o.value && olvSearchNorm(supOptName(o)) === olvSearchNorm(name));
+        go.disabled = true;
+        try {
+          let id = dup && dup.value;
+          if (!id) {
+            const { data, error } = await window.supabaseClient.from("suppliers").insert({ name, phone: phone || null }).select("id, name, supplier_no");
+            if (error) throw error;
+            const sup = Array.isArray(data) ? data[0] : data;
+            const opt = new Option(sup.name + (sup.supplier_no ? " · " + olvSupNo(sup.supplier_no) : ""), sup.id);
+            const after = [...sel.options].find((o) => o.value && supOptName(o).localeCompare(sup.name, "ar") > 0);
+            sel.add(opt, after || null);
+            id = sup.id;
+          }
+          sel.value = id;
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+          close();
+          if (window.olvToast) olvToast(dup ? "المورّد موجود أصلًا — انختار" : `انضاف المورّد "${name}" وانختار`, { type: "ok" });
+        } catch (e) { err.textContent = e.message || String(e); go.disabled = false; }
+      };
+      go.addEventListener("click", save);
+      box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") close(); });
+      setTimeout(() => box.querySelector("#nsp-name").focus(), 50);
+    }
+    document.getElementById("pi-newsup-btn").addEventListener("click", openNewSupplierDialog);
+
+    // نافذة تسديد فاتورة: المبلغ (مع «الباقي كله» و«النص») + ملاحظة اختيارية، بدل نافذة الكتابة البدائية
+    function openPayDialog(inv) {
+      return new Promise((resolve) => {
+        const back = document.createElement("div");
+        back.className = "olv-modal-backdrop";
+        back.style.cssText = "position:fixed; inset:0; background:rgba(8,7,4,.6); z-index:300; display:flex; align-items:center; justify-content:center; padding:16px;";
+        const box = document.createElement("div");
+        box.style.cssText = "width:100%; max-width:380px; background:var(--ink-2); border:1px solid var(--hair); border-radius:18px; padding:20px; color:var(--paper); font-family:'Tajawal',sans-serif;";
+        box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true");
+        box.innerHTML = `
+          <h3 style="margin:0 0 4px; font-size:17px;">تسديد ${inv.no ? "الفاتورة #" + olvEsc(inv.no) : "الفاتورة"}</h3>
+          <div class="hint" style="margin-bottom:12px;">الباقي عليها <b>${money(inv.remaining)}</b></div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button type="button" class="btn small" data-q="all" style="flex:1;">الباقي كله</button>
+            <button type="button" class="btn small" data-q="half" style="flex:1;">النص</button>
+          </div>
+          <div class="field"><label for="pd-amount">المبلغ المدفوع</label><input type="number" id="pd-amount" min="0" step="0.01" inputmode="decimal" dir="ltr" value="${inv.remaining.toFixed(2)}"></div>
+          <div class="field"><label>طريقة السداد</label>
+            <div class="pi-pay" id="pd-method" style="margin:4px 0 0;">
+              <label class="on" data-m="cash"><input type="radio" name="pd-m" value="cash" checked>كاش</label>
+              <label data-m="bank"><input type="radio" name="pd-m" value="bank">بنك</label>
+              <label data-m="click"><input type="radio" name="pd-m" value="click">كليك</label>
+            </div>
+          </div>
+          <div class="field"><label for="pd-note">ملاحظة (اختياري)</label><input type="text" id="pd-note" maxlength="100" placeholder="مثال: حوالة، شيك رقم..."></div>
+          <div class="pi-warn bad" id="pd-err" style="min-height:16px;"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn gold" id="pd-go" style="flex:1;">تسديد</button>
+            <button type="button" class="btn" id="pd-cancel">إلغاء</button>
+          </div>`;
+        back.appendChild(box); document.body.appendChild(back);
+        const done = (v) => { (window.olvDismiss ? olvDismiss(back) : back.remove()); resolve(v); };
+        const amt = box.querySelector("#pd-amount");
+        const err = box.querySelector("#pd-err");
+        box.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => {
+          amt.value = (b.dataset.q === "half" ? Math.round(inv.remaining * 50) / 100 : inv.remaining).toFixed(2);
+          err.textContent = "";
+        }));
+        box.querySelector("#pd-method").addEventListener("change", (e) => {
+          box.querySelectorAll("#pd-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
+        });
+        box.querySelector("#pd-cancel").addEventListener("click", () => done(null));
+        back.addEventListener("click", (e) => { if (e.target === back) done(null); });
+        const go = () => {
+          const amount = Math.round(Number(String(amt.value).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[,،\s]/g, "")) * 100) / 100;
+          if (!(amount > 0)) { err.textContent = "اكتب مبلغ صحيح أكبر من صفر"; return; }
+          if (amount > inv.remaining + 0.004) { err.textContent = `المبلغ أكبر من الباقي على الفاتورة (${money(inv.remaining)}). الزيادة سجّلها من صفحة الموردين.`; return; }
+          done({ amount, method: (box.querySelector("#pd-method input:checked") || {}).value || "cash", note: box.querySelector("#pd-note").value.trim() });
+        };
+        box.querySelector("#pd-go").addEventListener("click", go);
+        box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } if (e.key === "Escape") done(null); });
+        setTimeout(() => { amt.focus(); amt.select(); }, 50);
+      });
+    }
+
+    document.getElementById("pi-history").addEventListener("click", async (e) => {
+      const errBox = document.getElementById("err");
+      const file = e.target.closest("[data-file]");
+      if (file) {
+        const { data, error } = await window.supabaseClient.storage.from("purchase-invoices").createSignedUrl(file.dataset.file, 120);
+        if (error || !data) { olvShowError(errBox, error || new Error("تعذّر فتح الصورة")); return; }
+        window.open(data.signedUrl, "_blank", "noopener");
+        return;
+      }
+      // تسديد فاتورة: دفعة عادية للمورّد (بتنقّص دينه) موجّهة لهالفاتورة بالذات
+      const payBtn = e.target.closest("[data-pay]");
+      if (payBtn) {
+        const inv = payable[payBtn.dataset.pay];
+        if (!inv) return;
+        const picked = await openPayDialog(inv);
+        if (!picked) return;
+        const amount = picked.amount;
+        payBtn.disabled = true;
+        const row = {
+          supplier_id: inv.supplierId,
+          type: "payment",
+          amount,
+          description: "تسديد " + (inv.no ? "فاتورة #" + inv.no : "فاتورة مشتريات") + (picked.note ? " — " + picked.note : ""),
+          transaction_date: olvToday(),
+          applies_to_invoice: payBtn.dataset.pay,
+        };
+        let { error } = await window.supabaseClient.from("supplier_transactions").insert({ ...row, payment_method: picked.method });
+        // لو عمود طريقة السداد لسا ما انضاف بقاعدة البيانات: نسجّل الدفعة بدونه ونكتب الطريقة بالبيان
+        if (error && /payment_method/.test(error.message || "")) {
+          ({ error } = await window.supabaseClient.from("supplier_transactions").insert({ ...row, description: row.description + " [" + ({ cash: "كاش", bank: "بنك", click: "كليك" }[picked.method]) + "]" }));
+        }
+        if (error) { payBtn.disabled = false; olvShowError(errBox, error); return; }
+        if (window.olvToast) olvToast(amount >= inv.remaining - 0.004 ? "انسدّت الفاتورة" : "انسجلت الدفعة", { type: "ok" });
+        await loadHistory();
+        return;
+      }
+      const pr = e.target.closest("[data-print]");
+      if (pr) {
+        pr.disabled = true;
+        try { await printInvoice(pr.dataset.print); } catch (err) { olvShowError(errBox, err); }
+        pr.disabled = false;
+        return;
+      }
+      const dr = e.target.closest("[data-drawer]");
+      if (dr) {
+        const row = invRows.find((x) => x.id === dr.dataset.drawer);
+        if (!row || !row.expense_id) return;
+        dr.disabled = true;
+        const { error } = await window.supabaseClient.from("expenses").update({ from_drawer: !row.fromDrawer }).eq("id", row.expense_id);
+        if (error) { dr.disabled = false; olvShowError(errBox, error); return; }
+        if (window.olvToast) olvToast(row.fromDrawer ? "انشالت من الدرج" : "انحسبت مدفوعة من الدرج", { type: "ok" });
+        await loadHistory();
+        return;
+      }
+      const ed = e.target.closest("[data-edit]");
+      if (ed) {
+        ed.disabled = true;
+        try { await startEdit(ed.dataset.edit); } catch (err) { olvShowError(errBox, err); }
+        ed.disabled = false;
+        return;
+      }
+      const v = e.target.closest("[data-void]");
+      if (v) {
+        const reason = prompt("سبب إلغاء الفاتورة (إلزامي). بيرجع المخزون وبيشيل المصروف وقيد المورّد:");
+        if (reason === null) return;
+        if (reason.trim().length < 3) { olvShowError(errBox, new Error("اكتب سبب واضح (3 أحرف على الأقل)")); return; }
+        if (!confirm("متأكد من إلغاء هالفاتورة؟")) return;
+        const { error } = await window.supabaseClient.rpc("void_purchase_invoice", { p_invoice_id: v.dataset.void, p_reason: reason.trim() });
+        if (error) { olvShowError(errBox, error); return; }
+        await Promise.all([loadItems(), loadHistory()]);
+        renderLines();
+      }
+    });
+
+    // ---------- تعديل فاتورة محفوظة: بنحمّلها بالنموذج، والحفظ بيستبدلها بخطوة وحدة على السيرفر ----------
+    function endEdit() {
+      editingId = null; editingAttach = null;
+      const b = document.getElementById("pi-edit-banner"); if (b) b.remove();
+    }
+    function resetForm() {
+      lines = [newLine()];
+      ["pi-no", "pi-notes", "pi-paper-total", "pi-paper-qty", "pi-partial", "pi-discount"].forEach((id) => { document.getElementById(id).value = ""; });
+      clearPages();
+      document.getElementById("pi-supplier").value = "";
+      document.querySelectorAll("#pi-pay input").forEach((r) => { r.checked = false; });
+      payMode = "";
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.remove("on"));
+      document.getElementById("pi-partial-wrap").hidden = true;
+      syncDrawerBox();
+      renderLines();
+    }
+    async function startEdit(id) {
+      const inv = invRows.find((x) => x.id === id);
+      if (!inv || inv.voided) throw new Error("الفاتورة مش متاحة للتعديل");
+      if (!draftIsEmpty() && !confirm("في فاتورة جديدة نص مكتوبة بالنموذج. بتنمسح لو كمّلت التعديل. تكمّل؟")) return;
+      const { data, error } = await window.supabaseClient.from("purchases").select("*").eq("invoice_id", id);
+      if (error) throw error;
+      const newLines = (data || []).map((p) => {
+        const key = p.ingredient_id ? "ingredient:" + p.ingredient_id : p.supply_id ? "supply:" + p.supply_id : null;
+        const price = p.list_price != null ? Number(p.list_price) : Number(p.unit_price);
+        return newLine({ itemKey: key && items.some((i) => i.kind + ":" + i.id === key) ? key : null, typed: p.item_name, unmatchedName: (key && items.some((i) => i.kind + ":" + i.id === key)) ? "" : p.item_name, unitMode: "stock", qty: String(Number(p.quantity)), price: String(price), tax: p.line_tax_rate != null ? String(Number(p.line_tax_rate)) : "" });
+      });
+      if (!newLines.length) throw new Error("ما لقيت أصناف لهالفاتورة");
+      endEdit();
+      resetForm();
+      editingId = id; editingAttach = inv.attachment_path || null;
+      lines = newLines;
+      document.getElementById("pi-date").value = inv.invoice_date;
+      document.getElementById("pi-supplier").value = inv.supplier_id || "";
+      document.getElementById("pi-no").value = inv.invoice_no || "";
+      document.getElementById("pi-notes").value = inv.notes || "";
+      const pct = Number(inv.discount_pct) || 0;
+      document.getElementById("pi-discount-mode").value = pct ? "pct" : "amount";
+      document.getElementById("pi-discount").value = pct ? String(pct) : (Number(inv.discount_amount) > 0 ? String(Number(inv.discount_amount)) : "");
+      document.getElementById("pi-tax-rate").value = Number(inv.tax_rate) > 0 ? String(Number(inv.tax_rate)) : "";
+      document.getElementById("pi-tax-mode").value = inv.tax_inclusive ? "incl" : "excl";
+      document.getElementById("pi-tax-rec").checked = inv.tax_recoverable !== false;
+      payMode = inv.payment_type === "credit" ? "credit" : inv.payment_type === "partial" ? "partial" : "cash";
+      document.querySelector('#pi-pay input[value="' + payMode + '"]').checked = true;
+      document.querySelectorAll("#pi-pay label").forEach((l) => l.classList.toggle("on", l.dataset.pay === payMode));
+      document.getElementById("pi-partial-wrap").hidden = payMode !== "partial";
+      if (payMode === "partial") document.getElementById("pi-partial").value = String(Number(inv.paid_amount));
+      syncDrawerBox();
+      document.getElementById("pi-drawer").checked = payMode === "cash" && !!(invRows.find((x) => x.id === id) || {}).fromDrawer;
+      const banner = document.createElement("div");
+      banner.className = "pi-warn"; banner.id = "pi-edit-banner";
+      banner.innerHTML = `عم تعدّل ${inv.doc_no ? olvDocNo("purchase", inv.doc_no) : "فاتورة"}${inv.invoice_no ? " (مورّد #" + olvEsc(inv.invoice_no) + ")" : ""}. أول ما تحفظ، بتنلغى القديمة وبتنحفظ هاي مكانها (المخزون وحساب المورّد بيتعدّلوا لحالهم). <button type="button" class="btn" id="pi-edit-cancel" style="margin-inline-start:8px;">إلغاء التعديل</button>`;
+      document.getElementById("pi-supplier").closest(".field").before(banner);
+      document.getElementById("pi-edit-cancel").addEventListener("click", () => { endEdit(); resetForm(); openForm(false); });
+      renderLines();
+      openForm(true);
+      document.getElementById("pi-form-group").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // استلام طلبية (purchase-orders.html): بنعبّي المورّد والسطور من الطلبية، وبعد حفظ الفاتورة بتتعلّم «مستلمة»
+    let fromOrderId = null;
+    async function prefillFromOrder(poId) {
+      const sb = window.supabaseClient;
+      const [{ data: o, error: e1 }, { data: ls, error: e2 }] = await Promise.all([
+        sb.from("purchase_orders").select("id, supplier_id, supplier_name, status, notes").eq("id", poId).single(),
+        sb.from("purchase_order_lines").select("ingredient_id, supply_id, qty, order_unit, factor, est_unit_price").eq("order_id", poId),
+      ]);
+      if (e1) throw e1; if (e2) throw e2;
+      if (o.status === "received" || o.status === "cancelled") throw new Error("هذه الطلبية " + (o.status === "received" ? "انستلمت" : "انلغت") + " من قبل");
+      if (o.supplier_id) document.getElementById("pi-supplier").value = o.supplier_id;
+      lines = (ls || []).map((l) => {
+        const it = items.find((i) => i.kind + ":" + i.id === (l.ingredient_id ? "ingredient:" + l.ingredient_id : "supply:" + l.supply_id));
+        if (!it) return null;
+        const f = Number(l.factor) || 1;
+        const price = l.est_unit_price == null ? "" : Number(l.est_unit_price);
+        // لو وحدة الطلب هي نفس وحدة الشراء المضبوطة للصنف: بنضل بوحدة الشراء، وإلا بنحوّل لوحدة المخزون
+        if (f !== 1 && Number(it.purchase_unit_factor) === f) return newLine({ itemKey: it.kind + ":" + it.id, unitMode: "purchase", qty: String(l.qty), price: price === "" ? "" : String(price) });
+        return newLine({ itemKey: it.kind + ":" + it.id, unitMode: "stock", qty: String(Math.round(Number(l.qty) * f * 1000) / 1000), price: price === "" ? "" : String(Math.round(price / f * 10000) / 10000) });
+      }).filter(Boolean);
+      if (!lines.length) lines = [newLine()];
+      fromOrderId = o.id;
+      const note = document.getElementById("pi-notes");
+      if (!note.value) note.value = "من طلبية " + o.supplier_name;
+      const banner = document.createElement("div");
+      banner.className = "pi-warn"; banner.id = "pi-from-order";
+      banner.textContent = "الأصناف والكميات محمّلة من طلبيتك — عدّل على الكميات والأسعار حسب الفاتورة الفعلية، وبعد الحفظ بتتعلّم الطلبية «مستلمة».";
+      document.getElementById("pi-supplier").closest(".field").before(banner);
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      isOwner = window.olvRole === "owner";
+      document.getElementById("pi-date").value = olvToday();
+      restoreTaxPrefs();
+      try {
+        await Promise.all([loadItems(), loadSuppliers()]);
+        lines = [newLine()];
+        const poId = new URLSearchParams(location.search).get("po");
+        if (!poId) { if (restoreDraft()) openForm(true); }
+        else { try { await prefillFromOrder(poId); openForm(true); } catch (err) { olvShowError(document.getElementById("err"), err); } }
+        renderLines();
+        await loadHistory();
+      } catch (err) { olvShowError(document.getElementById("err"), err); }
+    })();
+    });
