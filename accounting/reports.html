@@ -258,6 +258,16 @@
         <div class="value" id="r-est">—</div>
         <div class="label" id="r-cov" style="margin-top:6px;font-size:12px"></div>
       </div>
+      <div class="stat">
+        <div class="label">نسبة العمالة % (رواتب ÷ مبيعات)</div>
+        <div class="value" id="r-labor">—</div>
+        <div class="label" style="margin-top:6px;font-size:12px">المعتاد 25–35%. محسوبة من الرواتب المدفوعة بالفترة.</div>
+      </div>
+      <div class="stat">
+        <div class="label">Prime cost % (مواد + عمالة)</div>
+        <div class="value" id="r-prime">—</div>
+        <div class="label" style="margin-top:6px;font-size:12px">الهدف أقل من 60–65% من المبيعات.</div>
+      </div>
     </div>
 
     <div class="group">
@@ -848,6 +858,12 @@
         estEl.textContent = olvFormatMoney(est);
         estEl.className = "value " + (est >= 0 ? "good" : "bad");
         document.getElementById("r-cov").textContent = covNote;
+        const labor = (expenses || []).filter((r) => r.expense_categories && r.expense_categories.name === "رواتب وأجور").reduce((t, r) => t + Number(r.amount), 0);
+        const pc = olvPrimeCost({ sales: totalSales, cogs, labor });
+        document.getElementById("r-labor").textContent = pc.laborPct == null ? "—" : pc.laborPct.toFixed(1) + "%";
+        const primeEl = document.getElementById("r-prime");
+        primeEl.textContent = pc.primePct == null ? "—" : pc.primePct.toFixed(1) + "%";
+        primeEl.className = "value " + (pc.primePct == null ? "" : pc.primePct <= 65 ? "good" : "bad");
 
         renderDrawer(from, to).catch(() => { document.getElementById("drawer-box").hidden = true; });
         await loadInsights(from, to, sales, totalSales, net);
