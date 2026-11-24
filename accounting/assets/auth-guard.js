@@ -163,8 +163,8 @@ async function olvExpensesPaid(db, select, from, to) {
   const cols = select + ", id, expense_date, settled_at";
   const nextDay = new Date(new Date(to + "T00:00:00Z").getTime() + 864e5).toISOString().slice(0, 10);
   const [cashR, settledR] = await Promise.all([
-    db.from("expenses").select(cols).eq("payment_type", "cash").is("settled_at", null).gte("expense_date", from).lte("expense_date", to),
-    db.from("expenses").select(cols).not("settled_at", "is", null).gte("settled_at", from + "T00:00:00Z").lt("settled_at", nextDay + "T00:00:00Z"),
+    olvFetchAll(() => db.from("expenses").select(cols).eq("payment_type", "cash").is("settled_at", null).gte("expense_date", from).lte("expense_date", to).order("id")),
+    olvFetchAll(() => db.from("expenses").select(cols).not("settled_at", "is", null).gte("settled_at", from + "T00:00:00Z").lt("settled_at", nextDay + "T00:00:00Z").order("id")),
   ]);
   const error = cashR.error || settledR.error;
   if (error) return { data: null, error };
@@ -177,11 +177,11 @@ async function olvExpensesPaid(db, select, from, to) {
   try {
     const ids = cash.map((r) => r.id);
     for (let i = 0; i < ids.length; i += 150) {
-      const inv = await db.from("purchase_invoices").select("expense_id, status, payment_type, paid_amount").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash");
+      const inv = await db.from("purchase_invoices").select("expense_id, status, payment_type, paid_amount").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash").limit(150);
       invoices.push(...(inv.data || []));
     }
-    const pay = await db.from("supplier_transactions").select("id, amount, transaction_date, description")
-      .eq("type", "payment").is("invoice_id", null).gte("transaction_date", from).lte("transaction_date", to);
+    const pay = await olvFetchAll(() => db.from("supplier_transactions").select("id, amount, transaction_date, description")
+      .eq("type", "payment").is("invoice_id", null).gte("transaction_date", from).lte("transaction_date", to).order("id"));
     payments = pay.data || [];
   } catch (e) { invoices = []; payments = []; /* بدون تعديل */ }
   return { data: olvCombineExpensesPaid({ cash, settled: settledR.data, invoices, payments }), error: null };
