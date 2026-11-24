@@ -608,6 +608,7 @@
   <script defer src="config.js"></script>
   <script defer src="assets/offline-queue.js"></script>
   <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/finance-calc.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/day-report.js"></script>
@@ -886,7 +887,7 @@
         const sales = (todaySales || []).map((r) => ({ ...r, _total: Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount) }));
         const totalSales = sales.reduce((s, r) => s + r._total, 0);
         const totalExpenses = (todayExpenses || []).reduce((s, r) => s + Number(r.amount), 0);
-        const net = totalSales - totalExpenses;
+        const net = olvDayNet(totalSales, totalExpenses);
 
         countUp(document.getElementById("stat-sales"), totalSales, money);
         countUp(document.getElementById("stat-expenses"), totalExpenses, money);

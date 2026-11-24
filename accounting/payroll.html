@@ -401,6 +401,7 @@
   <script defer src="assets/offline-queue.js"></script>
   <script defer src="assets/shift-utils.js"></script>
   <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/finance-calc.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/notify-sound.js"></script>
@@ -418,7 +419,7 @@
     const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
     const HIST_STEP = 20;
     // أجر يوم العطلة الأسبوعي المدفوع (لكل أسبوع خلص): الراتب = ساعات × أجر الساعة + هالمبلغ × عدد الأسابيع − هالمبلغ × أيام الإجازة الزيادة
-    const FIXED_BONUS = 10;
+    const FIXED_BONUS = OLV_WEEKLY_BONUS;
     let myRole = null;
     let canManage = false;
     let profilesById = new Map();
@@ -629,7 +630,7 @@
       ledger = new Map();
       (data || []).forEach((p) => {
         if (ledger.has(p.profile_id)) return;
-        const carry = Math.round((Number(p.gross_amount) - Number(p.advances_deducted) - Number(p.net_amount)) * 100) / 100;
+        const carry = olvPayrollCarry(p);
         ledger.set(p.profile_id, { lastEnd: fmtDate(p.period_end), lastStart: fmtDate(p.period_start), lastHours: Number(p.hours_worked) || 0, carry });
       });
     }
@@ -697,9 +698,10 @@
             const h0 = (hoursByStart.get(from) || new Map()).get(profileId) || { hours: 0, openCount: 0 };
             // حد أقصى لساعات اليوم (اختياري لكل موظف): الساعات فوق الحد بتضل ظاهرة بس ما بتنحسب مصاري
             const cap = capOf(profileId);
-            let capCut = 0;
-            if (cap) (dayRows || []).forEach((d) => { if (d.profile_id === profileId && d.status === "ok" && fmtDate(d.work_date) >= from && Number(d.hours) > cap) capCut += Number(d.hours) - cap; });
-            const h = { ...h0, hours: Math.max(0, h0.hours - capCut) };
+            const capDays = cap ? (dayRows || []).filter((d) => d.profile_id === profileId && d.status === "ok" && fmtDate(d.work_date) >= from).map((d) => Number(d.hours)) : [];
+            const cappedHours = olvCappedHours(h0.hours, capDays, cap);
+            const capCut = olvCapCut(capDays, cap);
+            const h = { ...h0, hours: cappedHours };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
             // المكافأة الأسبوعية = يوم العطلة المدفوع: 10 دنانير عن كل أسبوع خلص (جمعة) بالفترة. يوم الغياب ما بينخصم منه شي
@@ -707,19 +709,13 @@
             // الأسبوع الأول بيبدأ من أول يوم دوام للموظف
             const days = attended.get(profileId) || new Set();
             const firstWork = days.size ? [...days].sort()[0] : null;
-            const spanFrom = firstWork && firstWork > from ? firstWork : from;
-            const spanTo = range.to;
-            let weeks = 0;
-            if (firstWork && spanFrom <= spanTo) {
-              for (let f = spanFrom; f <= spanTo; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
-            }
-            const bonus = h.hours > 0 ? FIXED_BONUS * weeks : 0;
+            const weeks = olvBonusWeeks(from, range.to, firstWork);
             const adjTotal = adjTotalFor(profileId);
-            const earned = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus + adjTotal;
             const carry = ledger.has(profileId) ? ledger.get(profileId).carry : 0;
             const advancesTotal = advancesTotalFor(profileId);
+            const { bonus, earned, net } = olvPayrollRow({ hours: h.hours, hourlyWage, weeks, adjTotal, carry, advancesTotal });
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
-            return { profileId, from, weeks, cap, capCut, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
+            return { profileId, from, weeks, cap, capCut, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net };
           })
           .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
@@ -1171,9 +1167,8 @@
       const firstReal = rows.find((x) => x.h === null || x.hp > 0);
       const firstWork = firstReal ? firstReal.day : null;
       const lastDone = addDays(olvWorkDay(new Date().toISOString()), -1), end = st.to > lastDone ? lastDone : st.to;
-      let weeks = 0;
-      if (firstWork) for (let f = firstWork > st.from ? firstWork : st.from; f <= end; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
-      const bonus = hours > 0 ? FIXED_BONUS * weeks : 0;
+      const weeks = olvBonusWeeks(st.from, end, firstWork);
+      const bonus = olvWeeklyBonus(hours, weeks);
       return { hours, cut, ot, wage, weeks, bonus, amount: wage == null ? null : hours * wage + bonus, open: rows.filter((x) => x.h === null).length };
     }
     const datesBonusNote = (t) => t.bonus || t.weeks ? ` + مكافأة أسبوعية ${olvFormatMoney(t.bonus)} (${t.weeks} أسبوع)` : "";

@@ -17,7 +17,8 @@ Every push to `main` deploys the **whole repo** to GitHub Pages (`.github/workfl
 
 ## Checks
 - `node scripts/check.mjs` — syntax check of every `.js` file and every inline `<script>` in `.html` (no dependencies). Runs in CI on every PR and automatically after each file edit (hook in `.claude/settings.json`). Pass file paths to check only those.
-- There are no unit tests. To verify UI changes, open the page in a browser (Playwright/Chromium is available in cloud sessions); real data needs the live Supabase project.
+- `node --test "tests/*.test.mjs"` — اختبارات آلية لحسابات المبيعات والمصروفات (قاعدة الذمم) والرواتب، بدون أي حزمة. معادلات الحساب نفسها بـ `accounting/assets/finance-calc.js` (دوال نقية)؛ لا تنسخها جوّا الصفحات، عدّلها هناك وحدّث الاختبارات. CI بيشغّلها (`tests.yml`). تعديل أي قاعدة مالية (مصروفات/مبيعات/رواتب) لازم يجي معه تعديل اختبار.
+- To verify UI changes, open the page in a browser (Playwright/Chromium is available in cloud sessions); real data needs the live Supabase project.
 
 ## Conventions
 - Money/stock logic that must not be bypassed (voiding sales, PIN checks, stock deduction) lives in SQL functions with row locks, not in page JavaScript. Don't move it client-side.
