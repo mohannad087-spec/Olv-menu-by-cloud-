@@ -121,3 +121,11 @@ test("[موثّق] الجزء المدفوع عند الفاتورة بينحس�
   assert.equal(rows[0].expense_date, "2026-11-16");
   assert.equal(rows[0].amount, 50);
 });
+
+test("نسبة العمالة و Prime cost", () => {
+  const r = c.olvPrimeCost({ sales: 1000, cogs: 350, labor: 250 });
+  assert.equal(r.laborPct, 25);
+  assert.equal(r.primePct, 60);
+  assert.equal(r.prime, 600);
+  assert.equal(c.olvPrimeCost({ sales: 0, cogs: 5, labor: 5 }).primePct, null);
+});

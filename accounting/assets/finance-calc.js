@@ -56,6 +56,15 @@ function olvSummarizeSales(rows) {
   };
 }
 
+// نسبة العمالة % و Prime cost % (تكلفة المواد + العمالة) من المبيعات. الهدف بالمطاعم: العمالة ~25-35%، والـ prime cost ≤ 60-65%.
+// labor = مصروفات «رواتب وأجور» المدفوعة بالفترة. بدون مبيعات بترجع null.
+function olvPrimeCost({ sales, cogs, labor }) {
+  const s = Number(sales) || 0;
+  if (s <= 0) return { laborPct: null, primePct: null, prime: (Number(cogs) || 0) + (Number(labor) || 0) };
+  const prime = (Number(cogs) || 0) + (Number(labor) || 0);
+  return { laborPct: ((Number(labor) || 0) / s) * 100, primePct: (prime / s) * 100, prime };
+}
+
 // «صافي اليوم» = المبيعات − المصروفات المنحسبة (الذمم بس لما تنسدّد، شوف olvCombineExpensesPaid)
 function olvDayNet(totalSales, totalExpenses) {
   return totalSales - totalExpenses;
