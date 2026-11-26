@@ -163,31 +163,28 @@ async function olvExpensesPaid(db, select, from, to) {
   const cols = select + ", id, expense_date, settled_at";
   const nextDay = new Date(new Date(to + "T00:00:00Z").getTime() + 864e5).toISOString().slice(0, 10);
   const [cashR, settledR] = await Promise.all([
-    db.from("expenses").select(cols).eq("payment_type", "cash").is("settled_at", null).gte("expense_date", from).lte("expense_date", to),
-    db.from("expenses").select(cols).not("settled_at", "is", null).gte("settled_at", from + "T00:00:00Z").lt("settled_at", nextDay + "T00:00:00Z"),
+    olvFetchAll(() => db.from("expenses").select(cols).eq("payment_type", "cash").is("settled_at", null).gte("expense_date", from).lte("expense_date", to).order("id")),
+    olvFetchAll(() => db.from("expenses").select(cols).not("settled_at", "is", null).gte("settled_at", from + "T00:00:00Z").lt("settled_at", nextDay + "T00:00:00Z").order("id")),
   ]);
   const error = cashR.error || settledR.error;
   if (error) return { data: null, error };
-  const settled = (settledR.data || []).map((r) => ({ ...r, expense_date: String(r.settled_at).slice(0, 10) }));
   const cash = cashR.data || [];
-  const extra = [];
-  // الذمة ما بتنحسب يوم الفاتورة، بتنحسب يوم ما اندفعت:
+  // الذمة ما بتنحسب يوم الفاتورة، بتنحسب يوم ما اندفعت (الحساب بـ olvCombineExpensesPaid بملف finance-calc.js):
   // 1) فاتورة آجلة/جزئية: بتنحسب بتاريخها بس اللي اندفع عند الفاتورة (paid_amount)
   // 2) دفعات المورّد اللاحقة (من صفحة الموردين أو زر «سدّد») بتنحسب بتاريخ الدفعة
   // لو الاستعلام فشل (مثلًا صلاحيات) منكمل بدون تعديل.
+  let invoices = [], payments = [];
   try {
     const ids = cash.map((r) => r.id);
-    const paidAt = {};
     for (let i = 0; i < ids.length; i += 150) {
-      const inv = await db.from("purchase_invoices").select("expense_id, status, payment_type, paid_amount").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash");
-      (inv.data || []).forEach((x) => { paidAt[x.expense_id] = x.status === "voided" ? null : Number(x.paid_amount) || 0; });
+      const inv = await db.from("purchase_invoices").select("expense_id, status, payment_type, paid_amount").in("expense_id", ids.slice(i, i + 150)).neq("payment_type", "cash").limit(150);
+      invoices.push(...(inv.data || []));
     }
-    cash.forEach((r) => { if (r.id in paidAt && paidAt[r.id] !== null) r.amount = Math.min(Number(r.amount), paidAt[r.id]); });
-    const pay = await db.from("supplier_transactions").select("id, amount, transaction_date, description")
-      .eq("type", "payment").is("invoice_id", null).gte("transaction_date", from).lte("transaction_date", to);
-    (pay.data || []).forEach((x) => extra.push({ id: "sp-" + x.id, amount: Number(x.amount), expense_date: x.transaction_date, description: x.description || "دفعة مورّد", expense_categories: { name: "مشتريات ومخزون" } }));
-  } catch (e) { /* بدون تعديل */ }
-  return { data: [...cash, ...settled, ...extra], error: null };
+    const pay = await olvFetchAll(() => db.from("supplier_transactions").select("id, amount, transaction_date, description")
+      .eq("type", "payment").is("invoice_id", null).gte("transaction_date", from).lte("transaction_date", to).order("id"));
+    payments = pay.data || [];
+  } catch (e) { invoices = []; payments = []; /* بدون تعديل */ }
+  return { data: olvCombineExpensesPaid({ cash, settled: settledR.data, invoices, payments }), error: null };
 }
 
 // موافقة المدير برمز: لو عملية الكاشير انرفضت لأنها تحتاج مدير (إلغاء بعد المهلة أو خصم فوق حدّه)،

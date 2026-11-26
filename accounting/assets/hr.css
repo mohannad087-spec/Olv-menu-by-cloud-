@@ -1,0 +1,141 @@
+/* الموارد البشرية (الإنذارات والخصومات والمكافآت + ملف الموظف). القواعد بـdesign-system/olv/pages/hr.md
+   ألوان الأنواع من طبقة الحياة: شفهي أزرق، خطي برتقالي، نهائي أحمر، خصم وردي، مكافأة تيل. */
+.hr-wrap{max-width:var(--page-max);}
+.hr-head{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+.hr-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+.hr-head .sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+.hr-head .acts{display:flex; gap:8px; flex-wrap:wrap;}
+.hr-head .btn{min-height:44px; display:inline-flex; align-items:center; gap:7px; text-decoration:none;}
+.hr-stats{grid-template-columns:repeat(4,1fr); margin-bottom:14px;}
+@media (max-width:900px){ .hr-stats{grid-template-columns:repeat(2,1fr);} }
+@media (max-width:640px){ .hr-stats .stat .stat-icon{display:none;} }
+.hr-sec{font-size:13.5px; font-weight:800; color:var(--muted); margin:18px 0 8px; display:flex; align-items:center; gap:8px;}
+.hr-sec .n{font-weight:500;}
+.hr-empty{padding:22px 8px; text-align:center; color:var(--muted);}
+
+/* وسم النوع */
+.hr-tag{--c:var(--life-1); display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:2px 11px; font-size:12px; font-weight:700;
+  background:color-mix(in srgb,var(--c) 15%,transparent); color:var(--c);}
+.hr-tag.verbal{--c:var(--life-2);} .hr-tag.written{--c:var(--life-4);} .hr-tag.final{--c:var(--danger-hi);}
+.hr-tag.deduction{--c:var(--life-3);} .hr-tag.bonus{--c:var(--life-6);} .hr-tag.advance{--c:var(--life-5);} .hr-tag.adj{--c:var(--life-1);}
+.hr-tag.cancelled{--c:var(--muted);}
+
+/* اقتراحات */
+.hr-sug{list-style:none; margin:0; padding:0; display:grid; gap:8px;}
+.hr-sug li{display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-radius:16px; padding:12px 14px; background:var(--ink-3);
+  border-inline-start:4px solid var(--life-4);}
+.hr-sug li.esc{border-inline-start-color:var(--danger-hi);}
+.hr-sug .t{flex:1; min-width:200px;}
+.hr-sug .t b{display:block; font-size:14.5px; font-weight:800;}
+.hr-sug .t small{display:block; color:var(--muted); font-size:12.5px; margin-top:2px; line-height:1.6;}
+.hr-sug .btn{min-height:44px;}
+
+/* بطاقات الموظفين */
+.hr-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:12px;}
+.hr-card{display:flex; flex-direction:column; gap:10px; border-radius:18px; background:var(--ink-3); padding:14px; text-decoration:none; color:inherit; min-width:0;
+  transition:transform .18s var(--spring), box-shadow .18s var(--spring);}
+.hr-card:hover{transform:translateY(-2px);}
+.hr-card:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+.hr-card .ctop{display:flex; align-items:center; gap:12px;}
+.hr-card .t{flex:1; min-width:0;}
+.hr-card .t b{display:block; font-size:15.5px; font-weight:800; overflow-wrap:anywhere;}
+.hr-card .t small{color:var(--muted); font-size:12.5px;}
+.hr-av{width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:17px; background:var(--ink-2); color:var(--muted); flex:none;}
+.hr-av.has-photo{background-size:cover; background-position:center; color:transparent;}
+.hr-card .nums{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;}
+.hr-card .nums div{background:var(--ink-2); border-radius:12px; padding:8px 10px; min-width:0;}
+.hr-card .nums span{display:block; font-size:11.5px; color:var(--muted);}
+.hr-card .nums b{display:block; font-size:15px; font-weight:800; margin-top:2px; font-variant-numeric:tabular-nums;}
+.hr-card.hot{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--danger-hi) 55%,transparent);}
+.hr-warn-pill{display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:800; background:color-mix(in srgb,var(--danger-hi) 16%,transparent); color:var(--danger-hi);}
+
+/* الخط الزمني */
+.hr-chips{display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px;}
+.hr-chip{min-height:44px; padding:0 16px; border-radius:999px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px; transition:background .15s var(--ease), transform .08s var(--ease);}
+.hr-chip[aria-pressed="true"], .hr-chip[aria-checked="true"]{background:var(--gold); border-color:var(--gold); color:var(--on-gold); font-weight:700;}
+.hr-chip:active{transform:scale(.97);}
+.hr-chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+.hr-tl{list-style:none; margin:0; padding:0; display:grid; gap:10px; position:relative;}
+.hr-tl li{border-radius:16px; background:var(--ink-3); padding:12px 14px; display:grid; gap:6px; min-width:0;}
+.hr-tl li.off{opacity:.62;}
+.hr-tl .row1{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.hr-tl .row1 .d{margin-inline-start:auto; color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+.hr-tl .why{font-size:14.5px; line-height:1.7; overflow-wrap:anywhere;}
+.hr-tl .amt{font-weight:800; font-variant-numeric:tabular-nums;}
+.hr-tl .amt.neg{color:var(--danger-hi);} .hr-tl .amt.pos{color:var(--life-6);}
+.hr-tl .meta{color:var(--muted); font-size:12.5px; line-height:1.7;}
+.hr-tl .acts{display:flex; gap:6px; flex-wrap:wrap;}
+.hr-tl .acts .btn{min-height:44px; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:13px;}
+.hr-aud{margin:4px 0 0; padding:8px 12px; border-radius:12px; background:var(--ink-2); font-size:12.5px; color:var(--muted); line-height:1.8;}
+.hr-aud div{display:block;}
+
+.hr-esc{display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-radius:16px; padding:12px 14px; margin-bottom:14px; font-size:14px; line-height:1.7;
+  background:color-mix(in srgb,var(--danger-hi) 12%,var(--ink-3)); border:1px solid color-mix(in srgb,var(--danger-hi) 40%,transparent);}
+.hr-esc b{font-weight:800;}
+.hr-esc .btn{min-height:44px;}
+.hr-prof{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:4px 0 14px;}
+.hr-prof .hr-av{width:64px; height:64px; font-size:24px;}
+.hr-prof h1{margin:0; font-size:clamp(22px,4vw,30px); font-weight:800;}
+.hr-prof .sub{color:var(--muted); font-size:13.5px; margin-top:3px;}
+.hr-back{display:inline-flex; align-items:center; gap:6px; color:var(--muted); text-decoration:none; font-size:13.5px; min-height:44px;}
+
+/* نافذة التسجيل */
+dialog.hr-dlg{border:1px solid var(--hair); border-radius:22px; background:var(--ink-2); color:var(--paper); padding:0; width:min(560px,calc(100vw - 24px)); max-height:92vh; overflow:hidden; font-family:inherit;}
+dialog.hr-dlg::backdrop{background:rgba(20,18,40,.55); backdrop-filter:blur(4px);}
+dialog.hr-dlg form{display:flex; flex-direction:column; max-height:92vh;}
+.hr-dlg .dh{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 18px 8px;}
+.hr-dlg .dh h2{margin:0; font-size:18px;}
+.hr-dlg .db{padding:6px 18px 10px; overflow-y:auto; min-height:0;}
+.hr-dlg .df{display:flex; gap:10px; padding:12px 18px 16px; border-top:1px solid var(--hair-soft,var(--hair));}
+.hr-dlg .df .btn{min-height:48px; flex:1; justify-content:center;}
+.hr-dlg .lbl{display:block; font-size:12px; color:var(--muted); margin:10px 0 6px;}
+.hr-dlg .chips{display:flex; flex-wrap:wrap; gap:8px;}
+.hr-dlg .chips .hr-chip{min-height:44px;}
+.hr-dlg input,.hr-dlg select,.hr-dlg textarea{width:100%; min-height:46px; border:1px solid var(--hair); border-radius:12px; padding:8px 12px; font:inherit; background:var(--ink-3); color:inherit;}
+.hr-dlg textarea{min-height:76px; resize:vertical;}
+.hr-dlg .g2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.hr-dlg .g3{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px;}
+@media (max-width:520px){ .hr-dlg .g3{grid-template-columns:1fr 1fr;} .hr-dlg .g2{grid-template-columns:1fr;} }
+.hr-dlg .hint{font-size:12.5px; color:var(--muted); line-height:1.7; margin-top:8px;}
+.hr-dlg .total{margin-top:10px; padding:10px 12px; border-radius:12px; background:var(--ink-3); font-weight:800; display:flex; justify-content:space-between; font-variant-numeric:tabular-nums;}
+.hr-dlg .derr{color:var(--danger-hi); font-size:13px; margin-top:8px; min-height:1em;}
+@media (prefers-reduced-motion: reduce){ .hr-card,.hr-chip{transition:none;} .hr-card:hover,.hr-chip:active{transform:none;} }
+
+/* تنبيه الرئيسية */
+.hr-home-alert{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 16px; border-radius:18px; text-decoration:none; color:var(--paper);
+  background:color-mix(in srgb,var(--danger-hi) 12%,var(--ink-3)); border:1px solid color-mix(in srgb,var(--danger-hi) 40%,transparent);}
+.hr-home-alert .icon{width:22px; height:22px; color:var(--danger-hi); flex:none;}
+.hr-home-alert b{font-weight:800;}
+.hr-home-alert span{font-size:14px; line-height:1.7;}
+
+/* بصمات الدوام كدليل: جدول الدوام المجدول مقابل البصمة الفعلية */
+.hr-ev{border-radius:14px; background:var(--ink-3); overflow:hidden; font-size:13.5px; margin-top:8px;}
+.hr-ev-h,.hr-ev-r{display:grid; grid-template-columns:1.5fr 1fr 1.2fr 1fr; gap:6px; padding:8px 12px; align-items:center;}
+.hr-ev-h{color:var(--muted); font-weight:800; font-size:12.5px; border-bottom:1px solid var(--hair-soft);}
+.hr-ev-r{border-top:1px solid var(--hair-soft); font-variant-numeric:tabular-nums;}
+.hr-ev-r:first-of-type{border-top:0;}
+.hr-ev-r span:last-child{font-weight:800;}
+.hr-ev-r.late{background:color-mix(in srgb,var(--life-4) 10%,transparent);} .hr-ev-r.late span:last-child{color:var(--life-4);}
+.hr-ev-r.abs{background:color-mix(in srgb,var(--danger-hi) 10%,transparent);} .hr-ev-r.abs span:last-child{color:var(--danger-hi);}
+.hr-ev-t{padding:8px 12px; border-top:1px solid var(--hair-soft); color:var(--muted);}
+.hr-evwrap{flex:0 0 100%; order:3; margin-top:6px;}
+.hr-evwrap summary{cursor:pointer; font-weight:800; font-size:13px; color:var(--muted); padding:4px 0;}
+.hr-sug li .t{order:1;} .hr-sug li .btn{order:2;}
+.hr-ev.att{max-height:420px; overflow:auto;}
+.hr-attsum{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+.hr-attsum span{background:var(--ink-3); border-radius:999px; padding:5px 14px; font-size:13.5px;}
+.hr-attsum span.bad{color:var(--danger-hi); background:color-mix(in srgb,var(--danger-hi) 10%,transparent);}
+@media (max-width:520px){ .hr-ev-h,.hr-ev-r{grid-template-columns:1.4fr .8fr 1.3fr 1fr; padding:8px 8px; font-size:12.5px;} }
+
+/* اختيار أيام البصمة بنافذة التسجيل */
+.hr-evpick{display:grid; gap:4px; max-height:190px; overflow:auto; border-radius:12px; background:var(--ink-3); padding:6px;}
+.hr-evpick label{display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; cursor:pointer; min-height:40px;}
+.hr-evpick label small{color:var(--muted); margin-inline-start:auto; font-size:12.5px;}
+.hr-evpick input{width:18px; height:18px;}
+
+/* معاينة إشعار OLV */
+.hr-ntdlg{max-width:min(720px,96vw);}
+.hr-ntprev{display:grid; place-items:center; min-height:200px;}
+.hr-ntprev img{width:100%; max-width:640px; height:auto; border-radius:14px; box-shadow:0 8px 28px rgb(0 0 0 / .18);}
+.hr-ntacts{flex-wrap:wrap;}

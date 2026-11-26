@@ -267,6 +267,16 @@ function olvIcon(name, cls) {
 // أقسام بتجمع أكتر من صفحة تحت رابط واحد بالقائمة، وبتطلع كتبويبات بأعلى كل صفحة منها
 const OLV_HUBS = [
   {
+    // الموارد البشرية (2026-11-23): الموظفين + الإنذارات والمكافآت + الحضور + الرواتب والسلف. adminOnly = ما بيظهر للكاشير
+    navId: "employees",
+    tabs: [
+      { id: "employees", href: "employees.html", label: "الموظفون", icon: "person", adminOnly: true },
+      { id: "hr", href: "hr.html", label: "الإنذارات والمكافآت", short: "الإنذارات", icon: "warning", adminOnly: true },
+      { id: "attendance", href: "attendance.html", label: "الحضور", icon: "clock" },
+      { id: "payroll", href: "payroll.html", label: "الرواتب والسلف", short: "الرواتب", icon: "banknote", adminOnly: true },
+    ],
+  },
+  {
     navId: "settings",
     tabs: [
       { id: "settings", href: "settings.html", label: "الإعدادات", icon: "gear" },
@@ -307,8 +317,11 @@ const OLV_HUBS = [
   {
     navId: "purchase-invoices",
     tabs: [
-      { id: "purchase-orders", href: "purchase-orders.html", label: "تجهيز طلبية", icon: "clipboard" },
       { id: "purchase-invoices", href: "purchase-invoices.html", label: "فواتير المشتريات", icon: "receipt" },
+      { id: "purchase-orders", href: "purchase-orders.html", label: "تجهيز طلبية", icon: "clipboard" },
+      { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
+      { id: "price-history", href: "price-history.html", label: "سجل الأسعار", icon: "barChart" },
+      { id: "supplier-report", href: "supplier-report.html", label: "تقرير الموردين", icon: "clipboard" },
     ],
   },
 ];
@@ -335,9 +348,7 @@ function olvRenderNav(active) {
       label: "الجرد والمشتريات", icon: "box", hue: 1,
       links: [
         { id: "inventory", href: "inventory.html", label: "المخزون والجرد", icon: "box" },
-        { id: "purchase-invoices", href: "purchase-invoices.html", label: "المشتريات", icon: "receipt" },
-        { id: "purchase-orders", href: "purchase-orders.html", label: "تجهيز طلبية", icon: "clipboard" },
-        { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
+        { id: "purchase-invoices", href: "purchase-invoices.html", label: "المشتريات والموردون", icon: "receipt" },
         { id: "item-cards", href: "item-cards.html", label: "بطاقة المادة", icon: "tag" },
         { id: "product-recipes", href: "product-recipes.html", label: "الأصناف والوصفات", icon: "coffee", staffHref: "recipes.html", staffLabel: "دليل تحضير المشروبات" },
       ],
@@ -354,9 +365,10 @@ function olvRenderNav(active) {
       ],
     },
     {
-      label: "الموظفون", icon: "people", hue: 5,
+      label: "الموارد البشرية", icon: "people", hue: 5,
       links: [
         { id: "employees", href: "employees.html", label: "الموظفون", icon: "person" },
+        { id: "hr", href: "hr.html", label: "الإنذارات والمكافآت", icon: "warning" },
         { id: "attendance", href: "attendance.html", label: "الحضور", icon: "clock" },
         { id: "payroll", href: "payroll.html", label: "الرواتب", icon: "banknote" },
         { id: "staff-meals", href: "staff-meals.html", label: "وجبات الموظفين", icon: "dish" },
@@ -383,7 +395,7 @@ function olvRenderNav(active) {
   // شريط تبويبات القسم (مثلًا: المواد الخام | المستلزمات | الجرد) تحت القائمة
   const hubHtml = hub
     ? `<nav class="olv-hub-tabs" aria-label="أقسام">${hub.tabs.map((t) =>
-        `<a class="olv-hub-tab${t.id === active ? " on" : ""}" href="${t.href}"${t.id === active ? ' aria-current="page"' : ""}>${olvIcon(t.icon)}<span>${t.label}</span></a>`).join("")}</nav>`
+        `<a class="olv-hub-tab${t.id === active ? " on" : ""}" href="${t.href}"${t.adminOnly ? " data-staff-hide" : ""}${t.id === active ? ' aria-current="page"' : ""}>${olvIcon(t.icon)}<span>${t.label}</span></a>`).join("")}</nav>`
     : "";
 
   const nav = document.getElementById("olv-nav");

@@ -401,6 +401,7 @@
   <script defer src="assets/offline-queue.js"></script>
   <script defer src="assets/shift-utils.js"></script>
   <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/finance-calc.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/notify-sound.js"></script>
@@ -418,11 +419,12 @@
     const MONTHS = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
     const HIST_STEP = 20;
     // أجر يوم العطلة الأسبوعي المدفوع (لكل أسبوع خلص): الراتب = ساعات × أجر الساعة + هالمبلغ × عدد الأسابيع − هالمبلغ × أيام الإجازة الزيادة
-    const FIXED_BONUS = 10;
+    const FIXED_BONUS = OLV_WEEKLY_BONUS;
     let myRole = null;
     let canManage = false;
     let profilesById = new Map();
     const paySrcById = new Map(); // profileId -> drawer | cash | bank (من وين بدفع الراتب)
+    const reconApply = new Set(); // موظفين طبّق المالك تصحيح ساعاتهم (بالصفحة بس، بيتصفّر بعد دفعهم)
     let capSupported = false; // هل عمود max_daily_hours موجود بالقاعدة
     const capOf = (id) => { const p = profilesById.get(id); return p && p.max_daily_hours != null ? Number(p.max_daily_hours) : null; };
     let employees = [];
@@ -629,7 +631,7 @@
       ledger = new Map();
       (data || []).forEach((p) => {
         if (ledger.has(p.profile_id)) return;
-        const carry = Math.round((Number(p.gross_amount) - Number(p.advances_deducted) - Number(p.net_amount)) * 100) / 100;
+        const carry = olvPayrollCarry(p);
         ledger.set(p.profile_id, { lastEnd: fmtDate(p.period_end), lastStart: fmtDate(p.period_start), lastHours: Number(p.hours_worked) || 0, carry });
       });
     }
@@ -654,6 +656,8 @@
         if (sh.ignored) { if (!ignoredDays.has(sh.profile_id)) ignoredDays.set(sh.profile_id, new Set()); ignoredDays.get(sh.profile_id).add(sh.work_date); }
       });
     }
+
+    const allDayRowsBy = (id) => allDayRows.filter((d) => d.profile_id === id).map((d) => ({ date: d.work_date, hours: d.hours, status: d.status }));
 
     async function runCompute() {
       if (!canManage) return;
@@ -697,9 +701,10 @@
             const h0 = (hoursByStart.get(from) || new Map()).get(profileId) || { hours: 0, openCount: 0 };
             // حد أقصى لساعات اليوم (اختياري لكل موظف): الساعات فوق الحد بتضل ظاهرة بس ما بتنحسب مصاري
             const cap = capOf(profileId);
-            let capCut = 0;
-            if (cap) (dayRows || []).forEach((d) => { if (d.profile_id === profileId && d.status === "ok" && fmtDate(d.work_date) >= from && Number(d.hours) > cap) capCut += Number(d.hours) - cap; });
-            const h = { ...h0, hours: Math.max(0, h0.hours - capCut) };
+            const capDays = cap ? (dayRows || []).filter((d) => d.profile_id === profileId && d.status === "ok" && fmtDate(d.work_date) >= from).map((d) => Number(d.hours)) : [];
+            const cappedHours = olvCappedHours(h0.hours, capDays, cap);
+            const capCut = olvCapCut(capDays, cap);
+            const h = { ...h0, hours: cappedHours };
             const prof = profilesById.get(profileId);
             const hourlyWage = prof && prof.hourly_wage != null ? Number(prof.hourly_wage) : null;
             // المكافأة الأسبوعية = يوم العطلة المدفوع: 10 دنانير عن كل أسبوع خلص (جمعة) بالفترة. يوم الغياب ما بينخصم منه شي
@@ -707,21 +712,19 @@
             // الأسبوع الأول بيبدأ من أول يوم دوام للموظف
             const days = attended.get(profileId) || new Set();
             const firstWork = days.size ? [...days].sort()[0] : null;
-            const spanFrom = firstWork && firstWork > from ? firstWork : from;
-            const spanTo = range.to;
-            let weeks = 0;
-            if (firstWork && spanFrom <= spanTo) {
-              for (let f = spanFrom; f <= spanTo; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
-            }
-            const bonus = h.hours > 0 ? FIXED_BONUS * weeks : 0;
+            const weeks = olvBonusWeeks(from, range.to, firstWork);
             const adjTotal = adjTotalFor(profileId);
-            const earned = (hourlyWage != null ? h.hours * hourlyWage : 0) + bonus + adjTotal;
             const carry = ledger.has(profileId) ? ledger.get(profileId).carry : 0;
             const advancesTotal = advancesTotalFor(profileId);
+            // تصحيح تلقائي: بصمات اتغيّرت بعد دفع فترات سابقة (فرق الساعات بيضاف/بينخصم بدون تسوية يدوية)
+            const recon = olvReconcileHours({ pays: paidRows(profileId), days: allDayRowsBy(profileId), cap });
+            // قرار المالك (2026-11-24): الفرق ما بينخصم/بينضاف لحاله. بيطلع تنبيه، والمالك بيطبّق التصحيح أو بيتجاهله لكل موظف
+            const reconApplied = reconApply.has(profileId);
+            const { bonus, reconAmt, earned, net } = olvPayrollRow({ hours: h.hours, hourlyWage, weeks, adjTotal, carry, advancesTotal, reconHours: reconApplied ? recon.hours : 0 });
             const advanceIds = unsettledAdvances.filter((a) => a.profile_id === profileId).map((a) => a.id);
-            return { profileId, from, weeks, cap, capCut, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net: earned + carry - advancesTotal };
+            return { profileId, from, weeks, cap, capCut, reconH: reconApplied ? recon.hours : 0, reconDet: recon.hours, reconDetAmt: olvRound2(recon.hours * (hourlyWage || 0)), reconAmt, reconFrom: recon.from, reconTo: recon.to, advanceIds, adjIds: adjFor(profileId).map((a) => a.id), adjTotal, hours: h.hours, openCount: h.openCount, hourlyWage, bonus, earned, carry, advancesTotal, net };
           })
-          .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
+          .filter((r) => history.some((p) => p.profile_id === r.profileId) || r.hours > 0 || Math.abs(r.reconDet) >= 0.02 || r.advancesTotal > 0 || Math.abs(r.adjTotal) >= 0.005 || Math.abs(r.carry) >= 0.005)
           .sort((a, b) => empName(a.profileId).localeCompare(empName(b.profileId), "ar"));
         // حضور آخر 31 يوم لملف كل موظف (إذا فشل ما بنوقف الصفحة)
         try { await loadPunchDays(previewRows.map((x) => x.profileId), addDays(range.to, -48), range.to); } catch (e) { punchDays = new Map(); }
@@ -870,6 +873,8 @@
     const isBonusAdj = (a) => /مكافأة|إجازة/.test(a.note || "");
     const payBonus = (p) => { if (p.bonus_amount != null) return Number(p.bonus_amount) || 0; const m = /مكافأة\s*([\d.]+)/.exec(p.note || ""); return m ? Number(m[1]) : 0; };
     const r2 = (v) => Math.round(v * 100) / 100;
+    // ساعات تصحيح تجاهلها المالك (ملاحظة الدفعة «تجاهل تصحيح ساعات X»): محسوبة بالساعات المسجلة بس ما انحسبت مصاري
+    const ignoredRecon = (p) => { const m = /تجاهل تصحيح ساعات\s*(-?[\d.]+)/.exec(p.note || ""); return m ? Number(m[1]) : 0; };
     const sumAmt = (l) => l.reduce((t, a) => t + Number(a.amount || 0), 0);
     // بنعيد تمشية الدفعات من الأول: كل دفعة بتزيد رصيد الساعات ورصيد المكافآت كل واحد لحاله،
     // والمبلغ المدفوع (مع السلف) بيسدد الساعات أول، وبعدها المكافآت، وأي زيادة بتنحسب «مدفوع زيادة».
@@ -878,7 +883,7 @@
       let h = 0, b = 0, pre = 0;
       paidRows(r.profileId).forEach((p) => {
         const adjs = allAdj.filter((a) => a.settled_payroll_id === p.id);
-        h += Number(p.hours_worked || 0) * Number(p.hourly_wage || 0) + sumAmt(adjs.filter((a) => !isBonusAdj(a)));
+        h += (Number(p.hours_worked || 0) - ignoredRecon(p)) * Number(p.hourly_wage || 0) + sumAmt(adjs.filter((a) => !isBonusAdj(a)));
         b += payBonus(p) + sumAmt(adjs.filter(isBonusAdj));
         let avail = Number(p.net_amount || 0) + Number(p.advances_deducted || 0) + pre;
         if (h < 0) { avail += -h; h = 0; }
@@ -891,9 +896,9 @@
       const diff = r.carry - (h + b - pre);
       if (Math.abs(diff) > 0.005) { h += diff; if (h < 0) { pre += -h; h = 0; } }
       const open = adjFor(r.profileId), hAdj = open.filter((a) => !isBonusAdj(a)), bAdj = open.filter(isBonusAdj);
-      const hoursMoney = r.hourlyWage != null ? r.hours * r.hourlyWage : 0;
-      const hTotal = r2(hoursMoney + h + sumAmt(hAdj)), bTotal = r2(r.bonus + b + sumAmt(bAdj));
-      return { hPrev: r2(h), bPrev: r2(b), pre: r2(pre), hAdj, bAdj, hoursMoney, hTotal, bTotal, ded: r2(pre + r.advancesTotal) };
+      const hoursMoney = r.hourlyWage != null ? r2(r.hours * r.hourlyWage) : 0, reconMoney = r.reconAmt || 0;
+      const hTotal = r2(hoursMoney + reconMoney + h + sumAmt(hAdj)), bTotal = r2(r.bonus + b + sumAmt(bAdj));
+      return { hPrev: r2(h), bPrev: r2(b), pre: r2(pre), hAdj, bAdj, hoursMoney, reconMoney, hTotal, bTotal, ded: r2(pre + r.advancesTotal) };
     }
     // مجموع مكافآت الموظف المحسوبة له لحد هلأ (بالدفعات + تسويات المكافأة)
     const bonusCredited = (id) => paidRows(id).reduce((t, p) => t + payBonus(p), 0) + sumAmt(allAdj.filter((a) => a.profile_id === id && isBonusAdj(a)));
@@ -907,7 +912,7 @@
       new Set(history.map((p) => p.profile_id)).forEach((id) => {
         const pays = paidRows(id), days = byEmp.get(id) || [], cap = capOf(id);
         pays.forEach((p, i) => {
-          if (fmtDate(p.paid_at) < HEALTH_FROM) return;
+          if (fmtDate(p.paid_at) < HEALTH_FROM || fmtDate(p.paid_at) >= OLV_RECON_FROM) return; // من OLV_RECON_FROM وطالع بتتصحح تلقائياً بكشف الدفعة الجاية
           const from = i ? addDays(fmtDate(pays[i - 1].period_end), 1) : fmtDate(p.period_start), to = fmtDate(p.period_end);
           const actual = days.reduce((t, d) => { const wd = fmtDate(d.work_date), h = Number(d.hours) || 0; return d.status === "ok" && wd >= from && wd <= to ? t + (cap && h > cap ? cap : h) : t; }, 0);
           const diff = Math.round((actual - Number(p.hours_worked || 0)) * 100) / 100;
@@ -955,6 +960,7 @@
       if (ig.length) w.push(`بصمات متقاربة بدون خروج يوم ${ig.map(shortDate).join("، ")}: النظام أهملها وما حسب ساعاتها. إذا داوم فعلاً، صحّحها من الحضور قبل الدفع.`);
       if (r.capCut > 0.005) w.push(`حد أقصى ${r.cap} ساعة باليوم: ${fmtHrs(r.capCut)} ساعة فوق الحد ما انحسبت.`);
       if (r.hourlyWage != null && r.hours <= 0) w.push("ما في ساعات دوام بهالفترة.");
+      if (Math.abs(r.reconDet) >= 0.02 && !r.reconH) w.push(`تصحيح ساعات ${fmtHrs(Math.abs(r.reconDet))} (دفعات سابقة) غير مطبّق: بيتسجّل «تجاهل» وما بتنحسب مصاري.`);
       if (r.carry < -0.005) w.push(`مدفوع له زيادة ${olvFormatMoney(-r.carry)} من دفعة سابقة (انخصم من هالدفعة).`);
       if (r.carry > 0.005) w.push(`باقي له ${olvFormatMoney(r.carry)} من دفعة سابقة (انضاف لهالدفعة).`);
       if (r.payAmount != null && Math.abs(r.payAmount - r.net) >= 0.005) w.push(`المبلغ اللي بدفعه ${olvFormatMoney(r.payAmount)} غير الصافي ${olvFormatMoney(r.net)}، والفرق بينتقل للدفعة الجاية.`);
@@ -998,6 +1004,8 @@
               return `
             <div class="sec"><h5>${olvIcon("clock")} ساعات العمل</h5>
               <div class="ln"><span>ساعات هالفترة<small>${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${r.capCut > 0.005 ? ` · ${fmtHrs(r.capCut)} ساعة فوق الحد (${r.cap}) ما انحسبت` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)}`}</small></span><b>${olvFormatMoney(sp.hoursMoney)}</b></div>
+              ${Math.abs(r.reconDet) >= 0.02 ? `<div class="pay-warn">${olvIcon("warning")}<span><b>تنبيه: ساعات دفعات سابقة تغيّرت بعد الدفع</b><br>${r.reconDet > 0 ? "انضافت" : "انحذفت أو اتعدّلت"} بصمات عن ${shortDate(r.reconFrom)} لـ ${shortDate(r.reconTo)}: ${r.reconDet > 0 ? "له" : "عليه"} ${fmtHrs(Math.abs(r.reconDet))} ساعة = ${olvFormatMoney(Math.abs(r.reconDetAmt))}.<br><label><input type="checkbox" data-recon="${r.profileId}"${r.reconH ? " checked" : ""}> طبّق التصحيح على هالدفعة</label> <small>(إذا ما طبّقته بيتسجّل «تجاهل» وما بيرجع ينبّه)</small></span></div>` : ""}
+              ${Math.abs(r.reconH) >= 0.02 ? `<div class="ln${r.reconH < 0 ? " minus" : ""}"><span>تصحيح ساعات دفعات سابقة<small>${r.reconH > 0 ? "بصمة انضافت" : "بصمة انحذفت/اتعدّلت"} بعد الدفع: ${r.reconH > 0 ? "+" : "−"} ${fmtHrs(Math.abs(r.reconH))} ساعة (من ${shortDate(r.reconFrom)} لـ ${shortDate(r.reconTo)})</small></span><b>${r.reconH > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(sp.reconMoney))}</b></div>` : ""}
               ${sp.hPrev >= 0.005 ? `<div class="ln"><span>باقي ساعات من قبل<small>ساعات انحسبت وما اندفعت كلها</small></span><b>+ ${olvFormatMoney(sp.hPrev)}</b></div>` : ""}
               ${sp.hAdj.map(adjLn).join("")}
               <div class="ln sub"><span>مجموع الساعات</span><b>${olvFormatMoney(sp.hTotal)}</b></div>
@@ -1058,7 +1066,7 @@
         const row = previewRows.find((x) => x.profileId === inp.dataset.bonus);
         const v = Number(inp.value);
         if (!row || !Number.isFinite(v) || v < 0) { setTimeout(renderPreview, 0); return; }
-        row.earned += v - row.bonus; row.bonus = v; row.net = row.earned + row.carry - row.advancesTotal; row.payAmount = null;
+        row.earned = r2(row.earned + v - row.bonus); row.bonus = v; row.net = r2(row.earned + row.carry - row.advancesTotal); row.payAmount = null;
         setTimeout(renderPreview, 0); // بعد ما يخلص حدث blur، حتى ما نمسح الحقل وهو بعده بينتقل منه التركيز
       }));
       box.querySelectorAll("input[data-amount]").forEach((inp) => inp.addEventListener("change", () => {
@@ -1066,6 +1074,7 @@
         const v = Number(inp.value);
         if (row && Number.isFinite(v) && v >= 0) row.payAmount = v; else setTimeout(renderPreview, 0);
       }));
+      box.querySelectorAll("input[data-recon]").forEach((cb) => cb.addEventListener("change", () => { if (cb.checked) reconApply.add(cb.dataset.recon); else reconApply.delete(cb.dataset.recon); runCompute(); }));
       const allBtn = box.querySelector("#stmt-all");
       if (allBtn) allBtn.addEventListener("click", () => openAllStatements());
       box.querySelectorAll("input[data-wage]").forEach((inp) => inp.addEventListener("change", async () => {
@@ -1171,9 +1180,8 @@
       const firstReal = rows.find((x) => x.h === null || x.hp > 0);
       const firstWork = firstReal ? firstReal.day : null;
       const lastDone = addDays(olvWorkDay(new Date().toISOString()), -1), end = st.to > lastDone ? lastDone : st.to;
-      let weeks = 0;
-      if (firstWork) for (let f = firstWork > st.from ? firstWork : st.from; f <= end; f = addDays(f, 1)) if (parse(f).getDay() === 5) weeks++;
-      const bonus = hours > 0 ? FIXED_BONUS * weeks : 0;
+      const weeks = olvBonusWeeks(st.from, end, firstWork);
+      const bonus = olvWeeklyBonus(hours, weeks);
       return { hours, cut, ot, wage, weeks, bonus, amount: wage == null ? null : hours * wage + bonus, open: rows.filter((x) => x.h === null).length };
     }
     const datesBonusNote = (t) => t.bonus || t.weeks ? ` + مكافأة أسبوعية ${olvFormatMoney(t.bonus)} (${t.weeks} أسبوع)` : "";
@@ -1257,6 +1265,7 @@
       const sp = splitOf(r);
       const adjTxt = (a) => `${a.note || (Number(a.amount) > 0 ? "إضافة" : "خصم")}: ${Number(a.amount) > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(a.amount))}`;
       L.push("*١. ساعات العمل*", `ساعات هالفترة: ${fmtHrs(r.hours)} ساعة${r.ot ? ` (منها ${fmtHrs(r.ot)} إضافي)` : ""}${noWage ? "" : ` × ${olvFormatMoney(r.hourlyWage)} = ${olvFormatMoney(sp.hoursMoney)}`}`);
+      if (Math.abs(r.reconH) >= 0.02) L.push(`تصحيح ساعات دفعات سابقة (${r.reconH > 0 ? "+" : "−"} ${fmtHrs(Math.abs(r.reconH))} ساعة): ${r.reconH > 0 ? "+" : "−"} ${olvFormatMoney(Math.abs(sp.reconMoney))}`);
       if (sp.hPrev >= 0.005) L.push(`باقي ساعات من قبل: + ${olvFormatMoney(sp.hPrev)}`);
       sp.hAdj.forEach((a) => L.push(adjTxt(a)));
       L.push(`مجموع الساعات: ${olvFormatMoney(sp.hTotal)}`, "", "*٢. المكافآت*", `مكافأة هالفترة: ${r.weeks} أسبوع × ${FIXED_BONUS} = ${olvFormatMoney(r.bonus)}`);
@@ -1449,10 +1458,10 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
         const lastEnd = ledger.has(profileId) ? ledger.get(profileId).lastEnd : null;
         const pEnd = row.from > range.to && lastEnd ? lastEnd : range.to;
         const pStart = row.from > pEnd ? pEnd : row.from;
-        const payNote = [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null;
+        const payNote = [row.carry ? `مرحّل ${row.carry.toFixed(2)}` : "", row.bonus ? `مكافأة ${row.bonus.toFixed(2)}` : "", Math.abs(row.reconDet) >= 0.02 ? `${row.reconH ? "تصحيح" : "تجاهل تصحيح"} ساعات ${row.reconDet.toFixed(2)}` : "", Math.abs(row.adjTotal) >= 0.005 ? `إضافات ${row.adjTotal.toFixed(2)}` : "", Math.abs(diff) >= 0.005 ? `باقي ${diff.toFixed(2)}` : ""].filter(Boolean).join("، ") || null;
         // تسجيل الدفعة وتسكير الإضافات والسلف بعملية وحدة بالقاعدة (record_payroll_payment): إما كلها أو ولا شي، ومع فحص إنه ما انسجلت دفعة من جهاز ثاني
         const rpcArgs = {
-          p_id: paymentId, p_profile: profileId, p_start: pStart, p_end: pEnd, p_hours: row.hours, p_wage: row.hourlyWage || 0,
+          p_id: paymentId, p_profile: profileId, p_start: pStart, p_end: pEnd, p_hours: r2(row.hours + row.reconDet), p_wage: row.hourlyWage || 0,
           p_gross: totalOwed, p_advances: row.advancesTotal, p_net: pay, p_note: payNote,
           p_adj_ids: row.adjIds, p_advance_ids: row.advanceIds, p_expected_last_end: lastEnd,
         };
@@ -1472,7 +1481,7 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
           profile_id: profileId,
           period_start: pStart,
           period_end: pEnd,
-          hours_worked: row.hours,
+          hours_worked: r2(row.hours + row.reconDet),
           hourly_wage: row.hourlyWage || 0,
           gross_amount: totalOwed,
           advances_deducted: row.advancesTotal,
@@ -1494,6 +1503,7 @@ function onePdf(i){secs.forEach(function(s,j){s.classList.toggle("on",i===j)});d
         } else if (rpc.error) {
           throw rpc.error;
         }
+        reconApply.delete(profileId);
         await Promise.all([loadUnsettledAdvances(), loadHistory()]);
         await runCompute();
         olvToast("انسجل دفع الراتب", { type: "ok", icon: "check" });

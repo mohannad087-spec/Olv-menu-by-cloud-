@@ -13,11 +13,7 @@ const { buildReceiptTicket } = require("./ticket-receipt");
 const { buildCharcoalBuffer } = require("./charcoal");
 const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
 
-// فحص المهام الجديدة: استعلام واحد خفيف كل JOB_POLL_MS (كان ٥ استعلامات كل ٤ ثواني)، والباقي نادرًا بيتغيّر فبنجيبه أقل:
-// نبضة الحياة والمهام العالقة كل HEARTBEAT_MS، وإعدادات الطابعات كل SETTINGS_REFRESH_MS (تغيير IP أو إعداد بيوصل خلال دقيقة)
-const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_MS || 2000);
-const SETTINGS_REFRESH_MS = Number(process.env.SETTINGS_REFRESH_MS || 60000);
-const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 30000);
+const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 1500);
 // مهمة تحضير/إلغاء أقدم من هالمدة (مثلاً بعد انقطاع طويل) ما بتنطبع تلقائيًا —
 // بتنتظر قرار الكاشير من صفحة الإعدادات، بدل ما تنطبع طلبات قديمة دفعة وحدة
 const STALE_MINUTES = Number(process.env.STALE_MINUTES || 15);
@@ -157,9 +153,9 @@ async function processJob(job, settings, printers, saleCache) {
         ? buildLayoutSampleTicket(printer, settings, job.test_layout)
         : buildTestTicket(printer, target);
     } else {
+      // نخزّن الوعد (Promise) مش النتيجة: طابعات متوازية لنفس البيعة بتشارك طلب واحد
       if (!saleCache.has(job.sale_id)) {
-        // بنخزّن الوعد مش النتيجة: لو أكتر من طابعة بتطبع نفس البيع بنفس الوقت ما منجيبه مرتين
-        saleCache.set(job.sale_id, loadSaleWithItems(job.sale_id).catch((e) => { saleCache.delete(job.sale_id); throw e; }));
+        saleCache.set(job.sale_id, loadSaleWithItems(job.sale_id));
       }
       const sale = await saleCache.get(job.sale_id);
       if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
@@ -217,7 +213,7 @@ async function processJob(job, settings, printers, saleCache) {
     // بطاقة فحم لكل أرجيلة مع فاتورة البيع الحقيقية (مش تجريبي ولا إعادة طباعة)؛ فشلها ما بيفشّل الفاتورة
     if (job.job_type === "receipt" && !job.reprint_no && !job.bill_kind && !isTest && printer && printer.kind === "receipt") {
       try {
-        const sale = saleCache.has(job.sale_id) ? await saleCache.get(job.sale_id) : null; // الكاش بيخزّن وعد (Promise)
+        const sale = saleCache.has(job.sale_id) ? await saleCache.get(job.sale_id) : null;
         const cards = sale ? buildCharcoalBuffer(sale, settings) : null;
         if (cards) { await sendToPrinter(target.ip, target.port || 9100, cards, retryLog(label)); log(`✓ بطاقات فحم انطبعت على "${label}"`); }
       } catch (e) { log(`⚠ تعذّرت طباعة بطاقة الفحم على "${label}":`, e.message); }
@@ -246,43 +242,33 @@ async function localTick() {
   finally { setTimeout(localTick, LOCAL_POLL_MS); }
 }
 
-// إعدادات الطابعات بتنحمّل كل SETTINGS_REFRESH_MS (مش مع كل فحص) — تغيير IP أو إعداد بيوصل خلال دقيقة
-let cfg = null;
-let cfgLoadedAt = 0, lastHeartbeat = 0, lastRecover = 0;
-async function refreshConfig() {
-  const now = Date.now();
-  if (now - lastHeartbeat >= HEARTBEAT_MS) { lastHeartbeat = now; await sendHeartbeat(); }
-  if (now - lastRecover >= HEARTBEAT_MS) { lastRecover = now; await recoverStuckJobs(); }
-  if (!cfg || now - cfgLoadedAt >= SETTINGS_REFRESH_MS) {
-    const settings = await loadPrinterSettings();
-    const printers = await loadPrinters();
-    saveCache(settings, printers); // نسخة للطباعة بدون نت
-    cfg = { settings, printers };
-    cfgLoadedAt = now;
-  }
-  return cfg;
-}
+// تخفيف الطلبات على السحابة: الإعدادات والطابعات والنبضة والمهام العالقة نادرًا بتتغير،
+// فبنجيبها كل دقيقة/نص دقيقة بدل كل دورة (4 ثواني). فحص المهام الجديدة بيضل كل دورة.
+const SLOW_REFRESH_MS = Number(process.env.SETTINGS_REFRESH_MS || 60000);
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 30000);
+let cachedSettings = null, cachedPrinters = null, lastSlowRefresh = 0, lastHeartbeat = 0, lastRecover = 0;
 
-// كل طابعة إلها طابور لحالها: طابعة معطّلة أو بطيئة (مهلة اتصال) ما بتأخّر باقي الطابعات.
-// المهام بنفس الطابعة بتنطبع بالترتيب. بنفضّي المهمة من الدور بس لما الطابعة تخلص اللي بإيدها
+// كل طابعة إلها طابور لحالها وما بنستنى آخره: طابعة ما بتستجيب (إعادة محاولة ~10 ثواني) ما بتأخّر مهام الطابعات
+// التانية، لا بنفس الدورة ولا بالدورات الجاية. الطابعة المشغولة بتضل مهامها pending وبتنلقط لما تفضى.
+// نفس الطابعة بالترتيب، والطابعات المختلفة بالتوازي (كاش + بار + سناكات...)
 const busyPrinters = new Set();
-function dispatch(jobs, saleCache) {
-  const groups = new Map();
+function dispatch(jobs, settings, printers, saleCache) {
+  const byPrinter = new Map();
   for (const job of jobs) {
-    const key = job.printer_id || `legacy:${job.job_type}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(job);
+    const k = job.printer_id || `legacy-${job.job_type === "kitchen" ? "k" : "r"}`;
+    if (!byPrinter.has(k)) byPrinter.set(k, []);
+    byPrinter.get(k).push(job);
   }
-  for (const [key, list] of groups) {
-    if (busyPrinters.has(key)) continue;
-    busyPrinters.add(key);
+  for (const [k, list] of byPrinter) {
+    if (busyPrinters.has(k)) continue;
+    busyPrinters.add(k);
     (async () => {
       try {
-        for (const job of list) await processJob(job, cfg.settings, cfg.printers, saleCache);
+        for (const job of list) await processJob(job, settings, printers, saleCache);
       } catch (err) {
         log("خطأ أثناء معالجة طابور الطابعة:", err.message);
       } finally {
-        busyPrinters.delete(key);
+        busyPrinters.delete(k);
       }
     })();
   }
@@ -290,11 +276,20 @@ function dispatch(jobs, saleCache) {
 
 async function tick() {
   try {
-    await refreshConfig();
+    const now = Date.now();
+    if (now - lastHeartbeat >= HEARTBEAT_MS) { lastHeartbeat = now; await sendHeartbeat(); }
+    if (now - lastRecover >= HEARTBEAT_MS) { lastRecover = now; await recoverStuckJobs(); }
+    if (!cachedSettings || now - lastSlowRefresh >= SLOW_REFRESH_MS) {
+      cachedSettings = await loadPrinterSettings();
+      cachedPrinters = await loadPrinters();
+      lastSlowRefresh = now;
+      saveCache(cachedSettings, cachedPrinters); // نسخة للطباعة بدون نت
+    }
+    const settings = cachedSettings, printers = cachedPrinters;
     const { data: jobs, error } = await supabase
-      .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(40);
+      .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(20);
     if (error) throw error;
-    if (jobs && jobs.length) dispatch(jobs, new Map());
+    if (jobs && jobs.length) dispatch(jobs, settings, printers, new Map());
   } catch (err) {
     log("خطأ أثناء دورة فحص الطباعة:", err.message);
   } finally {

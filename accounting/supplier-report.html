@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>تقرير الموردين — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+
+  .sr-head{margin:4px 0 14px;}
+  .sr-head h1{font-size:clamp(24px,4vw,34px); font-weight:800; line-height:1.15; margin:0;}
+  .sr-sub{color:var(--muted); font-size:13.5px; margin-top:4px; line-height:1.6;}
+  .sr-bar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px;}
+  .sr-bar input[type=month]{min-height:44px; padding:0 12px; border-radius:12px; border:1px solid var(--hair); background:var(--ink-2); color:var(--paper); font:inherit;}
+  .sr-up{color:var(--danger-hi); font-weight:700;} .sr-down{color:var(--ok); font-weight:700;}
+  tr.sr-row{cursor:pointer;} tr.sr-row:hover td{background:var(--ink-3);}
+  .sr-det td{background:var(--ink-3); font-size:13px; line-height:1.9;}
+  .sr-det ul{margin:4px 0 8px; padding:0 18px;}
+  .sr-note{color:var(--muted); font-size:12.5px; line-height:1.6; margin:8px 0 0;}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#fbf9ff">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+</head>
+  <div id="olv-nav"></div>
+  <div class="wrap">
+    <div class="err" id="err"></div>
+    <header class="sr-head">
+      <h1>تقرير الموردين الشهري</h1>
+      <div class="sr-sub">كم اشتريت من كل مورد، شو دفعت، شو باقي عليك، وهل أسعاره غلت عن الشهر اللي قبله. للمالك والمدير بس.</div>
+    </header>
+    <div class="sr-bar">
+      <input type="month" id="sr-month" aria-label="الشهر">
+      <button class="btn" type="button" id="sr-copy">نسخ كنص (واتساب)</button>
+    </div>
+    <div class="stats" id="sr-stats"></div>
+    <section class="group">
+      <h2>الموردون</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>المورّد</th><th>فواتير</th><th>المشتريات</th><th>عن الشهر الماضي</th><th>دفعت بالشهر</th><th>الرصيد عليك</th><th>تغيّر الأسعار</th></tr></thead>
+        <tbody id="sr-body"><tr><td colspan="7">جاري التحميل...</td></tr></tbody>
+      </table></div>
+      <p class="sr-note">المشتريات = مجموع الفواتير الفعّالة بتاريخها (بعد الخصم والضريبة). «دفعت بالشهر» = كل الدفعات المسجّلة للمورّد بالشهر (حتى لفواتير أقدم). تغيّر الأسعار = متوسط تغيّر سعر المواد اللي اشتريتها من نفس المورّد بالشهرين، موزون بقيمة الشراء. اضغط على السطر لتشوف التفاصيل.</p>
+    </section>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/finance-calc.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+    olvRenderNav("supplier-report");
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => olvFormatMoney(n);
+    const esc = (v) => olvEsc(v);
+    const errBox = $("err");
+
+    const session = await olvRequireAuth();
+    if (!session) return;
+    if (!window.olvRole || window.olvRole === "staff") { window.location.replace("pos.html"); return; }
+    const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+    let month = olvToday().slice(0, 7), rows = [];
+    $("sr-month").value = month;
+    const iso = (y, m0) => new Date(Date.UTC(y, m0, 1)).toISOString().slice(0, 10);
+    async function load() {
+      const [y, m] = month.split("-").map(Number);
+      const from = iso(y, m - 1), next = iso(y, m), prevFrom = iso(y, m - 2);
+      const db = window.supabaseClient;
+      const [sup, inv, pay, bal, pur] = await Promise.all([
+        db.from("suppliers").select("id, name"),
+        olvFetchAll(() => db.from("purchase_invoices").select("id, supplier_id, total_amount, invoice_date").eq("status", "active").not("supplier_id", "is", null).gte("invoice_date", prevFrom).lt("invoice_date", next).order("id")),
+        olvFetchAll(() => db.from("supplier_transactions").select("id, supplier_id, amount").eq("type", "payment").gte("transaction_date", from).lt("transaction_date", next).order("id")),
+        db.from("supplier_balances").select("supplier_id, balance"),
+        olvFetchAll(() => db.from("purchases_active").select("id, supplier_id, ingredient_id, supply_id, item_name, unit, quantity, unit_price, purchase_date").not("supplier_id", "is", null).gte("purchase_date", prevFrom).lt("purchase_date", next).order("id")),
+      ]);
+      [sup, inv, pay, bal, pur].forEach((x) => { if (x.error) throw x.error; });
+      const S = new Map();
+      const get = (id) => { if (!S.has(id)) S.set(id, { id, name: "", n: 0, total: 0, prevTotal: 0, paid: 0, balance: 0, cur: new Map(), prev: new Map() }); return S.get(id); };
+      (sup.data || []).forEach((s) => { get(s.id).name = s.name; });
+      (inv.data || []).forEach((i) => { const s = get(i.supplier_id); if (i.invoice_date >= from) { s.n++; s.total += Number(i.total_amount); } else s.prevTotal += Number(i.total_amount); });
+      (pay.data || []).forEach((p) => { get(p.supplier_id).paid += Number(p.amount); });
+      (bal.data || []).forEach((b) => { get(b.supplier_id).balance = Number(b.balance); });
+      (pur.data || []).forEach((p) => {
+        const s = get(p.supplier_id), key = p.ingredient_id || p.supply_id, bucket = p.purchase_date >= from ? s.cur : s.prev;
+        let e = bucket.get(key); if (!e) { e = { name: p.item_name, unit: p.unit, qty: 0, spend: 0 }; bucket.set(key, e); }
+        e.qty += Number(p.quantity); e.spend += Number(p.quantity) * Number(p.unit_price);
+      });
+      rows = [...S.values()].filter((s) => s.n || s.paid || s.prevTotal || Math.abs(s.balance) > 0.004).map((s) => {
+        let w = 0, acc = 0; const risers = [];
+        s.cur.forEach((e, k) => {
+          const o = s.prev.get(k); if (!o || !(o.qty > 0) || !(e.qty > 0)) return;
+          const pn = e.spend / e.qty, po = o.spend / o.qty; if (!(po > 0)) return;
+          const pct = (pn - po) / po * 100; w += e.spend; acc += pct * e.spend;
+          if (Math.abs(pct) >= 5) risers.push({ name: e.name, unit: e.unit, from: po, to: pn, pct: Math.round(pct) });
+        });
+        s.change = w > 0 ? Math.round(acc / w * 10) / 10 : null;
+        s.risers = risers.sort((a, b) => b.pct - a.pct);
+        s.top = [...s.cur.values()].sort((a, b) => b.spend - a.spend).slice(0, 5);
+        return s;
+      }).sort((a, b) => b.total - a.total);
+      render();
+    }
+    const chg = (c) => c == null ? "—" : `<span class="${c > 0.4 ? "sr-up" : c < -0.4 ? "sr-down" : ""}">${c > 0 ? "▲ +" : c < 0 ? "▼ " : ""}${c}%</span>`;
+    const vs = (cur, prev) => !(prev > 0) ? "—" : `<span class="${cur > prev ? "sr-up" : "sr-down"}">${cur >= prev ? "+" : ""}${Math.round((cur - prev) / prev * 100)}%</span>`;
+    function render() {
+      const tot = rows.reduce((a, s) => a + s.total, 0), prev = rows.reduce((a, s) => a + s.prevTotal, 0);
+      const paid = rows.reduce((a, s) => a + s.paid, 0), owed = rows.reduce((a, s) => a + Math.max(0, s.balance), 0);
+      $("sr-stats").innerHTML = [
+        ["مشتريات الشهر", money(tot), vs(tot, prev) + " عن الشهر الماضي"], ["دفعت للموردين", money(paid), ""],
+        ["باقي عليك (ذمم)", money(owed), ""], ["عدد الموردين", String(rows.filter((s) => s.n).length), "اشتريت منهم هالشهر"],
+      ].map(([l, v, sub]) => `<div class="stat"><div class="label">${l}</div><div class="value">${v}</div><div class="sr-note">${sub}</div></div>`).join("");
+      $("sr-body").innerHTML = rows.length ? rows.map((s, i) => `<tr class="sr-row" data-i="${i}"><td><b>${esc(s.name || "—")}</b></td><td>${s.n}</td><td>${money(s.total)}</td><td>${vs(s.total, s.prevTotal)}</td><td>${money(s.paid)}</td><td>${s.balance > 0.004 ? money(s.balance) : s.balance < -0.004 ? "إلك " + money(-s.balance) : "خالص"}</td><td>${chg(s.change)}</td></tr>
+        <tr class="sr-det" id="sr-d${i}" hidden><td colspan="7">${s.top.length ? "<b>أكتر مواد اشتريتها:</b><ul>" + s.top.map((e) => `<li>${esc(e.name)} — ${r2(e.qty)} ${esc(e.unit || "")} بـ ${money(e.spend)}</li>`).join("") + "</ul>" : ""}${s.risers.length ? "<b>تغيّر الأسعار (5%+):</b><ul>" + s.risers.slice(0, 8).map((x) => `<li>${esc(x.name)}: ${money(x.from)} ← ${money(x.to)} / ${esc(x.unit || "")} (<span class="${x.pct > 0 ? "sr-up" : "sr-down"}">${x.pct > 0 ? "+" : ""}${x.pct}%</span>)</li>`).join("") + "</ul>" : "<span class='sr-note'>ما في تغيّر سعر ملحوظ أو ما اشتريت نفس المواد بالشهرين.</span>"}</td></tr>`).join("")
+        : `<tr><td colspan="7">ما في مشتريات من موردين بهالشهر</td></tr>`;
+    }
+    $("sr-body").addEventListener("click", (e) => { const tr = e.target.closest("tr.sr-row"); if (!tr) return; const d = $("sr-d" + tr.dataset.i); d.hidden = !d.hidden; });
+    $("sr-month").addEventListener("change", (e) => { if (!e.target.value) return; month = e.target.value; load().catch((x) => olvShowError(errBox, x)); });
+    $("sr-copy").addEventListener("click", async () => {
+      const t = `تقرير الموردين — ${month}\n` + rows.filter((s) => s.n || s.paid).map((s) => `• ${s.name}: مشتريات ${money(s.total)} (${s.n} فاتورة)، دفعت ${money(s.paid)}، الرصيد ${money(s.balance)}${s.change != null ? "، أسعاره " + (s.change > 0 ? "+" : "") + s.change + "%" : ""}`).join("\n");
+      try { await navigator.clipboard.writeText(t); olvToast && olvToast("اننسخ التقرير"); } catch (_) { prompt("انسخ النص", t); }
+    });
+    try { await load(); } catch (e) { olvShowError(errBox, e); }
+
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>الإنذارات والمكافآت — محاسبة OLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#fbf9ff">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="محاسبة OLV">
+<script>
+(function(){
+  function computeTheme(){
+    var mode = localStorage.getItem('olv_theme_mode_v2') || 'light';
+    var hour = new Date().getHours();
+    return mode === 'auto' ? (hour >= 6 && hour < 18 ? 'light' : 'dark') : mode;
+  }
+  function applyCustomTheme(){
+    var root = document.documentElement.style;
+    var props = ['--ink', '--ink-2', '--ink-3', '--paper', '--muted', '--hair', '--hair-soft',
+      '--overlay-bg', '--gold', '--gold-hi', '--gold-dp', '--gold-rgb', '--on-gold'];
+    try {
+      var raw = localStorage.getItem('olv_custom_theme_v2');
+      var t = raw ? JSON.parse(raw) : null;
+      if (!t) {
+        props.forEach(function (p) { root.removeProperty(p); });
+        return false;
+      }
+      document.documentElement.setAttribute('data-theme', t.isDark ? 'dark' : 'light');
+      root.setProperty('--ink', t.ink);
+      root.setProperty('--ink-2', t.ink2);
+      root.setProperty('--ink-3', t.ink3);
+      root.setProperty('--paper', t.paper);
+      root.setProperty('--muted', t.muted);
+      root.setProperty('--hair', t.hair);
+      root.setProperty('--hair-soft', t.hairSoft);
+      root.setProperty('--overlay-bg', t.overlayBg);
+      root.setProperty('--gold', t.gold);
+      root.setProperty('--gold-hi', t.goldHi);
+      root.setProperty('--gold-dp', t.goldDp);
+      root.setProperty('--gold-rgb', t.goldRgb);
+      root.setProperty('--on-gold', t.onGold);
+      return true;
+    } catch (e) {
+      props.forEach(function (p) { root.removeProperty(p); });
+      return false;
+    }
+  }
+  window.olvApplyTheme = function(){
+    var theme = computeTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    window.olvCustomThemeActive = applyCustomTheme();
+  };
+  window.olvApplyTheme();
+})();
+</script>
+<link rel="stylesheet" href="assets/hr.css">
+</head>
+<body class="nm-page">
+  <div id="olv-nav"></div>
+  <div class="wrap hr-wrap">
+    <div class="err" id="err"></div>
+    <div id="no-access" class="group" hidden><div class="hr-empty">هذه الصفحة لصاحب المطعم والمدير فقط.</div></div>
+    <div id="p-content" hidden>
+      <a class="hr-back" href="hr.html" id="back-link"></a>
+      <header class="hr-prof">
+        <span class="hr-av" id="p-av"></span>
+        <div style="flex:1; min-width:200px"><h1 id="p-name">—</h1><div class="sub" id="p-sub"></div></div>
+        <div class="hr-head" style="margin:0"><div class="acts">
+          <button class="btn gold" type="button" id="add-warn"></button>
+          <button class="btn" type="button" id="add-ded"></button>
+          <button class="btn" type="button" id="add-bon"></button>
+        </div></div>
+      </header>
+
+      <div class="hr-esc" id="esc-box" hidden></div>
+
+      <div class="stats hr-stats">
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-1"></div>
+          <div class="stat-body"><div class="label">إنذارات فعّالة</div><div class="value" id="k-warn">—</div><span class="note">آخر 12 شهر</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-2"></div>
+          <div class="stat-body"><div class="label">خصومات</div><div class="value" id="k-ded">—</div><span class="note">د.أ · آخر 12 شهر</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-3"></div>
+          <div class="stat-body"><div class="label">مكافآت</div><div class="value" id="k-bon">—</div><span class="note">د.أ · آخر 12 شهر</span></div></div></div>
+        <div class="stat"><div class="stat-row"><div class="stat-icon" id="ic-4"></div>
+          <div class="stat-body"><div class="label">سلف غير مسوّاة</div><div class="value" id="k-adv">—</div><span class="note">د.أ</span></div></div></div>
+      </div>
+
+      <section class="group" id="att-group">
+        <h2 id="att-title"></h2>
+        <div class="hr-attsum" id="att-sum"></div>
+        <div class="hr-ev att" id="att-list"></div>
+      </section>
+
+      <section class="group">
+        <h2 id="tl-title"></h2>
+        <div class="hr-chips" id="filters" role="group" aria-label="فلتر السجل"></div>
+        <ul class="hr-tl" id="tl"></ul>
+      </section>
+      <div class="hr-head" style="margin-top:6px"><div class="acts">
+        <a class="btn" id="to-pay" href="payroll.html"></a>
+        <a class="btn" id="to-att" href="attendance.html"></a>
+        <a class="btn" id="to-emp" href="employees.html"></a>
+      </div></div>
+    </div>
+  </div>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/offline-queue.js"></script>
+  <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/finance-calc.js"></script>
+  <script defer src="assets/auth-guard.js"></script>
+  <script defer src="assets/layout.js"></script>
+  <script defer src="assets/notify-sound.js"></script>
+  <script defer src="assets/connection-status.js"></script>
+  <script defer src="assets/incoming-orders-poll.js"></script>
+  <script defer src="assets/low-stock-poll.js"></script>
+  <script defer src="assets/menu-stock-sync.js"></script>
+  <script defer src="assets/print-health.js"></script>
+  <script defer src="assets/hr-common.js"></script>
+  <script defer src="assets/hr-notice.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+    olvRenderNav("hr");
+    const $ = (id) => document.getElementById(id);
+    const H = window.OLV_HR;
+    const pid = new URLSearchParams(location.search).get("id");
+    let emp = null, allEmps = [], records = [], audit = {}, advances = [], adjs = [], filter = "all";
+    const names = {};
+
+    $("back-link").innerHTML = "<span>رجوع لقائمة الموظفين</span>";
+    $("add-warn").innerHTML = olvIcon("warning") + "<span>إنذار</span>";
+    $("add-ded").innerHTML = olvIcon("minusCircle") + "<span>خصم</span>";
+    $("add-bon").innerHTML = olvIcon("star") + "<span>مكافأة</span>";
+    $("ic-1").innerHTML = olvIcon("warning"); $("ic-2").innerHTML = olvIcon("minusCircle");
+    $("ic-3").innerHTML = olvIcon("star"); $("ic-4").innerHTML = olvIcon("wallet");
+    $("att-title").innerHTML = olvIcon("clock") + " بصمات الدوام (آخر 30 يوم)";
+    $("tl-title").innerHTML = olvIcon("clipboard") + " السجل الزمني";
+    $("to-pay").innerHTML = olvIcon("banknote") + "<span>الرواتب</span>";
+    $("to-att").innerHTML = olvIcon("clock") + "<span>الحضور</span>";
+    $("to-emp").innerHTML = olvIcon("person") + "<span>بيانات الموظف</span>";
+
+    const open = (kind, extra) => H.openRecordDialog(Object.assign({ employees: allEmps, records, profileId: pid, kind, onDone: reload }, extra || {}));
+    $("add-warn").addEventListener("click", () => open("warning"));
+    $("add-ded").addEventListener("click", () => open("deduction"));
+    $("add-bon").addEventListener("click", () => open("bonus"));
+
+    const FILTERS = [["all", "الكل"], ["warn", "إنذارات"], ["ded", "خصومات"], ["bon", "مكافآت"], ["adv", "سلف وبنود رواتب"]];
+    function drawFilters() {
+      $("filters").innerHTML = FILTERS.map(([k, l]) => `<button type="button" class="hr-chip" data-f="${k}" aria-pressed="${k === filter}">${l}</button>`).join("");
+      $("filters").querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => { filter = b.dataset.f; drawFilters(); renderTimeline(); }));
+    }
+
+    function render() {
+      const w = H.activeWarnings(records, pid);
+      const from = H.addDays(H.todayIso(), -365);
+      const act = records.filter((r) => r.status === "active" && r.record_date > from);
+      $("k-warn").textContent = w.length;
+      $("k-ded").textContent = olvFormatMoney(act.filter((r) => r.kind === "deduction").reduce((s, r) => s + Number(r.amount), 0));
+      $("k-bon").textContent = olvFormatMoney(act.filter((r) => r.kind === "bonus").reduce((s, r) => s + Number(r.amount), 0));
+      $("k-adv").textContent = olvFormatMoney(advances.filter((a) => !a.settled_payroll_id).reduce((s, a) => s + Number(a.amount), 0));
+      const esc = $("esc-box");
+      if (w.length >= 3) {
+        esc.hidden = false;
+        esc.innerHTML = `${olvIcon("warning")}<span><b>وصل ${w.length} إنذارات خلال 12 شهر.</b> بنقترح خصم مالي، أو مراجعة قرار الاستمرار بالعمل.</span><button type="button" class="btn gold" id="esc-btn">سجّل خصم</button>`;
+        $("esc-btn").addEventListener("click", () => open("deduction", { reason: "misconduct", text: `تصعيد بعد ${w.length} إنذارات`, key: "escalate:" + w.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0].id, source: "auto" }));
+      } else if (w.length === 2) {
+        esc.hidden = false;
+        esc.innerHTML = `${olvIcon("bell")}<span><b>عنده إنذارين.</b> الإنذار الجاي بيكون «نهائي» تلقائياً.</span>`;
+      } else esc.hidden = true;
+      renderTimeline();
+    }
+
+    function auditHtml(id) {
+      const list = audit[id] || [];
+      if (!list.length) return "";
+      const who = (u) => names[u] || "—";
+      return `<div class="hr-aud">${list.map((a) => {
+        const t = new Date(a.at).toLocaleString("ar-JO", { dateStyle: "medium", timeStyle: "short" });
+        const label = a.action === "create" ? "سجّله" : a.action === "update" ? "عدّله" : "ألغاه";
+        let extra = "";
+        if (a.action === "update" && a.details && a.details.old && a.details.new) {
+          const o = a.details.old, n = a.details.new;
+          if (Number(o.amount) !== Number(n.amount)) extra += ` (المبلغ ${olvFormatMoney(o.amount)} ← ${olvFormatMoney(n.amount)})`;
+          if ((o.text || "") !== (n.text || "")) extra += " (عدّل التفاصيل)";
+          if (o.date !== n.date && n.date) extra += ` (التاريخ ${o.date} ← ${n.date})`;
+        }
+        if (a.action === "cancel" && a.details && a.details.reason) extra = ` — ${olvEsc(a.details.reason)}`;
+        return `<div>${olvEsc(who(a.by_user))} ${label} · ${olvEsc(t)}${extra}</div>`;
+      }).join("")}</div>`;
+    }
+
+    function renderTimeline() {
+      const items = [];
+      records.forEach((r) => items.push({ t: "hr", date: r.record_date, ts: r.created_at, r }));
+      advances.forEach((a) => items.push({ t: "adv", date: a.advance_date, ts: a.created_at, a }));
+      adjs.filter((a) => !a.hr_record_id).forEach((a) => items.push({ t: "adj", date: a.adj_date, ts: a.created_at, a }));
+      items.sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : x.ts < y.ts ? 1 : -1));
+      const keep = (it) => filter === "all" || (filter === "warn" && it.t === "hr" && H.isWarning(it.r.kind)) || (filter === "ded" && it.t === "hr" && it.r.kind === "deduction")
+        || (filter === "bon" && it.t === "hr" && it.r.kind === "bonus") || (filter === "adv" && it.t !== "hr");
+      const rows = items.filter(keep);
+      $("tl").innerHTML = rows.length ? rows.map((it, i) => {
+        if (it.t === "adv") {
+          const a = it.a;
+          return `<li><div class="row1"><span class="hr-tag advance">سلفة</span><span class="amt neg">− ${olvFormatMoney(a.amount)} د.أ</span><span class="d">${olvEsc(H.fmtDate(a.advance_date))}</span></div>
+            <div class="why">${olvEsc(a.note || "سلفة على الراتب")}</div><div class="meta">${a.settled_payroll_id ? "انحسبت بدفعة راتب" : "لسا ما انحسبت، بتنخصم من الدفعة الجاية"}</div></li>`;
+        }
+        if (it.t === "adj") {
+          const a = it.a, neg = Number(a.amount) < 0;
+          return `<li><div class="row1"><span class="hr-tag adj">بند راتب</span><span class="amt ${neg ? "neg" : "pos"}">${neg ? "−" : "+"} ${olvFormatMoney(Math.abs(a.amount))} د.أ</span><span class="d">${olvEsc(H.fmtDate(a.adj_date))}</span></div>
+            <div class="why">${olvEsc(a.note || (neg ? "خصم" : "إضافة"))}</div><div class="meta">${a.settled_payroll_id ? "انحسب بدفعة راتب" : "لسا ما انحسب"}</div></li>`;
+        }
+        const r = it.r, off = r.status === "cancelled", warn = H.isWarning(r.kind);
+        const amt = Number(r.amount) > 0 ? `<span class="amt ${r.kind === "bonus" ? "pos" : "neg"}">${r.kind === "bonus" ? "+" : "−"} ${olvFormatMoney(r.amount)} د.أ</span>` : "";
+        const days = Number(r.deduct_days) > 0 ? ` · يشمل ${Number(r.deduct_days)} يوم` : "";
+        let state = "";
+        if (r.kind === "deduction" || r.kind === "bonus") {
+          const adj = adjs.find((a) => a.id === r.adjustment_id);
+          state = off ? "" : !r.adjustment_id ? "بند الراتب اتشال من صفحة الرواتب" : adj && adj.settled_payroll_id ? "انحسب بدفعة راتب" : "بينحسب بالدفعة الجاية";
+        }
+        const settled = (r.kind === "deduction" || r.kind === "bonus") && (adjs.find((a) => a.id === r.adjustment_id) || {}).settled_payroll_id;
+        return `<li class="${off ? "off" : ""}"><div class="row1">${H.kindTag(r.kind, off)}${off ? '<span class="hr-tag cancelled">ملغي</span>' : ""}${r.source === "auto" ? '<span class="hr-tag adj">باقتراح تلقائي</span>' : ""}${amt}<span class="d">${olvEsc(H.fmtDate(r.record_date))}</span></div>
+          <div class="why"><b>${olvEsc(H.reasonLabel(r.reason_code))}</b>${r.reason_text ? " — " + olvEsc(r.reason_text) : ""}</div>
+          ${r.evidence && r.evidence.length ? `<details class="hr-evwrap" open><summary>${r.evidence.some((x) => x.a) ? "بصمات الغياب" : "بصمات التأخر"} المرفقة (${r.evidence.length})</summary>${H.evidenceHtml(r.evidence)}</details>` : ""}
+          <div class="meta">${[days.replace(" · ", ""), state, r.notes ? "ملاحظة: " + olvEsc(r.notes) : "", off && r.cancel_reason ? "سبب الإلغاء: " + olvEsc(r.cancel_reason) : ""].filter(Boolean).join(" · ")}</div>
+          ${auditHtml(r.id)}
+          <div class="acts">
+            <button type="button" class="btn small gold" data-notice="${r.id}">${olvIcon("share")}<span>نسخة صورة / واتساب</span></button>
+            <button type="button" class="btn small" data-print="${r.id}">${olvIcon("printer")}<span>${warn ? "طباعة نموذج الإنذار" : "طباعة"}</span></button>
+            ${off ? "" : `<button type="button" class="btn small" data-edit="${r.id}"${settled ? " disabled" : ""}>${olvIcon("note")}<span>تعديل</span></button>
+            <button type="button" class="btn small danger" data-cancel="${r.id}"${settled ? " disabled" : ""}>${olvIcon("x")}<span>إلغاء</span></button>`}
+          </div></li>`;
+      }).join("") : `<li class="hr-empty">ما في سجل بهالفلتر.</li>`;
+      const byId = (id) => records.find((r) => r.id === id);
+      $("tl").querySelectorAll("[data-print]").forEach((b) => b.addEventListener("click", () => H.printForm(byId(b.dataset.print), emp, records)));
+      $("tl").querySelectorAll("[data-notice]").forEach((b) => b.addEventListener("click", () => window.OLV_NOTICE.open(byId(b.dataset.notice), emp, records)));
+      $("tl").querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => open(null, { edit: byId(b.dataset.edit) })));
+      $("tl").querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () => H.cancelRecord(byId(b.dataset.cancel), reload)));
+    }
+
+    async function renderAttendance() {
+      try {
+        const rows = await H.loadAttendance(pid, H.addDays(H.todayIso(), -29), H.todayIso());
+        const late = rows.filter(H.isLateRow), absent = rows.filter((r) => r.status === "absent" && r.work_date < H.todayIso());
+        const worked = rows.filter((r) => r.first_punch);
+        const min = late.reduce((s, r) => s + Number(r.late_min), 0);
+        $("att-sum").innerHTML = `<span><b>${worked.length}</b> يوم دوام</span><span class="${late.length ? "bad" : ""}"><b>${late.length}</b> أيام تأخر${late.length ? ` (${Math.round(min)} دقيقة)` : ""}</span><span class="${absent.length ? "bad" : ""}"><b>${absent.length}</b> غياب</span>`;
+        const shown = rows.filter((r) => r.first_punch || r.status === "absent" || r.sched_start);
+        $("att-list").innerHTML = shown.length ? `<div class="hr-ev-h"><span>اليوم</span><span>الدوام</span><span>دخول → خروج</span><span>الحالة</span></div>${shown.map((r) => {
+          const l = H.isLateRow(r), a = r.status === "absent" && r.work_date < H.todayIso();
+          return `<div class="hr-ev-r${a ? " abs" : l ? " late" : ""}"><span>${olvEsc(H.dayLabel(String(r.work_date).slice(0, 10)))}</span><span>${H.fmtT(r.sched_start)}</span><span>${H.fmtT(r.first_punch)} → ${r.last_punch && r.last_punch !== r.first_punch ? H.fmtT(r.last_punch) : "—"}</span><span>${a ? "غياب" : l ? "تأخر " + Math.round(r.late_min) + " د" : H.isBigLate(r) ? "غالباً مجاز / نسي البصمة" : r.first_punch ? "بالوقت" : "—"}</span></div>`;
+        }).join("")}` : `<div class="hr-empty">ما في بصمات أو جدول دوام لهالموظف آخر 30 يوم.</div>`;
+      } catch (err) { $("att-list").innerHTML = `<div class="hr-empty">تعذّر تحميل البصمات.</div>`; }
+    }
+
+    async function reload() {
+      renderAttendance();
+      try {
+        const sb = window.supabaseClient;
+        const [recs, au, ad, aj] = await Promise.all([
+          H.loadRecords(pid),
+          sb.from("hr_audit").select("*").order("at"),
+          sb.from("salary_advances").select("*").eq("profile_id", pid).order("advance_date", { ascending: false }),
+          sb.from("payroll_adjustments").select("*").eq("profile_id", pid).order("adj_date", { ascending: false }),
+        ]);
+        records = recs;
+        audit = {};
+        const ids = new Set(records.map((r) => r.id));
+        ((au.data) || []).forEach((a) => { if (ids.has(a.record_id)) (audit[a.record_id] = audit[a.record_id] || []).push(a); });
+        advances = ad.data || [];
+        adjs = aj.data || [];
+        render();
+      } catch (err) { olvShowError($("err"), err); }
+    }
+
+    (async () => {
+      const session = await olvRequireAuth();
+      if (!session) return;
+      const { data: me } = await window.supabaseClient.from("profiles").select("role").eq("id", session.user.id).single();
+      if (!me || !["owner", "manager"].includes(me.role)) { $("no-access").hidden = false; return; }
+      if (!pid) { location.replace("hr.html"); return; }
+      $("p-content").hidden = false;
+      try {
+        const { data, error } = await window.supabaseClient.from("profiles").select("id, full_name, role, job_title, hourly_wage, is_active, photo_path, phone");
+        if (error) throw error;
+        allEmps = data || [];
+        allEmps.forEach((e) => { names[e.id] = e.full_name; });
+        emp = allEmps.find((e) => e.id === pid);
+        if (!emp) { $("p-name").textContent = "موظف غير موجود"; return; }
+        document.title = `${emp.full_name} — ملف الموظف`;
+        $("p-name").textContent = emp.full_name || "بدون اسم";
+        $("p-sub").textContent = [emp.job_title, emp.phone, emp.hourly_wage != null ? `${olvFormatMoney(emp.hourly_wage)} د.أ/ساعة` : ""].filter(Boolean).join(" · ");
+        $("p-av").textContent = (emp.full_name || "").trim().charAt(0);
+        if (emp.photo_path) {
+          const { data: u } = await window.supabaseClient.storage.from("employee-photos").createSignedUrl(emp.photo_path, 3600);
+          if (u && u.signedUrl) { $("p-av").classList.add("has-photo"); $("p-av").style.backgroundImage = `url('${u.signedUrl}')`; }
+        }
+      } catch (err) { olvShowError($("err"), err); }
+      drawFilters();
+      await reload();
+    })();
+    });
+  </script>
+  <footer class="olv-footer">© 2026 مهند — جميع الحقوق محفوظة</footer>
+</body>
+</html>

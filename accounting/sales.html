@@ -520,6 +520,7 @@
   <script defer src="assets/offline-queue.js"></script>
   <script defer src="assets/local-server.js"></script>
   <script defer src="assets/supabase-client.js"></script>
+  <script defer src="assets/finance-calc.js"></script>
   <script defer src="assets/auth-guard.js"></script>
   <script defer src="assets/layout.js"></script>
   <script defer src="assets/notify-sound.js"></script>
@@ -590,15 +591,11 @@
     function ampm(r) { return r.created_at ? (new Date(r.created_at).getHours() < 12 ? "ص" : "م") : ""; }
 
     // طلب «على حساب موظف»: مبلغه صفر بالمبيعات، والذمة (بالتكلفة) مكتوبة بالملاحظات: «على حساب الموظف <اسم> — <مبلغ>»
-    const STAFF_RE = /على حساب الموظف\s+(.+?)\s+—\s+([\d.]+)/;
-    const staffAcct = (r) => {
-      if (Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount) !== 0) return null;
-      const m = STAFF_RE.exec(r.notes || "");
-      return m ? { name: m[1], amount: Number(m[2]) } : null;
-    };
+    // (الحساب بـ assets/finance-calc.js وعليه اختبارات آلية)
+    const staffAcct = (r) => olvStaffAcct(r);
     // وجبة موظف: بيعة صفرية بنوع «وجبة موظف» (بتنطبع للمطبخ بدون فاتورة)، إلها قسم لحاله وما بتنعدّ بالطلبات
-    const isMeal = (r) => r.order_type === "وجبة موظف" && Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount) === 0;
-    const saleTotal = (r) => Number(r.cash_amount) + Number(r.card_amount) + Number(r.delivery_amount);
+    const isMeal = (r) => olvIsMeal(r);
+    const saleTotal = (r) => olvSaleTotal(r);
     function payOf(r) {
       const parts = ["cash", "card", "delivery"].filter((k) => Number(r[k + "_amount"]) > 0);
       return parts.length === 1 ? parts[0] : parts.length ? "mixed" : "cash";
@@ -662,11 +659,11 @@
       errBox.style.display = "none";
       try {
         const [cur, old] = await Promise.all([
-          window.supabaseClient.from("sales_entries").select("*, sale_items(*)")
+          olvFetchAll(() => window.supabaseClient.from("sales_entries").select("*, sale_items(*)")
             .gte("entry_date", range.from).lte("entry_date", range.to)
-            .order("created_at", { ascending: false }).limit(3000),
-          window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, status")
-            .gte("entry_date", prev.from).lte("entry_date", prev.to).limit(5000),
+            .order("created_at", { ascending: false }).order("id")),
+          olvFetchAll(() => window.supabaseClient.from("sales_entries").select("cash_amount, card_amount, delivery_amount, status")
+            .gte("entry_date", prev.from).lte("entry_date", prev.to).order("id")),
         ]);
         if (cur.error) throw cur.error;
         if (seq !== loadSeq) return;
@@ -681,13 +678,9 @@
 
     function renderAll(prevTotal, prev) {
       // طلبات الموظفين بنفصلها: ما بتنعدّ بعدد الطلبات ولا بمتوسط الفاتورة، وإلها قسم لحاله
-      const staffRows = rows.filter((r) => r.status !== "voided" && staffAcct(r));
-      const mealRows = rows.filter((r) => r.status !== "voided" && isMeal(r));
-      const done = rows.filter((r) => r.status !== "voided" && !staffAcct(r) && !isMeal(r));
-      const voided = rows.filter((r) => r.status === "voided");
+      const { staffRows, mealRows, done, voided, total, avg, voidAmt } = olvSummarizeSales(rows);
       renderStaff(staffRows);
       renderMeals(mealRows);
-      const total = done.reduce((s, r) => s + saleTotal(r), 0);
       const single = range.from === range.to;
       // صورة تقرير اليوم (نفس زر الرئيسية والخزينة) بتطلع بس لما الفترة يوم واحد
       $("share-day").hidden = !(single && window.olvRole && window.olvRole !== "staff" && typeof olvOpenDayReport === "function");
@@ -702,8 +695,7 @@
       const setVal = (id, html) => { const el = $(id); delete el.dataset.olvCounted; el.innerHTML = html; };
       setVal("k-total", olvFormatMoney(total));
       setVal("k-count", String(done.length));
-      setVal("k-avg", olvFormatMoney(done.length ? total / done.length : 0));
-      const voidAmt = voided.reduce((s, r) => s + saleTotal(r), 0);
+      setVal("k-avg", olvFormatMoney(avg));
       const kv = $("k-void");
       setVal("k-void", voided.length ? `${voided.length}<small>بقيمة ${olvFormatMoney(voidAmt)}</small>` : "0");
       kv.classList.toggle("bad", voided.length > 0);
@@ -1133,10 +1125,12 @@
       const seq = ++findSeq;
       find.active = true;
       document.body.classList.add("finding");
-      let qy = window.supabaseClient.from("sales_entries").select("*, sale_items(*)").order("created_at", { ascending: false }).limit(5000);
-      if (find.from) qy = qy.gte("entry_date", find.from);
-      if (find.to) qy = qy.lte("entry_date", find.to);
-      const res = await qy;
+      const res = await olvFetchAll(() => {
+        let qy = window.supabaseClient.from("sales_entries").select("*, sale_items(*)").order("created_at", { ascending: false }).order("id");
+        if (find.from) qy = qy.gte("entry_date", find.from);
+        if (find.to) qy = qy.lte("entry_date", find.to);
+        return qy;
+      });
       if (seq !== findSeq) return;
       if (res.error) return olvShowError(errBox, res.error);
       rows = (res.data || []).filter(findMatch);
