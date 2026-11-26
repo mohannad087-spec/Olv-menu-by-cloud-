@@ -2227,6 +2227,93 @@
         if (diff < 0) out.unshift({ lvl: "bad", idx: -1, msg: "تاريخ الفاتورة بالمستقبل" });
         else if (diff > 30) out.unshift({ lvl: "warn", idx: -1, msg: `تاريخ الفاتورة قديم (قبل ${diff} يوم) — صح؟` });
       }
+      return out.concat(altFindings(), recipeFindings());
+    }
+    // وصفات الأصناف: لنعرف أثر أسعار هالفاتورة على ربح المنيو قبل الحفظ
+    let recipeData = null, recipeLoading = false;
+    async function ensureRecipes() {
+      if (recipeData || recipeLoading) return;
+      recipeLoading = true;
+      try {
+        const db = window.supabaseClient;
+        const [p, r] = await Promise.all([db.from("products").select("id, name, price, is_active"), db.from("product_ingredients").select("product_id, ingredient_id, quantity")]);
+        if (p.error || r.error) throw (p.error || r.error);
+        const prods = new Map((p.data || []).filter((x) => x.is_active !== false && Number(x.price) > 0).map((x) => [x.id, x]));
+        const byIng = new Map(), byProd = new Map();
+        (r.data || []).forEach((x) => {
+          if (!prods.has(x.product_id)) return;
+          if (!byIng.has(x.ingredient_id)) byIng.set(x.ingredient_id, new Set());
+          byIng.get(x.ingredient_id).add(x.product_id);
+          if (!byProd.has(x.product_id)) byProd.set(x.product_id, []);
+          byProd.get(x.product_id).push({ ing: x.ingredient_id, q: Number(x.quantity) || 0 });
+        });
+        recipeData = { prods, byIng, byProd };
+      } catch (_) { recipeData = { prods: new Map(), byIng: new Map(), byProd: new Map() }; }
+      finally { recipeLoading = false; }
+      renderAudit();
+    }
+    // أثر تغيّر الأسعار على تكلفة الأصناف (تقديري): تكلفة المواد ÷ سعر البيع، قبل وبعد
+    function recipeFindings() {
+      if (!recipeData) return [];
+      const unitOf = new Map(items.filter((i) => i.kind === "ingredient").map((i) => [i.id, Number(i.unit_price) || 0]));
+      const newP = new Map(), moved = new Map();
+      lines.forEach((l) => {
+        const it = itemOf(l); if (!it || it.kind !== "ingredient" || !(Number(l.price) > 0) || !(Number(l.qty) > 0)) return;
+        const np = stockPriceOf(l, it), op = unitOf.get(it.id) || 0;
+        newP.set(it.id, np);
+        if (op > 0 && Math.abs(np - op) / op >= 0.05) moved.set(it.id, { name: it.name, op, np });
+      });
+      if (!moved.size) return [];
+      const affected = new Set();
+      moved.forEach((_, id) => (recipeData.byIng.get(id) || new Set()).forEach((pid) => affected.add(pid)));
+      const out = [], LOW = 40, TARGET = 35;
+      const rows = [];
+      affected.forEach((pid) => {
+        const prod = recipeData.prods.get(pid), price = Number(prod.price);
+        let oldC = 0, newC = 0, missing = false;
+        recipeData.byProd.get(pid).forEach((x) => {
+          const op = unitOf.get(x.ing) || 0; if (!(op > 0) && !newP.has(x.ing)) missing = true;
+          oldC += x.q * op; newC += x.q * (newP.has(x.ing) ? newP.get(x.ing) : op);
+        });
+        if (missing || !(newC > 0)) return;
+        const oldPct = Math.round(oldC / price * 100), newPct = Math.round(newC / price * 100);
+        if (newPct === oldPct) return;
+        rows.push({ name: prod.name, price, oldPct, newPct, loss: newC >= price, sug: Math.round(Math.ceil(newC / (TARGET / 100) / 0.05 - 1e-9) * 0.05 * 100) / 100 });
+      });
+      const bad = rows.filter((x) => x.newPct > LOW && x.newPct > x.oldPct).sort((a, b) => b.newPct - a.newPct);
+      bad.slice(0, 6).forEach((x) => out.push({ lvl: x.loss ? "bad" : "warn", idx: -1, msg: `أثر الأسعار على المنيو: «${x.name}» تكلفته صارت ${x.newPct}% من سعره (كانت ${x.oldPct}%)${x.loss ? " — رح يصير بخسارة" : ""}. السعر المقترح ${money(x.sug)} بدل ${money(x.price)}` }));
+      if (bad.length > 6) out.push({ lvl: "warn", idx: -1, msg: `و${bad.length - 6} أصناف ثانية ربحها بينزل — شوفها بصفحة «الأصناف والوصفات»` });
+      const up = rows.filter((x) => x.newPct > x.oldPct).length - bad.length;
+      if (up > 0) out.push({ lvl: "info", idx: -1, msg: `${up} صنف تكلفته بتزيد بس ما زال ربحه كويس` });
+      return out;
+    }
+    // أسعار نفس المادة عند موردين ثانيين (آخر 90 يوم): لتنبيه «عند مورد ثاني أرخص»
+    const altCache = new Map(), altPending = new Set();
+    async function ensureAlt(keys) {
+      const need = keys.filter((k) => !altCache.has(k) && !altPending.has(k)); if (!need.length) return;
+      need.forEach((k) => altPending.add(k));
+      try {
+        const since = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+        const ing = need.filter((k) => k.startsWith("ingredient:")).map((k) => k.slice(11)), sup = need.filter((k) => k.startsWith("supply:")).map((k) => k.slice(7));
+        const base = () => window.supabaseClient.from("purchases_active").select("ingredient_id, supply_id, supplier_id, unit_price, purchase_date").not("supplier_id", "is", null).gte("purchase_date", since).gt("unit_price", 0).order("purchase_date", { ascending: false }).limit(1000);
+        const [a, b] = await Promise.all([ing.length ? base().in("ingredient_id", ing) : { data: [] }, sup.length ? base().in("supply_id", sup) : { data: [] }]);
+        need.forEach((k) => altCache.set(k, []));
+        [...(a.data || []), ...(b.data || [])].forEach((r) => {
+          const arr = altCache.get(r.ingredient_id ? "ingredient:" + r.ingredient_id : "supply:" + r.supply_id); if (!arr) return;
+          if (!arr.some((x) => x.sup === r.supplier_id)) arr.push({ sup: r.supplier_id, price: Number(r.unit_price), date: r.purchase_date });
+        });
+      } catch (_) { need.forEach((k) => altCache.set(k, [])); }
+      finally { need.forEach((k) => altPending.delete(k)); }
+      renderAudit();
+    }
+    function altFindings() {
+      const out = [], cur = curSup(), supName = (id) => { const o = [...document.getElementById("pi-supplier").options].find((x) => x.value === id); return o ? supOptName(o) : "مورّد ثاني"; };
+      lines.forEach((l, idx) => {
+        const it = itemOf(l); if (!it || !(Number(l.price) > 0) || !(Number(l.qty) > 0)) return;
+        const arr = (altCache.get(l.itemKey) || []).filter((x) => x.sup !== cur); if (!arr.length) return;
+        const best = arr.slice().sort((a, b) => a.price - b.price)[0], sp = stockPriceOf(l, it);
+        if (best.price < sp * 0.92) out.push({ lvl: "info", idx, msg: `«${it.name}»: عند ${supName(best.sup)} كان ${money(best.price)} / ${it.unit} (أرخص ${Math.round((sp - best.price) / sp * 100)}%) بتاريخ ${best.date}` });
+      });
       return out;
     }
     let auditTimer = null;
@@ -2234,7 +2321,7 @@
       clearTimeout(auditTimer);
       auditTimer = setTimeout(() => {
         const box = document.getElementById("pi-audit"); if (!box) return;
-        ensureSupplierHist(); checkDupNo();
+        ensureSupplierHist(); checkDupNo(); ensureRecipes(); ensureAlt(lines.filter((l) => l.itemKey && Number(l.price) > 0).map((l) => l.itemKey));
         const f = auditFindings();
         if (!f.length) { box.hidden = true; box.innerHTML = ""; return; }
         const open = box.querySelector("details") ? box.querySelector("details").open : f.some((x) => x.lvl === "bad");
