@@ -97,6 +97,8 @@ async function recoverStuckJobs() {
   if (error) log("تعذّر فحص المهام العالقة:", error.message);
 }
 
+const retryLog = (label) => (attempt, err) => log(`↻ إعادة محاولة "${label}" (${attempt}): ${err.message}`);
+
 async function markJob(jobId, fields) {
   const { error } = await supabase.from("print_jobs").update(fields).eq("id", jobId);
   if (error) log("تعذّر تحديث حالة مهمة الطباعة:", error.message);
@@ -137,7 +139,7 @@ async function processJob(job, settings, printers, saleCache) {
   try {
     // فحص الدرج: بدون ورقة، بس أمر الفتح
     if (isTest && job.test_layout && job.test_layout.drawer_only) {
-      await sendToPrinter(target.ip, target.port || 9100, buildDrawerBuffer());
+      await sendToPrinter(target.ip, target.port || 9100, buildDrawerBuffer(), retryLog(label));
       await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
       log(`✓ أمر فتح الدرج أُرسل لـ"${label}"`);
       return;
@@ -206,14 +208,14 @@ async function processJob(job, settings, printers, saleCache) {
       : job.job_type === "kitchen" ? kitchenCopies()
       : job.job_type === "receipt" && !job.reprint_no && !job.bill_kind ? receiptCopies() : 1;
     const buffer = buildTicketBuffer(canvas, openDrawer, copies);
-    await sendToPrinter(target.ip, target.port || 9100, buffer);
+    await sendToPrinter(target.ip, target.port || 9100, buffer, retryLog(label));
 
     // بطاقة فحم لكل أرجيلة مع فاتورة البيع الحقيقية (مش تجريبي ولا إعادة طباعة)؛ فشلها ما بيفشّل الفاتورة
     if (job.job_type === "receipt" && !job.reprint_no && !job.bill_kind && !isTest && printer && printer.kind === "receipt") {
       try {
         const sale = saleCache.has(job.sale_id) ? await saleCache.get(job.sale_id) : null;
         const cards = sale ? buildCharcoalBuffer(sale, settings) : null;
-        if (cards) { await sendToPrinter(target.ip, target.port || 9100, cards); log(`✓ بطاقات فحم انطبعت على "${label}"`); }
+        if (cards) { await sendToPrinter(target.ip, target.port || 9100, cards, retryLog(label)); log(`✓ بطاقات فحم انطبعت على "${label}"`); }
       } catch (e) { log(`⚠ تعذّرت طباعة بطاقة الفحم على "${label}":`, e.message); }
     }
 
@@ -246,6 +248,32 @@ const SLOW_REFRESH_MS = Number(process.env.SETTINGS_REFRESH_MS || 60000);
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 30000);
 let cachedSettings = null, cachedPrinters = null, lastSlowRefresh = 0, lastHeartbeat = 0, lastRecover = 0;
 
+// كل طابعة إلها طابور لحالها وما بنستنى آخره: طابعة ما بتستجيب (إعادة محاولة ~10 ثواني) ما بتأخّر مهام الطابعات
+// التانية، لا بنفس الدورة ولا بالدورات الجاية. الطابعة المشغولة بتضل مهامها pending وبتنلقط لما تفضى.
+// نفس الطابعة بالترتيب، والطابعات المختلفة بالتوازي (كاش + بار + سناكات...)
+const busyPrinters = new Set();
+function dispatch(jobs, settings, printers, saleCache) {
+  const byPrinter = new Map();
+  for (const job of jobs) {
+    const k = job.printer_id || `legacy-${job.job_type === "kitchen" ? "k" : "r"}`;
+    if (!byPrinter.has(k)) byPrinter.set(k, []);
+    byPrinter.get(k).push(job);
+  }
+  for (const [k, list] of byPrinter) {
+    if (busyPrinters.has(k)) continue;
+    busyPrinters.add(k);
+    (async () => {
+      try {
+        for (const job of list) await processJob(job, settings, printers, saleCache);
+      } catch (err) {
+        log("خطأ أثناء معالجة طابور الطابعة:", err.message);
+      } finally {
+        busyPrinters.delete(k);
+      }
+    })();
+  }
+}
+
 async function tick() {
   try {
     const now = Date.now();
@@ -261,20 +289,7 @@ async function tick() {
     const { data: jobs, error } = await supabase
       .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(20);
     if (error) throw error;
-    if (jobs && jobs.length) {
-      const saleCache = new Map();
-      // الطابعات المختلفة بالتوازي (كاش + بار + سناكات...)، ونفس الطابعة بالترتيب
-      // — قبل كان كل شي ورا بعض فتذكرة المطبخ تستنى الفاتورة
-      const byPrinter = new Map();
-      for (const job of jobs) {
-        const k = job.printer_id || `legacy-${job.job_type === "kitchen" ? "k" : "r"}`;
-        if (!byPrinter.has(k)) byPrinter.set(k, []);
-        byPrinter.get(k).push(job);
-      }
-      await Promise.all([...byPrinter.values()].map(async (list) => {
-        for (const job of list) await processJob(job, settings, printers, saleCache);
-      }));
-    }
+    if (jobs && jobs.length) dispatch(jobs, settings, printers, new Map());
   } catch (err) {
     log("خطأ أثناء دورة فحص الطباعة:", err.message);
   } finally {
