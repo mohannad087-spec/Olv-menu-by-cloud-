@@ -127,7 +127,17 @@ async function processJob(job, settings, printers, saleCache) {
     return;
   }
 
+  // نبدأ تحميل بيانات البيع وفحص الأقسام الثانية بالتوازي مع الحجز (كانت ورا بعض: 3 رحلات للسحابة قبل الطباعة).
+  // لو الحجز فشل (نسخة تانية أخدت المهمة) الطلب الزايد بيروح عالفاضي. الأخطاء بتنعالج بمكان استعمالها تحت
+  const tStart = Date.now();
+  let othersPre = null;
+  if (!isTest && job.sale_id) {
+    if (!saleCache.has(job.sale_id)) saleCache.set(job.sale_id, loadSaleWithItems(job.sale_id));
+    saleCache.get(job.sale_id).catch(() => {});
+    if (job.job_type === "kitchen") { othersPre = hasOtherStations(job); othersPre.catch(() => {}); }
+  }
   if (!(await claimJob(job.id))) return; // نسخة تانية أخدتها
+  const tClaimed = Date.now();
 
   const ageMinutes = (Date.now() - new Date(job.created_at).getTime()) / 60000;
   if (job.job_type !== "receipt" && ageMinutes > STALE_MINUTES) {
@@ -186,7 +196,7 @@ async function processJob(job, settings, printers, saleCache) {
           await markJob(job.id, { status: "skipped", error_message: "كل أصناف هذه التذكرة انلغت قبل الطباعة" });
           return;
         }
-        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems, is_addition: !!job.is_addition }, printer ? printer.name : null, await hasOtherStations(job), layout);
+        canvas = buildKitchenTicket({ ...sale, sale_items: liveItems, is_addition: !!job.is_addition }, printer ? printer.name : null, await (othersPre || hasOtherStations(job)), layout);
       } else if (job.job_type === "cancel") {
         canvas = buildCancelTicket(sale, printer ? printer.name : null, jobItems, layout);
       } else {
@@ -207,8 +217,10 @@ async function processJob(job, settings, printers, saleCache) {
     const copies = isTest ? 1
       : job.job_type === "kitchen" ? kitchenCopies()
       : job.job_type === "receipt" && !job.reprint_no && !job.bill_kind ? receiptCopies() : 1;
+    const tBuilt = Date.now();
     const buffer = buildTicketBuffer(canvas, openDrawer, copies);
     await sendToPrinter(target.ip, target.port || 9100, buffer, retryLog(label));
+    const tSent = Date.now();
 
     // بطاقة فحم لكل أرجيلة مع فاتورة البيع الحقيقية (مش تجريبي ولا إعادة طباعة)؛ فشلها ما بيفشّل الفاتورة
     if (job.job_type === "receipt" && !job.reprint_no && !job.bill_kind && !isTest && printer && printer.kind === "receipt") {
@@ -221,6 +233,9 @@ async function processJob(job, settings, printers, saleCache) {
 
     await markJob(job.id, { status: "printed", printed_at: new Date().toISOString(), error_message: null });
     log(`✓ تمت الطباعة (${job.job_type}) على "${label}"${job.sale_id ? ` لعملية بيع ${job.sale_id}` : ""}${openDrawer ? " + أمر فتح الدرج" : ""}`);
+    // أين راح الوقت؟ انتظار بالدور (من إنشاء المهمة لحد ما بدأنا) | حجز | تحميل+تجهيز التذكرة | إرسال للطابعة | حفظ الحالة (بالثواني)
+    const sec = (ms) => (ms / 1000).toFixed(1);
+    log(`⏱ "${label}": انتظار ${sec(tStart - new Date(job.created_at).getTime())} | حجز ${sec(tClaimed - tStart)} | تجهيز ${sec(tBuilt - tClaimed)} | إرسال ${sec(tSent - tBuilt)} | حفظ ${sec(Date.now() - tSent)}`);
   } catch (err) {
     await markJob(job.id, { status: "error", error_message: err.message });
     log(`✗ فشلت الطباعة على "${label}":`, err.message);
@@ -243,7 +258,7 @@ async function localTick() {
 }
 
 // تخفيف الطلبات على السحابة: الإعدادات والطابعات والنبضة والمهام العالقة نادرًا بتتغير،
-// فبنجيبها كل دقيقة/نص دقيقة بدل كل دورة (4 ثواني). فحص المهام الجديدة بيضل كل دورة.
+// فبنجيبها كل دقيقة/نص دقيقة بدل كل فحص. فحص المهام الجديدة بيضل كل POLL_INTERVAL_MS.
 const SLOW_REFRESH_MS = Number(process.env.SETTINGS_REFRESH_MS || 60000);
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 30000);
 let cachedSettings = null, cachedPrinters = null, lastSlowRefresh = 0, lastHeartbeat = 0, lastRecover = 0;
@@ -252,9 +267,11 @@ let cachedSettings = null, cachedPrinters = null, lastSlowRefresh = 0, lastHeart
 // التانية، لا بنفس الدورة ولا بالدورات الجاية. الطابعة المشغولة بتضل مهامها pending وبتنلقط لما تفضى.
 // نفس الطابعة بالترتيب، والطابعات المختلفة بالتوازي (كاش + بار + سناكات...)
 const busyPrinters = new Set();
+const inFlightJobs = new Set(); // مهام انبعتت للطابور ولسا ما خلصت: فحصين متداخلين ما بيعالجوا نفس المهمة
 function dispatch(jobs, settings, printers, saleCache) {
   const byPrinter = new Map();
   for (const job of jobs) {
+    if (inFlightJobs.has(job.id)) continue;
     const k = job.printer_id || `legacy-${job.job_type === "kitchen" ? "k" : "r"}`;
     if (!byPrinter.has(k)) byPrinter.set(k, []);
     byPrinter.get(k).push(job);
@@ -262,42 +279,74 @@ function dispatch(jobs, settings, printers, saleCache) {
   for (const [k, list] of byPrinter) {
     if (busyPrinters.has(k)) continue;
     busyPrinters.add(k);
+    list.forEach((j) => inFlightJobs.add(j.id));
     (async () => {
       try {
-        for (const job of list) await processJob(job, settings, printers, saleCache);
+        for (const job of list) {
+          try { await processJob(job, settings, printers, saleCache); } finally { inFlightJobs.delete(job.id); }
+        }
       } catch (err) {
         log("خطأ أثناء معالجة طابور الطابعة:", err.message);
       } finally {
+        list.forEach((j) => inFlightJobs.delete(j.id));
         busyPrinters.delete(k);
       }
     })();
   }
 }
 
-async function tick() {
+// الأعمال الدورية (نبضة الحياة، المهام العالقة، إعدادات الطابعات) بحلقة لحالها: لو طلب منها علق مهلته 10 ثواني،
+// فما لازم يعطّل فحص المهام الجديدة (كان بنفس الدورة، فطلب معلّق = كل الطابعات بتتأخر)
+async function housekeepingTick() {
   try {
     const now = Date.now();
     if (now - lastHeartbeat >= HEARTBEAT_MS) { lastHeartbeat = now; await sendHeartbeat(); }
     if (now - lastRecover >= HEARTBEAT_MS) { lastRecover = now; await recoverStuckJobs(); }
     if (!cachedSettings || now - lastSlowRefresh >= SLOW_REFRESH_MS) {
-      cachedSettings = await loadPrinterSettings();
-      cachedPrinters = await loadPrinters();
-      lastSlowRefresh = now;
-      saveCache(cachedSettings, cachedPrinters); // نسخة للطباعة بدون نت
+      const settings = await loadPrinterSettings();
+      const printers = await loadPrinters();
+      cachedSettings = settings; cachedPrinters = printers;
+      lastSlowRefresh = Date.now();
+      saveCache(settings, printers); // نسخة للطباعة بدون نت
     }
-    const settings = cachedSettings, printers = cachedPrinters;
-    const { data: jobs, error } = await supabase
-      .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(20);
-    if (error) throw error;
-    if (jobs && jobs.length) dispatch(jobs, settings, printers, new Map());
   } catch (err) {
-    log("خطأ أثناء دورة فحص الطباعة:", err.message);
+    log("خطأ بالأعمال الدورية:", err.message);
   } finally {
-    setTimeout(tick, POLL_INTERVAL_MS);
+    setTimeout(housekeepingTick, cachedSettings ? 2000 : 1000);
   }
+}
+
+// فحص المهام الجديدة: كل POLL_INTERVAL_MS يبدأ فحص جديد بدون ما يستنى اللي قبله، ومهلة الفحص القصيرة POLL_TIMEOUT_MS.
+// اتصال معلّق (واي فاي/راوتر) كان بياخد مهلة 10 ثواني قبل ما نعيد المحاولة، فالمهام بتنتظر 20-60 ثانية
+const POLL_TIMEOUT_MS = Number(process.env.POLL_TIMEOUT_MS || 4000);
+const MAX_PARALLEL_POLLS = 3;
+let activePolls = 0, lastPollErrLog = 0;
+async function pollOnce() {
+  if (!cachedSettings) return; // لسا ما انحمّلت إعدادات الطابعات
+  const tQuery = Date.now();
+  const { data: jobs, error } = await supabase
+    .from("print_jobs").select("*").eq("status", "pending").order("created_at", { ascending: true }).limit(20)
+    .abortSignal(AbortSignal.timeout(POLL_TIMEOUT_MS));
+  if (error) throw error;
+  // اتصال السحابة بطيء = كل شي بيتأخر: بنحكي عنه بالسجل بدل ما نخمّن
+  if (Date.now() - tQuery > 2000) log(`⚠ الاتصال بالسحابة بطيء: فحص المهام أخد ${((Date.now() - tQuery) / 1000).toFixed(1)} ثانية`);
+  if (jobs && jobs.length) dispatch(jobs, cachedSettings, cachedPrinters, new Map());
+}
+function pollTick() {
+  if (activePolls < MAX_PARALLEL_POLLS) {
+    activePolls++;
+    pollOnce()
+      .catch((err) => {
+        // مهلة/قطع نت متكرر: سطر كل 30 ثانية مش كل ثانية ونص
+        if (Date.now() - lastPollErrLog > 30000) { lastPollErrLog = Date.now(); log("خطأ أثناء فحص مهام الطباعة:", err.message); }
+      })
+      .finally(() => { activePolls--; });
+  }
+  setTimeout(pollTick, POLL_INTERVAL_MS);
 }
 
 log("بدء تشغيل برنامج جسر الطباعة...");
 log(`يفحص الطلبات الجديدة كل ${POLL_INTERVAL_MS / 1000} ثانية. اتركه يعمل باستمرار.`);
 localTick();
-tick();
+housekeepingTick();
+pollTick();
