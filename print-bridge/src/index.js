@@ -99,9 +99,19 @@ async function recoverStuckJobs() {
 
 const retryLog = (label) => (attempt, err) => log(`↻ إعادة محاولة "${label}" (${attempt}): ${err.message}`);
 
+// تسجيل النتيجة بنعيده لحد ٣ مرات: لو فشل الطلب (نت بطيء) والتذكرة انطبعت أصلًا، المهمة كانت تضل
+// "printing" وبعد دقيقتين تتحول لخطأ كاذب «انقطع البرنامج أثناء الطباعة» مع إنها طلعت
 async function markJob(jobId, fields) {
-  const { error } = await supabase.from("print_jobs").update(fields).eq("id", jobId);
-  if (error) log("تعذّر تحديث حالة مهمة الطباعة:", error.message);
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const { error } = await supabase.from("print_jobs").update(fields).eq("id", jobId);
+      if (!error) return;
+      lastErr = error;
+    } catch (e) { lastErr = e; }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * attempt));
+  }
+  log("تعذّر تحديث حالة مهمة الطباعة:", lastErr && lastErr.message);
 }
 
 // مهمة مرتبطة بطابعة محددة (printer_id) = مسار التوزيع الجديد: الوجهة من
