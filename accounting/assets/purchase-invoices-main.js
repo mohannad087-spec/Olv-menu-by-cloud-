@@ -386,17 +386,14 @@
           : `<option value="stock">اختر الصنف أولًا</option>`;
         return `<tr data-idx="${idx}">
           <td>
-            <div class="pi-kind" role="group" aria-label="نوع البند"><button type="button" data-act="kind" data-kind="ingredient" class="${kindOf(line) === "ingredient" ? "on" : ""}" aria-pressed="${kindOf(line) === "ingredient"}">مادة خام</button><button type="button" data-act="kind" data-kind="supply" class="${kindOf(line) === "supply" ? "on" : ""}" aria-pressed="${kindOf(line) === "supply"}">مستلزم</button></div>
+            ${it ? "" : `<div class="pi-kind" role="group" aria-label="نوع البند"><button type="button" data-act="kind" data-kind="ingredient" class="${kindOf(line) === "ingredient" ? "on" : ""}" aria-pressed="${kindOf(line) === "ingredient"}">مادة خام</button><button type="button" data-act="kind" data-kind="supply" class="${kindOf(line) === "supply" ? "on" : ""}" aria-pressed="${kindOf(line) === "supply"}">مستلزم</button></div>`}
             <input type="text" data-f="item" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="pi-ac-list" aria-label="الصنف" class="${line.unmatchedName && !it ? "bad" : ""}" value="${olvEsc(it ? itemLabel(it) : line.typed)}" placeholder="ابحث باسم الصنف...">
             ${line.unmatchedName && !it ? unmatchedHelp(line) : ""}
             ${!it ? `<button type="button" class="pi-newbtn" data-act="newdlg">＋ إضافة مادة جديدة للمخزون</button>` : ""}
             ${it && line.guessFrom ? `<div class="pi-warn">بالفاتورة "${olvEsc(line.guessFrom)}" — ربطته بالأقرب، تأكد إنه صح أو غيّره</div>` : ""}
             <div data-stock>${stockNote(line, it)}</div>
             <div data-warn>${priceWarning(line, it)}</div>
-            ${it ? `<button type="button" class="pi-newbtn" data-act="editdlg">✏️ تعديل المادة</button>` : ""}
-            ${bonusHtml(line, it)}
-            ${discHtml(line)}
-            ${taxHtml(line)}
+            ${it ? `<details class="pi-more-line" data-more${line.moreOpen || line.bonusOpen || bonusOf(line) > 0 || line.disc !== "" || line.tax !== "" ? " open" : ""}><summary>⋯ خيارات (خصم، ضريبة، بونص، تعديل المادة)</summary><div class="pi-more-body"><button type="button" class="pi-newbtn" data-act="editdlg">✏️ تعديل المادة</button>${bonusHtml(line, it)}${discHtml(line)}${taxHtml(line)}</div></details>` : ""}
           </td>
           <td><select data-f="unit" aria-label="الوحدة"${it ? "" : " disabled"}>${unitOpts}</select></td>
           <td><input type="number" data-f="qty" min="0" step="0.001" inputmode="decimal" dir="ltr" value="${olvEsc(line.qty)}" placeholder="الكمية" aria-label="الكمية"></td>
@@ -539,6 +536,11 @@
       if (ac.box && e.target !== ac.input) acClose();
     });
     window.addEventListener("scroll", () => { if (ac.box && !ac.box.hidden) acRender(); }, true);
+    // «⋯ خيارات» بتضل مفتوحة لما ينعاد رسم السطور
+    document.getElementById("pi-lines").addEventListener("toggle", (e) => {
+      const d = e.target; if (!d.matches || !d.matches("details[data-more]")) return;
+      const l = lines[Number(d.closest("tr").dataset.idx)]; if (l) l.moreOpen = d.open;
+    }, true);
     document.getElementById("pi-lines").addEventListener("focusout", () => { setTimeout(() => { if (ac.input && document.activeElement !== ac.input) acClose(); }, 150); });
 
     document.getElementById("pi-lines").addEventListener("input", (e) => {
