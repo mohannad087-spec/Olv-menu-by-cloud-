@@ -61,11 +61,28 @@ const OlvLowStockPoll = (function () {
     showToast(parts.join(" — "));
   }
 
-  async function poll() {
+  // كاش مشترك بين الصفحات: كل تنقّل بين صفحات كان يعمل استعلام جديد (~٣٠ مللي على السيرفر)
+  const CACHE_KEY = "olv_low_stock_cache";
+  const CACHE_MS = 90000;
+  function readCache() {
     try {
-      const { data, error } = await window.supabaseClient.from("low_stock_items").select("*");
-      if (error) return null;
-      const items = data || [];
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      if (c && Array.isArray(c.items) && Date.now() - c.t < CACHE_MS) return c.items;
+    } catch (e) { /* ما في كاش */ }
+    return null;
+  }
+
+  async function poll(force) {
+    try {
+      // التبويب المخفي ما بيحتاج تحديث
+      if (force !== true && typeof document !== "undefined" && document.hidden) return null;
+      let items = force === true ? null : readCache();
+      if (!items) {
+        const { data, error } = await window.supabaseClient.from("low_stock_items").select("*");
+        if (error) return null;
+        items = data || [];
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), items })); } catch (e) { /* مساحة */ }
+      }
       const ingredientCount = items.filter((i) => i.item_type === "ingredient").length;
       const supplyCount = items.filter((i) => i.item_type === "supply").length;
       // رابط "المخزون والجرد" بالقائمة بيجمع الاثنين، وتبويبات القسم كل وحدة لحالها
@@ -86,14 +103,14 @@ const OlvLowStockPoll = (function () {
     // نأجّل أول فحص لبعد ما باقي سكربتات الصفحة (وبالأخص olvRenderNav)
     // تخلّص، زي نفس أسلوب OlvIncomingPoll تمامًا
     setTimeout(poll, 0);
-    setInterval(poll, 60000);
+    setInterval(poll, 120000);
   }
 
   function subscribe(fn) {
     subscribers.push(fn);
   }
 
-  return { start, pollNow: poll, subscribe };
+  return { start, pollNow: () => poll(true), subscribe };
 })();
 
 OlvLowStockPoll.start();
