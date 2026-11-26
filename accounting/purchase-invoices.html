@@ -75,23 +75,8 @@
     </header>
     <div class="group" id="pi-form-group" hidden>
       <div class="pv-form-head"><h2>فاتورة مشتريات جديدة</h2><button class="btn small" type="button" id="pv-close">إغلاق</button></div>
-      <div class="pi-snaps">
-        <label class="pi-snap" for="pi-file">
-          <span class="pi-snap-ic">📷</span>
-          <span><b>صوّر الفاتورة</b><small>بيقرأها ويعبّي الأصناف والأسعار. الفاتورة طويلة؟ زيد صورة ثانية وثالثة</small></span>
-        </label>
-        <button type="button" class="pi-snap scan" id="pi-scan">
-          <span class="pi-snap-ic" aria-hidden="true">▥</span>
-          <span><b>امسح الباركود</b><small>بكاميرا التلفون، أو امسح بجهاز الماسح مباشرة بأي وقت. كل مسحة = حبة</small></span>
-        </button>
-      </div>
-      <div class="pi-drop" id="pi-drop">على الكمبيوتر: <button type="button" id="pi-pick">اختر صور من الجهاز</button> أو اسحبها وفلّتها هون، أو الصقها بـ Ctrl+V</div>
-      <input type="file" id="pi-file" accept="image/*,application/pdf" multiple hidden>
-      <div class="pi-pages" id="pi-pages" hidden></div>
-      <button type="button" class="btn go pi-read" id="pi-ai-btn" hidden disabled></button>
-      <div class="hint" id="pi-ai-status" style="margin:8px 0 0;"></div>
-
-      <div class="row2" style="margin-top:14px;">
+      <div class="pi-step-label"><span>١</span> المورّد والتاريخ</div>
+      <div class="row2">
         <div class="field">
           <label for="pi-supplier">المورّد</label>
           <select id="pi-supplier"></select>
@@ -102,6 +87,25 @@
           <input type="date" id="pi-date">
         </div>
       </div>
+
+      <div class="pi-step-label"><span>٢</span> الأصناف</div>
+      <div class="pi-snaps pi-snaps-compact" role="group" aria-label="طرق إدخال الأصناف">
+        <label class="pi-snap" for="pi-file" title="بيقرأ الفاتورة ويعبّي الأصناف والأسعار. الفاتورة طويلة؟ زيد صورة ثانية وثالثة">
+          <span class="pi-snap-ic" aria-hidden="true">📷</span><b>صوّر الفاتورة</b>
+        </label>
+        <button type="button" class="pi-snap scan" id="pi-scan" title="بكاميرا التلفون، أو بجهاز الماسح مباشرة. كل مسحة = حبة">
+          <span class="pi-snap-ic" aria-hidden="true">▥</span><b>باركود</b>
+        </button>
+        <button type="button" class="pi-snap" id="pi-paste-quick" title="الصق أصناف من Excel أو واتساب">
+          <span class="pi-snap-ic" aria-hidden="true">📋</span><b>الصق</b>
+        </button>
+      </div>
+      <div class="pi-drop" id="pi-drop">على الكمبيوتر: <button type="button" id="pi-pick">اختر صور من الجهاز</button> أو اسحبها وفلّتها هون، أو الصقها بـ Ctrl+V</div>
+      <input type="file" id="pi-file" accept="image/*,application/pdf" multiple hidden>
+      <div class="pi-pages" id="pi-pages" hidden></div>
+      <button type="button" class="btn go pi-read" id="pi-ai-btn" hidden disabled></button>
+      <div class="hint" id="pi-ai-status" style="margin:8px 0 0;"></div>
+
 
       <div id="pi-bulk"></div>
       <div class="table-wrap">

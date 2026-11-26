@@ -1021,6 +1021,7 @@
     document.getElementById("pi-paper-qty").addEventListener("input", updateTotals);
 
     // ---------- لصق أصناف ----------
+    document.getElementById("pi-paste-quick").addEventListener("click", () => document.getElementById("pi-paste-toggle").click());
     document.getElementById("pi-paste-toggle").addEventListener("click", () => { const b = document.getElementById("pi-paste-box"); b.hidden = !b.hidden; });
     document.getElementById("pi-paste-cancel").addEventListener("click", () => { document.getElementById("pi-paste-box").hidden = true; });
 

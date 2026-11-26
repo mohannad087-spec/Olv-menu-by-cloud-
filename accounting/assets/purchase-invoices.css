@@ -230,3 +230,12 @@
 .pi-audit { margin: 10px 0; }
 .pi-audit summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .pi-audit .pi-warn { margin: 4px 0; }
+
+/* الخطوة ١ (2026-11-26): المورّد والتاريخ أول، وأزرار الإدخال صف صغير بدل بطاقات كبيرة */
+.pi-step-label{display:flex; align-items:center; gap:8px; font-weight:800; font-size:15px; margin:14px 0 8px;}
+.pi-step-label span{display:inline-grid; place-items:center; width:24px; height:24px; border-radius:50%; background:var(--gold); color:var(--on-gold); font-size:13px;}
+.pi-snaps.pi-snaps-compact{display:flex; flex-wrap:wrap; gap:8px;}
+.pi-snaps-compact .pi-snap{flex:1 1 0; min-width:96px; width:auto; padding:0 12px; min-height:46px; justify-content:center; gap:8px; border-radius:12px;}
+.pi-snaps-compact .pi-snap-ic{font-size:20px;}
+.pi-snaps-compact .pi-snap b{font-size:14px; display:inline;}
+.pi-drop{margin-top:6px; padding:6px 10px; border-style:solid; border-color:transparent; font-size:12.5px;}
