@@ -246,3 +246,13 @@
 .pi-more-line > summary::-webkit-details-marker{display:none;}
 .pi-more-line[open] > summary{color:var(--gold-hi); font-weight:700;}
 .pi-more-body{display:flex; flex-direction:column; gap:6px; align-items:flex-start; padding-top:4px;}
+
+/* الخطوة ٣ (2026-11-26): شريط حفظ ثابت تحت + فلاتر السجل مطوية */
+.pi-savebar{position:sticky; bottom:var(--bnav-h, 0px); z-index:5; display:flex; align-items:center; gap:12px; margin:14px -4px 0; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:var(--ink-2); border-top:1px solid var(--hair); border-radius:14px 14px 0 0; box-shadow:0 -6px 18px rgba(0,0,0,.08);}
+.pi-savebar-total{display:flex; flex-direction:column; line-height:1.2; min-width:96px;}
+.pi-savebar-total small{color:var(--muted); font-size:12px;}
+.pi-savebar-total b{font-size:20px; font-variant-numeric:tabular-nums;}
+.pi-savebar .btn{flex:1; min-height:50px; margin:0;}
+.pv-filter-details{margin:6px 0 10px;}
+.pv-filter-details > summary{cursor:pointer; color:var(--muted); font-size:13.5px; padding:6px 0; list-style:none;}
+.pv-filter-details > summary::-webkit-details-marker{display:none;}

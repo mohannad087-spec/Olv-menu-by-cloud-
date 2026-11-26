@@ -133,7 +133,8 @@
         </div>
       </div>
 
-      <label style="font-size:13px; color:var(--muted); display:block; margin-top:18px;">طريقة الدفع <b style="color:var(--bad,#d33);">*</b> <span id="pi-pay-need" style="color:var(--bad,#d33); font-weight:700;" hidden>اختار كاش أو ذمة قبل الحفظ</span></label>
+      <div class="pi-step-label"><span>٣</span> الدفع والحفظ</div>
+      <label style="font-size:13px; color:var(--muted); display:block; margin-top:4px;">طريقة الدفع <b style="color:var(--bad,#d33);">*</b> <span id="pi-pay-need" style="color:var(--bad,#d33); font-weight:700;" hidden>اختار كاش أو ذمة قبل الحفظ</span></label>
       <div class="pi-pay" id="pi-pay">
         <label data-pay="cash"><input type="radio" name="pi-pay" value="cash">كاش</label>
         <label data-pay="credit"><input type="radio" name="pi-pay" value="credit">ذمة</label>
@@ -206,9 +207,9 @@
           <div class="pi-warn" id="pi-match-warn" hidden></div>
           <button type="button" class="btn" id="pi-diff-btn" hidden style="width:100%; margin-top:8px;">🔎 دوّر على الفرق بالذكاء الاصطناعي</button>
           <div id="pi-diff" class="pi-diff" hidden></div>
-          <button type="button" class="btn gold" id="pi-save" style="width:100%; margin-top:12px; min-height:50px;">حفظ الفاتورة</button>
         </div>
       </div>
+      <div class="pi-savebar" id="pi-savebar"><div class="pi-savebar-total"><small>الإجمالي المستحق</small><b id="pi-total-bar">0.00</b></div><button type="button" class="btn gold" id="pi-save">حفظ الفاتورة</button></div>
     </div>
 
     <div class="stats pv-stats">
@@ -225,6 +226,7 @@
         <div class="pv-search" id="pv-search-wrap"><input type="search" id="pv-q" placeholder="ابحث بالمورّد أو رقم الفاتورة (ش-12)" aria-label="بحث بالمورّد أو رقم الفاتورة" autocomplete="off"></div>
       </div>
       <div class="pv-chips" id="pv-chips" role="group" aria-label="نوع الفواتير"></div>
+      <details class="pv-filter-details"><summary>فلترة وتصدير</summary>
       <div class="pv-filters" id="pv-filters">
         <select id="pv-sup" aria-label="المورّد"><option value="">كل الموردين</option></select>
         <label>من <input type="date" id="pv-from" dir="ltr"></label>
@@ -232,6 +234,7 @@
         <button type="button" class="btn small" id="pv-clear" hidden>مسح الفلتر</button>
         <button type="button" class="btn small" id="pv-export">تصدير Excel</button>
       </div>
+      </details>
       <div class="hint" id="pi-tax-summary" hidden></div>
       <div id="pi-history"><div class="pv-empty">جاري التحميل...</div></div>
       <div class="pv-more" id="pv-more" hidden><button class="btn" type="button" id="pv-more-btn">عرض كمان</button></div>
