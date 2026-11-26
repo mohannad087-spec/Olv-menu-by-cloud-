@@ -423,6 +423,7 @@
       document.getElementById("pi-row-tax").hidden = !(T.tax > 0);
       document.getElementById("pi-tax-val").textContent = money(T.tax) + (T.inclusive ? " (مضمّنة)" : "");
       document.getElementById("pi-total").textContent = money(total);
+      const tb = document.getElementById("pi-total-bar"); if (tb) tb.textContent = money(total);
       document.getElementById("pi-paid").textContent = money(paid);
       document.getElementById("pi-remaining").textContent = money(total - paid);
       document.getElementById("pi-row-paid").hidden = payMode === "cash" || !payMode;
