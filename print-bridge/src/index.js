@@ -13,7 +13,7 @@ const { buildReceiptTicket } = require("./ticket-receipt");
 const { buildCharcoalBuffer } = require("./charcoal");
 const { buildCancelTicket, buildTestTicket, buildLayoutSampleTicket } = require("./ticket-extra");
 
-const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 4000);
+const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 1500);
 // مهمة تحضير/إلغاء أقدم من هالمدة (مثلاً بعد انقطاع طويل) ما بتنطبع تلقائيًا —
 // بتنتظر قرار الكاشير من صفحة الإعدادات، بدل ما تنطبع طلبات قديمة دفعة وحدة
 const STALE_MINUTES = Number(process.env.STALE_MINUTES || 15);
@@ -151,10 +151,11 @@ async function processJob(job, settings, printers, saleCache) {
         ? buildLayoutSampleTicket(printer, settings, job.test_layout)
         : buildTestTicket(printer, target);
     } else {
+      // نخزّن الوعد (Promise) مش النتيجة: طابعات متوازية لنفس البيعة بتشارك طلب واحد
       if (!saleCache.has(job.sale_id)) {
-        saleCache.set(job.sale_id, await loadSaleWithItems(job.sale_id));
+        saleCache.set(job.sale_id, loadSaleWithItems(job.sale_id));
       }
-      const sale = saleCache.get(job.sale_id);
+      const sale = await saleCache.get(job.sale_id);
       if (!sale) throw new Error("تعذّر إيجاد بيانات عملية البيع المرتبطة بهذه المهمة");
       // البيع انطبع أصلًا من سيرفر المحل وقت انقطاع النت، ورجع النت ووصل للسحابة: ما منطبعه مرتين
       // (إعادة الطباعة اليدوية reprint_no بتنطبع عادي)
@@ -210,7 +211,7 @@ async function processJob(job, settings, printers, saleCache) {
     // بطاقة فحم لكل أرجيلة مع فاتورة البيع الحقيقية (مش تجريبي ولا إعادة طباعة)؛ فشلها ما بيفشّل الفاتورة
     if (job.job_type === "receipt" && !job.reprint_no && !job.bill_kind && !isTest && printer && printer.kind === "receipt") {
       try {
-        const sale = saleCache.get(job.sale_id);
+        const sale = saleCache.has(job.sale_id) ? await saleCache.get(job.sale_id) : null;
         const cards = sale ? buildCharcoalBuffer(sale, settings) : null;
         if (cards) { await sendToPrinter(target.ip, target.port || 9100, cards); log(`✓ بطاقات فحم انطبعت على "${label}"`); }
       } catch (e) { log(`⚠ تعذّرت طباعة بطاقة الفحم على "${label}":`, e.message); }
@@ -262,9 +263,17 @@ async function tick() {
     if (error) throw error;
     if (jobs && jobs.length) {
       const saleCache = new Map();
+      // الطابعات المختلفة بالتوازي (كاش + بار + سناكات...)، ونفس الطابعة بالترتيب
+      // — قبل كان كل شي ورا بعض فتذكرة المطبخ تستنى الفاتورة
+      const byPrinter = new Map();
       for (const job of jobs) {
-        await processJob(job, settings, printers, saleCache);
+        const k = job.printer_id || `legacy-${job.job_type === "kitchen" ? "k" : "r"}`;
+        if (!byPrinter.has(k)) byPrinter.set(k, []);
+        byPrinter.get(k).push(job);
       }
+      await Promise.all([...byPrinter.values()].map(async (list) => {
+        for (const job of list) await processJob(job, settings, printers, saleCache);
+      }));
     }
   } catch (err) {
     log("خطأ أثناء دورة فحص الطباعة:", err.message);
