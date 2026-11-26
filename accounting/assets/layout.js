@@ -44,6 +44,7 @@ const OLV_ICON_PATHS = {
   trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   person: '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>',
   undo: '<path d="M7 8H3V4"/><path d="M3.5 13a8.5 8.5 0 1 0 2.4-8.4L3 8"/>',
   printer: '<path d="M6 8V3h12v5"/><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M6 16v5h12v-5"/>',
