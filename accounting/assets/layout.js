@@ -348,6 +348,8 @@ function olvRenderNav(active) {
         { id: "purchase-invoices", href: "purchase-invoices.html", label: "المشتريات", icon: "receipt" },
         { id: "purchase-orders", href: "purchase-orders.html", label: "تجهيز طلبية", icon: "clipboard" },
         { id: "suppliers", href: "suppliers.html", label: "الموردون", icon: "truck" },
+        { id: "price-history", href: "price-history.html", label: "سجل الأسعار", icon: "barChart" },
+        { id: "supplier-report", href: "supplier-report.html", label: "تقرير الموردين", icon: "clipboard" },
         { id: "item-cards", href: "item-cards.html", label: "بطاقة المادة", icon: "tag" },
         { id: "product-recipes", href: "product-recipes.html", label: "الأصناف والوصفات", icon: "coffee", staffHref: "recipes.html", staffLabel: "دليل تحضير المشروبات" },
       ],
