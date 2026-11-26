@@ -1509,7 +1509,8 @@
         const [{ data: prodData, error: e1 }, { data: addonData, error: e2 }, { data: salesData, error: e3 }] = await Promise.all([
           window.supabaseClient.from("products").select("*").eq("is_active", true).order("category").order("sort_order"),
           window.supabaseClient.from("addons").select("*").eq("is_active", true).order("name"),
-          window.supabaseClient.from("product_sales_totals").select("*"),
+          // الأكثر مبيعًا مجرد ترتيب: ما لازم نوقف فتح الكاشير عليه، بنحمّله بالخلفية
+          Promise.resolve({ data: null }),
         ]);
         if (e1) throw e1;
         if (e2) throw e2;
@@ -1521,6 +1522,7 @@
         (salesData || []).forEach((r) => { popularity[r.product_id] = Number(r.total_qty); });
         renderCategoryTabs();
         renderGrid();
+        refreshPopularityAndGrid();
       } catch (err) {
         // النت مقطوع والصفحة انفتحت من جديد: منبيع من آخر منيو محفوظ على هالجهاز
         if (olvIsNetworkError(err) && loadMenuCache()) {
