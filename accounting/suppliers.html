@@ -219,6 +219,8 @@
         <button type="submit" class="btn gold">تسجيل دفعة</button>
       </form>
 
+      <div style="margin-top:12px;"><button type="button" class="btn small" id="return-btn">↩ مرتجع بضاعة / إشعار دائن</button>
+        <div class="hint">رجّعت بضاعة للمورّد أو أعطاك خصم؟ بينقص من الذمة (وبيسحب الكمية من المخزون إذا رجّعت بضاعة).</div></div>
       <div class="hint" style="margin-top:12px;">
         بضاعة جديدة من هالمورّد؟ سجّلها من <a id="new-invoice-link" href="purchase-invoices.html">فاتورة مشتريات</a>، عشان تدخل المخزون والمصاريف والدين مع بعض.
       </div>
@@ -309,7 +311,7 @@
     let currentBalance = 0;
     let hasInvoices = false;
 
-    const TYPE_LABELS = { invoice: "فاتورة", payment: "دفعة" };
+    const TYPE_LABELS = { invoice: "فاتورة", payment: "دفعة", credit: "مرتجع / إشعار دائن" };
     const balOf = (id) => (balances[id] ? Number(balances[id].balance) : 0);
     // سالب = دفعنا أكثر من المستحق، فالمورّد صار إله رصيد لصالحنا
     function balanceView(bal) {
@@ -473,7 +475,7 @@
       const opening = f ? lastTransactions.filter((t) => t.transaction_date < f).reduce((s, t) => s + (t.type === "invoice" ? 1 : -1) * Number(t.amount), 0) : 0;
       const rows = lastTransactions.filter(inRange);
       const inv = rows.filter((t) => t.type === "invoice").reduce((s, t) => s + Number(t.amount), 0);
-      const paid = rows.filter((t) => t.type === "payment").reduce((s, t) => s + Number(t.amount), 0);
+      const paid = rows.filter((t) => t.type === "payment" || t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
       return { opening, rows, inv, paid, closing: opening + inv - paid };
     }
 
@@ -493,11 +495,25 @@
           <td>${olvFormatMoney(t.running)}</td>
           <td>${t.invoice_id
             ? `<a class="hint" href="purchase-invoices.html" title="هالقيد جاي من فاتورة مشتريات — لتصحيحه، ألغِ الفاتورة نفسها">من فاتورة</a>`
-            : `<button class="btn small danger" data-del-tx="${t.id}">حذف</button>`}</td>
+            : t.type === "credit" && t.return_id
+              ? (window.olvRole === "owner" ? `<button class="btn small danger" data-void-ret="${t.return_id}">إلغاء المرتجع</button>` : "—")
+              : `<button class="btn small danger" data-del-tx="${t.id}">حذف</button>`}</td>
         </tr>`).join("");
     }
 
     $("transactions-body").addEventListener("click", async (e) => {
+      const vb = e.target.closest("button[data-void-ret]");
+      if (vb) {
+        const reason = prompt("سبب إلغاء المرتجع (بيرجّع البضاعة للمخزون):");
+        if (!reason || reason.trim().length < 3) return;
+        try {
+          const { error } = await sb().rpc("void_purchase_return", { p_return_id: vb.dataset.voidRet, p_reason: reason.trim() });
+          if (error) throw error;
+          olvToast("انلغى المرتجع ورجعت البضاعة للمخزون");
+          await loadTransactions(); await loadSuppliers();
+        } catch (err) { olvShowError(errBox, err); }
+        return;
+      }
       const btn = e.target.closest("button[data-del-tx]");
       if (!btn) return;
       const t = lastTransactions.find((x) => x.id === btn.dataset.delTx);
@@ -527,9 +543,10 @@
 
         const totalInvoiced = lastTransactions.filter((t) => t.type === "invoice").reduce((s, t) => s + Number(t.amount), 0);
         const totalPaid = lastTransactions.filter((t) => t.type === "payment").reduce((s, t) => s + Number(t.amount), 0);
-        currentBalance = totalInvoiced - totalPaid;
+        const totalCredit = lastTransactions.filter((t) => t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
+        currentBalance = totalInvoiced - totalPaid - totalCredit;
         $("d-invoiced").textContent = olvFormatMoney(totalInvoiced);
-        $("d-paid").textContent = olvFormatMoney(totalPaid);
+        $("d-paid").textContent = olvFormatMoney(totalPaid) + (totalCredit > 0 ? " + مرتجعات " + olvFormatMoney(totalCredit) : "");
         const v = balanceView(currentBalance);
         $("d-balance-label").textContent = currentBalance < -0.004 ? "رصيد لصالحك عند المورّد" : "الرصيد المستحق";
         $("d-balance").textContent = v.text;
@@ -564,7 +581,7 @@
             <td>${TYPE_LABELS[t.type] || olvEsc(t.type)}${t.payment_method ? " · " + ({ cash: "كاش", bank: "بنك", click: "كليك" }[t.payment_method] || "") : ""}</td>
             <td class="d">${olvEsc(t.description) || "—"}</td>
             <td class="m">${t.type === "invoice" ? money(t.amount) : ""}</td>
-            <td class="m">${t.type === "payment" ? money(t.amount) : ""}</td>
+            <td class="m">${t.type === "payment" || t.type === "credit" ? money(t.amount) : ""}</td>
             <td class="m b">${money(t.running)}</td>
           </tr>`).join("")
         : `<tr><td colspan="7" class="empty">ما في حركات بهالفترة</td></tr>`;
@@ -721,6 +738,60 @@ tr.payment td.m:nth-child(6){color:#0f7d68; font-weight:700}
         olvShowError(errBox, err);
       }
     }
+
+    // ---------- مرتجع بضاعة / إشعار دائن ----------
+    $("return-btn").addEventListener("click", async () => {
+      const sid = selectedSupplier; if (!sid) return;
+      let opts = [];
+      try {
+        const { data } = await sb().from("purchases_active").select("ingredient_id, supply_id, item_name, unit, unit_price, purchase_date").eq("supplier_id", sid).order("purchase_date", { ascending: false }).limit(600);
+        const seen = new Set();
+        (data || []).forEach((r) => { const k = r.ingredient_id ? "ingredient:" + r.ingredient_id : "supply:" + r.supply_id; if (seen.has(k)) return; seen.add(k); opts.push({ k, name: r.item_name, unit: r.unit, price: Number(r.unit_price) }); });
+      } catch (_) {}
+      const dlg = document.createElement("dialog");
+      dlg.style.cssText = "border:1px solid var(--hair);border-radius:18px;padding:20px;max-width:460px;width:calc(100% - 32px);background:var(--ink-2);color:var(--paper);font-family:'Tajawal',sans-serif;";
+      const optHtml = opts.map((o, i) => `<option value="${i}">${olvEsc(o.name)} — ${olvEsc(o.unit)}</option>`).join("");
+      dlg.innerHTML = `<form method="dialog" id="rt-form" style="display:flex;flex-direction:column;gap:12px;">
+        <h2 style="margin:0;font-size:18px;">مرتجع / إشعار دائن</h2>
+        <div class="pay-method" id="rt-mode"><label class="on"><input type="radio" name="rt-m" value="goods" checked>رجّعت بضاعة</label><label><input type="radio" name="rt-m" value="amount">خصم بمبلغ بس</label></div>
+        <div id="rt-goods"><div id="rt-lines"></div><button type="button" class="btn small" id="rt-add">＋ مادة</button></div>
+        <div id="rt-amt" hidden class="field"><label>المبلغ</label><input type="number" id="rt-amount" step="0.01" min="0.01" inputmode="decimal"></div>
+        <div class="field"><label>التاريخ</label><input type="date" id="rt-date" value="${olvToday()}"></div>
+        <div class="field"><label>السبب (مطلوب)</label><input type="text" id="rt-reason" maxlength="200" placeholder="مثال: بضاعة تالفة / ناقصة"></div>
+        <div class="hint" id="rt-total"></div><div class="hint" id="rt-err" style="color:var(--danger-hi)"></div>
+        <div style="display:flex;gap:8px;"><button type="button" class="btn gold" id="rt-save">تسجيل</button><button type="button" class="btn" id="rt-cancel">إلغاء</button></div></form>`;
+      document.body.appendChild(dlg); dlg.showModal();
+      const q = (id) => dlg.querySelector(id);
+      const lineRow = () => { const d = document.createElement("div"); d.className = "row2"; d.style.marginBottom = "8px"; d.innerHTML = `<select class="rt-it" style="width:100%">${optHtml || "<option value=''>ما في مشتريات من هالمورّد</option>"}</select><div style="display:flex;gap:6px"><input type="number" class="rt-q" step="0.001" min="0" placeholder="الكمية" inputmode="decimal" style="width:50%"><input type="number" class="rt-p" step="0.001" min="0" placeholder="السعر" inputmode="decimal" style="width:50%"></div>`; return d; };
+      const fill = (d) => { const o = opts[Number(d.querySelector(".rt-it").value)]; if (o) d.querySelector(".rt-p").value = o.price; };
+      const addLine = () => { const d = lineRow(); q("#rt-lines").appendChild(d); fill(d); d.querySelector(".rt-it").addEventListener("change", () => fill(d)); d.addEventListener("input", tot); };
+      const mode = () => dlg.querySelector("input[name=rt-m]:checked").value;
+      function tot() { const t = mode() === "amount" ? Number(q("#rt-amount").value) || 0 : [...dlg.querySelectorAll("#rt-lines .row2")].reduce((s, d) => s + (Number(d.querySelector(".rt-q").value) || 0) * (Number(d.querySelector(".rt-p").value) || 0), 0); q("#rt-total").textContent = "إجمالي المرتجع: " + olvFormatMoney(t); }
+      addLine(); tot();
+      q("#rt-add").addEventListener("click", addLine); q("#rt-amount").addEventListener("input", tot);
+      q("#rt-mode").addEventListener("change", () => { dlg.querySelectorAll("#rt-mode label").forEach((l) => l.classList.toggle("on", l.querySelector("input").checked)); q("#rt-goods").hidden = mode() !== "goods"; q("#rt-amt").hidden = mode() !== "amount"; tot(); });
+      q("#rt-cancel").addEventListener("click", () => { dlg.close(); dlg.remove(); });
+      q("#rt-save").addEventListener("click", async () => {
+        const err = q("#rt-err"); err.textContent = "";
+        const lines = []; let amount = null;
+        if (mode() === "goods") {
+          for (const d of dlg.querySelectorAll("#rt-lines .row2")) {
+            const o = opts[Number(d.querySelector(".rt-it").value)], qty = Number(d.querySelector(".rt-q").value), price = Number(d.querySelector(".rt-p").value);
+            if (!o || !(qty > 0)) continue;
+            lines.push({ [o.k.startsWith("ingredient:") ? "ingredient_id" : "supply_id"]: o.k.split(":")[1], qty, unit_price: price });
+          }
+          if (!lines.length) { err.textContent = "أضف مادة وكمية"; return; }
+        } else { amount = Number(q("#rt-amount").value); if (!(amount > 0)) { err.textContent = "اكتب المبلغ"; return; } }
+        if (q("#rt-reason").value.trim().length < 3) { err.textContent = "اكتب السبب"; return; }
+        q("#rt-save").disabled = true;
+        try {
+          const { error } = await sb().rpc("record_purchase_return", { p_supplier_id: sid, p_date: q("#rt-date").value || olvToday(), p_reason: q("#rt-reason").value.trim(), p_lines: lines, p_amount: amount });
+          if (error) throw error;
+          dlg.close(); dlg.remove(); olvToast("انسجل المرتجع");
+          await loadTransactions(); await loadSuppliers();
+        } catch (e2) { err.textContent = e2.message || String(e2); q("#rt-save").disabled = false; }
+      });
+    });
     $("invoice-form").addEventListener("submit", (e) => { e.preventDefault(); addTransaction("invoice", "inv"); });
     $("pay-method").addEventListener("change", (e) => {
       document.querySelectorAll("#pay-method label").forEach((l) => l.classList.toggle("on", l.dataset.m === e.target.value));
