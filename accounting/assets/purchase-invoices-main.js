@@ -411,6 +411,7 @@
     // مجموع الكميات المكتوبة بالسطور (بوحدة الفاتورة، من غير البونص) — نفس اللي بيطلع عادةً أسفل الفاتورة الورقية
     const qtyOfLines = () => Math.round(lines.reduce((sum, l) => sum + (Number(l.qty) || 0), 0) * 1000) / 1000;
     function updateTotals() {
+      if (typeof renderAudit === "function") renderAudit();
       const T = computeTotals();
       const total = T.total;
       let paid = (payMode === "cash" || !payMode) ? total : payMode === "credit" ? 0 : Math.min(Number(document.getElementById("pi-partial").value) || 0, total);
@@ -465,16 +466,34 @@
 
     // ---------- قائمة اقتراحات بحث بالكلمات (بدل datalist اللي بيطابق نص متصل بس) ----------
     // "معس بطيخ" بتلاقي "معسل مزايا بطيخ". الاختيار بيحط نفس نص الخيار بالخانة وبيطلق نفس حدث الإدخال، فمنطق المطابقة تحته ما اتغيّر
-    const ac = { box: null, input: null, opts: [], idx: -1 };
+    const ac = { box: null, input: null, opts: [], idx: -1, showAll: false };
     function acClose() {
       if (ac.input) { ac.input.setAttribute("aria-expanded", "false"); ac.input.removeAttribute("aria-activedescendant"); }
       if (ac.box) { ac.box.remove(); ac.box = null; } ac.input = null; ac.opts = []; ac.idx = -1;
     }
     function acOptions(q, kind) {
-      if (!String(q).trim()) return [];
-      const mine = items.filter((it) => (!kind || it.kind === kind) && olvSearchMatch(itemLabel(it), q)).slice(0, 8).map((it) => ({ label: itemLabel(it), name: it.name, meta: it.kind === "ingredient" ? "مادة خام" : "مستلزم" }));
+      const sh = supplierHist();
+      const supMeta = (it) => { const h = sh.byItem.get(it.kind + ":" + it.id); return h ? `من فواتيره · ${h.n} مرة · آخر سعر ${money(h.last)}` : ""; };
+      if (!String(q).trim()) {
+        // خانة فاضية + مورّد مختار: أكتر المواد اللي اشتريتها منه
+        if (!sh) return [];
+        return items.filter((it) => (!kind || it.kind === kind) && sh.byItem.has(it.kind + ":" + it.id))
+          .sort((a, b) => sh.byItem.get(b.kind + ":" + b.id).n - sh.byItem.get(a.kind + ":" + a.id).n).slice(0, 8)
+          .map((it) => ({ label: itemLabel(it), name: it.name, meta: supMeta(it) }));
+      }
+      const found = items.filter((it) => (!kind || it.kind === kind) && olvSearchMatch(itemLabel(it), q));
+      const toOpt = (it, meta) => ({ label: itemLabel(it), name: it.name, meta: meta || (it.kind === "ingredient" ? "مادة خام" : "مستلزم") });
+      let mine, ownFound = false;
+      if (sh) {
+        // حصر الاقتراحات بمواد المورّد؛ إذا ما في تطابق عنده منعرض الباقي مع تنبيه إنها جديدة عليه
+        const own = found.filter((it) => sh.byItem.has(it.kind + ":" + it.id)).slice(0, 8).map((it) => toOpt(it, supMeta(it)));
+        const rest = found.filter((it) => !sh.byItem.has(it.kind + ":" + it.id));
+        ownFound = own.length > 0;
+        if (own.length && !ac.showAll) mine = own.concat(rest.length ? [{ more: true, label: "", name: `＋ عرض ${rest.length} مادة ثانية (مو من فواتيره)`, meta: "" }] : []);
+        else mine = own.concat(rest.slice(0, 8).map((it) => toOpt(it, "جديدة عند هالمورد · " + (it.kind === "ingredient" ? "مادة خام" : "مستلزم"))));
+      } else mine = found.slice(0, 8).map((it) => toOpt(it));
       const cat = catalogOnly.filter((e) => (!kind || (e.kind === "s" ? "supply" : "ingredient") === kind) && olvSearchMatch(e.name + " " + (e.hay || ""), q)).slice(0, 6).map((e) => ({ label: catLabel(e), name: e.name, meta: "من الكتالوج (بتنضاف للمخزون)" }));
-      return mine.concat(cat);
+      return mine.concat(ownFound && !ac.showAll ? [] : cat);
     }
     function acRender() {
       if (!ac.input) return;
@@ -492,14 +511,21 @@
     }
     function acPick(i) {
       const o = ac.opts[i]; const inp = ac.input; if (!o || !inp) return;
+      if (o.more) { ac.showAll = true; const tl = lines[Number(inp.closest("tr").dataset.idx)]; ac.opts = acOptions(inp.value, tl ? kindOf(tl) : null); ac.idx = -1; acRender(); return; }
       inp.value = o.label; acClose();
       inp.dispatchEvent(new Event("input", { bubbles: true }));
     }
     document.addEventListener("input", (e) => {
       const t = e.target; if (!t.matches || !t.matches('#pi-lines input[data-f="item"]')) return;
       const exact = labelToItem().has(t.value) || catalogOnly.some((c) => catLabel(c) === t.value);
-      ac.input = t; ac.idx = -1; const tl = lines[Number(t.closest("tr").dataset.idx)];
+      ac.input = t; ac.idx = -1; ac.showAll = false; const tl = lines[Number(t.closest("tr").dataset.idx)];
       ac.opts = exact ? [] : acOptions(t.value, tl ? kindOf(tl) : null); acRender();
+    });
+    // أول ما تفتح خانة الصنف الفاضية ومورّد مختار: اقتراحات من فواتيره السابقة
+    document.addEventListener("focusin", (e) => {
+      const t = e.target; if (!t.matches || !t.matches('#pi-lines input[data-f="item"]') || t.value.trim() || !supplierHist()) return;
+      ac.input = t; ac.idx = -1; ac.showAll = false; const tl = lines[Number(t.closest("tr").dataset.idx)];
+      ac.opts = acOptions("", tl ? kindOf(tl) : null); acRender();
     });
     document.addEventListener("keydown", (e) => {
       const t = e.target; if (!ac.box || ac.box.hidden || t !== ac.input) return;
@@ -2120,6 +2146,110 @@
       banner.textContent = "الأصناف والكميات محمّلة من طلبيتك — عدّل على الكميات والأسعار حسب الفاتورة الفعلية، وبعد الحفظ بتتعلّم الطلبية «مستلمة».";
       document.getElementById("pi-supplier").closest(".field").before(banner);
     }
+
+
+    // ---------- ذاكرة المورّد + فاحص الفاتورة ----------
+    // بنحمّل مشتريات المورّد السابقة مرة، ومنها: (1) اقتراحات مقتصرة على مواده (2) فحص ذكي للأسعار والكميات والتكرار
+    let supHistData = null, supHistLoading = null;
+    const curSup = () => document.getElementById("pi-supplier").value || "";
+    function supplierHist() { return supHistData && supHistData.sid === curSup() && curSup() ? supHistData : null; }
+    const median = (a) => { const b = a.slice().sort((x, y) => x - y); const m = b.length >> 1; return b.length ? (b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2) : 0; };
+    async function ensureSupplierHist() {
+      const sid = curSup();
+      if (!sid) { supHistData = null; return; }
+      if ((supHistData && supHistData.sid === sid) || supHistLoading === sid) return;
+      supHistLoading = sid;
+      try {
+        let q = window.supabaseClient.from("purchases_active").select("ingredient_id,supply_id,quantity,unit_price,purchase_date,invoice_id")
+          .eq("supplier_id", sid).order("purchase_date", { ascending: false }).limit(1500);
+        if (editingId) q = q.neq("invoice_id", editingId);
+        const { data, error } = await q;
+        if (error) throw error;
+        const byItem = new Map(), inv = new Set();
+        (data || []).forEach((r) => {
+          if (r.invoice_id) inv.add(r.invoice_id);
+          const key = r.ingredient_id ? "ingredient:" + r.ingredient_id : "supply:" + r.supply_id;
+          let h = byItem.get(key);
+          if (!h) { h = { n: 0, last: Number(r.unit_price), lastDate: r.purchase_date, prices: [], qtys: [] }; byItem.set(key, h); }
+          h.n++; if (h.prices.length < 8) { h.prices.push(Number(r.unit_price)); h.qtys.push(Number(r.quantity)); }
+        });
+        byItem.forEach((h) => { h.medPrice = median(h.prices); h.medQty = median(h.qtys); });
+        if (sid === curSup()) supHistData = { sid, byItem, invoices: inv.size };
+      } catch (_) { supHistData = null; }
+      finally { supHistLoading = null; }
+      renderAudit();
+    }
+    // رقم الفاتورة مكرر عند نفس المورّد؟ (فحص مبكر؛ السيرفر بيمنعها كمان)
+    let dupNoCache = { key: "", hit: false };
+    async function checkDupNo() {
+      const sid = curSup(), no = document.getElementById("pi-no").value.trim();
+      const key = sid + "|" + no + "|" + (editingId || "");
+      if (!sid || !no || dupNoCache.key === key) return;
+      dupNoCache = { key, hit: false };
+      try {
+        let q = window.supabaseClient.from("purchase_invoices").select("id,invoice_date,total_amount").eq("supplier_id", sid).eq("invoice_no", no).eq("status", "active").limit(1);
+        if (editingId) q = q.neq("id", editingId);
+        const { data } = await q;
+        if (data && data.length) { dupNoCache = { key, hit: true, date: data[0].invoice_date, total: data[0].total_amount }; renderAudit(); }
+      } catch (_) {}
+    }
+    function auditFindings() {
+      const out = []; // { lvl: "bad"|"warn"|"info", idx, msg }
+      const sh = supplierHist();
+      const seen = new Map();
+      lines.forEach((l, idx) => {
+        const it = itemOf(l); if (!it) return;
+        const qty = Number(l.qty) || 0, price = Number(l.price) || 0;
+        if (!qty && !price) return;
+        const nm = it.name;
+        // تكرار نفس المادة بسطرين
+        const k = l.itemKey + "|" + l.unitMode;
+        if (seen.has(k)) out.push({ lvl: "warn", idx, msg: `«${nm}» مكررة بسطرين بنفس الفاتورة — ممكن تدمجها بسطر واحد` });
+        else seen.set(k, idx);
+        if (qty > 0 && price === 0 && !(bonusOf(l) > 0)) out.push({ lvl: "warn", idx, msg: `«${nm}» سعرها صفر — فعلاً مجانية؟` });
+        if (!(price > 0) || !(qty > 0)) return;
+        const sp = stockPriceOf(l, it), sq = qty * factorOf(l, it);
+        const h = sh && sh.byItem.get(l.itemKey);
+        if (h && h.medPrice > 0) {
+          const r = sp / h.medPrice, pct = Math.round((r - 1) * 100);
+          const slipX = [10, 100, 1000].find((x) => Math.abs(r / x - 1) < 0.15 || Math.abs(r * x - 1) < 0.15), slip = slipX ? (r > 1 ? "×" : "÷") + slipX : "";
+          if (slip) out.push({ lvl: "bad", idx, msg: `«${nm}»: السعر ${money(sp)} مقابل ${money(h.medPrice)} عادةً عند هالمورد — شبه غلطة فاصلة (${slip})` });
+          else if (r > 1.25 || r < 0.8) out.push({ lvl: r > 1.5 || r < 0.5 ? "bad" : "warn", idx, msg: `«${nm}»: ${pct > 0 ? "أغلى" : "أرخص"} ${Math.abs(pct)}% من سعره المعتاد عند هالمورد (${money(h.medPrice)} / ${it.unit})` });
+          if (h.n >= 3 && h.medQty > 0 && (sq / h.medQty >= 3 || sq / h.medQty <= 1 / 3)) out.push({ lvl: "warn", idx, msg: `«${nm}»: الكمية ${fmtQ(sq)} ${it.unit} بعيدة عن المعتاد (${fmtQ(h.medQty)}) — تأكد من الكمية أو الوحدة` });
+        } else if (sh && sh.invoices >= 3) {
+          out.push({ lvl: "info", idx, msg: `«${nm}» أول مرة بتشتريها من هالمورد (عنده ${sh.invoices} فواتير بدونها)` });
+        }
+      });
+      if (dupNoCache.hit && document.getElementById("pi-no").value.trim()) out.unshift({ lvl: "bad", idx: -1, msg: `رقم الفاتورة موجود قبل عند نفس المورد (بتاريخ ${dupNoCache.date}، ${money(Number(dupNoCache.total))}) — ممكن تكون مسجّلة مرتين` });
+      const d = document.getElementById("pi-date").value;
+      if (d) {
+        const diff = Math.round((new Date(olvToday()) - new Date(d)) / 86400000);
+        if (diff < 0) out.unshift({ lvl: "bad", idx: -1, msg: "تاريخ الفاتورة بالمستقبل" });
+        else if (diff > 30) out.unshift({ lvl: "warn", idx: -1, msg: `تاريخ الفاتورة قديم (قبل ${diff} يوم) — صح؟` });
+      }
+      return out;
+    }
+    let auditTimer = null;
+    function renderAudit() {
+      clearTimeout(auditTimer);
+      auditTimer = setTimeout(() => {
+        const box = document.getElementById("pi-audit"); if (!box) return;
+        ensureSupplierHist(); checkDupNo();
+        const f = auditFindings();
+        if (!f.length) { box.hidden = true; box.innerHTML = ""; return; }
+        const open = box.querySelector("details") ? box.querySelector("details").open : f.some((x) => x.lvl === "bad");
+        const bad = f.filter((x) => x.lvl === "bad").length;
+        box.hidden = false;
+        box.innerHTML = `<details${open ? " open" : ""}><summary>🔎 فحص الفاتورة: ${f.length} ملاحظة${bad ? ` (${bad} مهمة)` : ""}</summary>` +
+          f.map((x) => `<div class="pi-warn ${x.lvl === "bad" ? "bad" : ""}" ${x.idx >= 0 ? `data-audit-idx="${x.idx}" style="cursor:pointer"` : ""}>${x.lvl === "info" ? "ℹ️ " : x.lvl === "bad" ? "⚠ " : "• "}${olvEsc(x.msg)}</div>`).join("") + "</details>";
+      }, 200);
+    }
+    document.getElementById("pi-audit").addEventListener("click", (e) => {
+      const r = e.target.closest("[data-audit-idx]"); if (!r) return;
+      const tr = document.querySelector(`#pi-lines tr[data-idx="${r.dataset.auditIdx}"]`); if (tr) tr.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    document.getElementById("pi-supplier").addEventListener("change", () => { supHistData = null; renderAudit(); });
+    ["pi-no", "pi-date"].forEach((id) => document.getElementById(id).addEventListener("input", renderAudit));
 
     (async () => {
       const session = await olvRequireAuth();

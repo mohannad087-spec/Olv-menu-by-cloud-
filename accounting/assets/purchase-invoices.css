@@ -225,3 +225,8 @@
     #inv-print .ip-foot{margin-top:18px; padding-top:8px; border-top:1px solid #ddd; font-size:11px; color:#888; display:flex; justify-content:space-between;}
     #inv-print .ip-void{position:fixed; top:42%; left:0; right:0; text-align:center; font-size:90px; font-weight:800; color:rgba(179,64,47,.16); transform:rotate(-18deg); pointer-events:none;}
   }
+
+/* فاحص الفاتورة */
+.pi-audit { margin: 10px 0; }
+.pi-audit summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.pi-audit .pi-warn { margin: 4px 0; }
